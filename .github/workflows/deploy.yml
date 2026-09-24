@@ -32,8 +32,21 @@ jobs:
       - name: Compile and run every lesson, drill and project with real GCC/G++
         run: npm run content -- --no-cache
 
-      - name: Type-check and build the site
+      - name: Type-check and build the site (plus one pre-rendered page per route, sitemap.xml)
         run: npm run build
+        env:
+          # Real paths (/<repo>/learn/...) need the repository name, and canonical
+          # links need the full site address.
+          BASE_PATH: /${{ github.event.repository.name }}/
+          SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+
+      - name: Install Chromium for the browser tests
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser tests, including accessibility (axe, WCAG 2.2 AA) and SEO checks
+        run: npm run test:e2e
+        env:
+          BASE_PATH: /${{ github.event.repository.name }}/
 
       - name: Upload the site
         if: github.event_name != 'pull_request'

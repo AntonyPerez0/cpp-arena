@@ -5,7 +5,8 @@ marked.setOptions({ gfm: true, breaks: false });
 
 /** Renders trusted lesson markdown (content is authored in this repo). */
 export default function Markdown({ text, className = "" }: { text: string; className?: string }) {
-  const html = useMemo(() => marked.parse(text, { async: false }) as string, [text]);
+  // Code blocks can scroll sideways, so they must be reachable with the keyboard.
+  const html = useMemo(() => (marked.parse(text, { async: false }) as string).replace(/<pre>/g, '<pre tabindex="0">'), [text]);
   return <div className={"md " + className} dangerouslySetInnerHTML={{ __html: html }} />;
 }
 

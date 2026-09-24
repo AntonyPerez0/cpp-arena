@@ -2,11 +2,12 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { pro } from "../content";
 import { useStore } from "../state/store";
+import { useTitle } from "../lib/title";
 
 export const STARTER_FILE = "pro/cpp-arena-pro.tar.gz";
 
 export function starterUrl() {
-  return new URL(STARTER_FILE, document.baseURI).href;
+  return new URL(import.meta.env.BASE_URL + STARTER_FILE, location.origin).href;
 }
 
 export function importCommand() {
@@ -26,7 +27,7 @@ export function CopyBox({ text }: { text: string }) {
   };
   return (
     <div className="copybox">
-      <pre className="console tiny">{text}</pre>
+      <pre tabIndex={0} className="console tiny">{text}</pre>
       <button className="btn" onClick={copy}>
         {copied ? "Copied" : "Copy"}
       </button>
@@ -35,6 +36,7 @@ export function CopyBox({ text }: { text: string }) {
 }
 
 export default function Pro() {
+  useTitle("Pro Track");
   const s = useStore((x) => x);
   const done = pro.filter((p) => s.pro[p.id]).length;
   const hours = pro.reduce((n, p) => n + p.hours, 0);
@@ -50,7 +52,7 @@ export default function Pro() {
         <div className="muted small">
           {done}/{pro.length} projects passing
         </div>
-        <div className="bar">
+        <div className="bar" aria-hidden="true">
           <div style={{ width: `${(done / Math.max(pro.length, 1)) * 100}%` }} />
         </div>
       </div>

@@ -15,10 +15,11 @@ function skipBrowserccWasm(): Plugin {
   };
 }
 
-// base "./" keeps every URL relative, so the site works on GitHub Pages
-// under any repository name (https://<user>.github.io/<repo>/).
+// Pages live at real paths (/<repo>/learn/c-hello/1) so search engines can index
+// each one, which needs an absolute base. CI sets BASE_PATH from the repository
+// name, so the site still works under any repository name.
 export default defineConfig({
-  base: "./",
+  base: process.env.BASE_PATH ?? "/cpp-arena/",
   plugins: [react(), skipBrowserccWasm()],
   worker: { format: "es", plugins: () => [skipBrowserccWasm()] },
   build: {

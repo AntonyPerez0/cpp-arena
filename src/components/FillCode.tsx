@@ -29,7 +29,8 @@ export default function FillCode({ template, values, onChange, onSubmit, wrong =
             <input
               ref={i === 0 ? first : undefined}
               className={"blank" + (wrong[i] ? " blank-wrong" : "")}
-              aria-label={`Blank ${i + 1}`}
+              aria-label={`Blank ${i + 1} of ${blanks.length} in the code`}
+              aria-invalid={wrong[i] ? true : undefined}
               spellCheck={false}
               autoCapitalize="off"
               autoComplete="off"

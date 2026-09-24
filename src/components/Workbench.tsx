@@ -22,6 +22,16 @@ type Props = {
   checkLabel?: string;
 };
 
+/** A short summary of a result for screen readers (the visible results panel has the details). */
+function announce(r: GradeResult): string {
+  if (r.status === "pass") return "All tests passed.";
+  if (r.status === "compile-error") return "It didn't compile. The errors are listed below the editor.";
+  if (r.status === "internal-error") return "The compiler hit an internal error. Try again.";
+  const failed = r.tests.filter((t) => !t.pass).length;
+  const rules = r.ruleProblems.length ? ` ${r.ruleProblems.length} rule${r.ruleProblems.length > 1 ? "s" : ""} not met.` : "";
+  return `${failed} of ${r.tests.length} tests failed.${rules} Details are below the editor.`;
+}
+
 export default function Workbench({ ex, initialCode, initialBlanks, hintsUsed, onHint, onSave, onPass, onRevealSolution, checkLabel = "Check" }: Props) {
   const isFill = ex.kind === "fill";
   const blankCount = isFill ? parseTemplate(ex.seed).blanks.length : 0;
@@ -115,8 +125,14 @@ export default function Workbench({ ex, initialCode, initialBlanks, hintsUsed, o
       )}
 
       <div className="actions">
-        <button className="btn btn-primary" onClick={check} disabled={busy}>
-          {busy ? (waiting ? "Waiting for compiler…" : "Compiling…") : `${checkLabel}  ⌃↵`}
+        <button className="btn btn-primary" onClick={check} disabled={busy} aria-keyshortcuts="Control+Enter Meta+Enter">
+          {busy ? (
+            waiting ? "Waiting for compiler…" : "Compiling…"
+          ) : (
+            <>
+              {checkLabel} <kbd aria-hidden="true">⌃↵</kbd>
+            </>
+          )}
         </button>
         {ex.mode === "stdout" && !isFill && (
           <button className="btn" onClick={() => setShowConsole(!showConsole)}>
@@ -149,7 +165,7 @@ export default function Workbench({ ex, initialCode, initialBlanks, hintsUsed, o
                 <DiagnosticList diagnostics={freeRun.diagnostics} raw={freeRun.rawDiagnostics} />
               ) : (
                 <>
-                  <pre className="console">{(freeRun.run?.stdout ?? "") + (freeRun.run?.stderr ? "\n" + freeRun.run.stderr : "") || "(no output)"}</pre>
+                  <pre tabIndex={0} className="console">{(freeRun.run?.stdout ?? "") + (freeRun.run?.stderr ? "\n" + freeRun.run.stderr : "") || "(no output)"}</pre>
                   {freeRun.note && <div className="t-note">{freeRun.note}</div>}
                 </>
               )}
@@ -158,6 +174,9 @@ export default function Workbench({ ex, initialCode, initialBlanks, hintsUsed, o
         </div>
       )}
 
+      <p className="visually-hidden" role="status" aria-live="polite">
+        {busy ? "Checking your code." : result ? announce(result) : ""}
+      </p>
       {result && <Results result={result} attempt={attempts} />}
 
       <div className="hints">
@@ -170,7 +189,7 @@ export default function Workbench({ ex, initialCode, initialBlanks, hintsUsed, o
         <div className="hint-actions">
           {hintsUsed < ex.hints.length && (
             <button className={"btn btn-hint" + (attempts >= 2 && result?.status !== "pass" ? " pulse" : "")} onClick={() => onHint(hintsUsed + 1)}>
-              💡 Hint ({hintsUsed + 1}/{ex.hints.length})
+              <span aria-hidden="true">💡</span> Hint ({hintsUsed + 1}/{ex.hints.length})
             </button>
           )}
           {canRevealSolution && !showSolution && (

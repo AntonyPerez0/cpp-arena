@@ -68,7 +68,7 @@ export function ensureCompiler(opts: { warmCpp?: boolean } = {}) {
     setStatus({ state: "loading", loaded: 0, total: 1, stage: "download" });
   }
   if (status.state === "error") setStatus({ state: "loading", loaded: 0, total: 1, stage: "download" });
-  worker.postMessage({ type: "init", base: new URL("toolchain/", document.baseURI).href, warmCpp: !!opts.warmCpp });
+  worker.postMessage({ type: "init", base: new URL(import.meta.env.BASE_URL + "toolchain/", location.origin).href, warmCpp: !!opts.warmCpp });
 }
 
 function compile(source: string, lang: Lang): Promise<{ ok: boolean; diagnostics: string; wasm: Uint8Array | null; ms: number; internal?: string }> {

@@ -12,11 +12,13 @@ import Results from "../components/Results";
 import Markdown, { InlineMd } from "../components/Markdown";
 import { grade, type GradeResult } from "../grader/grade";
 import { ensureCompiler } from "../compiler/client";
+import { useTitle } from "../lib/title";
 
 type Phase = "lobby" | "playing" | "review" | "dead" | "cleared";
 type Kill = { id: number; topic: string; type: Drill["type"]; ms: number; ok: boolean };
 
 export default function Deathmatch() {
+  useTitle("Deathmatch");
   const s = useStore((x) => x);
   const unlocked = unlockedTopics(s);
   const selected = (s.settings.topics ?? unlocked).filter((t) => unlocked.includes(t));
@@ -34,6 +36,7 @@ export default function Deathmatch() {
   const [feed, setFeed] = useState<Kill[]>([]);
   const [flash, setFlash] = useState<"hit" | "miss" | null>(null);
   const [shout, setShout] = useState<string | null>(null);
+  const [said, setSaid] = useState("");
   const [lastWrong, setLastWrong] = useState<{ drill: Drill; given: string } | null>(null);
   const [startBest, setStartBest] = useState(0);
   const recent = useRef<string[]>([]);
@@ -90,6 +93,7 @@ export default function Deathmatch() {
       const c = callout(st);
       if (getState().settings.sound) blip(c ? "streak" : drill.type === "boss" ? "boss" : "hit");
       setFlash("hit");
+      setSaid(`Correct. Streak ${st}.${c ? " " + c : ""}`);
       if (c) {
         setShout(c);
         setTimeout(() => setShout(null), 1100);
@@ -99,6 +103,7 @@ export default function Deathmatch() {
     } else {
       if (getState().settings.sound) blip("miss");
       setFlash("miss");
+      setSaid(hp - 1 <= 0 ? "Wrong. Eliminated." : `Wrong. ${hp - 1} ${hp - 1 === 1 ? "life" : "lives"} left.`);
       setTimeout(() => setFlash(null), 300);
       setLastWrong({ drill, given });
       const left = hp - 1;
@@ -124,7 +129,8 @@ export default function Deathmatch() {
     const h = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || (tag === "BUTTON" && e.key === "Enter")) return;
-      if (phase === "dead" && (e.key === "Enter" || e.key === "r" || e.key === "R")) {
+      const letters = getState().settings.keys !== false;
+      if (phase === "dead" && (e.key === "Enter" || (letters && (e.key === "r" || e.key === "R")))) {
         e.preventDefault();
         start(mode);
       } else if (phase === "dead" && e.key === "Escape") setPhase("lobby");
@@ -146,6 +152,7 @@ export default function Deathmatch() {
   const best = Math.max(startBest, mode === "warmup" ? kills : streak);
   return (
     <div className={"dm" + (flash ? " dm-flash-" + flash : "")}>
+      <h1 className="visually-hidden">Deathmatch run</h1>
       <div className="hud">
         <div className="hud-streak">
           <div className="hud-n">{mode === "warmup" ? kills : streak}</div>
@@ -153,7 +160,7 @@ export default function Deathmatch() {
         </div>
         <div className="hud-mid">
           <div className="hud-mode">{mode === "deathmatch" ? "Deathmatch · 1 life" : mode === "casual" ? "Casual · 3 lives" : "Warm-up · due reviews"}</div>
-          <div className="hud-lives" aria-label={`${hp} lives left`}>
+          <div className="hud-lives" role="img" aria-label={`${hp} ${hp === 1 ? "life" : "lives"} left`}>
             {Array.from({ length: lives(mode) }).map((_, i) => (
               <span key={i} className={i < hp ? "life" : "life life-lost"}>
                 ♥
@@ -175,7 +182,14 @@ export default function Deathmatch() {
           Leave (Esc)
         </button>
       </div>
-      {shout && <div className="shout">{shout}</div>}
+      {shout && (
+        <div className="shout" aria-hidden="true">
+          {shout}
+        </div>
+      )}
+      <p className="visually-hidden" role="status" aria-live="polite">
+        {said}
+      </p>
       <div className="dm-grid">
         <div className="dm-main">
           {phase === "playing" && drill && <Rep key={drill.id + ":" + reps} drill={drill} onAnswer={answer} />}
@@ -281,7 +295,7 @@ function Lobby({ pool, unlocked, selected, dueCount, onStart }: { pool: Drill[];
 
         {unlocked.length === 0 ? (
           <div className="card">
-            <h3>No topics unlocked yet</h3>
+            <h2 className="h3">No topics unlocked yet</h2>
             <p>
               Finish the first step of any lesson module to unlock its drills, or turn on <b>Unlock every topic</b> below if you already know some C/C++.
             </p>
@@ -312,7 +326,7 @@ function Lobby({ pool, unlocked, selected, dueCount, onStart }: { pool: Drill[];
 
       <section className="card">
         <div className="row-between">
-          <h3>Maps (topics)</h3>
+          <h2 className="h3">Maps (topics)</h2>
           <div className="row">
             <button className="linkish" onClick={() => setTopics(unlocked)}>
               all
@@ -359,12 +373,15 @@ function Lobby({ pool, unlocked, selected, dueCount, onStart }: { pool: Drill[];
           <label>
             <input type="checkbox" checked={s.settings.unlockAll} onChange={(e) => patchSettings({ unlockAll: e.target.checked, topics: null })} /> Unlock every topic
           </label>
+          <label>
+            <input type="checkbox" checked={s.settings.keys !== false} onChange={(e) => patchSettings({ keys: e.target.checked })} /> Single-key shortcuts (Y/N, line numbers, R)
+          </label>
         </div>
       </section>
 
       {s.dm.runs.length > 0 && (
         <section className="card">
-          <h3>Recent runs</h3>
+          <h2 className="h3">Recent runs</h2>
           <table className="runs">
             <thead>
               <tr>
@@ -434,6 +451,7 @@ function PredictRep({ drill, onAnswer }: { drill: Drill; onAnswer: (g: string, o
           className="answer-input"
           autoFocus
           placeholder="Type the exact output (Enter to fire)"
+          aria-label="What does it print? Type the exact output"
           value={v}
           onChange={(e) => setV(e.target.value)}
           spellCheck={false}
@@ -457,7 +475,7 @@ function FillRep({ drill, onAnswer }: { drill: Drill; onAnswer: (g: string, ok: 
       {drill.output && (
         <div className="rep-output">
           <span className="lbl">should print</span>
-          <pre className="console tiny">{drill.output}</pre>
+          <pre tabIndex={0} className="console tiny">{drill.output}</pre>
         </div>
       )}
       <div className="rep-answer">
@@ -474,6 +492,7 @@ function BugRep({ drill, onAnswer }: { drill: Drill; onAnswer: (g: string, ok: b
   const pickable = lines.map((l) => l.trim() !== "" && !/^\/\/ inside main:$/.test(l.trim()) && !/^[{}]\s*;?$/.test(l.trim()));
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
+      if (getState().settings.keys === false) return;
       const n = parseInt(e.key, 10);
       if (n >= 1 && n <= 9 && n <= lines.length && pickable[n - 1]) onAnswer(String(n), checkAnswer(drill, String(n)));
     };
@@ -481,10 +500,10 @@ function BugRep({ drill, onAnswer }: { drill: Drill; onAnswer: (g: string, ok: b
     return () => window.removeEventListener("keydown", h);
   });
   return (
-    <div className="buglines" role="list">
+    <div className="buglines">
       {lines.map((l, i) =>
         pickable[i] ? (
-          <button key={i} className="bugline" onClick={() => onAnswer(String(i + 1), checkAnswer(drill, String(i + 1)))}>
+          <button key={i} className="bugline" aria-label={`Line ${i + 1}: ${l.trim()}`} onClick={() => onAnswer(String(i + 1), checkAnswer(drill, String(i + 1)))}>
             <span className="ln">{i + 1}</span>
             <code>{highlight(l)}</code>
           </button>
@@ -503,6 +522,7 @@ function BugRep({ drill, onAnswer }: { drill: Drill; onAnswer: (g: string, ok: b
 function CompilesRep({ drill, onAnswer }: { drill: Drill; onAnswer: (g: string, ok: boolean) => void }) {
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
+      if (getState().settings.keys === false) return;
       if (e.key === "y" || e.key === "Y") onAnswer("yes", checkAnswer(drill, "yes"));
       if (e.key === "n" || e.key === "N") onAnswer("no", checkAnswer(drill, "no"));
     };

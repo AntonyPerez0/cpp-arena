@@ -3,8 +3,10 @@ import { useStore } from "../state/store";
 import { nextStep, rankFor, totals, dailyStreak } from "../state/derived";
 import { drills, modules, projects, pro } from "../content";
 import CompilerBadge from "../components/CompilerBadge";
+import { useTitle } from "../lib/title";
 
 export default function Home() {
+  useTitle(null);
   const s = useStore((x) => x);
   const t = totals(s);
   const next = nextStep(s);
@@ -51,7 +53,7 @@ export default function Home() {
             <span className="muted">/{t.total}</span>
           </div>
           <div className="stat-l">lesson steps</div>
-          <div className="bar">
+          <div className="bar" aria-hidden="true">
             <div style={{ width: `${(t.done / Math.max(t.total, 1)) * 100}%` }} />
           </div>
         </div>
@@ -77,7 +79,7 @@ export default function Home() {
       <section className="cards3">
         <Link to="/learn" className="card card-link">
           <div className="card-kicker">Learn</div>
-          <h3>{modules.length} modules, zero to C++20</h3>
+          <h2 className="h3">{modules.length} modules, zero to C++20</h2>
           <p>
             Fill in the blanks when a concept is new, then write most of the code yourself. Hints unlock one at a time, and compiler errors come with a
             plain-English explanation.
@@ -85,7 +87,7 @@ export default function Home() {
         </Link>
         <Link to="/deathmatch" className="card card-link card-dm">
           <div className="card-kicker">Deathmatch</div>
-          <h3>Endless reps, one life</h3>
+          <h2 className="h3">Endless reps, one life</h2>
           <p>
             {drills.length} drills: predict the output, fill the token, spot the bug, will it compile. Every 8th rep is a boss rep you compile for real.
             Misses come back until you own them.
@@ -93,12 +95,12 @@ export default function Home() {
         </Link>
         <Link to="/projects" className="card card-link">
           <div className="card-kicker">Projects</div>
-          <h3>{projects.length} builds with milestones</h3>
+          <h2 className="h3">{projects.length} builds with milestones</h2>
           <p>From a calculator and a text adventure to a memory allocator, an expression interpreter and your own vector&lt;T&gt;.</p>
         </Link>
         <Link to="/pro" className="card card-link">
           <div className="card-kicker">Pro Track</div>
-          <h3>{pro.length} projects on a real machine</h3>
+          <h2 className="h3">{pro.length} projects on a real machine</h2>
           <p>
             CMake, Git and pull requests, gdb and sanitizers, unit tests, profiling, threads, sockets and two capstones, graded by GitHub Actions like a
             team's CI.
