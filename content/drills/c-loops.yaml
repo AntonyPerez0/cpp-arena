@@ -1,0 +1,155 @@
+topic: c-loops
+lang: c
+drills:
+  - type: predict
+    body: |
+      for (int i = 0; i < 3; i++) printf("%d ", i);
+      printf("\n");
+    why: i takes 0, 1, 2 and stops when i < 3 is false.
+  - type: predict
+    body: |
+      int i = 10;
+      while (i > 0) i -= 3;
+      printf("%d\n", i);
+    why: 10, 7, 4, 1, -2. The loop stops once i is no longer positive.
+  - type: predict
+    body: |
+      int s = 0;
+      for (int i = 1; i <= 4; i++) s += i;
+      printf("%d\n", s);
+    why: 1 + 2 + 3 + 4 = 10.
+  - type: predict
+    body: |
+      for (int i = 0; i < 10; i++) {
+          if (i == 4) break;
+          printf("%d", i);
+      }
+      printf("\n");
+    why: break leaves the loop when i reaches 4.
+  - type: predict
+    body: |
+      for (int i = 0; i < 6; i++) {
+          if (i % 2) continue;
+          printf("%d", i);
+      }
+      printf("\n");
+    why: Odd numbers hit continue and are skipped.
+  - type: predict
+    body: |
+      int n = 0;
+      do { n++; } while (n < 0);
+      printf("%d\n", n);
+    why: A do-while body always runs at least once.
+  - type: predict
+    body: |
+      int count = 0;
+      for (int r = 0; r < 3; r++)
+          for (int c = 0; c < 4; c++)
+              count++;
+      printf("%d\n", count);
+    why: The inner loop runs 4 times for each of 3 outer rounds.
+  - type: predict
+    body: |
+      int i;
+      for (i = 0; i < 5; i++);
+      printf("%d\n", i);
+    why: The stray `;` makes the loop body empty. The loop just counts i up to 5.
+  - type: fill
+    prompt: Loop exactly 5 times (i = 0..4).
+    body: |
+      for (int i = 0; i [[<]] 5; i++) printf("*");
+      printf("\n");
+    why: "`i < 5` with i starting at 0 gives 5 rounds."
+  - type: fill
+    prompt: Skip to the next round for negative numbers.
+    body: |
+      int v[] = {3, -1, 4};
+      for (int i = 0; i < 3; i++) {
+          if (v[i] < 0) [[continue]];
+          printf("%d ", v[i]);
+      }
+      printf("\n");
+    why: continue skips the rest of the current round.
+  - type: bug
+    body: |
+      int a[4] = {1, 2, 3, 4};
+      int sum = 0;
+      for (int i = 1; i < 4; i++) sum += a[i]; // BUG
+      printf("%d\n", sum);
+    fix: "for (int i = 0; i < 4; i++) sum += a[i];"
+    why: Arrays start at index 0, so this skipped a[0].
+  - type: bug
+    body: |
+      int n = 3;
+      int fact = 0; // BUG
+      for (int i = 1; i <= n; i++) fact *= i;
+      printf("%d\n", fact);
+    fix: "int fact = 1;"
+    why: A running product must start at 1, not 0.
+  - type: compiles
+    body: |
+      for (int i = 0; i < 3; i++) {
+          printf("%d\n", i);
+      }
+      printf("%d\n", i);
+    why: i was declared inside the for, so it doesn't exist after the loop.
+  - type: compiles
+    body: |
+      int n = 3;
+      do {
+          n--;
+      } while (n > 0)
+      printf("%d\n", n);
+    why: "A do-while needs a semicolon after `while (...)`."
+  - type: boss
+    prompt: |
+      Write `int digit_sum(int n)` returning the sum of the decimal digits of a non-negative number. `digit_sum(4721)` is 14.
+    seed: |
+      int digit_sum(int n) {
+
+      }
+    solution: |
+      int digit_sum(int n) {
+          int s = 0;
+          while (n > 0) {
+              s += n % 10;
+              n /= 10;
+          }
+          return s;
+      }
+    harness: |
+      int main(void) {
+          CHECK_INT("4721", digit_sum(4721), 14);
+          CHECK_INT("0", digit_sum(0), 0);
+          CHECK_INT("9", digit_sum(9), 9);
+          CHECK_INT("1000000", digit_sum(1000000), 1);
+          return 0;
+      }
+    hints:
+      - "`n % 10` is the last digit, `n / 10` drops it."
+    why: Peel digits off the end with % 10 and / 10 until n is 0.
+  - type: boss
+    prompt: |
+      Write `int count_multiples(int limit, int k)` that returns how many numbers from 1 to `limit` (inclusive) are divisible by `k`.
+    seed: |
+      int count_multiples(int limit, int k) {
+
+      }
+    solution: |
+      int count_multiples(int limit, int k) {
+          int c = 0;
+          for (int i = 1; i <= limit; i++)
+              if (i % k == 0) c++;
+          return c;
+      }
+    harness: |
+      int main(void) {
+          CHECK_INT("10, 3", count_multiples(10, 3), 3);
+          CHECK_INT("10, 1", count_multiples(10, 1), 10);
+          CHECK_INT("5, 7", count_multiples(5, 7), 0);
+          CHECK_INT("100, 25", count_multiples(100, 25), 4);
+          return 0;
+      }
+    hints:
+      - Loop 1..limit and count `i % k == 0`.
+    why: Loop over the range and count the ones with no remainder (or just return limit / k).

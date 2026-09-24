@@ -1,0 +1,183 @@
+id: c-bits
+title: Bits and the preprocessor
+lang: c
+phase: "C: Memory"
+summary: "Work with individual bits using bitwise operators and flags, and control compilation with #define and macros."
+steps:
+  - title: "#define constants"
+    text: |
+      Lines starting with `#` are handled by the **preprocessor** before compilation. `#define` does a text substitution:
+
+      ```c
+      #define MAX_ROUNDS 24
+      ```
+
+      Every `MAX_ROUNDS` in the code is replaced with `24` before the compiler sees it. By convention macro names are UPPERCASE.
+
+      **Your turn:** define `TEAM_SIZE` as `5` so the program prints `10 players`.
+    fill: |
+      #include <stdio.h>
+
+      [[#define]] TEAM_SIZE [[5]]
+
+      int main(void) {
+          printf("%d players\n", TEAM_SIZE * 2);
+          return 0;
+      }
+    hints:
+      - "`#define NAME value`, with no `=` and no semicolon."
+    tests:
+      - expect: "10 players"
+
+  - title: Macro pitfalls
+    text: |
+      Macros can take arguments, but they're pure text replacement, which bites:
+
+      ```c
+      #define SQUARE(x) x * x
+      SQUARE(1 + 2)   // becomes 1 + 2 * 1 + 2 = 5, not 9!
+      ```
+
+      The fix: wrap every argument **and** the whole body in parentheses:
+
+      ```c
+      #define SQUARE(x) ((x) * (x))
+      ```
+
+      **Your turn:** `DOUBLE(3 + 4) * 2` should be 28, but this prints 18. Fix the `DOUBLE` macro.
+    seed: |
+      #include <stdio.h>
+
+      #define DOUBLE(x) x + x
+
+      int main(void) {
+          printf("%d\n", DOUBLE(3 + 4) * 2);
+          return 0;
+      }
+    solution: |
+      #include <stdio.h>
+
+      #define DOUBLE(x) ((x) + (x))
+
+      int main(void) {
+          printf("%d\n", DOUBLE(3 + 4) * 2);
+          return 0;
+      }
+    hints:
+      - "Expand it by hand: `3 + 4 + 3 + 4 * 2` = 18. The `* 2` only grabbed the last 4."
+      - "Wrap the argument and the body: `#define DOUBLE(x) ((x) + (x))`."
+    require:
+      - pattern: "#define\\s+DOUBLE\\(x\\)\\s*\\(\\s*\\(x\\)\\s*\\+\\s*\\(x\\)\\s*\\)"
+        message: "Parenthesize the macro fully: `((x) + (x))`."
+    tests:
+      - expect: "28"
+
+  - title: Bitwise operators
+    text: |
+      Bitwise operators work on the individual bits of integers:
+
+      | Op | Name | Example (binary) |
+      |---|---|---|
+      | `&` | AND | `1100 & 1010 = 1000` |
+      | `\|` | OR | `1100 \| 1010 = 1110` |
+      | `^` | XOR | `1100 ^ 1010 = 0110` |
+      | `~` | NOT | flips every bit |
+      | `<<` | shift left | `0001 << 2 = 0100` |
+      | `>>` | shift right | `1000 >> 3 = 0001` |
+
+      `1 << n` is a number with only bit `n` set (that's 2 to the power n).
+
+      **Your turn:** write `int count_bits(unsigned x)` that returns how many bits are 1. Check the lowest bit with `x & 1`, then shift right.
+    seed: |
+      int count_bits(unsigned x) {
+
+      }
+    solution: |
+      int count_bits(unsigned x) {
+          int n = 0;
+          while (x != 0) {
+              n += x & 1;
+              x >>= 1;
+          }
+          return n;
+      }
+    harness: |
+      int main(void) {
+          CHECK_INT("count_bits(0)", count_bits(0), 0);
+          CHECK_INT("count_bits(1)", count_bits(1), 1);
+          CHECK_INT("count_bits(7)", count_bits(7), 3);
+          CHECK_INT("count_bits(8)", count_bits(8), 1);
+          CHECK_INT("count_bits(255)", count_bits(255), 8);
+          CHECK_INT("count_bits(0xFFFFFFFF)", count_bits(0xFFFFFFFFu), 32);
+          return 0;
+      }
+    hints:
+      - Loop while x is not 0. Add `x & 1` to the count, then `x >>= 1`.
+
+  - title: Flags
+    text: |
+      Bits make compact on/off switches. Give each flag its own bit:
+
+      ```c
+      #define HAS_HELMET  (1u << 0)
+      #define HAS_KIT     (1u << 1)
+      #define IS_SCOPED   (1u << 2)
+
+      unsigned state = 0;
+      state |= HAS_KIT;            // turn on
+      state &= ~HAS_KIT;           // turn off
+      state ^= IS_SCOPED;          // toggle
+      if (state & HAS_HELMET) {}   // test
+      ```
+
+      **Your turn:** fill in the operators.
+    fill: |
+      #include <stdio.h>
+
+      #define HAS_HELMET (1u << 0)
+      #define HAS_KIT    (1u << 1)
+      #define IS_SCOPED  (1u << 2)
+
+      int main(void) {
+          unsigned s = 0;
+          s [[|=]] HAS_HELMET;       // turn helmet on
+          s |= HAS_KIT;
+          s [[&=]] ~HAS_KIT;         // turn kit off
+          s [[^=]] IS_SCOPED;        // toggle scope
+          printf("%u %d %d\n", s, (s [[&]] HAS_HELMET) != 0, (s & HAS_KIT) != 0);
+          return 0;
+      }
+    hints:
+      - "On: `|=`, off: `&= ~`, toggle: `^=`, test: `&`."
+    tests:
+      - expect: "5 1 0"
+
+  - title: "Challenge: power of two"
+    text: |
+      A classic bit trick: a positive number is a power of two exactly when it has a single 1 bit. And `x & (x - 1)` clears the lowest set bit, so for powers of two it gives 0.
+
+      **Your turn:** write `int is_pow2(unsigned x)` returning 1 or 0, without loops.
+    seed: |
+      int is_pow2(unsigned x) {
+
+      }
+    solution: |
+      int is_pow2(unsigned x) {
+          return x != 0 && (x & (x - 1)) == 0;
+      }
+    forbid:
+      - pattern: "\\bfor\\b|\\bwhile\\b"
+        message: Solve it without a loop using `x & (x - 1)`.
+    harness: |
+      int main(void) {
+          CHECK_INT("is_pow2(1)", is_pow2(1), 1);
+          CHECK_INT("is_pow2(64)", is_pow2(64), 1);
+          CHECK_INT("is_pow2(0)", is_pow2(0), 0);
+          CHECK_INT("is_pow2(6)", is_pow2(6), 0);
+          CHECK_INT("is_pow2(1024)", is_pow2(1024), 1);
+          CHECK_INT("is_pow2(1023)", is_pow2(1023), 0);
+          return 0;
+      }
+    hints:
+      - Zero is not a power of two, so handle it.
+      - "`return x != 0 && (x & (x - 1)) == 0;`"

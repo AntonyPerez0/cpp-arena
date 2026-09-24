@@ -1,0 +1,340 @@
+id: cpp-oop
+title: Inheritance and polymorphism
+lang: cpp
+phase: "C++: Modern and Advanced"
+summary: Derived classes, virtual functions and override, abstract interfaces, and polymorphic containers.
+steps:
+  - title: Inheritance
+    text: |
+      A class can **inherit** from another, getting all its members, then add or change behaviour:
+
+      ```cpp
+      class Weapon {
+      public:
+          int damage = 10;
+          void describe() const { std::cout << damage << "\n"; }
+      };
+
+      class Rifle : public Weapon {    // a Rifle IS-A Weapon
+      public:
+          int magazine = 30;
+      };
+
+      Rifle r;
+      r.damage = 36;      // inherited
+      r.describe();       // inherited
+      ```
+
+      **Your turn:** make `Sniper` inherit from `Weapon` and set the base part through the base constructor.
+    fill: |
+      #include <iostream>
+      #include <string>
+
+      class Weapon {
+      public:
+          Weapon(std::string name, int damage) : name_(name), damage_(damage) {}
+          std::string info() const { return name_ + " " + std::to_string(damage_); }
+      private:
+          std::string name_;
+          int damage_;
+      };
+
+      class Sniper [[:]] [[public]] Weapon {
+      public:
+          Sniper() : [[Weapon]]("awp", 115) {}
+          bool scoped = false;
+      };
+
+      int main() {
+          Sniper s;
+          std::cout << s.info() << " " << s.scoped << "\n";
+      }
+    hints:
+      - "`class Sniper : public Weapon`"
+      - "The base class is initialized in the initializer list by name: `: Weapon(\"awp\", 115)`."
+    tests:
+      - expect: "awp 115 0"
+
+  - title: virtual and override
+    text: |
+      Through a base-class reference or pointer, which function runs? By default, the **base** version. Mark the base function `virtual` and the actual object's version runs instead. That's **polymorphism**.
+
+      ```cpp
+      class Enemy {
+      public:
+          virtual std::string sound() const { return "..."; }
+          virtual ~Enemy() = default;
+      };
+      class Zombie : public Enemy {
+      public:
+          std::string sound() const override { return "brains"; }
+      };
+
+      const Enemy& e = Zombie{};
+      e.sound();   // "brains"
+      ```
+
+      Write `override` on the derived version: the compiler then checks that you really are overriding something (typos become errors).
+
+      **Your turn:** make `Knife` and `Grenade` override `attack`, returning `"slash"` and `"boom"`.
+    seed: |
+      #include <string>
+
+      class Weapon {
+      public:
+          virtual std::string attack() const { return "..."; }
+          virtual ~Weapon() = default;
+      };
+
+      class Knife : public Weapon {
+      public:
+
+      };
+
+      class Grenade : public Weapon {
+      public:
+
+      };
+    solution: |
+      #include <string>
+
+      class Weapon {
+      public:
+          virtual std::string attack() const { return "..."; }
+          virtual ~Weapon() = default;
+      };
+
+      class Knife : public Weapon {
+      public:
+          std::string attack() const override { return "slash"; }
+      };
+
+      class Grenade : public Weapon {
+      public:
+          std::string attack() const override { return "boom"; }
+      };
+    require:
+      - pattern: "override"
+        message: "Mark the derived functions with `override`."
+    harness: |
+      std::string use(const Weapon& w) { return w.attack(); }
+      int main() {
+          Knife k;
+          Grenade g;
+          Weapon plain;
+          CHECK_EQ("Knife through Weapon&", use(k), std::string("slash"));
+          CHECK_EQ("Grenade through Weapon&", use(g), std::string("boom"));
+          CHECK_EQ("plain Weapon", use(plain), std::string("..."));
+      }
+    hints:
+      - "Same signature as the base, plus `override`: `std::string attack() const override { ... }`."
+
+  - title: Abstract classes
+    text: |
+      A **pure virtual** function (`= 0`) has no implementation in the base class. A class with one is **abstract**: you can't create it directly, only derive from it. It acts as an **interface**.
+
+      ```cpp
+      class Shape {
+      public:
+          virtual double area() const = 0;
+          virtual ~Shape() = default;
+      };
+      ```
+
+      **Your turn:** write `Circle` (radius) and `Rect` (width, height) implementing `area()`. Use `3.14159265358979` for pi.
+    seed: |
+      class Shape {
+      public:
+          virtual double area() const = 0;
+          virtual ~Shape() = default;
+      };
+
+      class Circle : public Shape {
+      public:
+          explicit Circle(double r) : r_(r) {}
+
+      private:
+          double r_;
+      };
+
+      class Rect : public Shape {
+      public:
+          Rect(double w, double h) : w_(w), h_(h) {}
+
+      private:
+          double w_, h_;
+      };
+    solution: |
+      class Shape {
+      public:
+          virtual double area() const = 0;
+          virtual ~Shape() = default;
+      };
+
+      class Circle : public Shape {
+      public:
+          explicit Circle(double r) : r_(r) {}
+          double area() const override { return 3.14159265358979 * r_ * r_; }
+
+      private:
+          double r_;
+      };
+
+      class Rect : public Shape {
+      public:
+          Rect(double w, double h) : w_(w), h_(h) {}
+          double area() const override { return w_ * h_; }
+
+      private:
+          double w_, h_;
+      };
+    harness: |
+      #include <cmath>
+      #include <type_traits>
+      bool near(double a, double b) { return std::fabs(a - b) < 1e-6; }
+      int main() {
+          CHECK("Shape is abstract", std::is_abstract_v<Shape>);
+          Circle c(2);
+          Rect r(3, 4.5);
+          const Shape& s1 = c;
+          const Shape& s2 = r;
+          CHECK("circle r=2 area ~12.566", near(s1.area(), 12.5663706143592));
+          CHECK("rect 3x4.5 area 13.5", near(s2.area(), 13.5));
+      }
+    hints:
+      - "Each class needs `double area() const override { ... }`."
+      - "Circle: `3.14159265358979 * r_ * r_`. Rect: `w_ * h_`."
+
+  - title: Polymorphic containers
+    text: |
+      To store different derived types in one container, store **pointers to the base**. With `std::unique_ptr` nothing leaks:
+
+      ```cpp
+      std::vector<std::unique_ptr<Shape>> shapes;
+      shapes.push_back(std::make_unique<Circle>(1.0));
+      shapes.push_back(std::make_unique<Rect>(2, 3));
+      for (const auto& s : shapes) total += s->area();
+      ```
+
+      That's also why the base class needs a **virtual destructor**: deleting a `Circle` through a `Shape*` must run `Circle`'s destructor.
+
+      **Your turn:** write `int total_damage(const std::vector<std::unique_ptr<Weapon>>& ws, int hits)` that sums `damage(hits)` across all weapons, and implement `Pistol` (25 per hit) and `Shotgun` (80 on the first hit, 20 for each hit after).
+    seed: |
+      #include <memory>
+      #include <vector>
+
+      class Weapon {
+      public:
+          virtual int damage(int hits) const = 0;
+          virtual ~Weapon() = default;
+      };
+
+      class Pistol : public Weapon {
+      public:
+
+      };
+
+      class Shotgun : public Weapon {
+      public:
+
+      };
+
+      int total_damage(const std::vector<std::unique_ptr<Weapon>>& ws, int hits) {
+
+      }
+    solution: |
+      #include <memory>
+      #include <vector>
+
+      class Weapon {
+      public:
+          virtual int damage(int hits) const = 0;
+          virtual ~Weapon() = default;
+      };
+
+      class Pistol : public Weapon {
+      public:
+          int damage(int hits) const override { return 25 * hits; }
+      };
+
+      class Shotgun : public Weapon {
+      public:
+          int damage(int hits) const override {
+              if (hits <= 0) return 0;
+              return 80 + 20 * (hits - 1);
+          }
+      };
+
+      int total_damage(const std::vector<std::unique_ptr<Weapon>>& ws, int hits) {
+          int t = 0;
+          for (const auto& w : ws) t += w->damage(hits);
+          return t;
+      }
+    harness: |
+      int main() {
+          std::vector<std::unique_ptr<Weapon>> ws;
+          ws.push_back(std::make_unique<Pistol>());
+          ws.push_back(std::make_unique<Shotgun>());
+          ws.push_back(std::make_unique<Pistol>());
+          CHECK_EQ("1 hit", total_damage(ws, 1), 25 + 80 + 25);
+          CHECK_EQ("3 hits", total_damage(ws, 3), 75 + 120 + 75);
+          CHECK_EQ("0 hits", total_damage(ws, 0), 0);
+          CHECK_EQ("no weapons", total_damage({}, 5), 0);
+      }
+    hints:
+      - "Each derived class implements `int damage(int hits) const override`."
+      - "Shotgun: 0 for no hits, else `80 + 20 * (hits - 1)`."
+      - "Sum with `for (const auto& w : ws) t += w->damage(hits);`"
+
+  - title: Virtual destructors
+    text: |
+      Without a virtual destructor, deleting a derived object through a base pointer only runs the **base** destructor. The derived part never gets cleaned up.
+
+      **Your turn:** the program should print:
+
+      ```
+      + base
+      + derived
+      - derived
+      - base
+      ```
+
+      but `- derived` is missing. Fix it with one keyword.
+    seed: |
+      #include <iostream>
+      #include <memory>
+
+      struct Base {
+          Base() { std::cout << "+ base\n"; }
+          ~Base() { std::cout << "- base\n"; }
+      };
+
+      struct Derived : Base {
+          Derived() { std::cout << "+ derived\n"; }
+          ~Derived() { std::cout << "- derived\n"; }
+      };
+
+      int main() {
+          std::unique_ptr<Base> p = std::make_unique<Derived>();
+      }
+    solution: |
+      #include <iostream>
+      #include <memory>
+
+      struct Base {
+          Base() { std::cout << "+ base\n"; }
+          virtual ~Base() { std::cout << "- base\n"; }
+      };
+
+      struct Derived : Base {
+          Derived() { std::cout << "+ derived\n"; }
+          ~Derived() { std::cout << "- derived\n"; }
+      };
+
+      int main() {
+          std::unique_ptr<Base> p = std::make_unique<Derived>();
+      }
+    hints:
+      - The base class destructor needs to be `virtual`.
+    tests:
+      - expect: "+ base\n+ derived\n- derived\n- base"

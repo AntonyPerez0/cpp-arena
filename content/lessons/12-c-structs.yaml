@@ -1,0 +1,272 @@
+id: c-structs
+title: Structs, enums and typedef
+lang: c
+phase: "C: Memory"
+summary: Group related data into your own types. Struct members, arrays of structs, pointers with ->, enums and typedef.
+steps:
+  - title: Define a struct
+    text: |
+      A `struct` bundles several variables into one new type:
+
+      ```c
+      struct Player {
+          char name[16];
+          int kills;
+          int deaths;
+      };
+
+      struct Player p = {"flusha", 21, 14};
+      printf("%s %d\n", p.name, p.kills);   // . accesses a member
+      ```
+
+      **Your turn:** complete the struct and print the weapon's name and damage.
+    fill: |
+      #include <stdio.h>
+
+      [[struct]] Weapon {
+          const char *name;
+          int damage;
+      };
+
+      int main(void) {
+          struct Weapon w = {"deagle", 53};
+          printf("%s does %d\n", w[[.]]name, w.[[damage]]);
+          return 0;
+      }
+    hints:
+      - Types you define with members use the `struct` keyword.
+      - "Members are accessed with a dot: `w.name`, `w.damage`."
+    tests:
+      - expect: "deagle does 53"
+
+  - title: Structs in functions
+    text: |
+      Structs can be passed to and returned from functions like any value (the whole struct is copied).
+
+      **Your turn:** write `double kd(struct Player p)` that returns kills divided by deaths as a double. If deaths is 0, return the kills.
+    seed: |
+      struct Player {
+          const char *name;
+          int kills;
+          int deaths;
+      };
+
+      double kd(struct Player p) {
+
+      }
+    solution: |
+      struct Player {
+          const char *name;
+          int kills;
+          int deaths;
+      };
+
+      double kd(struct Player p) {
+          if (p.deaths == 0) return p.kills;
+          return (double)p.kills / p.deaths;
+      }
+    harness: |
+      int main(void) {
+          struct Player a = {"a", 20, 10};
+          struct Player b = {"b", 7, 0};
+          struct Player c = {"c", 15, 20};
+          CHECK_DBL("20/10", kd(a), 2.0);
+          CHECK_DBL("7/0 -> 7", kd(b), 7.0);
+          CHECK_DBL("15/20", kd(c), 0.75);
+          return 0;
+      }
+    hints:
+      - Guard `p.deaths == 0` first.
+      - "Cast to avoid integer division: `(double)p.kills / p.deaths`."
+
+  - title: Pointers to structs and ->
+    text: |
+      Passing a big struct copies all of it. Passing a **pointer** is cheaper and lets the function modify the original.
+
+      With a pointer, `(*p).kills` is so common that C has the shortcut **`p->kills`**.
+
+      ```c
+      void add_kill(struct Player *p) {
+          p->kills++;
+      }
+      ```
+
+      **Your turn:** write `void record_round(struct Player *p, int kills, int died)` that adds `kills` to `p->kills` and adds 1 to `p->deaths` if `died` is non-zero.
+    seed: |
+      struct Player {
+          const char *name;
+          int kills;
+          int deaths;
+      };
+
+      void record_round(struct Player *p, int kills, int died) {
+
+      }
+    solution: |
+      struct Player {
+          const char *name;
+          int kills;
+          int deaths;
+      };
+
+      void record_round(struct Player *p, int kills, int died) {
+          p->kills += kills;
+          if (died) p->deaths++;
+      }
+    harness: |
+      int main(void) {
+          struct Player p = {"you", 0, 0};
+          record_round(&p, 2, 1);
+          record_round(&p, 0, 1);
+          record_round(&p, 3, 0);
+          CHECK_INT("kills after 3 rounds", p.kills, 5);
+          CHECK_INT("deaths after 3 rounds", p.deaths, 2);
+          return 0;
+      }
+    hints:
+      - "`p->kills += kills;`"
+      - "`if (died) p->deaths++;`"
+
+  - title: Arrays of structs
+    text: |
+      An array of structs is like a table: one struct per row.
+
+      **Your turn:** the input is `n` followed by `n` lines of `name kills`. Print the name of the player with the most kills (the first one wins ties).
+
+      ```
+      3
+      ropz 18
+      broky 25
+      rain 25
+      ```
+      prints `MVP: broky`.
+    seed: |
+      #include <stdio.h>
+
+      struct Player {
+          char name[32];
+          int kills;
+      };
+
+      int main(void) {
+          struct Player team[10];
+          int n;
+          scanf("%d", &n);
+
+          return 0;
+      }
+    solution: |
+      #include <stdio.h>
+
+      struct Player {
+          char name[32];
+          int kills;
+      };
+
+      int main(void) {
+          struct Player team[10];
+          int n;
+          scanf("%d", &n);
+          for (int i = 0; i < n; i++) {
+              scanf("%31s %d", team[i].name, &team[i].kills);
+          }
+          int best = 0;
+          for (int i = 1; i < n; i++) {
+              if (team[i].kills > team[best].kills) best = i;
+          }
+          printf("MVP: %s\n", team[best].name);
+          return 0;
+      }
+    hints:
+      - "Read each row with `scanf(\"%31s %d\", team[i].name, &team[i].kills);` (no & for the char array)."
+      - Track the index of the best so far, and only replace it on a strictly greater kill count.
+    tests:
+      - stdin: "3\nropz 18\nbroky 25\nrain 25\n"
+      - stdin: "1\nsolo 0\n"
+      - stdin: "4\na 1\nb 2\nc 9\nd 3\n"
+        hidden: true
+
+  - title: enum
+    text: |
+      An `enum` gives names to a set of integer constants, which makes code self-explanatory:
+
+      ```c
+      enum Side { T, CT };            // T = 0, CT = 1
+      enum Side s = CT;
+      ```
+
+      Enums pair perfectly with `switch`.
+
+      **Your turn:** write `const char *weapon_name(enum Weapon w)` that returns `"rifle"`, `"pistol"`, `"knife"` for the three enum values and `"?"` otherwise.
+    seed: |
+      enum Weapon { RIFLE, PISTOL, KNIFE };
+
+      const char *weapon_name(enum Weapon w) {
+
+      }
+    solution: |
+      enum Weapon { RIFLE, PISTOL, KNIFE };
+
+      const char *weapon_name(enum Weapon w) {
+          switch (w) {
+              case RIFLE: return "rifle";
+              case PISTOL: return "pistol";
+              case KNIFE: return "knife";
+          }
+          return "?";
+      }
+    harness: |
+      int main(void) {
+          CHECK_STR("RIFLE", weapon_name(RIFLE), "rifle");
+          CHECK_STR("PISTOL", weapon_name(PISTOL), "pistol");
+          CHECK_STR("KNIFE", weapon_name(KNIFE), "knife");
+          CHECK_INT("KNIFE has value 2", KNIFE, 2);
+          CHECK_STR("unknown value", weapon_name((enum Weapon)7), "?");
+          return 0;
+      }
+    hints:
+      - "`switch (w) { case RIFLE: return \"rifle\"; ... }`"
+      - Return `"?"` after the switch for anything unmatched.
+
+  - title: typedef
+    text: |
+      Writing `struct Player` everywhere gets old. `typedef` creates an alias:
+
+      ```c
+      typedef struct {
+          double x, y;
+      } Vec2;
+
+      Vec2 pos = {1.5, -2.0};
+      ```
+
+      **Your turn:** complete the typedef and write `Vec2 add(Vec2 a, Vec2 b)` returning the component-wise sum.
+    seed: |
+      typedef struct {
+          double x, y;
+      } Vec2;
+
+      Vec2 add(Vec2 a, Vec2 b) {
+
+      }
+    solution: |
+      typedef struct {
+          double x, y;
+      } Vec2;
+
+      Vec2 add(Vec2 a, Vec2 b) {
+          Vec2 r = {a.x + b.x, a.y + b.y};
+          return r;
+      }
+    harness: |
+      int main(void) {
+          Vec2 a = {1, 2}, b = {3.5, -4};
+          Vec2 c = add(a, b);
+          CHECK_DBL("x", c.x, 4.5);
+          CHECK_DBL("y", c.y, -2.0);
+          Vec2 z = add(c, (Vec2){0, 0});
+          CHECK_DBL("adding zero keeps x", z.x, 4.5);
+          return 0;
+      }
+    hints:
+      - "Build the result: `Vec2 r = {a.x + b.x, a.y + b.y};` and return it."

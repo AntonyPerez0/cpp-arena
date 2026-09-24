@@ -1,0 +1,125 @@
+topic: c-structs
+lang: c
+drills:
+  - type: predict
+    pre: |
+      struct P { int x, y; };
+    body: |
+      struct P p = {3, 4};
+      printf("%d\n", p.x * p.y);
+    why: Members are accessed with a dot.
+  - type: predict
+    pre: |
+      struct P { int x, y; };
+    body: |
+      struct P a = {1, 2};
+      struct P b = a;
+      b.x = 9;
+      printf("%d %d\n", a.x, b.x);
+    why: Assigning a struct copies it; changing b doesn't touch a.
+  - type: predict
+    pre: |
+      struct P { int hp; };
+      void hit(struct P *p) { p->hp -= 30; }
+    body: |
+      struct P p = {100};
+      hit(&p);
+      printf("%d\n", p.hp);
+    why: Through a pointer, the function modifies the original.
+  - type: predict
+    pre: |
+      struct P { int hp; };
+      void hit(struct P p) { p.hp -= 30; }
+    body: |
+      struct P p = {100};
+      hit(p);
+      printf("%d\n", p.hp);
+    why: Passed by value, the function only changes its copy.
+  - type: predict
+    pre: |
+      enum Side { T, CT, SPEC };
+    body: |
+      printf("%d %d\n", CT, SPEC);
+    why: Enum constants count up from 0 by default.
+  - type: predict
+    pre: |
+      enum Level { LOW = 1, MID = 5, HIGH };
+    body: |
+      printf("%d\n", HIGH);
+    why: After an explicit value, the next constant is one more (6).
+  - type: fill
+    prompt: Access a member through a pointer.
+    pre: |
+      struct Gun { int ammo; };
+    body: |
+      struct Gun g = {30};
+      struct Gun *p = &g;
+      p[[->]]ammo -= 5;
+      printf("%d\n", g.ammo);
+    why: "`p->ammo` is shorthand for `(*p).ammo`."
+  - type: fill
+    prompt: Alias the struct type.
+    pre: |
+      [[typedef]] struct { int r, g, b; } Color;
+    body: |
+      Color c = {255, 128, 0};
+      printf("%d\n", c.g);
+    why: typedef creates a new name for the type.
+  - type: bug
+    pre: |
+      struct P { int kills; };
+      void add_kill(struct P *p) { p->kills++; }
+    body: |
+      struct P me = {0};
+      add_kill(me); // BUG
+      printf("%d\n", me.kills);
+    fix: "add_kill(&me);"
+    why: The function takes a pointer, so pass the address of the struct.
+  - type: compiles
+    pre: |
+      struct P { int x; };
+    body: |
+      P p = {1};
+      printf("%d\n", p.x);
+    why: In C you must write `struct P` unless there's a typedef.
+  - type: compiles
+    pre: |
+      struct P { int x; };
+    body: |
+      struct P p = {1};
+      struct P *q = &p;
+      printf("%d\n", q.x);
+    why: q is a pointer, so it needs `->`, not `.`.
+  - type: boss
+    prompt: |
+      Write `int total_kills(const struct Player *team, int n)` that sums the `kills` of `n` players.
+    seed: |
+      struct Player {
+          char name[16];
+          int kills;
+      };
+
+      int total_kills(const struct Player *team, int n) {
+
+      }
+    solution: |
+      struct Player {
+          char name[16];
+          int kills;
+      };
+
+      int total_kills(const struct Player *team, int n) {
+          int t = 0;
+          for (int i = 0; i < n; i++) t += team[i].kills;
+          return t;
+      }
+    harness: |
+      int main(void) {
+          struct Player t[] = {{"a", 10}, {"b", 7}, {"c", 0}};
+          CHECK_INT("three players", total_kills(t, 3), 17);
+          CHECK_INT("none", total_kills(t, 0), 0);
+          return 0;
+      }
+    hints:
+      - "`team[i].kills` for each i."
+    why: An array of structs is indexed like any array, then accessed with a dot.

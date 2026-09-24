@@ -1,0 +1,148 @@
+topic: cpp-raii
+lang: cpp
+drills:
+  - type: predict
+    pre: |
+      struct T {
+          char c;
+          T(char x) : c(x) { std::cout << "+" << c; }
+          ~T() { std::cout << "-" << c; }
+      };
+    body: |
+      {
+          T a('a');
+          T b('b');
+      }
+      std::cout << "\n";
+    why: Destruction runs in reverse order of construction.
+  - type: predict
+    pre: |
+      struct T {
+          char c;
+          T(char x) : c(x) { std::cout << "+" << c; }
+          ~T() { std::cout << "-" << c; }
+      };
+    body: |
+      T a('a');
+      {
+          T b('b');
+      }
+      T c('c');
+      std::cout << "\n";
+    why: b dies at its closing brace, before c is born. a and c die after main returns, which is after the newline is printed.
+  - type: predict
+    pre: |
+      struct T {
+          T() { std::cout << "ctor "; }
+          ~T() { std::cout << "dtor "; }
+      };
+      void f() { T t; std::cout << "body "; }
+    body: |
+      f();
+      f();
+      std::cout << "\n";
+    why: Each call creates and destroys its own local.
+  - type: predict
+    pre: |
+      struct Counted {
+          static inline int alive = 0;
+          Counted() { alive++; }
+          ~Counted() { alive--; }
+      };
+    body: |
+      Counted a;
+      {
+          Counted b, c;
+          std::cout << Counted::alive << " ";
+      }
+      std::cout << Counted::alive << "\n";
+    why: b and c are destroyed at the end of the inner block.
+  - type: fill
+    prompt: Name the destructor.
+    pre: |
+      struct Log {
+          [[~Log]]() { std::cout << "closed\n"; }
+      };
+    body: |
+      Log l;
+    why: "A destructor is `~` plus the class name."
+  - type: fill
+    prompt: Forbid copying.
+    pre: |
+      struct Handle {
+          Handle() = default;
+          Handle(const Handle&) = [[delete]];
+      };
+    body: |
+      Handle h;
+      std::cout << "ok\n";
+    why: "`= delete` removes the copy constructor."
+  - type: bug
+    pre: |
+      struct Buf {
+          int* p;
+          Buf() : p(new int[4]()) {}
+          ~Buf() { delete p; } // BUG
+      };
+    body: |
+      { Buf b; b.p[0] = 1; }
+      std::cout << "done\n";
+    fix: "~Buf() { delete[] p; }"
+    ub: true
+    why: Memory from new[] must be released with delete[].
+  - type: compiles
+    pre: |
+      struct NoCopy {
+          NoCopy() = default;
+          NoCopy(const NoCopy&) = delete;
+      };
+    body: |
+      NoCopy a;
+      NoCopy b = a;
+    why: The copy constructor is deleted.
+  - type: compiles
+    pre: |
+      struct T {
+          ~T(int x) {}
+      };
+    body: |
+      T t;
+    why: A destructor can't take parameters.
+  - type: boss
+    prompt: |
+      Write a class `Scoreboard` that prints `open` when constructed and `close N` when destroyed, where N is how many times `add()` was called. The harness creates one in a block and calls add twice.
+    compare: stdout
+    seed: |
+      #include <iostream>
+
+      class Scoreboard {
+      public:
+
+      };
+    solution: |
+      #include <iostream>
+
+      class Scoreboard {
+      public:
+          Scoreboard() { std::cout << "open\n"; }
+          ~Scoreboard() { std::cout << "close " << n_ << "\n"; }
+          void add() { n_++; }
+
+      private:
+          int n_ = 0;
+      };
+    harness: |
+      int main() {
+          {
+              Scoreboard s;
+              s.add();
+              s.add();
+              std::cout << "playing\n";
+          }
+          std::cout << "after\n";
+      }
+    tests:
+      - expect: "open\nplaying\nclose 2\nafter"
+    hints:
+      - Constructor prints open, destructor prints close with the count.
+    why: The destructor runs automatically at the end of the block.

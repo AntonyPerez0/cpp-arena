@@ -1,0 +1,147 @@
+topic: cpp-move
+lang: cpp
+drills:
+  - type: predict
+    pre: |
+      struct T {
+          T() {}
+          T(const T&) { std::cout << "copy "; }
+          T(T&&) noexcept { std::cout << "move "; }
+      };
+    body: |
+      T a;
+      T b = a;
+      T c = std::move(a);
+      std::cout << "\n";
+    why: A named object copies; std::move turns it into an rvalue so the move constructor runs.
+  - type: predict
+    pre: |
+      struct T {
+          T() {}
+          T(const T&) { std::cout << "copy "; }
+          T(T&&) noexcept { std::cout << "move "; }
+      };
+      T make() { return T(); }
+    body: |
+      T x = make();
+      std::cout << "done\n";
+    why: Returning a temporary is guaranteed copy elision in C++17. Nothing is copied or moved.
+  - type: predict
+    pre: |
+      void f(int&) { std::cout << "lvalue "; }
+      void f(int&&) { std::cout << "rvalue "; }
+    body: |
+      int x = 1;
+      f(x);
+      f(2);
+      f(std::move(x));
+      std::cout << "\n";
+    why: Named variables are lvalues; literals and std::move results are rvalues.
+  - type: predict
+    body: |
+      std::vector<int> a = {1, 2, 3};
+      std::vector<int> b = std::move(a);
+      std::cout << b.size() << "\n";
+    why: b took over a's elements.
+  - type: fill
+    prompt: The parameter type of a move constructor.
+    pre: |
+      struct Buf {
+          int* p = nullptr;
+          Buf() = default;
+          Buf(Buf[[&&]] o) noexcept : p(o.p) { o.p = nullptr; }
+      };
+    body: |
+      Buf a;
+      Buf b(std::move(a));
+      std::cout << (b.p == nullptr) << "\n";
+    why: "`T&&` is an rvalue reference, which binds to things you're allowed to steal from."
+  - type: bug
+    pre: |
+      struct Buf {
+          int* p;
+          Buf() : p(new int[8]()) {}
+          ~Buf() { delete[] p; }
+          Buf(Buf&& o) noexcept : p(o.p) {} // BUG
+      };
+    body: |
+      {
+          Buf a;
+          Buf b(std::move(a));
+      }
+      std::cout << "ok\n";
+    fix: "Buf(Buf&& o) noexcept : p(o.p) { o.p = nullptr; }"
+    ub: true
+    why: The source still holds the pointer, so both destructors delete it (double free). Null it out.
+  - type: compiles
+    pre: |
+      struct OnlyMove {
+          OnlyMove() = default;
+          OnlyMove(const OnlyMove&) = delete;
+          OnlyMove(OnlyMove&&) = default;
+      };
+    body: |
+      OnlyMove a;
+      OnlyMove b = std::move(a);
+      std::cout << "ok\n";
+    why: Moving is allowed even though copying is deleted.
+  - type: compiles
+    pre: |
+      struct OnlyMove {
+          OnlyMove() = default;
+          OnlyMove(const OnlyMove&) = delete;
+          OnlyMove(OnlyMove&&) = default;
+      };
+    body: |
+      OnlyMove a;
+      OnlyMove b = a;
+    why: a is an lvalue, so this needs the deleted copy constructor.
+  - type: boss
+    prompt: |
+      Write a move-only class `Token` holding a `std::string` id. It must be movable (the id moves across and the source's id becomes empty) and not copyable. Give it `explicit Token(std::string id)` and `const std::string& id() const`.
+    seed: |
+      #include <string>
+
+      class Token {
+      public:
+
+      private:
+          std::string id_;
+      };
+    solution: |
+      #include <string>
+      #include <utility>
+
+      class Token {
+      public:
+          explicit Token(std::string id) : id_(std::move(id)) {}
+          Token(const Token&) = delete;
+          Token& operator=(const Token&) = delete;
+          Token(Token&& o) noexcept : id_(std::move(o.id_)) { o.id_.clear(); }
+          Token& operator=(Token&& o) noexcept {
+              id_ = std::move(o.id_);
+              o.id_.clear();
+              return *this;
+          }
+          const std::string& id() const { return id_; }
+
+      private:
+          std::string id_;
+      };
+    harness: |
+      #include <type_traits>
+      #include <utility>
+      int main() {
+          CHECK("not copyable", !std::is_copy_constructible_v<Token>);
+          Token a("abc");
+          Token b(std::move(a));
+          CHECK_EQ("moved id", b.id(), std::string("abc"));
+          CHECK_EQ("source emptied", a.id(), std::string(""));
+          Token c("x");
+          c = std::move(b);
+          CHECK_EQ("move assigned", c.id(), std::string("abc"));
+      }
+    hints:
+      - "Delete the two copy operations; write the move constructor and move assignment."
+      - "In both moves, clear the source's string afterwards."
+    why: Rule of five in miniature. Moves transfer, copies are forbidden.

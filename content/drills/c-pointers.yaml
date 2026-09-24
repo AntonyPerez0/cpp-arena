@@ -1,0 +1,175 @@
+topic: c-pointers
+lang: c
+drills:
+  - type: predict
+    body: |
+      int x = 10;
+      int *p = &x;
+      *p = 20;
+      printf("%d\n", x);
+    why: Writing through *p changes x itself.
+  - type: predict
+    body: |
+      int a = 1, b = 2;
+      int *p = &a;
+      p = &b;
+      *p = 5;
+      printf("%d %d\n", a, b);
+    why: p was re-pointed at b before the write.
+  - type: predict
+    body: |
+      int arr[] = {10, 20, 30};
+      int *p = arr;
+      printf("%d\n", *(p + 2));
+    why: p + 2 points at arr[2].
+  - type: predict
+    body: |
+      int arr[] = {10, 20, 30};
+      int *p = arr;
+      p++;
+      printf("%d\n", *p);
+    why: Incrementing a pointer moves it one element forward.
+  - type: predict
+    pre: |
+      void set(int *p) { *p = 42; }
+    body: |
+      int v = 0;
+      set(&v);
+      printf("%d\n", v);
+    why: Passing &v lets set write into v.
+  - type: predict
+    body: |
+      int arr[] = {4, 8, 15, 16};
+      int *a = &arr[1], *b = &arr[3];
+      printf("%d\n", (int)(b - a));
+    why: Subtracting pointers gives the distance in elements.
+  - type: predict
+    body: |
+      int x = 3;
+      int *p = &x;
+      int **pp = &p;
+      **pp = 9;
+      printf("%d\n", x);
+    why: "**pp follows two arrows: pp to p, p to x."
+  - type: predict
+    body: |
+      char s[] = "awp";
+      char *c = s;
+      printf("%c%c\n", *c, *(c + 2));
+    why: "*c is 'a' and *(c + 2) is 'p'."
+  - type: fill
+    prompt: Make p point at hp.
+    body: |
+      int hp = 100;
+      int *p = [[&hp]];
+      printf("%d\n", *p);
+    why: "`&hp` is the address of hp."
+  - type: fill
+    prompt: Read the value p points to.
+    body: |
+      int kills = 7;
+      int *p = &kills;
+      printf("%d\n", [[*p]]);
+    why: "`*p` dereferences the pointer."
+  - type: bug
+    pre: |
+      void double_it(int *p) {
+          p = p * 2; // BUG
+      }
+    body: |
+      int v = 4;
+      double_it(&v);
+      printf("%d\n", v);
+    fix: "*p = *p * 2;"
+    why: You must dereference to change the value, not the pointer.
+  - type: bug
+    pre: |
+      void swap(int *a, int *b) {
+          int t = *a;
+          *a = *b;
+          *b = *a; // BUG
+      }
+    body: |
+      int x = 1, y = 2;
+      swap(&x, &y);
+      printf("%d %d\n", x, y);
+    fix: "*b = t;"
+    why: "*a was already overwritten; use the saved temporary."
+  - type: compiles
+    body: |
+      int x = 5;
+      int *p = x;
+      printf("%d\n", *p);
+    why: Assigning an int to a pointer is an error in modern C (clang rejects it). Use &x.
+  - type: compiles
+    body: |
+      int x = 5;
+      const int *p = &x;
+      *p = 6;
+      printf("%d\n", x);
+    why: p points to const int, so writing through it is forbidden.
+  - type: compiles
+    body: |
+      int x = 5, y = 6;
+      int *const p = &x;
+      *p = 7;
+      printf("%d %d\n", x, y);
+    why: "`int *const` means the pointer can't change, but the int it points at can."
+  - type: boss
+    prompt: |
+      Write `void min_max(const int *a, int n, int *mn, int *mx)` that stores the smallest and largest element through the two out-pointers. Assume `n >= 1`.
+    seed: |
+      void min_max(const int *a, int n, int *mn, int *mx) {
+
+      }
+    solution: |
+      void min_max(const int *a, int n, int *mn, int *mx) {
+          *mn = *mx = a[0];
+          for (int i = 1; i < n; i++) {
+              if (a[i] < *mn) *mn = a[i];
+              if (a[i] > *mx) *mx = a[i];
+          }
+      }
+    harness: |
+      int main(void) {
+          int a[] = {3, -2, 9, 4};
+          int lo = 0, hi = 0;
+          min_max(a, 4, &lo, &hi);
+          CHECK_INT("min", lo, -2);
+          CHECK_INT("max", hi, 9);
+          int b[] = {7};
+          min_max(b, 1, &lo, &hi);
+          CHECK("single", lo == 7 && hi == 7);
+          return 0;
+      }
+    hints:
+      - Start both at a[0], then update while looping.
+    why: Out-parameters let one function return two results.
+  - type: boss
+    prompt: |
+      Write `const char *find_char(const char *s, char c)` that returns a pointer to the first `c` in `s`, or `NULL` if there is none (like the library's strchr).
+    seed: |
+      #include <stddef.h>
+
+      const char *find_char(const char *s, char c) {
+
+      }
+    solution: |
+      #include <stddef.h>
+
+      const char *find_char(const char *s, char c) {
+          for (; *s != '\0'; s++)
+              if (*s == c) return s;
+          return NULL;
+      }
+    harness: |
+      int main(void) {
+          const char *s = "de_dust2";
+          CHECK("finds '_'", find_char(s, '_') == s + 2);
+          CHECK("finds first 'd'", find_char(s, 'd') == s);
+          CHECK("missing -> NULL", find_char(s, 'z') == NULL);
+          return 0;
+      }
+    hints:
+      - Walk the pointer until '\0'.
+    why: Return the pointer itself when you find a match.

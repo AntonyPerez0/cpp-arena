@@ -1,0 +1,105 @@
+topic: cpp-templates
+lang: cpp
+drills:
+  - type: predict
+    pre: |
+      template <typename T>
+      T twice(T x) { return x + x; }
+    body: |
+      std::cout << twice(3) << " " << twice(std::string("ab")) << "\n";
+    why: The same template works for int and std::string because both support +.
+  - type: predict
+    pre: |
+      template <typename T>
+      T biggest(T a, T b) { return a > b ? a : b; }
+    body: |
+      std::cout << biggest(2.5, 1.5) << " " << biggest('a', 'z') << "\n";
+    why: T is deduced as double, then char.
+  - type: predict
+    pre: |
+      template <typename T>
+      struct Box { T v; T get() const { return v; } };
+    body: |
+      Box<int> a{4};
+      Box<std::string> b{"gg"};
+      std::cout << a.get() << b.get() << "\n";
+    why: Each Box<T> is a separate class generated for T.
+  - type: predict
+    pre: |
+      constexpr int sq(int x) { return x * x; }
+    body: |
+      int arr[sq(3)];
+      std::cout << sizeof(arr) / sizeof(arr[0]) << "\n";
+    why: sq(3) is computed at compile time, so it can size an array.
+  - type: predict
+    pre: |
+      template <typename T>
+      std::string kind(T) {
+          if constexpr (std::is_integral_v<T>) return "int";
+          else return "other";
+      }
+    body: |
+      std::cout << kind(1) << " " << kind(1.0) << "\n";
+    why: if constexpr picks the branch per type at compile time.
+  - type: predict
+    pre: |
+      template <int N>
+      int times() { return N * 10; }
+    body: |
+      std::cout << times<3>() << "\n";
+    why: Templates can take compile-time values, not just types.
+  - type: fill
+    prompt: Declare the template parameter.
+    pre: |
+      template <[[typename]] T>
+      T first(const std::vector<T>& v) { return v[0]; }
+    body: |
+      std::cout << first(std::vector<int>{7, 8}) << "\n";
+    why: "`typename` (or `class`) introduces a type parameter."
+  - type: fill
+    prompt: Make the function usable at compile time.
+    pre: |
+      [[constexpr]] int cube(int x) { return x * x * x; }
+    body: |
+      static_assert(cube(2) == 8);
+      std::cout << cube(3) << "\n";
+    why: static_assert needs a constant expression, which requires constexpr.
+  - type: compiles
+    pre: |
+      template <typename T>
+      T add(T a, T b) { return a + b; }
+    body: |
+      std::cout << add(1, 2.5) << "\n";
+    why: T can't be deduced as both int and double.
+  - type: compiles
+    pre: |
+      template <typename T>
+      T add(T a, T b) { return a + b; }
+    body: |
+      std::cout << add<double>(1, 2.5) << "\n";
+    why: Naming T explicitly lets 1 convert to double.
+  - type: boss
+    prompt: |
+      Write a function template `T max_of(const std::vector<T>& v)` returning the largest element of a non-empty vector.
+    seed: |
+      #include <vector>
+
+    solution: |
+      #include <vector>
+
+      template <typename T>
+      T max_of(const std::vector<T>& v) {
+          T best = v[0];
+          for (const auto& x : v)
+              if (best < x) best = x;
+          return best;
+      }
+    harness: |
+      int main() {
+          CHECK_EQ("ints", max_of(std::vector<int>{3, 9, 2}), 9);
+          CHECK_EQ("strings", max_of(std::vector<std::string>{"b", "z", "a"}), std::string("z"));
+          CHECK_EQ("doubles", max_of(std::vector<double>{-1.5, -0.5}), -0.5);
+      }
+    hints:
+      - "`template <typename T>` then track the best."
+    why: Using only `<` means it works for any comparable type.

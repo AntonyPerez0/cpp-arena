@@ -1,0 +1,177 @@
+topic: cpp-oop
+lang: cpp
+drills:
+  - type: predict
+    pre: |
+      struct A { std::string hi() const { return "A"; } };
+      struct B : A { std::string hi() const { return "B"; } };
+    body: |
+      B b;
+      const A& r = b;
+      std::cout << b.hi() << r.hi() << "\n";
+    why: Without virtual, the call through A& uses A's version.
+  - type: predict
+    pre: |
+      struct A { virtual std::string hi() const { return "A"; } virtual ~A() = default; };
+      struct B : A { std::string hi() const override { return "B"; } };
+    body: |
+      B b;
+      const A& r = b;
+      std::cout << b.hi() << r.hi() << "\n";
+    why: With virtual, the real object's version runs through a base reference.
+  - type: predict
+    pre: |
+      struct Base {
+          Base() { std::cout << "B"; }
+          virtual ~Base() { std::cout << "~B"; }
+      };
+      struct Derived : Base {
+          Derived() { std::cout << "D"; }
+          ~Derived() override { std::cout << "~D"; }
+      };
+    body: |
+      { Derived d; }
+      std::cout << "\n";
+    why: Bases are built first and destroyed last.
+  - type: predict
+    pre: |
+      struct Shape { virtual int sides() const = 0; virtual ~Shape() = default; };
+      struct Tri : Shape { int sides() const override { return 3; } };
+      struct Sq : Shape { int sides() const override { return 4; } };
+    body: |
+      std::vector<std::unique_ptr<Shape>> v;
+      v.push_back(std::make_unique<Tri>());
+      v.push_back(std::make_unique<Sq>());
+      v.push_back(std::make_unique<Tri>());
+      int t = 0;
+      for (auto& s : v) t += s->sides();
+      std::cout << t << "\n";
+    why: Each element calls its own override.
+  - type: predict
+    pre: |
+      struct A { int x = 1; };
+      struct B : A { int y = 2; };
+    body: |
+      B b;
+      std::cout << b.x + b.y << "\n";
+    why: B contains A's members as well as its own.
+  - type: fill
+    prompt: Make the function overridable.
+    pre: |
+      struct W { [[virtual]] int dmg() const { return 1; } virtual ~W() = default; };
+      struct AWP : W { int dmg() const override { return 115; } };
+    body: |
+      AWP a;
+      const W& w = a;
+      std::cout << w.dmg() << "\n";
+    why: Only virtual functions dispatch to the derived version.
+  - type: fill
+    prompt: Inherit publicly.
+    pre: |
+      struct Animal { int legs = 4; };
+      struct Dog [[:]] public Animal {};
+    body: |
+      Dog d;
+      std::cout << d.legs << "\n";
+    why: "`: public Base` after the class name."
+  - type: bug
+    pre: |
+      struct W {
+          virtual std::string name() const { return "weapon"; }
+          virtual ~W() = default;
+      };
+      struct Knife : W {
+          std::string name() { return "knife"; } // BUG
+      };
+    body: |
+      Knife k;
+      const W& w = k;
+      std::cout << w.name() << "\n";
+    fix: 'std::string name() const override { return "knife"; }'
+    why: Missing const makes it a different function, so it doesn't override. Writing override would have caught this.
+  - type: compiles
+    pre: |
+      struct Shape { virtual double area() const = 0; virtual ~Shape() = default; };
+    body: |
+      Shape s;
+    why: Abstract classes can't be instantiated.
+  - type: compiles
+    pre: |
+      struct A { virtual void f() {} virtual ~A() = default; };
+      struct B : A { void f(int) override {} };
+    body: |
+      B b;
+    why: f(int) doesn't match any virtual in A, so override is an error.
+  - type: boss
+    prompt: |
+      Make `Circle` and `Square` implement `Shape` (`double area() const`, `std::string name() const`). Then write `std::string largest(const std::vector<std::unique_ptr<Shape>>& v)` returning the name of the biggest shape (assume non-empty). Use `3.14159` for pi.
+    seed: |
+      #include <memory>
+      #include <string>
+      #include <vector>
+
+      struct Shape {
+          virtual double area() const = 0;
+          virtual std::string name() const = 0;
+          virtual ~Shape() = default;
+      };
+
+      struct Circle : Shape {
+          double r;
+          explicit Circle(double r) : r(r) {}
+
+      };
+
+      struct Square : Shape {
+          double s;
+          explicit Square(double s) : s(s) {}
+
+      };
+
+      std::string largest(const std::vector<std::unique_ptr<Shape>>& v) {
+
+      }
+    solution: |
+      #include <memory>
+      #include <string>
+      #include <vector>
+
+      struct Shape {
+          virtual double area() const = 0;
+          virtual std::string name() const = 0;
+          virtual ~Shape() = default;
+      };
+
+      struct Circle : Shape {
+          double r;
+          explicit Circle(double r) : r(r) {}
+          double area() const override { return 3.14159 * r * r; }
+          std::string name() const override { return "circle"; }
+      };
+
+      struct Square : Shape {
+          double s;
+          explicit Square(double s) : s(s) {}
+          double area() const override { return s * s; }
+          std::string name() const override { return "square"; }
+      };
+
+      std::string largest(const std::vector<std::unique_ptr<Shape>>& v) {
+          const Shape* best = v[0].get();
+          for (const auto& p : v)
+              if (p->area() > best->area()) best = p.get();
+          return best->name();
+      }
+    harness: |
+      int main() {
+          std::vector<std::unique_ptr<Shape>> v;
+          v.push_back(std::make_unique<Square>(3));
+          v.push_back(std::make_unique<Circle>(2));
+          CHECK_EQ("circle r=2 beats square 3", largest(v), std::string("circle"));
+          v.push_back(std::make_unique<Square>(4));
+          CHECK_EQ("square 4 wins", largest(v), std::string("square"));
+      }
+    hints:
+      - Each shape overrides both functions.
+      - Track a `const Shape*` to the best so far (`p.get()`).
+    why: Virtual calls through unique_ptr<Shape> pick each concrete area().

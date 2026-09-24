@@ -1,0 +1,198 @@
+id: guessing
+title: Number guessing game
+lang: c
+level: Beginner
+after: c-loops
+summary: Higher or lower? Build the classic game with attempt counting, input validation and your own random number generator.
+seed: |
+  #include <stdio.h>
+
+  int main(void) {
+      int secret;
+      scanf("%d", &secret);
+      // read guesses until one is correct
+
+      return 0;
+  }
+milestones:
+  - title: Higher or lower
+    text: |
+      The first line of input is the secret number. After that come guesses, one per line.
+
+      For each guess print `higher` if the secret is bigger, `lower` if it's smaller, or `correct!` when it matches, and stop reading at the correct guess.
+
+      ```
+      42
+      50
+      25
+      42
+      ```
+      prints
+      ```
+      lower
+      higher
+      correct!
+      ```
+    solution: |
+      #include <stdio.h>
+
+      int main(void) {
+          int secret;
+          scanf("%d", &secret);
+          // read guesses until one is correct
+          int guess;
+          while (scanf("%d", &guess) == 1) {
+              if (guess < secret) {
+                  printf("higher\n");
+              } else if (guess > secret) {
+                  printf("lower\n");
+              } else {
+                  printf("correct!\n");
+                  break;
+              }
+          }
+          return 0;
+      }
+    tests:
+      - stdin: "42\n50\n25\n42\n"
+      - stdin: "7\n7\n"
+      - stdin: "99\n1\n98\n100\n99\n5\n"
+        hidden: true
+    hints:
+      - "Loop with `while (scanf(\"%d\", &guess) == 1)` so it stops at the end of input."
+      - "`break` out of the loop on the correct guess."
+
+  - title: Count the attempts
+    text: |
+      Count every guess. On the correct one print `correct! N attempts` (use `attempt` for 1).
+
+      If the input runs out before the secret is found, print `out of guesses`.
+    solution: |
+      #include <stdio.h>
+
+      int main(void) {
+          int secret;
+          scanf("%d", &secret);
+          // read guesses until one is correct
+          int guess;
+          int attempts = 0;
+          int won = 0;
+          while (scanf("%d", &guess) == 1) {
+              attempts++;
+              if (guess < secret) {
+                  printf("higher\n");
+              } else if (guess > secret) {
+                  printf("lower\n");
+              } else {
+                  printf("correct! %d %s\n", attempts, attempts == 1 ? "attempt" : "attempts");
+                  won = 1;
+                  break;
+              }
+          }
+          if (!won) printf("out of guesses\n");
+          return 0;
+      }
+    tests:
+      - stdin: "42\n50\n25\n42\n"
+      - stdin: "7\n7\n"
+      - stdin: "10\n1\n2\n"
+      - stdin: "60\n50\n70\n60\n"
+        hidden: true
+    hints:
+      - Keep an `attempts` counter and a `won` flag.
+      - "The ternary `attempts == 1 ? \"attempt\" : \"attempts\"` handles the plural."
+
+  - title: Validate the range
+    text: |
+      Guesses must be between 1 and 100. For anything outside, print `out of range` and **don't** count it as an attempt.
+    solution: |
+      #include <stdio.h>
+
+      int main(void) {
+          int secret;
+          scanf("%d", &secret);
+          // read guesses until one is correct
+          int guess;
+          int attempts = 0;
+          int won = 0;
+          while (scanf("%d", &guess) == 1) {
+              if (guess < 1 || guess > 100) {
+                  printf("out of range\n");
+                  continue;
+              }
+              attempts++;
+              if (guess < secret) {
+                  printf("higher\n");
+              } else if (guess > secret) {
+                  printf("lower\n");
+              } else {
+                  printf("correct! %d %s\n", attempts, attempts == 1 ? "attempt" : "attempts");
+                  won = 1;
+                  break;
+              }
+          }
+          if (!won) printf("out of guesses\n");
+          return 0;
+      }
+    tests:
+      - stdin: "42\n500\n50\n0\n42\n"
+      - stdin: "1\n-5\n1\n"
+      - stdin: "100\n101\n100\n"
+        hidden: true
+    hints:
+      - "Check `guess < 1 || guess > 100` before counting, and `continue` to skip the rest."
+
+  - title: Your own random secret
+    text: |
+      Real games pick the secret randomly. `rand()` gives different numbers on different systems, so you'll write your own tiny **linear congruential generator** (LCG), the same kind many C libraries use internally:
+
+      ```c
+      unsigned int state = seed;
+      state = state * 1103515245u + 12345u;     // wraps around at 2^32
+      int secret = (int)((state / 65536u) % 100u) + 1;
+      ```
+
+      Now the first line of input is a **seed** instead of the secret. Compute the secret from it with one LCG step.
+
+      Also limit the player to **7 attempts**. After the 7th wrong guess print `out of guesses, it was N` and stop. (Running out of input still prints `out of guesses, it was N`.)
+    solution: |
+      #include <stdio.h>
+
+      int main(void) {
+          unsigned int seed;
+          scanf("%u", &seed);
+          unsigned int state = seed * 1103515245u + 12345u;
+          int secret = (int)((state / 65536u) % 100u) + 1;
+          // read guesses until one is correct
+          int guess;
+          int attempts = 0;
+          int won = 0;
+          while (attempts < 7 && scanf("%d", &guess) == 1) {
+              if (guess < 1 || guess > 100) {
+                  printf("out of range\n");
+                  continue;
+              }
+              attempts++;
+              if (guess < secret) {
+                  printf("higher\n");
+              } else if (guess > secret) {
+                  printf("lower\n");
+              } else {
+                  printf("correct! %d %s\n", attempts, attempts == 1 ? "attempt" : "attempts");
+                  won = 1;
+                  break;
+              }
+          }
+          if (!won) printf("out of guesses, it was %d\n", secret);
+          return 0;
+      }
+    tests:
+      - stdin: "1\n50\n75\n63\n57\n60\n59\n"
+      - stdin: "2024\n1\n2\n3\n4\n5\n6\n7\n8\n"
+      - stdin: "7\n50\n"
+      - stdin: "123\n50\n25\n12\n"
+        hidden: true
+    hints:
+      - "Read the seed with `%u` into an `unsigned int`. Unsigned arithmetic wraps around cleanly at 2^32."
+      - "Add `attempts < 7 &&` to the loop condition (before the scanf, so no extra guess is read)."
+      - With seed 1, the secret is 60.

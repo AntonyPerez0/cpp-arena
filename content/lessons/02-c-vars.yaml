@@ -1,0 +1,205 @@
+id: c-vars
+title: Variables and types
+lang: c
+phase: "C: Foundations"
+summary: Store values in named boxes. int, double and char, printing them with format specifiers, and constants.
+steps:
+  - title: Your first variable
+    text: |
+      A **variable** is a named box that holds a value. In C you must say what *type* of value goes in the box.
+
+      ```c
+      int kills = 25;
+      ```
+
+      This creates a box named `kills` that holds an `int` (a whole number) and puts `25` in it.
+
+      To print it, `printf` needs a **format specifier** where the value should go. For an `int` that's `%d`:
+
+      ```c
+      printf("Kills: %d\n", kills);
+      ```
+
+      **Your turn:** declare an `int` named `score` with the value `42`.
+    fill: |
+      #include <stdio.h>
+
+      int main(void) {
+          [[int]] score = [[42]];
+          printf("Score: %d\n", score);
+          return 0;
+      }
+    hints:
+      - The type for whole numbers is `int`.
+    tests:
+      - expect: "Score: 42"
+
+  - title: Printing values with %d
+    text: |
+      `printf` replaces each `%d` with the next value after the format string, in order.
+
+      ```c
+      int a = 3, b = 4;
+      printf("%d + %d\n", a, b);   // prints 3 + 4
+      ```
+
+      **Your turn:** complete the `printf` so it prints `K/D: 20/5`.
+    fill: |
+      #include <stdio.h>
+
+      int main(void) {
+          int kills = 20;
+          int deaths = 5;
+          printf("K/D: [[%d]]/[[%d]]\n", [[kills]], [[deaths]]);
+          return 0;
+      }
+    hints:
+      - Put a `%d` for each number, then list the variables after the string in the same order.
+    tests:
+      - expect: "K/D: 20/5"
+
+  - title: Changing a variable
+    text: |
+      A variable can be given a new value with `=`. The old value is replaced.
+
+      ```c
+      int hp = 100;
+      hp = hp - 27;     // now 73
+      ```
+
+      Read `hp = hp - 27` as: take the current value of `hp`, subtract 27, and store the result back in `hp`.
+
+      **Your turn:** the player has `3200` money and buys a rifle for `2700`. Subtract the price from `money` so the program prints `Money left: 500`.
+    seed: |
+      #include <stdio.h>
+
+      int main(void) {
+          int money = 3200;
+          // subtract the rifle price (2700) from money
+
+          printf("Money left: %d\n", money);
+          return 0;
+      }
+    solution: |
+      #include <stdio.h>
+
+      int main(void) {
+          int money = 3200;
+          // subtract the rifle price (2700) from money
+          money = money - 2700;
+          printf("Money left: %d\n", money);
+          return 0;
+      }
+    require:
+      - pattern: "money\\s*(=\\s*money\\s*-|-=)"
+        message: Change `money` itself by subtracting 2700 from it (don't just print 500).
+    hints:
+      - "Write `money = money - 2700;` on the empty line."
+    tests:
+      - expect: "Money left: 500"
+
+  - title: Decimals with double
+    text: |
+      `int` can't hold fractions. For numbers with a decimal point use `double`, and print it with `%f`.
+
+      ```c
+      double accuracy = 0.625;
+      printf("%f\n", accuracy);    // 0.625000
+      printf("%.2f\n", accuracy);  // 0.63 (rounded to 2 places)
+      ```
+
+      `%.2f` means "two digits after the decimal point".
+
+      **Your turn:** store `1.25` in a `double` named `rating` and print it with exactly two decimals so the output is `Rating: 1.25`.
+    fill: |
+      #include <stdio.h>
+
+      int main(void) {
+          [[double]] rating = 1.25;
+          printf("Rating: [[%.2f]]\n", rating);
+          return 0;
+      }
+    hints:
+      - The type is `double`. The format for two decimals is `%.2f`.
+    tests:
+      - expect: "Rating: 1.25"
+
+  - title: Characters with char
+    text: |
+      A `char` holds a single character, written in **single** quotes: `'A'`. Double quotes make a string, which is a different thing.
+
+      Print a `char` with `%c`:
+
+      ```c
+      char grade = 'B';
+      printf("Grade: %c\n", grade);
+      ```
+
+      Under the hood a `char` is a small number (its ASCII code), so `'A'` is 65. Printing a char with `%d` shows that number.
+
+      **Your turn:** write a program that stores the letter `T` in a `char` named `team`, then prints two lines:
+
+      ```
+      Team: T
+      Code: 84
+      ```
+    seed: |
+      #include <stdio.h>
+
+      int main(void) {
+          // declare the char here
+
+          // print it with %c, then with %d
+
+          return 0;
+      }
+    solution: |
+      #include <stdio.h>
+
+      int main(void) {
+          // declare the char here
+          char team = 'T';
+          // print it with %c, then with %d
+          printf("Team: %c\n", team);
+          printf("Code: %d\n", team);
+          return 0;
+      }
+    require:
+      - pattern: "char\\s+team\\s*="
+        message: "Declare a variable named `team` of type `char`."
+    hints:
+      - "`char team = 'T';` declares it."
+      - "Use `%c` for the letter and `%d` for its number code."
+    tests:
+      - expect: "Team: T\nCode: 84"
+
+  - title: Constants and sizeof
+    text: |
+      Put `const` in front of a declaration to make a variable read-only. Trying to change it later is a compile error, which protects you from accidents.
+
+      ```c
+      const int MAX_PLAYERS = 10;
+      ```
+
+      `sizeof` tells you how many bytes a type uses. On this site (and most machines) `int` is 4 bytes, `double` is 8 and `char` is always 1. Print a size with `%zu`.
+
+      **Your turn:** declare a constant `int` named `ROUND_TIME` equal to `115`, and print:
+
+      ```
+      Round time: 115
+      int bytes: 4
+      ```
+    fill: |
+      #include <stdio.h>
+
+      int main(void) {
+          [[const]] int ROUND_TIME = 115;
+          printf("Round time: %d\n", ROUND_TIME);
+          printf("int bytes: %zu\n", [[sizeof(int)]]);
+          return 0;
+      }
+    hints:
+      - The keyword that makes a variable read-only is `const`.
+      - "`sizeof(int)` gives the size of an int in bytes."
+    tests:
+      - expect: "Round time: 115\nint bytes: 4"

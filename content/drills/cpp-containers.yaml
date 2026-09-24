@@ -1,0 +1,100 @@
+topic: cpp-containers
+lang: cpp
+drills:
+  - type: predict
+    body: |
+      std::map<std::string, int> m;
+      m["b"] = 2;
+      m["a"] = 1;
+      m["c"] = 3;
+      for (const auto& [k, v] : m) std::cout << k;
+      std::cout << "\n";
+    why: std::map iterates in sorted key order.
+  - type: predict
+    body: |
+      std::map<std::string, int> m;
+      std::cout << m["x"] << " " << m.size() << "\n";
+    why: operator[] inserts a missing key with a default value (0).
+  - type: predict
+    body: |
+      std::set<int> s = {3, 1, 3, 2, 1};
+      std::cout << s.size() << " " << *s.begin() << "\n";
+    why: A set keeps unique values in sorted order.
+  - type: predict
+    body: |
+      std::map<std::string, int> m = {{"awp", 4750}};
+      std::cout << m.count("awp") << m.count("ak") << "\n";
+    why: count is 1 if the key exists, 0 otherwise, and never inserts.
+  - type: predict
+    body: |
+      std::pair<std::string, int> p = {"ropz", 25};
+      auto [name, k] = p;
+      std::cout << name << k << "\n";
+    why: Structured bindings unpack .first and .second.
+  - type: predict
+    body: |
+      std::map<char, int> m;
+      for (char c : std::string("aabca")) m[c]++;
+      std::cout << m['a'] << m['b'] << m['c'] << "\n";
+    why: Counting with m[c]++ starts each new key at 0.
+  - type: fill
+    prompt: Look up without inserting.
+    body: |
+      std::map<std::string, int> m = {{"a", 1}};
+      auto it = m.[[find]]("a");
+      if (it != m.end()) std::cout << it->second << "\n";
+    why: find returns end() when the key is missing and never inserts.
+  - type: fill
+    prompt: The value part of a map entry.
+    body: |
+      std::map<std::string, int> m = {{"t", 13}};
+      for (const auto& e : m) std::cout << e.first << e.[[second]] << "\n";
+    why: Map entries are pairs of (key, value).
+  - type: bug
+    body: |
+      std::map<std::string, int> prices = {{"awp", 4750}};
+      std::cout << prices["ak"] << " " << prices.size() << "\n"; // BUG
+    fix: 'std::cout << prices.count("ak") << " " << prices.size() << "\n";'
+    why: "`prices[\"ak\"]` silently inserts a new entry. Use count/find/contains to check."
+  - type: compiles
+    body: |
+      const std::map<std::string, int> m = {{"a", 1}};
+      std::cout << m["a"] << "\n";
+    why: operator[] may insert, so it isn't allowed on a const map. Use find or at.
+  - type: compiles
+    body: |
+      std::set<int> s = {1, 2};
+      s[0] = 5;
+    why: Sets have no indexing.
+  - type: boss
+    prompt: |
+      Write `char first_repeat(const std::string& s)` returning the first character that appears for the second time, or `'-'` if none repeats. `"swiss"` gives `'s'`.
+    seed: |
+      #include <string>
+      #include <unordered_set>
+
+      char first_repeat(const std::string& s) {
+
+      }
+    solution: |
+      #include <string>
+      #include <unordered_set>
+
+      char first_repeat(const std::string& s) {
+          std::unordered_set<char> seen;
+          for (char c : s) {
+              if (seen.count(c)) return c;
+              seen.insert(c);
+          }
+          return '-';
+      }
+    harness: |
+      int main() {
+          CHECK_EQ("swiss", first_repeat("swiss"), 's');
+          CHECK_EQ("abca", first_repeat("abca"), 'a');
+          CHECK_EQ("abc", first_repeat("abc"), '-');
+          CHECK_EQ("abba", first_repeat("abba"), 'b');
+      }
+    hints:
+      - Remember what you've seen in a set.
+    why: A hash set answers "seen before?" in O(1).

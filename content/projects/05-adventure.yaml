@@ -1,0 +1,408 @@
+id: adventure
+title: Text adventure
+lang: c
+level: Intermediate
+after: c-structs
+summary: Explore a tiny map with typed commands. Rooms as structs, movement, items, an inventory and a win condition.
+seed: |
+  #include <stdio.h>
+  #include <string.h>
+
+  enum { NORTH, EAST, SOUTH, WEST };
+
+  struct Room {
+      const char *name;
+      const char *desc;
+      int exits[4];         /* room index for each direction, or -1 */
+      const char *item;     /* item lying here, or NULL */
+  };
+
+  struct Room rooms[] = {
+      {"T spawn", "Sand, crates and the smell of fresh bread.", {1, -1, -1, 2}, "bomb"},
+      {"mid", "A long open corridor. Snipers love this place.", {3, -1, 0, -1}, NULL},
+      {"tunnels", "Dark and narrow. Footsteps echo.", {-1, 0, -1, 3}, "flashbang"},
+      {"A site", "The bombsite. Plant here.", {-1, -1, 1, -1}, NULL},
+  };
+
+  int main(void) {
+      int here = 0;
+      char word[32];
+      while (scanf("%31s", word) == 1) {
+          // handle commands here
+
+      }
+      return 0;
+  }
+milestones:
+  - title: Look around and move
+    text: |
+      The starter code already describes a small map. Each room has a name, a description, four exits (an index into `rooms`, or `-1`) and maybe an item.
+
+      Implement two commands:
+
+      - `look` prints the room's name and description on two lines
+      - `go DIR` where DIR is `north`, `east`, `south` or `west`: move and print the new room's name, or print `you can't go that way`
+
+      ```
+      look
+      go north
+      go east
+      go north
+      ```
+      prints
+      ```
+      T spawn
+      Sand, crates and the smell of fresh bread.
+      mid
+      you can't go that way
+      A site
+      ```
+    solution: |
+      #include <stdio.h>
+      #include <string.h>
+
+      enum { NORTH, EAST, SOUTH, WEST };
+
+      struct Room {
+          const char *name;
+          const char *desc;
+          int exits[4];         /* room index for each direction, or -1 */
+          const char *item;     /* item lying here, or NULL */
+      };
+
+      struct Room rooms[] = {
+          {"T spawn", "Sand, crates and the smell of fresh bread.", {1, -1, -1, 2}, "bomb"},
+          {"mid", "A long open corridor. Snipers love this place.", {3, -1, 0, -1}, NULL},
+          {"tunnels", "Dark and narrow. Footsteps echo.", {-1, 0, -1, 3}, "flashbang"},
+          {"A site", "The bombsite. Plant here.", {-1, -1, 1, -1}, NULL},
+      };
+
+      int direction(const char *w) {
+          const char *names[] = {"north", "east", "south", "west"};
+          for (int d = 0; d < 4; d++)
+              if (strcmp(w, names[d]) == 0) return d;
+          return -1;
+      }
+
+      int main(void) {
+          int here = 0;
+          char word[32];
+          while (scanf("%31s", word) == 1) {
+              // handle commands here
+              if (strcmp(word, "look") == 0) {
+                  printf("%s\n%s\n", rooms[here].name, rooms[here].desc);
+              } else if (strcmp(word, "go") == 0) {
+                  char dir[16];
+                  scanf("%15s", dir);
+                  int d = direction(dir);
+                  if (d < 0 || rooms[here].exits[d] < 0) {
+                      printf("you can't go that way\n");
+                  } else {
+                      here = rooms[here].exits[d];
+                      printf("%s\n", rooms[here].name);
+                  }
+              }
+          }
+          return 0;
+      }
+    tests:
+      - stdin: "look\ngo north\ngo east\ngo north\n"
+      - stdin: "go west\nlook\ngo west\ngo east\ngo up\n"
+      - stdin: "go north\ngo south\ngo west\ngo east\nlook\n"
+        hidden: true
+    hints:
+      - Write a helper that turns "north", "east", ... into 0 to 3 (or -1).
+      - "After `go`, read the direction with another `scanf(\"%15s\", dir)`."
+      - "The destination is `rooms[here].exits[d]`. A value of -1 means no exit."
+
+  - title: Items and inventory
+    text: |
+      Add:
+
+      - `take` picks up the item in the room: prints `you take the ITEM` and removes it from the room. If there's nothing, print `nothing here`.
+      - `inventory` prints `you carry: ITEM, ITEM` in pickup order, or `you carry nothing`.
+      - `look` now also prints `you see a ITEM` as a third line when the room has an item.
+
+      You'll need an array of item names for the inventory and a count.
+    solution: |
+      #include <stdio.h>
+      #include <string.h>
+
+      enum { NORTH, EAST, SOUTH, WEST };
+
+      struct Room {
+          const char *name;
+          const char *desc;
+          int exits[4];         /* room index for each direction, or -1 */
+          const char *item;     /* item lying here, or NULL */
+      };
+
+      struct Room rooms[] = {
+          {"T spawn", "Sand, crates and the smell of fresh bread.", {1, -1, -1, 2}, "bomb"},
+          {"mid", "A long open corridor. Snipers love this place.", {3, -1, 0, -1}, NULL},
+          {"tunnels", "Dark and narrow. Footsteps echo.", {-1, 0, -1, 3}, "flashbang"},
+          {"A site", "The bombsite. Plant here.", {-1, -1, 1, -1}, NULL},
+      };
+
+      const char *inventory[8];
+      int carried = 0;
+
+      int direction(const char *w) {
+          const char *names[] = {"north", "east", "south", "west"};
+          for (int d = 0; d < 4; d++)
+              if (strcmp(w, names[d]) == 0) return d;
+          return -1;
+      }
+
+      int main(void) {
+          int here = 0;
+          char word[32];
+          while (scanf("%31s", word) == 1) {
+              // handle commands here
+              if (strcmp(word, "look") == 0) {
+                  printf("%s\n%s\n", rooms[here].name, rooms[here].desc);
+                  if (rooms[here].item) printf("you see a %s\n", rooms[here].item);
+              } else if (strcmp(word, "go") == 0) {
+                  char dir[16];
+                  scanf("%15s", dir);
+                  int d = direction(dir);
+                  if (d < 0 || rooms[here].exits[d] < 0) {
+                      printf("you can't go that way\n");
+                  } else {
+                      here = rooms[here].exits[d];
+                      printf("%s\n", rooms[here].name);
+                  }
+              } else if (strcmp(word, "take") == 0) {
+                  if (!rooms[here].item) {
+                      printf("nothing here\n");
+                  } else {
+                      printf("you take the %s\n", rooms[here].item);
+                      inventory[carried++] = rooms[here].item;
+                      rooms[here].item = NULL;
+                  }
+              } else if (strcmp(word, "inventory") == 0) {
+                  if (carried == 0) {
+                      printf("you carry nothing\n");
+                  } else {
+                      printf("you carry: ");
+                      for (int i = 0; i < carried; i++) printf("%s%s", i ? ", " : "", inventory[i]);
+                      printf("\n");
+                  }
+              }
+          }
+          return 0;
+      }
+    tests:
+      - stdin: "inventory\nlook\ntake\ntake\ninventory\nlook\n"
+      - stdin: "take\ngo west\nlook\ntake\ninventory\n"
+      - stdin: "go north\ntake\ngo south\ngo west\ntake\ngo east\ntake\ninventory\n"
+        hidden: true
+    hints:
+      - "Keep `const char *inventory[8]` and an `int carried` counter."
+      - "On take, store the pointer in the inventory and set `rooms[here].item = NULL`."
+      - "Separate items with \", \" except before the first one."
+
+  - title: Plant the bomb
+    text: |
+      Add the win condition: `plant`.
+
+      - Anywhere except A site: `you can only plant at a bombsite`
+      - At A site without the bomb: `you need the bomb`
+      - At A site with the bomb: `bomb planted. you win!` and the game ends (stop reading commands)
+
+      Also add `quit`, which prints `bye` and ends the game.
+    solution: |
+      #include <stdio.h>
+      #include <string.h>
+
+      enum { NORTH, EAST, SOUTH, WEST };
+
+      struct Room {
+          const char *name;
+          const char *desc;
+          int exits[4];         /* room index for each direction, or -1 */
+          const char *item;     /* item lying here, or NULL */
+      };
+
+      struct Room rooms[] = {
+          {"T spawn", "Sand, crates and the smell of fresh bread.", {1, -1, -1, 2}, "bomb"},
+          {"mid", "A long open corridor. Snipers love this place.", {3, -1, 0, -1}, NULL},
+          {"tunnels", "Dark and narrow. Footsteps echo.", {-1, 0, -1, 3}, "flashbang"},
+          {"A site", "The bombsite. Plant here.", {-1, -1, 1, -1}, NULL},
+      };
+
+      const char *inventory[8];
+      int carried = 0;
+
+      int direction(const char *w) {
+          const char *names[] = {"north", "east", "south", "west"};
+          for (int d = 0; d < 4; d++)
+              if (strcmp(w, names[d]) == 0) return d;
+          return -1;
+      }
+
+      int has(const char *item) {
+          for (int i = 0; i < carried; i++)
+              if (strcmp(inventory[i], item) == 0) return 1;
+          return 0;
+      }
+
+      int main(void) {
+          int here = 0;
+          char word[32];
+          while (scanf("%31s", word) == 1) {
+              // handle commands here
+              if (strcmp(word, "look") == 0) {
+                  printf("%s\n%s\n", rooms[here].name, rooms[here].desc);
+                  if (rooms[here].item) printf("you see a %s\n", rooms[here].item);
+              } else if (strcmp(word, "go") == 0) {
+                  char dir[16];
+                  scanf("%15s", dir);
+                  int d = direction(dir);
+                  if (d < 0 || rooms[here].exits[d] < 0) {
+                      printf("you can't go that way\n");
+                  } else {
+                      here = rooms[here].exits[d];
+                      printf("%s\n", rooms[here].name);
+                  }
+              } else if (strcmp(word, "take") == 0) {
+                  if (!rooms[here].item) {
+                      printf("nothing here\n");
+                  } else {
+                      printf("you take the %s\n", rooms[here].item);
+                      inventory[carried++] = rooms[here].item;
+                      rooms[here].item = NULL;
+                  }
+              } else if (strcmp(word, "inventory") == 0) {
+                  if (carried == 0) {
+                      printf("you carry nothing\n");
+                  } else {
+                      printf("you carry: ");
+                      for (int i = 0; i < carried; i++) printf("%s%s", i ? ", " : "", inventory[i]);
+                      printf("\n");
+                  }
+              } else if (strcmp(word, "plant") == 0) {
+                  if (strcmp(rooms[here].name, "A site") != 0) {
+                      printf("you can only plant at a bombsite\n");
+                  } else if (!has("bomb")) {
+                      printf("you need the bomb\n");
+                  } else {
+                      printf("bomb planted. you win!\n");
+                      break;
+                  }
+              } else if (strcmp(word, "quit") == 0) {
+                  printf("bye\n");
+                  break;
+              }
+          }
+          return 0;
+      }
+    tests:
+      - stdin: "take\ngo north\ngo north\nplant\nlook\n"
+      - stdin: "plant\ngo west\ngo west\nplant\nquit\nlook\n"
+      - stdin: "go west\ntake\ngo west\nplant\ngo south\ngo south\ntake\ngo north\ngo north\nplant\n"
+        hidden: true
+    hints:
+      - "A helper `int has(const char *item)` that searches the inventory keeps plant readable."
+      - "`break` out of the command loop to end the game."
+
+  - title: Count your moves
+    text: |
+      Speedrunners want stats. Count every **successful** `go`. When the player wins, print `moves: N` after the win message. When they quit, print `moves: N` after `bye`.
+    solution: |
+      #include <stdio.h>
+      #include <string.h>
+
+      enum { NORTH, EAST, SOUTH, WEST };
+
+      struct Room {
+          const char *name;
+          const char *desc;
+          int exits[4];         /* room index for each direction, or -1 */
+          const char *item;     /* item lying here, or NULL */
+      };
+
+      struct Room rooms[] = {
+          {"T spawn", "Sand, crates and the smell of fresh bread.", {1, -1, -1, 2}, "bomb"},
+          {"mid", "A long open corridor. Snipers love this place.", {3, -1, 0, -1}, NULL},
+          {"tunnels", "Dark and narrow. Footsteps echo.", {-1, 0, -1, 3}, "flashbang"},
+          {"A site", "The bombsite. Plant here.", {-1, -1, 1, -1}, NULL},
+      };
+
+      const char *inventory[8];
+      int carried = 0;
+
+      int direction(const char *w) {
+          const char *names[] = {"north", "east", "south", "west"};
+          for (int d = 0; d < 4; d++)
+              if (strcmp(w, names[d]) == 0) return d;
+          return -1;
+      }
+
+      int has(const char *item) {
+          for (int i = 0; i < carried; i++)
+              if (strcmp(inventory[i], item) == 0) return 1;
+          return 0;
+      }
+
+      int main(void) {
+          int here = 0;
+          int moves = 0;
+          char word[32];
+          while (scanf("%31s", word) == 1) {
+              // handle commands here
+              if (strcmp(word, "look") == 0) {
+                  printf("%s\n%s\n", rooms[here].name, rooms[here].desc);
+                  if (rooms[here].item) printf("you see a %s\n", rooms[here].item);
+              } else if (strcmp(word, "go") == 0) {
+                  char dir[16];
+                  scanf("%15s", dir);
+                  int d = direction(dir);
+                  if (d < 0 || rooms[here].exits[d] < 0) {
+                      printf("you can't go that way\n");
+                  } else {
+                      here = rooms[here].exits[d];
+                      moves++;
+                      printf("%s\n", rooms[here].name);
+                  }
+              } else if (strcmp(word, "take") == 0) {
+                  if (!rooms[here].item) {
+                      printf("nothing here\n");
+                  } else {
+                      printf("you take the %s\n", rooms[here].item);
+                      inventory[carried++] = rooms[here].item;
+                      rooms[here].item = NULL;
+                  }
+              } else if (strcmp(word, "inventory") == 0) {
+                  if (carried == 0) {
+                      printf("you carry nothing\n");
+                  } else {
+                      printf("you carry: ");
+                      for (int i = 0; i < carried; i++) printf("%s%s", i ? ", " : "", inventory[i]);
+                      printf("\n");
+                  }
+              } else if (strcmp(word, "plant") == 0) {
+                  if (strcmp(rooms[here].name, "A site") != 0) {
+                      printf("you can only plant at a bombsite\n");
+                  } else if (!has("bomb")) {
+                      printf("you need the bomb\n");
+                  } else {
+                      printf("bomb planted. you win!\n");
+                      printf("moves: %d\n", moves);
+                      break;
+                  }
+              } else if (strcmp(word, "quit") == 0) {
+                  printf("bye\n");
+                  printf("moves: %d\n", moves);
+                  break;
+              }
+          }
+          return 0;
+      }
+    tests:
+      - stdin: "take\ngo north\ngo north\nplant\n"
+      - stdin: "go east\ngo west\ngo east\nquit\n"
+      - stdin: "go west\ngo east\ntake\ngo west\ngo west\nplant\n"
+        hidden: true
+    hints:
+      - Increment a counter only in the branch where the move succeeds.

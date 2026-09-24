@@ -1,0 +1,44 @@
+topic: c-hello
+lang: c
+drills:
+  - type: predict
+    body: |
+      printf("gg");
+      printf("wp\n");
+    why: printf only starts a new line where you write `\n`, so both pieces land on one line.
+  - type: predict
+    body: |
+      printf("a\tb\n");
+    answer: "a b"
+    why: "`\\t` prints a tab; in this drill spaces and tabs count the same."
+  - type: fill
+    prompt: Print the text with a newline at the end.
+    body: |
+      printf("headshot[[\n]]");
+    why: "`\\n` is the newline escape sequence."
+  - type: bug
+    body: |
+      printf("one\n");
+      printf("two\n") // BUG
+      printf("three\n");
+    fix: 'printf("two\n");'
+    why: Every statement needs a semicolon at the end.
+  - type: compiles
+    body: |
+      printf("hello\n")
+      return 0;
+    why: The printf line is missing its semicolon, so the compiler reports `expected ';'`.
+  - type: compiles
+    body: |
+      // printf("nothing to see\n")
+      printf("ok\n");
+    why: The first line is a comment, so its missing semicolon doesn't matter.
+  - type: predict
+    body: |
+      printf("say \"hi\"\n");
+    why: '`\"` prints a literal double quote.'
+  - type: fill
+    prompt: Print a backslash.
+    body: |
+      printf("C:[[\\]]games\n");
+    why: A single backslash starts an escape sequence, so a literal backslash is written `\\`.

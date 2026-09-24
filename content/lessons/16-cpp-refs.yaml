@@ -1,0 +1,180 @@
+id: cpp-refs
+title: References and functions
+lang: cpp
+phase: "C++: A Better C"
+summary: References as safer aliases, const& for cheap read-only parameters, overloading and default arguments.
+steps:
+  - title: References are aliases
+    text: |
+      A **reference** is another name for an existing variable. Declare one with `&` after the type:
+
+      ```cpp
+      int hp = 100;
+      int& ref = hp;   // ref IS hp
+      ref -= 30;       // hp is now 70
+      ```
+
+      Unlike pointers, a reference must be initialized, can't be null, and can't be re-pointed later. No `*` or `->` needed to use it.
+
+      **Your turn:** make `alias` a reference to `money`, then spend 800 through it.
+    fill: |
+      #include <iostream>
+
+      int main() {
+          int money = 4750;
+          int[[&]] alias = money;
+          alias [[-=]] 800;
+          std::cout << money << "\n";
+      }
+    hints:
+      - "A reference to int is written `int&`."
+    tests:
+      - expect: "3950"
+
+  - title: Pass by reference
+    text: |
+      Reference parameters let a function modify the caller's variables with none of the pointer noise:
+
+      ```cpp
+      void heal(int& hp) { hp = 100; }
+
+      int hp = 12;
+      heal(hp);        // no & at the call site
+      ```
+
+      **Your turn:** write `void swap_values(int& a, int& b)`.
+    seed: |
+      void swap_values(int& a, int& b) {
+
+      }
+    solution: |
+      void swap_values(int& a, int& b) {
+          int tmp = a;
+          a = b;
+          b = tmp;
+      }
+    harness: |
+      int main() {
+          int x = 3, y = 9;
+          swap_values(x, y);
+          CHECK_EQ("x", x, 9);
+          CHECK_EQ("y", y, 3);
+      }
+    hints:
+      - Same as the pointer version but without `*`. Use a temporary.
+
+  - title: const references
+    text: |
+      Passing a `std::string` or a big object by value **copies** it. Passing by reference avoids the copy, and adding `const` promises you won't modify it. This is the everyday C++ way to take read-only parameters:
+
+      ```cpp
+      int count_spaces(const std::string& s);
+      ```
+
+      Rule of thumb: small types (`int`, `double`, `char`) by value, everything bigger by `const&`.
+
+      **Your turn:** write `bool starts_with(const std::string& s, const std::string& prefix)` without using any library `starts_with`.
+    seed: |
+      #include <string>
+
+      bool starts_with(const std::string& s, const std::string& prefix) {
+
+      }
+    solution: |
+      #include <string>
+
+      bool starts_with(const std::string& s, const std::string& prefix) {
+          if (prefix.size() > s.size()) return false;
+          for (std::size_t i = 0; i < prefix.size(); i++) {
+              if (s[i] != prefix[i]) return false;
+          }
+          return true;
+      }
+    forbid:
+      - pattern: "\\.starts_with\\s*\\(|\\.rfind\\s*\\(|\\.compare\\s*\\(|\\.substr\\s*\\("
+        message: Compare the characters yourself on this step.
+    harness: |
+      int main() {
+          CHECK_EQ("de_dust2 / de_", starts_with("de_dust2", "de_"), true);
+          CHECK_EQ("cs_office / de_", starts_with("cs_office", "de_"), false);
+          CHECK_EQ("empty prefix", starts_with("abc", ""), true);
+          CHECK_EQ("prefix longer", starts_with("ab", "abc"), false);
+          CHECK_EQ("equal", starts_with("nuke", "nuke"), true);
+      }
+    hints:
+      - If the prefix is longer than s, it can't match.
+      - Compare `s[i]` and `prefix[i]` for every i below `prefix.size()`.
+
+  - title: Overloading
+    text: |
+      In C++, several functions can share a name if their parameter lists differ. The compiler picks the one that matches the arguments:
+
+      ```cpp
+      int area(int side) { return side * side; }
+      int area(int w, int h) { return w * h; }
+      double area(double r) { return 3.14159 * r * r; }
+      ```
+
+      **Your turn:** write two overloads of `describe`: one taking an `int` that returns `"int N"`, and one taking a `std::string` that returns `"string S"`. Use `std::to_string(n)` to turn a number into a string.
+    seed: |
+      #include <string>
+
+      // write both overloads here
+    solution: |
+      #include <string>
+
+      // write both overloads here
+      std::string describe(int n) {
+          return "int " + std::to_string(n);
+      }
+
+      std::string describe(const std::string& s) {
+          return "string " + s;
+      }
+    harness: |
+      int main() {
+          CHECK_EQ("describe(42)", describe(42), std::string("int 42"));
+          CHECK_EQ("describe(\"ace\")", describe(std::string("ace")), std::string("string ace"));
+          CHECK_EQ("describe(-1)", describe(-1), std::string("int -1"));
+      }
+    hints:
+      - "Two functions, both named `describe`, one with `(int n)` and one with `(const std::string& s)`. Both return `std::string`."
+      - "`\"int \" + std::to_string(n)`"
+
+  - title: Default arguments
+    text: |
+      Parameters can have default values, used when the caller leaves them out. Defaults go at the **end** of the parameter list:
+
+      ```cpp
+      void spawn(std::string name, int hp = 100, int armor = 0);
+      spawn("bot");            // hp 100, armor 0
+      spawn("bot", 50);        // armor 0
+      ```
+
+      **Your turn:** write `std::string pad(const std::string& s, int width, char fill = ' ')` that adds `fill` characters on the **left** until the string is `width` long. Strings already that long are returned unchanged.
+    seed: |
+      #include <string>
+
+      std::string pad(const std::string& s, int width, char fill = ' ') {
+
+      }
+    solution: |
+      #include <string>
+
+      std::string pad(const std::string& s, int width, char fill = ' ') {
+          std::string out = s;
+          while ((int)out.size() < width) {
+              out = fill + out;
+          }
+          return out;
+      }
+    harness: |
+      int main() {
+          CHECK_EQ("pad(\"7\", 3, '0')", pad("7", 3, '0'), std::string("007"));
+          CHECK_EQ("pad(\"ab\", 5)", pad("ab", 5), std::string("   ab"));
+          CHECK_EQ("already wide", pad("hello", 3), std::string("hello"));
+          CHECK_EQ("exact width", pad("abc", 3, '*'), std::string("abc"));
+      }
+    hints:
+      - Copy s, then keep adding `fill` to the front while it's shorter than width.
+      - "`std::string(count, ch)` builds a string of repeated chars, which is another option."

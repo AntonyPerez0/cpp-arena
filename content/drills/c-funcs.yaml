@@ -1,0 +1,150 @@
+topic: c-funcs
+lang: c
+drills:
+  - type: predict
+    pre: |
+      int twice(int x) { return x * 2; }
+    body: |
+      printf("%d\n", twice(twice(3)));
+    why: The inner call gives 6, the outer gives 12.
+  - type: predict
+    pre: |
+      void bump(int x) { x = x + 1; }
+    body: |
+      int v = 5;
+      bump(v);
+      printf("%d\n", v);
+    why: C passes by value. bump changes its own copy only.
+  - type: predict
+    pre: |
+      int f(int n) {
+          if (n <= 1) return 1;
+          return n * f(n - 1);
+      }
+    body: |
+      printf("%d\n", f(4));
+    why: 4 * 3 * 2 * 1 = 24.
+  - type: predict
+    pre: |
+      int counter(void) {
+          static int n = 0;
+          n++;
+          return n;
+      }
+    body: |
+      counter();
+      counter();
+      printf("%d\n", counter());
+    why: A static local keeps its value between calls.
+  - type: predict
+    pre: |
+      int g(int a, int b) { return a - b; }
+    body: |
+      int b = 10, a = 3;
+      printf("%d\n", g(b, a));
+    why: Arguments are matched by position, not by name. g(10, 3) is 7.
+  - type: fill
+    prompt: This function doesn't return anything.
+    pre: |
+      [[void]] hello(void) {
+          printf("hi\n");
+      }
+    body: |
+      hello();
+    why: "`void` means no return value."
+  - type: fill
+    prompt: Send the result back to the caller.
+    pre: |
+      int cube(int x) {
+          [[return]] x * x * x;
+      }
+    body: |
+      printf("%d\n", cube(3));
+    why: return hands a value back to the caller.
+  - type: bug
+    pre: |
+      int max(int a, int b) {
+          if (a > b) return a;
+          return a; // BUG
+      }
+    body: |
+      printf("%d\n", max(2, 9));
+    fix: "return b;"
+    why: The second return must give b.
+  - type: bug
+    pre: |
+      int sum_to(int n) {
+          if (n == 0) return 0;
+          return n + sum_to(n); // BUG
+      }
+    body: |
+      printf("%d\n", sum_to(4));
+    fix: "return n + sum_to(n - 1);"
+    why: Recursion must move toward the base case, otherwise it never ends.
+    ub: true
+  - type: compiles
+    pre: |
+      int main_helper(void);
+    body: |
+      printf("%d\n", 1);
+    why: A prototype without a definition is fine as long as nobody calls it.
+  - type: compiles
+    pre: |
+      int add(int a, int b) { return a + b; }
+    body: |
+      printf("%d\n", add(1));
+    why: add needs two arguments.
+  - type: compiles
+    pre: |
+      void shout(void) { printf("!\n"); }
+    body: |
+      int x = shout();
+      printf("%d\n", x);
+    why: A void function has no value to store.
+  - type: boss
+    prompt: |
+      Write `int gcd(int a, int b)` (greatest common divisor) for positive numbers using recursion: `gcd(a, 0) = a`, otherwise `gcd(b, a % b)`.
+    seed: |
+      int gcd(int a, int b) {
+
+      }
+    solution: |
+      int gcd(int a, int b) {
+          if (b == 0) return a;
+          return gcd(b, a % b);
+      }
+    harness: |
+      int main(void) {
+          CHECK_INT("gcd(12, 18)", gcd(12, 18), 6);
+          CHECK_INT("gcd(17, 5)", gcd(17, 5), 1);
+          CHECK_INT("gcd(100, 75)", gcd(100, 75), 25);
+          CHECK_INT("gcd(7, 0)", gcd(7, 0), 7);
+          return 0;
+      }
+    hints:
+      - Base case first, then the recursive call.
+    why: Euclid's algorithm. The remainder shrinks each call until it hits 0.
+  - type: boss
+    prompt: |
+      Write `int power(int base, int exp)` for `exp >= 0` without using any library function.
+    seed: |
+      int power(int base, int exp) {
+
+      }
+    solution: |
+      int power(int base, int exp) {
+          int r = 1;
+          for (int i = 0; i < exp; i++) r *= base;
+          return r;
+      }
+    harness: |
+      int main(void) {
+          CHECK_INT("2^10", power(2, 10), 1024);
+          CHECK_INT("5^0", power(5, 0), 1);
+          CHECK_INT("3^4", power(3, 4), 81);
+          CHECK_INT("(-2)^3", power(-2, 3), -8);
+          return 0;
+      }
+    hints:
+      - Start at 1 and multiply by base, exp times.
+    why: A running product that starts at 1 handles exp = 0 for free.

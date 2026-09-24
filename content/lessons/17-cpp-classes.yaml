@@ -1,0 +1,318 @@
+id: cpp-classes
+title: Classes
+lang: cpp
+phase: "C++: A Better C"
+summary: Bundle data with the functions that work on it. Member functions, public vs private, constructors, const methods and static members.
+steps:
+  - title: Member functions
+    text: |
+      In C++ a struct can contain **functions** as well as data. Inside a member function, members can be used directly:
+
+      ```cpp
+      struct Player {
+          int hp = 100;          // default member value
+          void take_damage(int d) { hp -= d; }
+          bool alive() { return hp > 0; }
+      };
+
+      Player p;
+      p.take_damage(40);
+      ```
+
+      **Your turn:** complete the member function `reload` so it refills `ammo` to `mag_size`.
+    fill: |
+      #include <iostream>
+
+      struct Gun {
+          int mag_size = 30;
+          int ammo = 30;
+          void fire() { ammo--; }
+          void reload() { [[ammo]] = [[mag_size]]; }
+      };
+
+      int main() {
+          Gun g;
+          g.fire();
+          g.fire();
+          std::cout << g.ammo << " ";
+          g[[.reload()]];
+          std::cout << g.ammo << "\n";
+      }
+    hints:
+      - Inside a member function you can refer to `ammo` and `mag_size` directly.
+      - "Call it like `g.reload()`."
+    tests:
+      - expect: "28 30"
+
+  - title: public and private
+    text: |
+      A `class` is a struct whose members are **private by default**. Private members can only be touched by the class's own member functions. That lets the class protect its rules (its *invariants*):
+
+      ```cpp
+      class Account {
+      public:
+          void deposit(int amount) { if (amount > 0) balance_ += amount; }
+          int balance() const { return balance_; }
+      private:
+          int balance_ = 0;       // nobody outside can break this
+      };
+      ```
+
+      **Your turn:** write a class `Wallet` with a private `int money_` starting at 800, and public methods:
+
+      - `int money() const` returns it
+      - `bool buy(int price)` subtracts the price and returns `true` if there's enough money, otherwise changes nothing and returns `false`
+      - `void earn(int amount)` adds money, but the total can never exceed 16000
+    seed: |
+      class Wallet {
+      public:
+
+      private:
+          int money_ = 800;
+      };
+    solution: |
+      class Wallet {
+      public:
+          int money() const { return money_; }
+          bool buy(int price) {
+              if (price > money_) return false;
+              money_ -= price;
+              return true;
+          }
+          void earn(int amount) {
+              money_ += amount;
+              if (money_ > 16000) money_ = 16000;
+          }
+
+      private:
+          int money_ = 800;
+      };
+    harness: |
+      int main() {
+          Wallet w;
+          CHECK_EQ("starts at 800", w.money(), 800);
+          CHECK_EQ("buy 1000 fails", w.buy(1000), false);
+          CHECK_EQ("money unchanged", w.money(), 800);
+          CHECK_EQ("buy 500 works", w.buy(500), true);
+          CHECK_EQ("money now 300", w.money(), 300);
+          w.earn(3250);
+          CHECK_EQ("earn 3250", w.money(), 3550);
+          w.earn(20000);
+          CHECK_EQ("capped at 16000", w.money(), 16000);
+      }
+    hints:
+      - Put the three methods under `public:`.
+      - "In buy: `if (price > money_) return false;` otherwise subtract and return true."
+      - "In earn: add, then clamp with `if (money_ > 16000) money_ = 16000;`."
+
+  - title: Constructors
+    text: |
+      A **constructor** is a special member function that runs when an object is created. It has the class's name and no return type. Use a **member initializer list** (after `:`) to set members:
+
+      ```cpp
+      class Player {
+      public:
+          Player(std::string name, int hp) : name_(name), hp_(hp) {}
+      private:
+          std::string name_;
+          int hp_;
+      };
+
+      Player p("zywoo", 100);
+      ```
+
+      **Your turn:** complete the constructor's initializer list.
+    fill: |
+      #include <iostream>
+      #include <string>
+
+      class Weapon {
+      public:
+          Weapon(std::string name, int damage) [[:]] name_(name), damage_([[damage]]) {}
+          void print() const { std::cout << name_ << " " << damage_ << "\n"; }
+      private:
+          std::string name_;
+          int damage_;
+      };
+
+      int main() {
+          Weapon w("ak47", 36);
+          w.print();
+      }
+    hints:
+      - "The initializer list starts with a colon: `: name_(name), damage_(damage)`."
+    tests:
+      - expect: "ak47 36"
+
+  - title: const member functions
+    text: |
+      A member function marked `const` promises not to modify the object. Only const functions can be called on a `const` object or through a `const&`, so mark every method that just reads.
+
+      ```cpp
+      int hp() const { return hp_; }
+      ```
+
+      **Your turn:** this doesn't compile because `print_status` takes a `const Player&` but calls methods that aren't marked `const`. Press Check to see the error, then fix the class (not the function).
+    seed: |
+      #include <iostream>
+      #include <string>
+
+      class Player {
+      public:
+          Player(std::string name, int hp) : name_(name), hp_(hp) {}
+          std::string name() { return name_; }
+          int hp() { return hp_; }
+          void hit(int d) { hp_ -= d; }
+      private:
+          std::string name_;
+          int hp_;
+      };
+
+      void print_status(const Player& p) {
+          std::cout << p.name() << " has " << p.hp() << " hp\n";
+      }
+
+      int main() {
+          Player p("s1mple", 100);
+          p.hit(27);
+          print_status(p);
+      }
+    solution: |
+      #include <iostream>
+      #include <string>
+
+      class Player {
+      public:
+          Player(std::string name, int hp) : name_(name), hp_(hp) {}
+          std::string name() const { return name_; }
+          int hp() const { return hp_; }
+          void hit(int d) { hp_ -= d; }
+      private:
+          std::string name_;
+          int hp_;
+      };
+
+      void print_status(const Player& p) {
+          std::cout << p.name() << " has " << p.hp() << " hp\n";
+      }
+
+      int main() {
+          Player p("s1mple", 100);
+          p.hit(27);
+          print_status(p);
+      }
+    require:
+      - pattern: "void\\s+print_status\\s*\\(\\s*const\\s+Player\\s*&"
+        message: Keep `print_status(const Player& p)` as it is; fix the class instead.
+    hints:
+      - The error says the method is not marked const.
+      - "Add `const` after the parameter list of `name()` and `hp()`: `int hp() const { ... }`. Don't make `hit` const, since it modifies."
+    tests:
+      - expect: "s1mple has 73 hp"
+
+  - title: static members
+    text: |
+      A `static` data member belongs to the **class**, not to any one object. All objects share it. A `static` member function can be called without an object:
+
+      ```cpp
+      class Bot {
+      public:
+          Bot() { count_++; }
+          static int count() { return count_; }
+      private:
+          static inline int count_ = 0;   // 'inline' lets you initialize it here
+      };
+
+      Bot a, b;
+      Bot::count();   // 2
+      ```
+
+      **Your turn:** write a class `Grenade` that counts how many have ever been created (`static int created()`), and gives each one an `int id() const` in creation order starting at 1.
+    seed: |
+      class Grenade {
+      public:
+
+      };
+    solution: |
+      class Grenade {
+      public:
+          Grenade() : id_(++created_) {}
+          int id() const { return id_; }
+          static int created() { return created_; }
+
+      private:
+          int id_;
+          static inline int created_ = 0;
+      };
+    harness: |
+      int main() {
+          CHECK_EQ("none yet", Grenade::created(), 0);
+          Grenade a;
+          Grenade b;
+          CHECK_EQ("a.id()", a.id(), 1);
+          CHECK_EQ("b.id()", b.id(), 2);
+          {
+              Grenade c;
+              CHECK_EQ("c.id()", c.id(), 3);
+          }
+          Grenade d;
+          CHECK_EQ("d.id() after c is gone", d.id(), 4);
+          CHECK_EQ("created()", Grenade::created(), 4);
+      }
+    hints:
+      - "A private `static inline int created_ = 0;` shared by all grenades, and a normal `int id_;` per grenade."
+      - "The constructor can do `id_ = ++created_;` (or use `: id_(++created_)`)."
+
+  - title: "Challenge: a Clock class"
+    text: |
+      **Your turn:** write a class `Clock` representing a round timer in seconds:
+
+      - `Clock(int seconds)` creates it
+      - `void tick(int s = 1)` subtracts seconds but never goes below 0
+      - `bool expired() const` is true at 0
+      - `std::string display() const` returns `M:SS`, like `1:55` or `0:07`
+    seed: |
+      #include <string>
+
+      class Clock {
+      public:
+
+      };
+    solution: |
+      #include <string>
+
+      class Clock {
+      public:
+          explicit Clock(int seconds) : left_(seconds < 0 ? 0 : seconds) {}
+          void tick(int s = 1) {
+              left_ -= s;
+              if (left_ < 0) left_ = 0;
+          }
+          bool expired() const { return left_ == 0; }
+          std::string display() const {
+              int m = left_ / 60, sec = left_ % 60;
+              return std::to_string(m) + ":" + (sec < 10 ? "0" : "") + std::to_string(sec);
+          }
+
+      private:
+          int left_;
+      };
+    harness: |
+      int main() {
+          Clock c(115);
+          CHECK_EQ("display 115s", c.display(), std::string("1:55"));
+          c.tick();
+          CHECK_EQ("after tick()", c.display(), std::string("1:54"));
+          c.tick(47);
+          CHECK_EQ("after tick(47)", c.display(), std::string("1:07"));
+          CHECK_EQ("not expired", c.expired(), false);
+          c.tick(60);
+          CHECK_EQ("0:07", c.display(), std::string("0:07"));
+          c.tick(100);
+          CHECK_EQ("clamped to 0:00", c.display(), std::string("0:00"));
+          CHECK_EQ("expired", c.expired(), true);
+      }
+    hints:
+      - Store the seconds left in a private int.
+      - "Minutes are `left_ / 60`, seconds `left_ % 60`. Add a leading \"0\" when seconds < 10."
+      - "`std::to_string(m) + \":\" + ...` builds the text."

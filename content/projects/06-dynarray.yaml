@@ -1,0 +1,351 @@
+id: dynarray
+title: Build your own dynamic array
+lang: c
+level: Intermediate
+after: c-memory
+summary: Write the growable array every language hides from you. malloc, realloc doubling, insert, remove and shrink, all tested by hidden unit tests.
+seed: |
+  #include <stdlib.h>
+
+  typedef struct {
+      int *data;
+      int size;
+      int cap;
+  } IntVec;
+
+  IntVec vec_new(void) {
+
+  }
+
+  void vec_push(IntVec *v, int x) {
+
+  }
+
+  int vec_get(const IntVec *v, int i) {
+
+  }
+
+  void vec_free(IntVec *v) {
+
+  }
+milestones:
+  - title: New, push, get, free
+    text: |
+      You're writing a library, so there's no `main`: hidden tests call your functions.
+
+      - `vec_new()` returns an empty vector with **capacity 4** (allocate the storage).
+      - `vec_push(v, x)` appends `x`. When `size == cap`, **double** the capacity with `realloc` first.
+      - `vec_get(v, i)` returns element `i` (you can assume `i` is valid).
+      - `vec_free(v)` frees the storage and sets `data` to NULL, size and cap to 0.
+    solution: |
+      #include <stdlib.h>
+
+      typedef struct {
+          int *data;
+          int size;
+          int cap;
+      } IntVec;
+
+      IntVec vec_new(void) {
+          IntVec v;
+          v.cap = 4;
+          v.size = 0;
+          v.data = malloc(v.cap * sizeof(int));
+          return v;
+      }
+
+      void vec_push(IntVec *v, int x) {
+          if (v->size == v->cap) {
+              v->cap *= 2;
+              v->data = realloc(v->data, v->cap * sizeof(int));
+          }
+          v->data[v->size++] = x;
+      }
+
+      int vec_get(const IntVec *v, int i) {
+          return v->data[i];
+      }
+
+      void vec_free(IntVec *v) {
+          free(v->data);
+          v->data = NULL;
+          v->size = 0;
+          v->cap = 0;
+      }
+    harness: |
+      int main(void) {
+          IntVec v = vec_new();
+          CHECK_INT("new: size 0", v.size, 0);
+          CHECK_INT("new: cap 4", v.cap, 4);
+          for (int i = 0; i < 4; i++) vec_push(&v, i * 10);
+          CHECK_INT("4 pushes: cap still 4", v.cap, 4);
+          vec_push(&v, 40);
+          CHECK_INT("5th push doubles cap to 8", v.cap, 8);
+          CHECK_INT("size 5", v.size, 5);
+          CHECK_INT("get(0)", vec_get(&v, 0), 0);
+          CHECK_INT("get(4)", vec_get(&v, 4), 40);
+          for (int i = 0; i < 1000; i++) vec_push(&v, i);
+          CHECK_INT("1005 elements", v.size, 1005);
+          CHECK_INT("cap 1024", v.cap, 1024);
+          CHECK_INT("get(1004)", vec_get(&v, 1004), 999);
+          vec_free(&v);
+          CHECK("free resets", v.data == NULL && v.size == 0 && v.cap == 0);
+          return 0;
+      }
+    hints:
+      - "vec_new: set cap to 4, size to 0, and `data = malloc(cap * sizeof(int))`."
+      - "vec_push: if `v->size == v->cap`, double cap and `v->data = realloc(v->data, v->cap * sizeof(int));`"
+      - "Then `v->data[v->size++] = x;`"
+
+  - title: Pop and remove
+    text: |
+      Add:
+
+      - `int vec_pop(IntVec *v)` removes and returns the last element (assume non-empty)
+      - `int vec_remove(IntVec *v, int i)` removes element `i`, shifts everything after it one place left, and returns the removed value
+    solution: |
+      #include <stdlib.h>
+
+      typedef struct {
+          int *data;
+          int size;
+          int cap;
+      } IntVec;
+
+      IntVec vec_new(void) {
+          IntVec v;
+          v.cap = 4;
+          v.size = 0;
+          v.data = malloc(v.cap * sizeof(int));
+          return v;
+      }
+
+      void vec_push(IntVec *v, int x) {
+          if (v->size == v->cap) {
+              v->cap *= 2;
+              v->data = realloc(v->data, v->cap * sizeof(int));
+          }
+          v->data[v->size++] = x;
+      }
+
+      int vec_get(const IntVec *v, int i) {
+          return v->data[i];
+      }
+
+      void vec_free(IntVec *v) {
+          free(v->data);
+          v->data = NULL;
+          v->size = 0;
+          v->cap = 0;
+      }
+
+      int vec_pop(IntVec *v) {
+          return v->data[--v->size];
+      }
+
+      int vec_remove(IntVec *v, int i) {
+          int removed = v->data[i];
+          for (int k = i; k < v->size - 1; k++) v->data[k] = v->data[k + 1];
+          v->size--;
+          return removed;
+      }
+    harness: |
+      int main(void) {
+          IntVec v = vec_new();
+          for (int i = 1; i <= 6; i++) vec_push(&v, i);
+          CHECK_INT("pop returns 6", vec_pop(&v), 6);
+          CHECK_INT("size 5 after pop", v.size, 5);
+          CHECK_INT("remove(1) returns 2", vec_remove(&v, 1), 2);
+          CHECK("now {1,3,4,5}", v.size == 4 && vec_get(&v, 0) == 1 && vec_get(&v, 1) == 3 && vec_get(&v, 3) == 5);
+          CHECK_INT("remove last", vec_remove(&v, 3), 5);
+          CHECK_INT("remove first", vec_remove(&v, 0), 1);
+          CHECK("now {3,4}", v.size == 2 && vec_get(&v, 0) == 3 && vec_get(&v, 1) == 4);
+          vec_push(&v, 9);
+          CHECK_INT("push still works", vec_get(&v, 2), 9);
+          vec_free(&v);
+          return 0;
+      }
+    hints:
+      - "pop: `return v->data[--v->size];`"
+      - "remove: save the value, then shift `data[k] = data[k + 1]` for k from i up to size - 2, and decrease size."
+
+  - title: Insert
+    text: |
+      Add `void vec_insert(IntVec *v, int i, int x)` that inserts `x` **before** index `i` (0 to size; inserting at `size` appends). Grow first if full, then shift elements right, starting from the end.
+    solution: |
+      #include <stdlib.h>
+
+      typedef struct {
+          int *data;
+          int size;
+          int cap;
+      } IntVec;
+
+      IntVec vec_new(void) {
+          IntVec v;
+          v.cap = 4;
+          v.size = 0;
+          v.data = malloc(v.cap * sizeof(int));
+          return v;
+      }
+
+      void vec_push(IntVec *v, int x) {
+          if (v->size == v->cap) {
+              v->cap *= 2;
+              v->data = realloc(v->data, v->cap * sizeof(int));
+          }
+          v->data[v->size++] = x;
+      }
+
+      int vec_get(const IntVec *v, int i) {
+          return v->data[i];
+      }
+
+      void vec_free(IntVec *v) {
+          free(v->data);
+          v->data = NULL;
+          v->size = 0;
+          v->cap = 0;
+      }
+
+      int vec_pop(IntVec *v) {
+          return v->data[--v->size];
+      }
+
+      int vec_remove(IntVec *v, int i) {
+          int removed = v->data[i];
+          for (int k = i; k < v->size - 1; k++) v->data[k] = v->data[k + 1];
+          v->size--;
+          return removed;
+      }
+
+      void vec_insert(IntVec *v, int i, int x) {
+          if (v->size == v->cap) {
+              v->cap *= 2;
+              v->data = realloc(v->data, v->cap * sizeof(int));
+          }
+          for (int k = v->size; k > i; k--) v->data[k] = v->data[k - 1];
+          v->data[i] = x;
+          v->size++;
+      }
+    harness: |
+      int main(void) {
+          IntVec v = vec_new();
+          vec_push(&v, 1);
+          vec_push(&v, 3);
+          vec_insert(&v, 1, 2);
+          CHECK("{1,2,3}", v.size == 3 && vec_get(&v, 0) == 1 && vec_get(&v, 1) == 2 && vec_get(&v, 2) == 3);
+          vec_insert(&v, 0, 0);
+          CHECK("insert at front", vec_get(&v, 0) == 0 && vec_get(&v, 3) == 3 && v.size == 4);
+          vec_insert(&v, 4, 4);
+          CHECK("insert at end grows cap", v.size == 5 && v.cap == 8 && vec_get(&v, 4) == 4);
+          int ok = 1;
+          for (int i = 0; i < 5; i++) ok = ok && vec_get(&v, i) == i;
+          CHECK("{0,1,2,3,4}", ok);
+          vec_free(&v);
+          return 0;
+      }
+    hints:
+      - Grow the same way push does.
+      - "Shift from the back: `for (int k = v->size; k > i; k--) v->data[k] = v->data[k - 1];`"
+
+  - title: Reserve and shrink
+    text: |
+      Finish the library with capacity control:
+
+      - `void vec_reserve(IntVec *v, int cap)` grows the capacity to at least `cap` (never shrinks)
+      - `void vec_shrink(IntVec *v)` reduces the capacity to exactly `size` (but at least 1)
+
+      Both use `realloc`.
+    solution: |
+      #include <stdlib.h>
+
+      typedef struct {
+          int *data;
+          int size;
+          int cap;
+      } IntVec;
+
+      IntVec vec_new(void) {
+          IntVec v;
+          v.cap = 4;
+          v.size = 0;
+          v.data = malloc(v.cap * sizeof(int));
+          return v;
+      }
+
+      void vec_push(IntVec *v, int x) {
+          if (v->size == v->cap) {
+              v->cap *= 2;
+              v->data = realloc(v->data, v->cap * sizeof(int));
+          }
+          v->data[v->size++] = x;
+      }
+
+      int vec_get(const IntVec *v, int i) {
+          return v->data[i];
+      }
+
+      void vec_free(IntVec *v) {
+          free(v->data);
+          v->data = NULL;
+          v->size = 0;
+          v->cap = 0;
+      }
+
+      int vec_pop(IntVec *v) {
+          return v->data[--v->size];
+      }
+
+      int vec_remove(IntVec *v, int i) {
+          int removed = v->data[i];
+          for (int k = i; k < v->size - 1; k++) v->data[k] = v->data[k + 1];
+          v->size--;
+          return removed;
+      }
+
+      void vec_insert(IntVec *v, int i, int x) {
+          if (v->size == v->cap) {
+              v->cap *= 2;
+              v->data = realloc(v->data, v->cap * sizeof(int));
+          }
+          for (int k = v->size; k > i; k--) v->data[k] = v->data[k - 1];
+          v->data[i] = x;
+          v->size++;
+      }
+
+      void vec_reserve(IntVec *v, int cap) {
+          if (cap <= v->cap) return;
+          v->cap = cap;
+          v->data = realloc(v->data, v->cap * sizeof(int));
+      }
+
+      void vec_shrink(IntVec *v) {
+          int target = v->size > 0 ? v->size : 1;
+          if (target == v->cap) return;
+          v->cap = target;
+          v->data = realloc(v->data, v->cap * sizeof(int));
+      }
+    harness: |
+      int main(void) {
+          IntVec v = vec_new();
+          vec_reserve(&v, 100);
+          CHECK_INT("reserve(100)", v.cap, 100);
+          vec_reserve(&v, 10);
+          CHECK_INT("reserve never shrinks", v.cap, 100);
+          for (int i = 0; i < 7; i++) vec_push(&v, i);
+          vec_shrink(&v);
+          CHECK_INT("shrink to size 7", v.cap, 7);
+          CHECK_INT("data kept", vec_get(&v, 6), 6);
+          vec_push(&v, 7);
+          CHECK_INT("push after shrink doubles", v.cap, 14);
+          IntVec e = vec_new();
+          vec_shrink(&e);
+          CHECK_INT("empty shrinks to 1", e.cap, 1);
+          vec_free(&e);
+          vec_free(&v);
+          return 0;
+      }
+    hints:
+      - "reserve: return early if `cap <= v->cap`."
+      - "shrink: the target capacity is size, or 1 when empty."

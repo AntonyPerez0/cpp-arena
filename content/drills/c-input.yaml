@@ -1,0 +1,61 @@
+topic: c-input
+lang: c
+drills:
+  - type: fill
+    prompt: Read an int into n.
+    body: |
+      int n;
+      scanf("%d", [[&n]]);
+      printf("%d\n", n + 1);
+    stdin: "41\n"
+    why: scanf needs the address of the variable, `&n`.
+  - type: fill
+    prompt: Read a double.
+    body: |
+      double d;
+      scanf("[[%lf]]", &d);
+      printf("%.1f\n", d);
+    stdin: "2.5\n"
+    why: "scanf uses `%lf` for double (printf uses `%f`)."
+  - type: fill
+    prompt: Read a word into the array (no & needed for arrays).
+    body: |
+      char name[16];
+      scanf("%15s", [[name]]);
+      printf("hi %s\n", name);
+    stdin: "ropz\n"
+    why: An array name already acts as the address of its first element.
+  - type: predict
+    stdin: "3 4\n"
+    body: |
+      int a, b;
+      int got = scanf("%d %d", &a, &b);
+      printf("%d\n", got);
+    prompt: "What does this print when the input is `3 4`?"
+    why: scanf returns how many values it read successfully.
+  - type: predict
+    stdin: "abc\n"
+    body: |
+      int a = 7;
+      int got = scanf("%d", &a);
+      printf("%d %d\n", got, a);
+    prompt: "What does this print when the input is `abc`?"
+    why: The read fails, so scanf returns 0 and leaves a untouched.
+  - type: bug
+    stdin: "5\n"
+    body: |
+      int n = 0;
+      scanf("%d", n); // BUG
+      printf("%d\n", n * 2);
+    fix: 'scanf("%d", &n);'
+    why: scanf must be given `&n`. Passing the value of n makes it write to a garbage address.
+    ub: true
+  - type: bug
+    stdin: "10.5\n"
+    body: |
+      double price = 0;
+      scanf("%f", &price); // BUG
+      printf("%.1f\n", price);
+    fix: 'scanf("%lf", &price);'
+    why: "`%f` in scanf is for float. A double needs `%lf`."
+    ub: true

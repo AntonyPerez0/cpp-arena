@@ -1,0 +1,220 @@
+id: c-ops
+title: Operators and math
+lang: c
+phase: "C: Foundations"
+summary: Arithmetic, the integer-division trap, the % remainder operator, precedence, shorthand operators and casts.
+steps:
+  - title: Arithmetic
+    text: |
+      C has the usual math operators: `+`, `-`, `*` (multiply) and `/` (divide).
+
+      ```c
+      int total = 12 * 3 + 4;   // 40
+      ```
+
+      Multiplication and division happen before addition and subtraction, just like in school math. Parentheses change the order: `12 * (3 + 4)` is 84.
+
+      **Your turn:** make the program print `Damage: 96` by filling in the operators. Base damage is 30, the multiplier is 4, armor absorbs 24.
+    fill: |
+      #include <stdio.h>
+
+      int main(void) {
+          int base = 30;
+          int multiplier = 4;
+          int armor = 24;
+          int damage = base [[*]] multiplier [[-]] armor;
+          printf("Damage: %d\n", damage);
+          return 0;
+      }
+    hints:
+      - 30 times 4 is 120, and 120 minus 24 is 96.
+    tests:
+      - expect: "Damage: 96"
+
+  - title: The integer division trap
+    text: |
+      When **both** sides of `/` are `int`, C does integer division: the fraction is thrown away (not rounded).
+
+      ```c
+      printf("%d\n", 7 / 2);      // 3, not 3.5
+      printf("%f\n", 7.0 / 2);    // 3.500000
+      ```
+
+      If either side is a `double`, you get a real division.
+
+      **Your turn:** 25 kills over 10 rounds should print `Kills per round: 2.50`. Right now it prints `2.00`. Fix the calculation of `kpr` so it does a real division.
+    seed: |
+      #include <stdio.h>
+
+      int main(void) {
+          int kills = 25;
+          int rounds = 10;
+          double kpr = kills / rounds;
+          printf("Kills per round: %.2f\n", kpr);
+          return 0;
+      }
+    solution: |
+      #include <stdio.h>
+
+      int main(void) {
+          int kills = 25;
+          int rounds = 10;
+          double kpr = (double)kills / rounds;
+          printf("Kills per round: %.2f\n", kpr);
+          return 0;
+      }
+    hints:
+      - "`kills / rounds` is computed as int / int (giving 2) *before* it's stored in the double."
+      - Turn one side into a double first. Write `(double)kills / rounds`. That `(double)` is called a *cast*.
+    tests:
+      - expect: "Kills per round: 2.50"
+
+  - title: Remainder with %
+    text: |
+      `%` (modulo) gives the **remainder** of an integer division.
+
+      ```c
+      17 / 5   // 3
+      17 % 5   // 2   (17 = 3*5 + 2)
+      ```
+
+      It's great for "is this even?" (`n % 2 == 0`) and for splitting units.
+
+      **Your turn:** a match lasted `754` seconds. Print it as minutes and seconds: `12 min 34 sec`.
+    seed: |
+      #include <stdio.h>
+
+      int main(void) {
+          int total = 754;
+          int minutes = 0; // fix me
+          int seconds = 0; // fix me
+          printf("%d min %d sec\n", minutes, seconds);
+          return 0;
+      }
+    solution: |
+      #include <stdio.h>
+
+      int main(void) {
+          int total = 754;
+          int minutes = total / 60;
+          int seconds = total % 60;
+          printf("%d min %d sec\n", minutes, seconds);
+          return 0;
+      }
+    require:
+      - pattern: "total\\s*%\\s*60"
+        message: Use the `%` operator on `total` to get the seconds.
+    hints:
+      - Minutes are how many whole 60s fit into total, so `total / 60`.
+      - Seconds are what's left over, so `total % 60`.
+    tests:
+      - expect: "12 min 34 sec"
+
+  - title: Shorthand operators
+    text: |
+      Updating a variable with itself is so common that C has shortcuts:
+
+      | Shorthand | Means |
+      |---|---|
+      | `x += 5;` | `x = x + 5;` |
+      | `x -= 5;` | `x = x - 5;` |
+      | `x *= 2;` | `x = x * 2;` |
+      | `x++;` | `x = x + 1;` |
+      | `x--;` | `x = x - 1;` |
+
+      **Your turn:** fill in the shorthand operators so the program prints `Streak: 12`.
+    fill: |
+      #include <stdio.h>
+
+      int main(void) {
+          int streak = 5;
+          streak [[+=]] 1;      // add 1 -> 6
+          streak [[*=]] 2;      // double it -> 12
+          streak[[++]];         // add 1 -> 13
+          streak[[--]];         // subtract 1 -> 12
+          printf("Streak: %d\n", streak);
+          return 0;
+      }
+    hints:
+      - "The comments say what each line should do: add 1, double, add 1, subtract 1."
+    tests:
+      - expect: "Streak: 12"
+
+  - title: Prefix vs postfix ++
+    text: |
+      `x++` and `++x` both add 1 to `x`, but they differ when used inside a bigger expression:
+
+      - `x++` (postfix) gives the **old** value, then increments.
+      - `++x` (prefix) increments first, then gives the **new** value.
+
+      ```c
+      int a = 5;
+      int b = a++;   // b = 5, a = 6
+      int c = ++a;   // a = 7, c = 7
+      ```
+
+      **Your turn:** make the program print `5 7 7` by choosing prefix or postfix for each blank. The variable `a` starts at 5.
+    fill: |
+      #include <stdio.h>
+
+      int main(void) {
+          int a = 5;
+          int b = [[a++]];
+          int c = [[++a]];
+          printf("%d %d %d\n", b, c, a);
+          return 0;
+      }
+    hints:
+      - "`b` must get the old value 5, so use postfix: `a++`. After that, `a` is 6."
+      - "`c` must be 7 and `a` must also be 7, so increment first: `++a`."
+    tests:
+      - expect: "5 7 7"
+
+  - title: Put it together
+    text: |
+      Time to write a small calculation on your own.
+
+      A player's **ADR** (average damage per round) is total damage divided by rounds played. Given the variables below, print:
+
+      ```
+      Total damage: 2090
+      ADR: 83.60
+      ```
+
+      Total damage is the sum of the three halves' damage (it's a long match: first half, second half, overtime).
+    seed: |
+      #include <stdio.h>
+
+      int main(void) {
+          int first_half = 1020;
+          int second_half = 870;
+          int overtime = 200;
+          int rounds = 25;
+          // compute total damage and ADR, then print both lines
+
+          return 0;
+      }
+    solution: |
+      #include <stdio.h>
+
+      int main(void) {
+          int first_half = 1020;
+          int second_half = 870;
+          int overtime = 200;
+          int rounds = 25;
+          // compute total damage and ADR, then print both lines
+          int total = first_half + second_half + overtime;
+          double adr = (double)total / rounds;
+          printf("Total damage: %d\n", total);
+          printf("ADR: %.2f\n", adr);
+          return 0;
+      }
+    forbid:
+      - pattern: "2090|83\\.6"
+        message: Compute the numbers from the variables instead of typing the answers.
+    hints:
+      - Add the three variables into an `int total`.
+      - "Watch out for integer division: `(double)total / rounds`."
+      - "Print with `%d` for the total and `%.2f` for the ADR."
+    tests:
+      - expect: "Total damage: 2090\nADR: 83.60"

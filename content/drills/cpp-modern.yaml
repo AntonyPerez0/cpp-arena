@@ -1,0 +1,118 @@
+topic: cpp-modern
+lang: cpp
+drills:
+  - type: predict
+    body: |
+      std::optional<int> a = 5, b;
+      std::cout << a.has_value() << b.has_value() << b.value_or(9) << "\n";
+    why: b is empty, so value_or gives the fallback.
+  - type: predict
+    body: |
+      std::map<std::string, int> m = {{"a", 1}, {"b", 2}};
+      int s = 0;
+      for (const auto& [k, v] : m) s += v;
+      std::cout << s << "\n";
+    why: Structured bindings unpack each pair.
+  - type: predict
+    body: |
+      std::variant<int, std::string> v = 42;
+      v = std::string("hs");
+      std::cout << v.index() << std::holds_alternative<std::string>(v) << "\n";
+    why: index() is the position of the held type in the list (string is 1).
+  - type: predict
+    body: |
+      std::string_view sv = "de_mirage";
+      std::cout << sv.substr(3) << " " << sv.size() << "\n";
+    why: A view's substr is another view, no copy.
+  - type: predict
+    body: |
+      std::vector<int> v = {1, 2, 3, 4, 5, 6};
+      int s = 0;
+      for (int x : v | std::views::filter([](int x) { return x % 2 == 0; })) s += x;
+      std::cout << s << "\n";
+    why: The filter view visits only 2, 4 and 6.
+  - type: predict
+    body: |
+      std::vector<int> v = {1, 2, 3};
+      for (int x : v | std::views::transform([](int x) { return x * x; }) | std::views::reverse) std::cout << x;
+      std::cout << "\n";
+    why: Squares 1, 4, 9, then reversed.
+  - type: predict
+    body: |
+      auto t = std::tuple{1, std::string("ak"), 2.5};
+      auto [a, b, c] = t;
+      std::cout << a << b << c << "\n";
+    why: Structured bindings work on tuples too.
+  - type: fill
+    prompt: Signal "no result".
+    pre: |
+      std::optional<int> find(const std::vector<int>& v, int x) {
+          for (int i = 0; i < (int)v.size(); i++) if (v[i] == x) return i;
+          return std::[[nullopt]];
+      }
+    body: |
+      std::cout << find({4, 5}, 9).has_value() << "\n";
+    why: std::nullopt is the empty optional.
+  - type: fill
+    prompt: Constrain T to integer types.
+    pre: |
+      template <std::[[integral]] T>
+      T half(T x) { return x / 2; }
+    body: |
+      std::cout << half(9) << "\n";
+    why: std::integral is a standard concept from <concepts>.
+  - type: bug
+    pre: |
+      std::string_view first_word(const std::string& s) {
+          return std::string_view(s).substr(0, s.find(' '));
+      }
+    body: |
+      std::string_view w = first_word(std::string("rush b")); // BUG
+      std::cout << w << "\n";
+    fix: 'std::string owner = "rush b"; std::string_view w = first_word(owner);'
+    ub: true
+    why: The temporary string dies at the end of the statement, leaving the view dangling.
+  - type: compiles
+    pre: |
+      template <std::integral T>
+      T twice(T x) { return x * 2; }
+    body: |
+      std::cout << twice(1.5) << "\n";
+    why: double doesn't satisfy std::integral.
+  - type: compiles
+    body: |
+      std::optional<std::string> o = "gg";
+      std::cout << o->size() << "\n";
+    why: optional supports -> to reach the contained object.
+  - type: boss
+    prompt: |
+      Write `std::optional<std::pair<int, int>> find_pair(const std::vector<int>& v, int target)` returning the first pair of **values** `{a, b}` (a before b in the vector) that sums to `target`, or `std::nullopt`.
+    seed: |
+      #include <optional>
+      #include <utility>
+      #include <vector>
+
+      std::optional<std::pair<int, int>> find_pair(const std::vector<int>& v, int target) {
+
+      }
+    solution: |
+      #include <optional>
+      #include <utility>
+      #include <vector>
+
+      std::optional<std::pair<int, int>> find_pair(const std::vector<int>& v, int target) {
+          for (std::size_t i = 0; i < v.size(); i++)
+              for (std::size_t j = i + 1; j < v.size(); j++)
+                  if (v[i] + v[j] == target) return std::pair{v[i], v[j]};
+          return std::nullopt;
+      }
+    harness: |
+      int main() {
+          auto a = find_pair({1, 4, 6, 9}, 10);
+          CHECK("found", a.has_value());
+          CHECK("1 + 9", a->first == 1 && a->second == 9);
+          CHECK("none", !find_pair({1, 2}, 10));
+      }
+    hints:
+      - Two nested loops, j starting after i.
+    why: optional carries "found or not" in the type.

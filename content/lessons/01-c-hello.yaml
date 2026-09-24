@@ -1,0 +1,163 @@
+id: c-hello
+title: Hello, C
+lang: c
+phase: "C: Foundations"
+summary: Your first programs. What main() is, how printf prints text, and how to read the compiler's complaints.
+steps:
+  - title: Your first program
+    text: |
+      Every C program starts running at a function called `main`. Inside it, `printf` prints text to the screen.
+
+      ```c
+      #include <stdio.h>
+
+      int main(void) {
+          printf("Hi!\n");
+          return 0;
+      }
+      ```
+
+      - `#include <stdio.h>` pulls in the **st**andar**d** **i**nput/**o**utput library, which is where `printf` lives.
+      - `\n` is a *newline*: it ends the line.
+      - `return 0;` tells the operating system the program finished successfully.
+
+      **Your turn:** fill in the blank so the program prints `Hello, World!`.
+    fill: |
+      #include <stdio.h>
+
+      int main(void) {
+          [[printf]]("Hello, World!\n");
+          return 0;
+      }
+    hints:
+      - The function that prints text is spelled `printf` (print formatted).
+    tests:
+      - expect: "Hello, World!"
+
+  - title: Printing your own text
+    text: |
+      Whatever is between the double quotes is printed exactly. The quotes themselves are not printed.
+
+      Note the `;` at the end of the statement. In C, statements end with a semicolon, like a period ends a sentence.
+
+      **Your turn:** make the program print exactly:
+
+      ```
+      I am learning C
+      ```
+    fill: |
+      #include <stdio.h>
+
+      int main(void) {
+          printf("[[I am learning C]]\n");
+          return 0;
+      }
+    hints:
+      - Type the sentence between the quotes. Capital letters and spaces matter.
+    tests:
+      - expect: "I am learning C"
+
+  - title: Several lines
+    text: |
+      Each `printf` call continues where the last one stopped. Only `\n` moves to a new line, so these two calls:
+
+      ```c
+      printf("Ready, ");
+      printf("set\n");
+      ```
+
+      print `Ready, set` on a single line.
+
+      **Your turn:** write a program that prints these three lines:
+
+      ```
+      Counter-Strike
+      is a game
+      about aim
+      ```
+    seed: |
+      #include <stdio.h>
+
+      int main(void) {
+          printf("Counter-Strike\n");
+          // print the other two lines here
+
+          return 0;
+      }
+    solution: |
+      #include <stdio.h>
+
+      int main(void) {
+          printf("Counter-Strike\n");
+          printf("is a game\n");
+          printf("about aim\n");
+          return 0;
+      }
+    hints:
+      - Add one `printf` per line. Each one needs `\n` at the end of the text.
+      - "The second line is `printf(\"is a game\\n\");`"
+    tests:
+      - expect: "Counter-Strike\nis a game\nabout aim"
+
+  - title: Escape sequences
+    text: |
+      Some characters can't be typed directly inside a string, so C uses **escape sequences** that start with a backslash:
+
+      | You write | You get |
+      |---|---|
+      | `\n` | new line |
+      | `\t` | tab |
+      | `\"` | a double quote |
+      | `\\` | a backslash |
+
+      **Your turn:** print this line exactly, including the quotes:
+
+      ```
+      She said "gg" and left
+      ```
+    fill: |
+      #include <stdio.h>
+
+      int main(void) {
+          printf("She said [[\"gg\"]] and left\n");
+          return 0;
+      }
+    hints:
+      - A plain `"` would end the string early. Write `\"` for each quote you want printed.
+    tests:
+      - expect: 'She said "gg" and left'
+
+  - title: Comments and reading errors
+    text: |
+      Comments are notes for humans. The compiler ignores them.
+
+      ```c
+      // a comment runs to the end of the line
+      /* this kind can span
+         several lines */
+      ```
+
+      When the code is wrong, the compiler tells you the **line number** and what it expected. The most common beginner error is a missing semicolon: `error: expected ';'`.
+
+      **Your turn:** this program has two mistakes. Press **Check** first to see what the compiler says, then fix both so it prints `Fixed it` on one line.
+    seed: |
+      #include <stdio.h>
+
+      int main(void) {
+          // This line is missing something at the end
+          printf("Fixed it\n")
+          return 0
+      }
+    solution: |
+      #include <stdio.h>
+
+      int main(void) {
+          // This line is missing something at the end
+          printf("Fixed it\n");
+          return 0;
+      }
+    hints:
+      - The compiler points at the line where it noticed the problem, which is sometimes the line *after* the real mistake.
+      - Both `printf(...)` and `return 0` need a `;` at the end.
+    tests:
+      - expect: "Fixed it"

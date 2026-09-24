@@ -1,0 +1,65 @@
+topic: c-vars
+lang: c
+drills:
+  - type: predict
+    body: |
+      int a = 5;
+      a = a + 2;
+      printf("%d\n", a);
+    why: "`a = a + 2` reads the old value (5), adds 2 and stores 7."
+  - type: predict
+    body: |
+      double d = 2.5;
+      printf("%.1f\n", d * 2);
+    why: "`%.1f` prints one decimal place: 5.0."
+  - type: predict
+    body: |
+      char c = 'A';
+      printf("%d\n", c + 1);
+    why: "'A' is 65 in ASCII, so c + 1 is 66, printed as a number by %d."
+  - type: predict
+    body: |
+      char c = 'a';
+      printf("%c\n", c + 2);
+    why: "Letters are consecutive codes, so 'a' + 2 is 'c'."
+  - type: fill
+    prompt: Print the double with two decimals.
+    body: |
+      double kd = 1.3333;
+      printf("[[%.2f]]\n", kd);
+    why: "`%.2f` rounds to two decimals: 1.33."
+  - type: fill
+    prompt: Print the char.
+    body: |
+      char side = 'T';
+      printf("[[%c]]\n", side);
+    why: "`%c` prints a single character."
+  - type: bug
+    body: |
+      int money = 800;
+      double price = 200.0;
+      printf("%d\n", price); // BUG
+      printf("%d\n", money);
+    fix: 'printf("%.0f\n", price);'
+    why: "`%d` expects an int. Passing a double to it is undefined behaviour; use `%f` (here `%.0f`)."
+    ub: true
+  - type: compiles
+    body: |
+      const int max = 5;
+      max = 6;
+      printf("%d\n", max);
+    why: A const variable can't be assigned after initialization.
+  - type: compiles
+    body: |
+      int x = 3, y = 4;
+      printf("%d %d\n", x, y);
+    why: Several variables of the same type can be declared on one line.
+  - type: compiles
+    body: |
+      int 2fast = 1;
+      printf("%d\n", 2fast);
+    why: Variable names can't start with a digit.
+  - type: predict
+    body: |
+      printf("%zu\n", sizeof(char));
+    why: "`sizeof(char)` is 1 by definition."

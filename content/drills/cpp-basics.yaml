@@ -1,0 +1,101 @@
+topic: cpp-basics
+lang: cpp
+drills:
+  - type: predict
+    body: |
+      std::cout << "a" << 1 << 'b' << 2.5 << "\n";
+    why: cout prints each value in order, whatever its type.
+  - type: predict
+    body: |
+      std::string s = "de_";
+      s += "nuke";
+      std::cout << s << " " << s.size() << "\n";
+    why: "+= appends. \"de_nuke\" has 7 characters."
+  - type: predict
+    body: |
+      std::string a = "abc", b = "abc";
+      std::cout << (a == b) << "\n";
+    why: "std::string's == compares contents; true prints as 1."
+  - type: predict
+    body: |
+      bool alive = true;
+      std::cout << alive << " " << std::boolalpha << alive << "\n";
+    why: bools print as 1/0 unless you switch the stream to boolalpha.
+  - type: predict
+    body: |
+      auto x = 7 / 2;
+      auto y = 7 / 2.0;
+      std::cout << x << " " << y << "\n";
+    why: auto deduces int for the first (integer division) and double for the second.
+  - type: predict
+    body: |
+      int n = 0;
+      for (char c : std::string("banana")) if (c == 'a') n++;
+      std::cout << n << "\n";
+    why: The range-for visits every character; three are 'a'.
+  - type: predict
+    body: |
+      std::string s = "awp";
+      s[0] = 'A';
+      std::cout << s << "\n";
+    why: std::string characters can be changed by index.
+  - type: fill
+    prompt: Send the value to standard output.
+    body: |
+      int kills = 3;
+      std::cout [[<<]] kills << "\n";
+    why: "`<<` is the output operator."
+  - type: fill
+    prompt: Declare a C++ string.
+    body: |
+      [[std::string]] map = "ancient";
+      std::cout << map.size() << "\n";
+    why: The standard string type is std::string.
+  - type: bug
+    body: |
+      std::string name = "zywoo";
+      std::cout << name.size << "\n"; // BUG
+    fix: 'std::cout << name.size() << "\n";'
+    why: size is a member function and needs ().
+  - type: compiles
+    body: |
+      cout << "hi\n";
+    why: cout lives in namespace std. Without a using-declaration it must be std::cout.
+  - type: compiles
+    body: |
+      std::string s = "gg" + "wp";
+      std::cout << s << "\n";
+    why: Two string literals are char arrays; you can't add them with +. Make one a std::string first.
+  - type: compiles
+    body: |
+      std::string s = std::string("gg") + "wp";
+      std::cout << s << "\n";
+    why: std::string + literal is fine.
+  - type: boss
+    prompt: |
+      Write `std::string initials(const std::string& first, const std::string& last)` returning the two initials followed by dots: `initials("Ada", "Lovelace")` is `"A.L."`.
+    seed: |
+      #include <string>
+
+      std::string initials(const std::string& first, const std::string& last) {
+
+      }
+    solution: |
+      #include <string>
+
+      std::string initials(const std::string& first, const std::string& last) {
+          std::string r;
+          r += first[0];
+          r += '.';
+          r += last[0];
+          r += '.';
+          return r;
+      }
+    harness: |
+      int main() {
+          CHECK_EQ("Ada Lovelace", initials("Ada", "Lovelace"), std::string("A.L."));
+          CHECK_EQ("Linus Torvalds", initials("Linus", "Torvalds"), std::string("L.T."));
+      }
+    hints:
+      - "Build with `+=` one character at a time."
+    why: std::string supports += with single chars.

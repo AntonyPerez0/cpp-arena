@@ -1,0 +1,127 @@
+topic: c-lists
+lang: c
+drills:
+  - type: predict
+    pre: |
+      struct Node { int v; struct Node *next; };
+    body: |
+      struct Node c = {3, NULL}, b = {2, &c}, a = {1, &b};
+      printf("%d\n", a.next->next->v);
+    why: Two hops from a reach c.
+  - type: predict
+    pre: |
+      struct Node { int v; struct Node *next; };
+    body: |
+      struct Node c = {3, NULL}, b = {2, &c}, a = {1, &b};
+      int n = 0;
+      for (struct Node *p = &a; p; p = p->next) n += p->v;
+      printf("%d\n", n);
+    why: The walk visits 1, 2 and 3.
+  - type: predict
+    pre: |
+      struct Node { int v; struct Node *next; };
+      void push(struct Node **h, struct Node *n) { n->next = *h; *h = n; }
+    body: |
+      struct Node a = {1, NULL}, b = {2, NULL}, c = {3, NULL};
+      struct Node *head = NULL;
+      push(&head, &a);
+      push(&head, &b);
+      push(&head, &c);
+      printf("%d %d\n", head->v, head->next->v);
+    why: Pushing to the front reverses the order. The last pushed is the head.
+  - type: predict
+    pre: |
+      typedef struct { int items[8]; int top; } Stack;
+    body: |
+      Stack s = {{0}, 0};
+      s.items[s.top++] = 5;
+      s.items[s.top++] = 9;
+      s.top--;
+      printf("%d %d\n", s.top, s.items[s.top - 1]);
+    why: After popping 9, one item (5) remains.
+  - type: fill
+    prompt: Advance to the next node.
+    pre: |
+      struct Node { int v; struct Node *next; };
+    body: |
+      struct Node b = {2, NULL}, a = {1, &b};
+      for (struct Node *p = &a; p != NULL; p = [[p->next]]) printf("%d", p->v);
+      printf("\n");
+    why: "`p = p->next` moves along the chain."
+  - type: bug
+    pre: |
+      struct Node { int v; struct Node *next; };
+      int length(struct Node *h) {
+          int n = 0;
+          while (h) {
+              n++;
+              h->next; // BUG
+          }
+          return n;
+      }
+    body: |
+      struct Node b = {2, NULL}, a = {1, &b};
+      printf("%d\n", length(&a));
+    fix: "h = h->next;"
+    why: The loop never advances h, so it runs forever. The line reads h->next but never stores it.
+  - type: bug
+    pre: |
+      #include <stdlib.h>
+      struct Node { int v; struct Node *next; };
+      int free_all(struct Node *h) {
+          int n = 0;
+          while (h) {
+              struct Node *next = h->next;
+              free(h);
+              h = h->next; // BUG
+              n++;
+          }
+          return n;
+      }
+    body: |
+      struct Node *b = malloc(sizeof *b); b->v = 2; b->next = NULL;
+      struct Node *a = malloc(sizeof *a); a->v = 1; a->next = b;
+      printf("%d\n", free_all(a));
+    fix: "h = next;"
+    ub: true
+    why: Reading h->next after free(h) is use-after-free. That's why next was saved before freeing.
+  - type: compiles
+    body: |
+      struct Node { int v; struct Node next; };
+      printf("ok\n");
+    why: A struct can't contain itself (infinite size). It can contain a pointer to itself.
+  - type: boss
+    prompt: |
+      Write `int list_max(const struct Node *h)` returning the largest value in a non-empty list.
+    seed: |
+      struct Node {
+          int v;
+          struct Node *next;
+      };
+
+      int list_max(const struct Node *h) {
+
+      }
+    solution: |
+      struct Node {
+          int v;
+          struct Node *next;
+      };
+
+      int list_max(const struct Node *h) {
+          int m = h->v;
+          for (const struct Node *p = h->next; p; p = p->next)
+              if (p->v > m) m = p->v;
+          return m;
+      }
+    harness: |
+      #include <stddef.h>
+      int main(void) {
+          struct Node c = {4, NULL}, b = {9, &c}, a = {-1, &b};
+          CHECK_INT("max of -1,9,4", list_max(&a), 9);
+          CHECK_INT("single", list_max(&c), 4);
+          return 0;
+      }
+    hints:
+      - Start with the head's value and walk the rest.
+    why: A walk that keeps the best value seen so far.

@@ -1,0 +1,141 @@
+topic: cpp-vector
+lang: cpp
+drills:
+  - type: predict
+    body: |
+      std::vector<int> v = {1, 2, 3};
+      v.push_back(4);
+      std::cout << v.size() << " " << v.back() << "\n";
+    why: push_back appends; back() is the last element.
+  - type: predict
+    body: |
+      std::vector<int> v(3, 7);
+      std::cout << v[0] + v[2] << " " << v.size() << "\n";
+    why: "vector(3, 7) means three elements, each 7."
+  - type: predict
+    body: |
+      std::vector<int> v{3, 7};
+      std::cout << v.size() << "\n";
+    why: Braces make an initializer list with two elements, 3 and 7.
+  - type: predict
+    body: |
+      std::vector<int> v = {5, 6, 7};
+      v.pop_back();
+      v.insert(v.begin(), 4);
+      for (int x : v) std::cout << x;
+      std::cout << "\n";
+    why: pop_back removes 7, insert at begin() puts 4 first.
+  - type: predict
+    body: |
+      std::vector<int> v = {1, 2, 3, 4};
+      v.erase(v.begin() + 1);
+      std::cout << v[1] << " " << v.size() << "\n";
+    why: Erasing index 1 shifts the rest left.
+  - type: predict
+    body: |
+      std::vector<int> v = {1, 2, 3};
+      for (auto x : v) x *= 10;
+      std::cout << v[0] << "\n";
+    why: "`auto x` is a copy. Use `auto& x` to modify the elements."
+  - type: predict
+    body: |
+      std::string s = "de_overpass";
+      std::cout << s.substr(3, 4) << " " << s.find("pass") << "\n";
+    why: substr(3, 4) takes 4 chars from index 3; "pass" starts at index 7.
+  - type: predict
+    body: |
+      std::string s = "nuke";
+      std::cout << (s.find("z") == std::string::npos) << "\n";
+    why: find returns npos when there's no match.
+  - type: fill
+    prompt: Append to the vector.
+    body: |
+      std::vector<std::string> maps;
+      maps.[[push_back]]("vertigo");
+      std::cout << maps[0] << "\n";
+    why: push_back adds to the end.
+  - type: fill
+    prompt: Modify each element in place.
+    body: |
+      std::vector<int> v = {1, 2, 3};
+      for (auto[[&]] x : v) x *= 2;
+      std::cout << v[2] << "\n";
+    why: A reference in the range-for lets you change the elements.
+  - type: bug
+    body: |
+      std::vector<int> v = {4, 5, 6};
+      int sum = 0;
+      for (std::size_t i = 0; i <= v.size(); i++) sum += v[i]; // BUG
+      std::cout << sum << "\n";
+    fix: "for (std::size_t i = 0; i < v.size(); i++) sum += v[i];"
+    ub: true
+    why: "`<= size()` reads one past the end."
+  - type: compiles
+    body: |
+      std::vector<int> v = {1, 2};
+      v.push_back("3");
+    why: A vector<int> only holds ints.
+  - type: compiles
+    body: |
+      std::vector<std::vector<int>> g(2, std::vector<int>(3, 0));
+      g[1][2] = 5;
+      std::cout << g[1][2] << "\n";
+    why: A vector of vectors makes a 2D grid.
+  - type: boss
+    prompt: |
+      Write `std::vector<int> evens(const std::vector<int>& v)` returning only the even numbers, in order.
+    seed: |
+      #include <vector>
+
+      std::vector<int> evens(const std::vector<int>& v) {
+
+      }
+    solution: |
+      #include <vector>
+
+      std::vector<int> evens(const std::vector<int>& v) {
+          std::vector<int> out;
+          for (int x : v)
+              if (x % 2 == 0) out.push_back(x);
+          return out;
+      }
+    harness: |
+      int main() {
+          CHECK_EQ("mixed", evens({1, 2, 3, 4, 6}), std::vector<int>{2, 4, 6});
+          CHECK_EQ("none", evens({1, 3}), std::vector<int>{});
+          CHECK_EQ("negatives", evens({-2, -1, 0}), std::vector<int>{-2, 0});
+      }
+    hints:
+      - Loop and push_back the ones with x % 2 == 0.
+    why: Build a fresh vector with push_back.
+  - type: boss
+    prompt: |
+      Write `std::string join(const std::vector<std::string>& parts, const std::string& sep)`. `join({"a", "b", "c"}, ", ")` is `"a, b, c"`.
+    seed: |
+      #include <string>
+      #include <vector>
+
+      std::string join(const std::vector<std::string>& parts, const std::string& sep) {
+
+      }
+    solution: |
+      #include <string>
+      #include <vector>
+
+      std::string join(const std::vector<std::string>& parts, const std::string& sep) {
+          std::string out;
+          for (std::size_t i = 0; i < parts.size(); i++) {
+              if (i) out += sep;
+              out += parts[i];
+          }
+          return out;
+      }
+    harness: |
+      int main() {
+          CHECK_EQ("a, b, c", join({"a", "b", "c"}, ", "), std::string("a, b, c"));
+          CHECK_EQ("single", join({"x"}, "-"), std::string("x"));
+          CHECK_EQ("empty", join({}, "-"), std::string(""));
+      }
+    hints:
+      - Add the separator before every element except the first.
+    why: Putting the separator before all but the first avoids a trailing separator.

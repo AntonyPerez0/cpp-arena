@@ -1,0 +1,162 @@
+topic: cpp-classes
+lang: cpp
+drills:
+  - type: predict
+    pre: |
+      struct Gun {
+          int ammo = 30;
+          void fire() { ammo -= 3; }
+      };
+    body: |
+      Gun g;
+      g.fire();
+      g.fire();
+      std::cout << g.ammo << "\n";
+    why: Each fire() removes 3 from this object's ammo.
+  - type: predict
+    pre: |
+      struct P {
+          int x;
+          P(int v) : x(v * 2) {}
+      };
+    body: |
+      P p(5);
+      std::cout << p.x << "\n";
+    why: The initializer list sets x to v * 2.
+  - type: predict
+    pre: |
+      class C {
+      public:
+          C() { n++; }
+          static int n;
+      };
+      int C::n = 0;
+    body: |
+      C a, b, c;
+      std::cout << C::n << "\n";
+    why: The static counter is shared by all objects.
+  - type: predict
+    pre: |
+      struct A {
+          int v = 1;
+          A() { v = 2; }
+      };
+    body: |
+      A a;
+      std::cout << a.v << "\n";
+    why: The default member value is applied first, then the constructor body overwrites it.
+  - type: fill
+    prompt: Members after this label are only accessible inside the class.
+    pre: |
+      class Bank {
+      public:
+          int get() const { return money_; }
+      [[private]]:
+          int money_ = 800;
+      };
+    body: |
+      Bank b;
+      std::cout << b.get() << "\n";
+    why: private members are hidden from outside code.
+  - type: fill
+    prompt: This method must be callable on a const object.
+    pre: |
+      struct P {
+          int hp = 100;
+          int get() [[const]] { return hp; }
+      };
+    body: |
+      const P p;
+      std::cout << p.get() << "\n";
+    why: Only const member functions can be called on const objects.
+  - type: bug
+    pre: |
+      class Score {
+      public:
+          Score(int t, int ct) : t_(ct), ct_(ct) {} // BUG
+          int t() const { return t_; }
+      private:
+          int t_, ct_;
+      };
+    body: |
+      Score s(13, 7);
+      std::cout << s.t() << "\n";
+    fix: "Score(int t, int ct) : t_(t), ct_(ct) {}"
+    why: t_ was initialized from the wrong parameter.
+  - type: compiles
+    pre: |
+      class Vault {
+          int gold = 5;
+      };
+    body: |
+      Vault v;
+      std::cout << v.gold << "\n";
+    why: class members are private by default.
+  - type: compiles
+    pre: |
+      struct Vault {
+          int gold = 5;
+      };
+    body: |
+      Vault v;
+      std::cout << v.gold << "\n";
+    why: struct members are public by default.
+  - type: compiles
+    pre: |
+      struct P {
+          int hp = 100;
+          void heal() const { hp = 100; }
+      };
+    body: |
+      P p;
+      p.heal();
+    why: A const member function can't modify members.
+  - type: compiles
+    pre: |
+      struct P {
+          P(int hp) : hp_(hp) {}
+          int hp_;
+      };
+    body: |
+      P p;
+      std::cout << p.hp_ << "\n";
+    why: Declaring any constructor removes the implicit default constructor.
+  - type: boss
+    prompt: |
+      Write a class `Counter` with `void add(int n)`, `void reset()`, `int value() const` and `int max_seen() const` (the highest value ever reached, surviving resets).
+    seed: |
+      class Counter {
+      public:
+
+      };
+    solution: |
+      class Counter {
+      public:
+          void add(int n) {
+              value_ += n;
+              if (value_ > max_) max_ = value_;
+          }
+          void reset() { value_ = 0; }
+          int value() const { return value_; }
+          int max_seen() const { return max_; }
+
+      private:
+          int value_ = 0;
+          int max_ = 0;
+      };
+    harness: |
+      int main() {
+          Counter c;
+          c.add(5);
+          c.add(3);
+          CHECK_EQ("value 8", c.value(), 8);
+          c.reset();
+          c.add(2);
+          CHECK_EQ("value after reset", c.value(), 2);
+          CHECK_EQ("max survives reset", c.max_seen(), 8);
+          const Counter& r = c;
+          CHECK_EQ("const access", r.value(), 2);
+      }
+    hints:
+      - Two private ints. Update the max inside add().
+    why: The class keeps its own invariant (max never decreases) behind private members.

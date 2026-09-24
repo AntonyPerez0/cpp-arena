@@ -1,0 +1,122 @@
+topic: c-if
+lang: c
+drills:
+  - type: predict
+    body: |
+      int hp = 0;
+      if (hp > 0) printf("alive\n");
+      else printf("dead\n");
+    why: 0 is not greater than 0.
+  - type: predict
+    body: |
+      int k = 3;
+      if (k >= 5) printf("ace\n");
+      else if (k >= 2) printf("multi\n");
+      else printf("one\n");
+    why: The first true branch wins. 3 >= 2.
+  - type: predict
+    body: |
+      int x = 5;
+      if (x = 0) printf("zero\n");
+      else printf("nonzero %d\n", x);
+    why: "`x = 0` assigns 0 and evaluates to 0 (false), so the else runs and x is now 0. Classic = vs == bug."
+  - type: predict
+    body: |
+      int a = 1, b = 0;
+      printf("%d %d %d\n", a && b, a || b, !b);
+    why: "&& needs both, || needs one, ! flips. Results are 0 or 1."
+  - type: predict
+    body: |
+      int n = 2;
+      switch (n) {
+          case 1: printf("one ");
+          case 2: printf("two ");
+          case 3: printf("three ");
+          default: printf("end");
+      }
+      printf("\n");
+    why: No `break`, so execution falls through every case below the match.
+  - type: predict
+    body: |
+      int n = 4;
+      printf("%s\n", n % 2 == 0 ? "even" : "odd");
+    why: The ternary picks the first value when the condition is true.
+  - type: predict
+    body: |
+      int x = 7;
+      if (x > 3 && x < 5) printf("in\n");
+      else printf("out\n");
+    why: 7 < 5 is false, so the && is false.
+  - type: fill
+    prompt: Both conditions must hold.
+    body: |
+      int money = 3000, round = 4;
+      if (money >= 2700 [[&&]] round != 1) printf("buy\n");
+    why: "`&&` requires both sides to be true."
+  - type: fill
+    prompt: Compare for equality.
+    body: |
+      int site = 2;
+      if (site [[==]] 2) printf("B\n");
+    why: "`==` compares; `=` assigns."
+  - type: bug
+    body: |
+      int kills = 1;
+      if (kills = 5) // BUG
+          printf("ace\n");
+      else
+          printf("not ace\n");
+    fix: "if (kills == 5)"
+    why: "`=` assigns 5 (true) instead of comparing."
+  - type: bug
+    body: |
+      int key = 1;
+      switch (key) {
+          case 1: printf("forward\n"); // BUG
+          case 2: printf("back\n"); break;
+      }
+    fix: 'case 1: printf("forward\n"); break;'
+    why: Without break, case 1 falls through into case 2.
+  - type: compiles
+    body: |
+      int x = 3;
+      if (x > 2) {
+          printf("big\n");
+      else {
+          printf("small\n");
+      }
+    why: The if's opening brace is never closed before else.
+  - type: compiles
+    body: |
+      int x = 3;
+      if (x > 2)
+          printf("big\n");
+      else
+          printf("small\n");
+    why: Braces are optional for single statements.
+  - type: boss
+    prompt: |
+      Write `int grade(int score)` returning a letter as a char: `'A'` for 90+, `'B'` for 80-89, `'C'` for 70-79, `'F'` below 70.
+    seed: |
+      char grade(int score) {
+
+      }
+    solution: |
+      char grade(int score) {
+          if (score >= 90) return 'A';
+          if (score >= 80) return 'B';
+          if (score >= 70) return 'C';
+          return 'F';
+      }
+    harness: |
+      int main(void) {
+          CHECK_INT("grade(95)", grade(95), 'A');
+          CHECK_INT("grade(90)", grade(90), 'A');
+          CHECK_INT("grade(85)", grade(85), 'B');
+          CHECK_INT("grade(70)", grade(70), 'C');
+          CHECK_INT("grade(12)", grade(12), 'F');
+          return 0;
+      }
+    hints:
+      - Check from the highest band down.
+    why: Checking the highest threshold first means each later check only sees lower scores.

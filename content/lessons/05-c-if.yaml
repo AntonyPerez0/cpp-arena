@@ -1,0 +1,268 @@
+id: c-if
+title: Making decisions
+lang: c
+phase: "C: Foundations"
+summary: if, else if and else. Comparison and logical operators, switch, and the ternary operator.
+steps:
+  - title: if and else
+    text: |
+      `if` runs a block of code only when a condition is true. `else` runs when it's false.
+
+      ```c
+      if (hp > 0) {
+          printf("alive\n");
+      } else {
+          printf("dead\n");
+      }
+      ```
+
+      Comparison operators: `==` equal, `!=` not equal, `<`, `>`, `<=`, `>=`.
+
+      Careful: `=` assigns and `==` compares. `if (x = 5)` is a classic bug.
+
+      **Your turn:** read a health value and print `alive` if it's greater than 0, otherwise `dead`.
+    fill: |
+      #include <stdio.h>
+
+      int main(void) {
+          int hp;
+          scanf("%d", &hp);
+          [[if]] (hp [[>]] 0) {
+              printf("alive\n");
+          } [[else]] {
+              printf("dead\n");
+          }
+          return 0;
+      }
+    hints:
+      - The structure is `if (condition) { ... } else { ... }`.
+      - The condition is "hp greater than 0", written `hp > 0`.
+    tests:
+      - stdin: "57\n"
+      - stdin: "0\n"
+      - stdin: "-10\n"
+        hidden: true
+
+  - title: else if chains
+    text: |
+      Chain several conditions with `else if`. C checks them top to bottom and runs **only the first** one that's true.
+
+      ```c
+      if (score >= 90) {
+          printf("A\n");
+      } else if (score >= 80) {
+          printf("B\n");
+      } else {
+          printf("C or lower\n");
+      }
+      ```
+
+      **Your turn:** read a player's kill count for a round and print:
+
+      - `ACE` for 5 or more
+      - `multi-kill` for 2 to 4
+      - `one` for exactly 1
+      - `none` for 0
+    seed: |
+      #include <stdio.h>
+
+      int main(void) {
+          int k;
+          scanf("%d", &k);
+
+          return 0;
+      }
+    solution: |
+      #include <stdio.h>
+
+      int main(void) {
+          int k;
+          scanf("%d", &k);
+          if (k >= 5) {
+              printf("ACE\n");
+          } else if (k >= 2) {
+              printf("multi-kill\n");
+          } else if (k == 1) {
+              printf("one\n");
+          } else {
+              printf("none\n");
+          }
+          return 0;
+      }
+    hints:
+      - Start with the biggest case (`k >= 5`) so smaller checks don't catch it first.
+      - "Order: `>= 5`, then `>= 2`, then `== 1`, then `else`."
+    tests:
+      - stdin: "5\n"
+      - stdin: "3\n"
+      - stdin: "1\n"
+      - stdin: "0\n"
+      - stdin: "2\n"
+        hidden: true
+      - stdin: "7\n"
+        hidden: true
+
+  - title: And, or, not
+    text: |
+      Combine conditions with logical operators:
+
+      - `&&` (and): true only if **both** sides are true
+      - `||` (or): true if **at least one** side is true
+      - `!` (not): flips true and false
+
+      ```c
+      if (money >= 2700 && !has_rifle) { ... }
+      ```
+
+      In C, any non-zero number counts as true and `0` is false.
+
+      **Your turn:** read `money` and `round` (two ints). A player can buy if they have at least 2700 money **and** it is not the first round (round 1 is a pistol round). Print `buy` or `save`.
+    seed: |
+      #include <stdio.h>
+
+      int main(void) {
+          int money, round;
+          scanf("%d %d", &money, &round);
+
+          return 0;
+      }
+    solution: |
+      #include <stdio.h>
+
+      int main(void) {
+          int money, round;
+          scanf("%d %d", &money, &round);
+          if (money >= 2700 && round != 1) {
+              printf("buy\n");
+          } else {
+              printf("save\n");
+          }
+          return 0;
+      }
+    hints:
+      - "Two conditions joined by `&&`: `money >= 2700` and `round != 1`."
+    tests:
+      - stdin: "3000 5\n"
+      - stdin: "3000 1\n"
+      - stdin: "2000 7\n"
+      - stdin: "2700 2\n"
+        hidden: true
+
+  - title: switch
+    text: |
+      When you compare one value against many constants, `switch` is tidier than a long `else if` chain:
+
+      ```c
+      switch (key) {
+          case 'w':
+              printf("forward\n");
+              break;
+          case 's':
+              printf("back\n");
+              break;
+          default:
+              printf("?\n");
+      }
+      ```
+
+      Each `case` needs a `break;`, otherwise execution **falls through** into the next case. `default` catches everything else.
+
+      **Your turn:** read a char and print the direction for `w`, `a`, `s`, `d` (`forward`, `left`, `back`, `right`), or `unknown` for anything else.
+    fill: |
+      #include <stdio.h>
+
+      int main(void) {
+          char key;
+          scanf(" %c", &key);
+          [[switch]] (key) {
+              case 'w': printf("forward\n"); [[break]];
+              case 'a': printf("left\n"); break;
+              [[case]] 's': printf("back\n"); break;
+              case 'd': printf("right\n"); break;
+              [[default]]: printf("unknown\n");
+          }
+          return 0;
+      }
+    hints:
+      - "Keywords used here: `switch`, `break`, `case`, `default`."
+      - Without the `break` after forward, pressing w would also print left.
+    tests:
+      - stdin: "w\n"
+      - stdin: "a\n"
+      - stdin: "s\n"
+      - stdin: "q\n"
+      - stdin: "d\n"
+        hidden: true
+
+  - title: The ternary operator
+    text: |
+      `condition ? a : b` is an *expression* that evaluates to `a` if the condition is true and `b` otherwise. It's handy for small choices:
+
+      ```c
+      int best = (x > y) ? x : y;
+      printf("%s\n", n == 1 ? "kill" : "kills");
+      ```
+
+      **Your turn:** read an int `n` and print `n kill` or `n kills` with the correct plural (1 is singular, everything else plural).
+    fill: |
+      #include <stdio.h>
+
+      int main(void) {
+          int n;
+          scanf("%d", &n);
+          printf("%d %s\n", n, n [[==]] 1 [[?]] "kill" [[:]] "kills");
+          return 0;
+      }
+    hints:
+      - "The pattern is `condition ? value_if_true : value_if_false`."
+    tests:
+      - stdin: "1\n"
+      - stdin: "4\n"
+      - stdin: "0\n"
+        hidden: true
+
+  - title: "Challenge: leap years"
+    text: |
+      A year is a leap year if:
+
+      - it's divisible by 4, **and**
+      - it's **not** divisible by 100, **unless** it's also divisible by 400.
+
+      So 2024 and 2000 are leap years, but 1900 and 2023 are not.
+
+      **Your turn:** read a year and print `leap` or `common`.
+    seed: |
+      #include <stdio.h>
+
+      int main(void) {
+          int y;
+          scanf("%d", &y);
+
+          return 0;
+      }
+    solution: |
+      #include <stdio.h>
+
+      int main(void) {
+          int y;
+          scanf("%d", &y);
+          if ((y % 4 == 0 && y % 100 != 0) || y % 400 == 0) {
+              printf("leap\n");
+          } else {
+              printf("common\n");
+          }
+          return 0;
+      }
+    hints:
+      - "\"Divisible by 4\" is `y % 4 == 0`."
+      - "Leap if (divisible by 4 and not by 100) or divisible by 400."
+      - "`if ((y % 4 == 0 && y % 100 != 0) || y % 400 == 0)`"
+    tests:
+      - stdin: "2024\n"
+      - stdin: "1900\n"
+      - stdin: "2000\n"
+      - stdin: "2023\n"
+      - stdin: "2100\n"
+        hidden: true
+      - stdin: "2400\n"
+        hidden: true

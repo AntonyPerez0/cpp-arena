@@ -1,0 +1,260 @@
+id: c-arrays
+title: Arrays
+lang: c
+phase: "C: Memory"
+summary: Store many values of one type side by side. Indexing, looping, passing arrays to functions and 2D grids.
+steps:
+  - title: Declare and index
+    text: |
+      An **array** is a fixed-size row of values of the same type, stored next to each other in memory.
+
+      ```c
+      int ammo[3] = {30, 20, 7};
+      printf("%d\n", ammo[0]);   // 30, indexes start at 0
+      ammo[2] = 8;               // change the last one
+      ```
+
+      An array of size 3 has valid indexes **0, 1, 2**. `ammo[3]` is out of bounds. C won't stop you, and the result is undefined behaviour.
+
+      **Your turn:** print the first and the last element of the array.
+    fill: |
+      #include <stdio.h>
+
+      int main(void) {
+          int scores[5] = {16, 9, 22, 13, 30};
+          printf("first %d\n", scores[[[0]]]);
+          printf("last %d\n", scores[[[4]]]);
+          return 0;
+      }
+    hints:
+      - The first index is 0. With 5 elements, the last index is 4.
+    tests:
+      - expect: "first 16\nlast 30"
+
+  - title: Loop over an array
+    text: |
+      Loops and arrays are best friends. The idiom:
+
+      ```c
+      int n = 5;
+      for (int i = 0; i < n; i++) {
+          printf("%d\n", a[i]);
+      }
+      ```
+
+      Note `i < n`, not `i <= n`. Using `<=` reads one past the end, a classic **off-by-one** bug.
+
+      The trick `sizeof(a) / sizeof(a[0])` gives the number of elements of a real array (not of a pointer, as you'll see soon).
+
+      **Your turn:** print the average of the array with two decimals: `avg 18.00`.
+    seed: |
+      #include <stdio.h>
+
+      int main(void) {
+          int scores[5] = {16, 9, 22, 13, 30};
+          int n = sizeof(scores) / sizeof(scores[0]);
+
+          return 0;
+      }
+    solution: |
+      #include <stdio.h>
+
+      int main(void) {
+          int scores[5] = {16, 9, 22, 13, 30};
+          int n = sizeof(scores) / sizeof(scores[0]);
+          int sum = 0;
+          for (int i = 0; i < n; i++) {
+              sum += scores[i];
+          }
+          printf("avg %.2f\n", (double)sum / n);
+          return 0;
+      }
+    forbid:
+      - pattern: "18\\.0|\\b90\\b"
+        message: Compute the average with a loop instead of hard-coding it.
+    hints:
+      - Sum the elements in a for loop from 0 to n - 1.
+      - "Divide as doubles: `(double)sum / n`, then print with `%.2f`."
+    tests:
+      - expect: "avg 18.00"
+
+  - title: Read into an array
+    text: |
+      You can `scanf` directly into an element: `scanf("%d", &a[i]);`
+
+      **Your turn:** input is `n` (at most 100) followed by `n` numbers. Print them in **reverse** order on one line, separated by spaces.
+
+      Input `4` / `1 2 3 4` prints `4 3 2 1`.
+    seed: |
+      #include <stdio.h>
+
+      int main(void) {
+          int a[100];
+          int n;
+          scanf("%d", &n);
+
+          printf("\n");
+          return 0;
+      }
+    solution: |
+      #include <stdio.h>
+
+      int main(void) {
+          int a[100];
+          int n;
+          scanf("%d", &n);
+          for (int i = 0; i < n; i++) {
+              scanf("%d", &a[i]);
+          }
+          for (int i = n - 1; i >= 0; i--) {
+              printf("%d ", a[i]);
+          }
+          printf("\n");
+          return 0;
+      }
+    hints:
+      - First loop reads with `scanf("%d", &a[i]);`
+      - "Second loop counts down: `for (int i = n - 1; i >= 0; i--)`."
+    tests:
+      - stdin: "4\n1 2 3 4\n"
+      - stdin: "1\n42\n"
+      - stdin: "7\n5 -1 8 0 3 3 9\n"
+        hidden: true
+
+  - title: Arrays as parameters
+    text: |
+      When you pass an array to a function, the function **doesn't know its length**. Always pass the length too:
+
+      ```c
+      int sum(int a[], int n) {
+          int s = 0;
+          for (int i = 0; i < n; i++) s += a[i];
+          return s;
+      }
+      ```
+
+      Unlike plain ints, changes to array elements inside the function **are** visible to the caller (the next module explains why).
+
+      **Your turn:** write `int index_of(int a[], int n, int target)` that returns the index of the first element equal to `target`, or `-1` if it isn't there.
+    seed: |
+      int index_of(int a[], int n, int target) {
+
+      }
+    solution: |
+      int index_of(int a[], int n, int target) {
+          for (int i = 0; i < n; i++) {
+              if (a[i] == target) return i;
+          }
+          return -1;
+      }
+    harness: |
+      int main(void) {
+          int a[] = {4, 8, 15, 16, 23, 42, 15};
+          CHECK_INT("find 4", index_of(a, 7, 4), 0);
+          CHECK_INT("find 42", index_of(a, 7, 42), 5);
+          CHECK_INT("first 15", index_of(a, 7, 15), 2);
+          CHECK_INT("missing 7", index_of(a, 7, 7), -1);
+          CHECK_INT("empty array", index_of(a, 0, 4), -1);
+          return 0;
+      }
+    hints:
+      - Loop over every index. Return `i` as soon as `a[i] == target`.
+      - If the loop finishes without finding it, return -1.
+
+  - title: Modify an array in a function
+    text: |
+      **Your turn:** write `void reverse(int a[], int n)` that reverses the array **in place** (no second array).
+
+      Swap the first and last element, then the second and second-to-last, and so on until the middle.
+
+      ```c
+      int tmp = a[i];
+      a[i] = a[j];
+      a[j] = tmp;
+      ```
+    seed: |
+      void reverse(int a[], int n) {
+
+      }
+    solution: |
+      void reverse(int a[], int n) {
+          for (int i = 0, j = n - 1; i < j; i++, j--) {
+              int tmp = a[i];
+              a[i] = a[j];
+              a[j] = tmp;
+          }
+      }
+    harness: |
+      int same(int *a, int *b, int n) {
+          for (int i = 0; i < n; i++) if (a[i] != b[i]) return 0;
+          return 1;
+      }
+      int main(void) {
+          int a[] = {1, 2, 3, 4, 5};
+          int ra[] = {5, 4, 3, 2, 1};
+          reverse(a, 5);
+          CHECK("odd length {1,2,3,4,5}", same(a, ra, 5));
+          int b[] = {7, 8, 9, 10};
+          int rb[] = {10, 9, 8, 7};
+          reverse(b, 4);
+          CHECK("even length {7,8,9,10}", same(b, rb, 4));
+          int c[] = {3};
+          reverse(c, 1);
+          CHECK("single element", c[0] == 3);
+          reverse(c, 0);
+          CHECK("empty array", c[0] == 3);
+          return 0;
+      }
+    hints:
+      - "Use two indexes: i from the front, j from the back. Loop while `i < j`."
+      - Swap `a[i]` and `a[j]` with a temporary variable, then move i forward and j backward.
+
+  - title: 2D arrays
+    text: |
+      A 2D array is an array of rows:
+
+      ```c
+      int grid[2][3] = {
+          {1, 2, 3},
+          {4, 5, 6},
+      };
+      printf("%d\n", grid[1][2]);   // row 1, column 2: 6
+      ```
+
+      Loop over it with nested loops: rows outside, columns inside.
+
+      **Your turn:** read a 3x3 grid of numbers and print the sum of each row on its own line, then the sum of the main diagonal (top-left to bottom-right) as `diag N`.
+    seed: |
+      #include <stdio.h>
+
+      int main(void) {
+          int g[3][3];
+
+          return 0;
+      }
+    solution: |
+      #include <stdio.h>
+
+      int main(void) {
+          int g[3][3];
+          for (int r = 0; r < 3; r++)
+              for (int c = 0; c < 3; c++)
+                  scanf("%d", &g[r][c]);
+          for (int r = 0; r < 3; r++) {
+              int s = 0;
+              for (int c = 0; c < 3; c++) s += g[r][c];
+              printf("%d\n", s);
+          }
+          int d = 0;
+          for (int i = 0; i < 3; i++) d += g[i][i];
+          printf("diag %d\n", d);
+          return 0;
+      }
+    hints:
+      - Read with nested loops using `&g[r][c]`.
+      - The diagonal elements are `g[0][0]`, `g[1][1]`, `g[2][2]`, so `g[i][i]`.
+    tests:
+      - stdin: "1 2 3\n4 5 6\n7 8 9\n"
+      - stdin: "0 0 0\n0 0 0\n0 0 1\n"
+      - stdin: "5 -1 2\n3 3 3\n-9 4 10\n"
+        hidden: true

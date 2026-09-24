@@ -1,0 +1,116 @@
+topic: cpp-smart
+lang: cpp
+drills:
+  - type: predict
+    body: |
+      auto p = std::make_unique<int>(5);
+      *p += 2;
+      std::cout << *p << "\n";
+    why: A unique_ptr is dereferenced like a raw pointer.
+  - type: predict
+    body: |
+      auto a = std::make_unique<int>(1);
+      auto b = std::move(a);
+      std::cout << (a == nullptr) << " " << *b << "\n";
+    why: Moving a unique_ptr transfers ownership and leaves the source null.
+  - type: predict
+    body: |
+      auto a = std::make_shared<int>(3);
+      auto b = a;
+      auto c = b;
+      std::cout << a.use_count() << "\n";
+    why: Three shared_ptrs own the same int.
+  - type: predict
+    body: |
+      auto a = std::make_shared<int>(3);
+      {
+          auto b = a;
+      }
+      std::cout << a.use_count() << "\n";
+    why: b is destroyed at the end of its block.
+  - type: predict
+    body: |
+      std::weak_ptr<int> w;
+      {
+          auto s = std::make_shared<int>(9);
+          w = s;
+          std::cout << w.expired() << " ";
+      }
+      std::cout << w.expired() << "\n";
+    why: The weak_ptr expires when the last shared owner is gone.
+  - type: predict
+    pre: |
+      struct Noisy {
+          ~Noisy() { std::cout << "freed "; }
+      };
+    body: |
+      {
+          auto p = std::make_unique<Noisy>();
+          std::cout << "using ";
+      }
+      std::cout << "after\n";
+    why: The unique_ptr deletes its object at the end of the scope.
+  - type: fill
+    prompt: Create a unique_ptr.
+    body: |
+      auto p = std::[[make_unique]]<std::string>("ace");
+      std::cout << *p << "\n";
+    why: make_unique allocates and wraps in one step.
+  - type: fill
+    prompt: Transfer ownership into the vector.
+    body: |
+      std::vector<std::unique_ptr<int>> v;
+      auto p = std::make_unique<int>(4);
+      v.push_back([[std::move]](p));
+      std::cout << *v[0] << "\n";
+    why: unique_ptr can't be copied, only moved.
+  - type: bug
+    body: |
+      auto a = std::make_unique<int>(10);
+      auto b = std::move(a);
+      std::cout << *b << "\n";
+      std::cout << *a << "\n"; // BUG
+    fix: 'std::cout << (a == nullptr) << "\n";'
+    ub: true
+    why: After the move, a is null. Dereferencing it is undefined behaviour.
+  - type: compiles
+    body: |
+      auto a = std::make_unique<int>(1);
+      auto b = a;
+    why: unique_ptr's copy constructor is deleted.
+  - type: compiles
+    body: |
+      auto a = std::make_shared<int>(1);
+      auto b = a;
+      std::cout << *b << "\n";
+    why: shared_ptr is copyable; both share ownership.
+  - type: boss
+    prompt: |
+      Write `std::unique_ptr<std::vector<int>> make_scores(int n)` returning a new vector `{1, 2, ..., n}`, or `nullptr` if `n <= 0`.
+    seed: |
+      #include <memory>
+      #include <vector>
+
+      std::unique_ptr<std::vector<int>> make_scores(int n) {
+
+      }
+    solution: |
+      #include <memory>
+      #include <vector>
+
+      std::unique_ptr<std::vector<int>> make_scores(int n) {
+          if (n <= 0) return nullptr;
+          auto v = std::make_unique<std::vector<int>>();
+          for (int i = 1; i <= n; i++) v->push_back(i);
+          return v;
+      }
+    harness: |
+      int main() {
+          auto a = make_scores(3);
+          CHECK("not null", a != nullptr);
+          CHECK_EQ("contents", *a, std::vector<int>{1, 2, 3});
+          CHECK("n=0 gives nullptr", make_scores(0) == nullptr);
+      }
+    hints:
+      - "`std::make_unique<std::vector<int>>()` then push_back through `->`."
+    why: Returning unique_ptr hands ownership to the caller; nullptr means "none".

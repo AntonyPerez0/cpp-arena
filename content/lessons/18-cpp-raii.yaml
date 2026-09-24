@@ -1,0 +1,283 @@
+id: cpp-raii
+title: Lifetime and RAII
+lang: cpp
+phase: "C++: A Better C"
+summary: Destructors, object lifetime and RAII, the idea that makes C++ memory-safe in practice. Plus copying and the rule of three.
+steps:
+  - title: Destructors
+    text: |
+      A **destructor** runs automatically when an object's lifetime ends, for example when a local variable goes out of scope. It's named `~ClassName()`:
+
+      ```cpp
+      struct Noisy {
+          Noisy()  { std::cout << "hello\n"; }
+          ~Noisy() { std::cout << "bye\n"; }
+      };
+
+      int main() {
+          Noisy n;              // prints hello
+          std::cout << "work\n";
+      }                         // prints bye here, automatically
+      ```
+
+      **Your turn:** complete the destructor so the program prints the three lines shown in the tests.
+    fill: |
+      #include <iostream>
+
+      struct Round {
+          Round() { std::cout << "round start\n"; }
+          [[~Round]]() { std::cout << "[[round end]]\n"; }
+      };
+
+      int main() {
+          Round r;
+          std::cout << "playing\n";
+      }
+    hints:
+      - "A destructor's name is `~` followed by the class name: `~Round`."
+    tests:
+      - expect: "round start\nplaying\nround end"
+
+  - title: Order of destruction
+    text: |
+      Objects are destroyed in the **reverse order** of construction (last in, first out), and a `{ }` block ends the lifetime of everything declared inside it.
+
+      **Your turn:** without changing the struct, reorder and group the lines in `main` so the output is exactly:
+
+      ```
+      + A
+      + B
+      - B
+      + C
+      - C
+      - A
+      ```
+    seed: |
+      #include <iostream>
+      #include <string>
+
+      struct Tag {
+          std::string name;
+          Tag(std::string n) : name(n) { std::cout << "+ " << name << "\n"; }
+          ~Tag() { std::cout << "- " << name << "\n"; }
+      };
+
+      int main() {
+          Tag a("A");
+          Tag b("B");
+          Tag c("C");
+      }
+    solution: |
+      #include <iostream>
+      #include <string>
+
+      struct Tag {
+          std::string name;
+          Tag(std::string n) : name(n) { std::cout << "+ " << name << "\n"; }
+          ~Tag() { std::cout << "- " << name << "\n"; }
+      };
+
+      int main() {
+          Tag a("A");
+          {
+              Tag b("B");
+          }
+          {
+              Tag c("C");
+          }
+      }
+    require:
+      - pattern: "\\{\\s*Tag\\s+\\w+\\s*\\("
+        message: "Control the lifetimes with `{ }` blocks around the objects in main."
+    hints:
+      - "B must die before C is born. Put `Tag b(\"B\");` inside its own `{ }` block."
+      - Do the same for C. A lives until the end of main.
+    tests:
+      - expect: "+ A\n+ B\n- B\n+ C\n- C\n- A"
+
+  - title: RAII
+    text: |
+      **RAII** (Resource Acquisition Is Initialization) means: acquire a resource in a constructor, release it in the destructor. Since destructors always run, you can't forget to clean up, even on early `return`.
+
+      ```cpp
+      class IntArray {
+      public:
+          IntArray(int n) : data_(new int[n]()), n_(n) {}
+          ~IntArray() { delete[] data_; }
+          ...
+      };
+      ```
+
+      `new T[n]` / `delete[] p` are C++'s versions of `malloc`/`free` for arrays (`new T` / `delete p` for one object). The `()` after `new int[n]` zero-initializes the elements.
+
+      **Your turn:** finish `IntArray`: the destructor, plus `int size() const`, `int& at(int i)` (returns a reference so callers can write through it) and `int sum() const`.
+    seed: |
+      class IntArray {
+      public:
+          explicit IntArray(int n) : data_(new int[n]()), n_(n) {}
+          // destructor, size, at, sum
+
+      private:
+          int* data_;
+          int n_;
+      };
+    solution: |
+      class IntArray {
+      public:
+          explicit IntArray(int n) : data_(new int[n]()), n_(n) {}
+          // destructor, size, at, sum
+          ~IntArray() { delete[] data_; }
+          IntArray(const IntArray&) = delete;
+          IntArray& operator=(const IntArray&) = delete;
+          int size() const { return n_; }
+          int& at(int i) { return data_[i]; }
+          int sum() const {
+              int s = 0;
+              for (int i = 0; i < n_; i++) s += data_[i];
+              return s;
+          }
+
+      private:
+          int* data_;
+          int n_;
+      };
+    require:
+      - pattern: "~IntArray\\s*\\(\\s*\\)\\s*\\{[^}]*delete\\s*\\[\\s*\\]"
+        message: "The destructor must release the memory with `delete[] data_;`."
+    harness: |
+      int main() {
+          IntArray a(5);
+          CHECK_EQ("size", a.size(), 5);
+          CHECK_EQ("zero initialized", a.sum(), 0);
+          a.at(0) = 10;
+          a.at(4) = 7;
+          CHECK_EQ("at() writes through", a.at(4), 7);
+          CHECK_EQ("sum", a.sum(), 17);
+          for (int k = 0; k < 1000; k++) {
+              IntArray tmp(1000);
+              tmp.at(999) = k;
+          }
+          CHECK("1000 temporary arrays freed cleanly", true);
+      }
+    hints:
+      - "`~IntArray() { delete[] data_; }`"
+      - "`int& at(int i) { return data_[i]; }` returns a reference, so `a.at(0) = 10` works."
+
+  - title: The copy problem
+    text: |
+      By default, copying an object copies each member. For `IntArray` that copies the **pointer**, so two objects share one array. When both destructors run, the array is deleted twice (a crash, or worse).
+
+      Fix it by writing a **copy constructor** that makes a *deep copy*:
+
+      ```cpp
+      IntArray(const IntArray& other)
+          : data_(new int[other.n_]), n_(other.n_) {
+          for (int i = 0; i < n_; i++) data_[i] = other.data_[i];
+      }
+      ```
+
+      This is the **rule of three**: if a class needs a destructor, it almost always needs a copy constructor and copy assignment too.
+
+      **Your turn:** add the deep-copy constructor. (Copy assignment is provided.)
+    seed: |
+      #include <algorithm>
+
+      class IntArray {
+      public:
+          explicit IntArray(int n) : data_(new int[n]()), n_(n) {}
+          ~IntArray() { delete[] data_; }
+          // copy constructor goes here
+
+          IntArray& operator=(IntArray other) {
+              std::swap(data_, other.data_);
+              std::swap(n_, other.n_);
+              return *this;
+          }
+          int size() const { return n_; }
+          int& at(int i) { return data_[i]; }
+          const int* raw() const { return data_; }
+
+      private:
+          int* data_;
+          int n_;
+      };
+    solution: |
+      #include <algorithm>
+
+      class IntArray {
+      public:
+          explicit IntArray(int n) : data_(new int[n]()), n_(n) {}
+          ~IntArray() { delete[] data_; }
+          // copy constructor goes here
+          IntArray(const IntArray& other) : data_(new int[other.n_]), n_(other.n_) {
+              for (int i = 0; i < n_; i++) data_[i] = other.data_[i];
+          }
+          IntArray& operator=(IntArray other) {
+              std::swap(data_, other.data_);
+              std::swap(n_, other.n_);
+              return *this;
+          }
+          int size() const { return n_; }
+          int& at(int i) { return data_[i]; }
+          const int* raw() const { return data_; }
+
+      private:
+          int* data_;
+          int n_;
+      };
+    harness: |
+      int main() {
+          IntArray a(3);
+          a.at(0) = 1; a.at(1) = 2; a.at(2) = 3;
+          IntArray b = a;
+          CHECK("copy has its own memory", b.raw() != a.raw());
+          CHECK_EQ("copy has same size", b.size(), 3);
+          CHECK_EQ("copy has same values", b.at(2), 3);
+          b.at(0) = 99;
+          CHECK_EQ("changing the copy leaves the original alone", a.at(0), 1);
+          IntArray c(1);
+          c = a;
+          CHECK_EQ("assignment copies values", c.at(1), 2);
+      }
+    hints:
+      - "Signature: `IntArray(const IntArray& other)`."
+      - "Allocate new memory of `other.n_` ints, then copy each element in a loop."
+
+  - title: Non-copyable classes
+    text: |
+      Sometimes copying makes no sense (a file handle, a network socket, a unique game session). Say so explicitly with `= delete`, and the compiler rejects any attempt to copy:
+
+      ```cpp
+      class Session {
+      public:
+          Session(const Session&) = delete;
+          Session& operator=(const Session&) = delete;
+      };
+      ```
+
+      **Your turn:** make `Lock` non-copyable. The tests check it at compile time with `std::is_copy_constructible_v`.
+    seed: |
+      class Lock {
+      public:
+          Lock() = default;
+          // forbid copying here
+
+      };
+    solution: |
+      class Lock {
+      public:
+          Lock() = default;
+          // forbid copying here
+          Lock(const Lock&) = delete;
+          Lock& operator=(const Lock&) = delete;
+      };
+    harness: |
+      #include <type_traits>
+      int main() {
+          CHECK("Lock can be created", std::is_default_constructible_v<Lock>);
+          CHECK("Lock cannot be copy-constructed", !std::is_copy_constructible_v<Lock>);
+          CHECK("Lock cannot be copy-assigned", !std::is_copy_assignable_v<Lock>);
+      }
+    hints:
+      - "`Lock(const Lock&) = delete;`"
+      - "`Lock& operator=(const Lock&) = delete;`"

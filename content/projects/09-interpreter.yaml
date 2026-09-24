@@ -1,0 +1,489 @@
+id: interpreter
+title: Expression interpreter
+lang: cpp
+level: Advanced
+after: cpp-modern
+summary: A calculator language with precedence, parentheses, variables and error messages. Tokenizer, recursive-descent parser and evaluator, no exceptions.
+seed: |
+  #include <iostream>
+  #include <string>
+
+  int main() {
+      std::string line;
+      while (std::getline(std::cin, line)) {
+          // evaluate the line and print the result
+
+      }
+  }
+milestones:
+  - title: Plus and minus
+    text: |
+      Each input line is an expression of integers with `+` and `-`, spaces optional. Print its value.
+
+      ```
+      1 + 2 - 3 + 10
+      100-1
+      42
+      ```
+      prints
+      ```
+      10
+      99
+      42
+      ```
+
+      Walk the string with an index. Skip spaces, read a number digit by digit, then repeatedly read an operator and another number.
+    solution: |
+      #include <iostream>
+      #include <string>
+
+      struct Parser {
+          const std::string& s;
+          std::size_t i = 0;
+
+          void skip() {
+              while (i < s.size() && s[i] == ' ') i++;
+          }
+          long long number() {
+              skip();
+              long long v = 0;
+              while (i < s.size() && s[i] >= '0' && s[i] <= '9') v = v * 10 + (s[i++] - '0');
+              return v;
+          }
+          long long expr() {
+              long long v = number();
+              for (;;) {
+                  skip();
+                  if (i < s.size() && (s[i] == '+' || s[i] == '-')) {
+                      char op = s[i++];
+                      long long r = number();
+                      v = op == '+' ? v + r : v - r;
+                  } else {
+                      return v;
+                  }
+              }
+          }
+      };
+
+      int main() {
+          std::string line;
+          while (std::getline(std::cin, line)) {
+              // evaluate the line and print the result
+              Parser p{line};
+              std::cout << p.expr() << "\n";
+          }
+      }
+    tests:
+      - stdin: "1 + 2 - 3 + 10\n100-1\n42\n"
+      - stdin: "0\n5 - 10\n"
+      - stdin: "  7 +8+  9 \n1000000 - 1\n"
+        hidden: true
+    hints:
+      - "A small struct holding the string and a position `i` keeps the parsing functions tidy."
+      - "`number()`: skip spaces, then `v = v * 10 + (s[i++] - '0')` while the char is a digit."
+      - "`expr()`: read a number, then loop: if the next char is + or -, consume it, read another number and combine."
+
+  - title: Precedence
+    text: |
+      Add `*` and `/` (integer division), which bind tighter than `+` and `-`. The classic **recursive descent** grammar:
+
+      ```
+      expr   = term   { ("+" | "-") term }
+      term   = factor { ("*" | "/") factor }
+      factor = number
+      ```
+
+      Each rule becomes a function that calls the next one down.
+
+      `2 + 3 * 4` prints `14`; `20 / 3 * 3` prints `18`.
+    solution: |
+      #include <iostream>
+      #include <string>
+
+      struct Parser {
+          const std::string& s;
+          std::size_t i = 0;
+
+          void skip() {
+              while (i < s.size() && s[i] == ' ') i++;
+          }
+          bool eat(char c) {
+              skip();
+              if (i < s.size() && s[i] == c) {
+                  i++;
+                  return true;
+              }
+              return false;
+          }
+          long long number() {
+              skip();
+              long long v = 0;
+              while (i < s.size() && s[i] >= '0' && s[i] <= '9') v = v * 10 + (s[i++] - '0');
+              return v;
+          }
+          long long factor() { return number(); }
+          long long term() {
+              long long v = factor();
+              for (;;) {
+                  if (eat('*')) v *= factor();
+                  else if (eat('/')) v /= factor();
+                  else return v;
+              }
+          }
+          long long expr() {
+              long long v = term();
+              for (;;) {
+                  if (eat('+')) v += term();
+                  else if (eat('-')) v -= term();
+                  else return v;
+              }
+          }
+      };
+
+      int main() {
+          std::string line;
+          while (std::getline(std::cin, line)) {
+              // evaluate the line and print the result
+              Parser p{line};
+              std::cout << p.expr() << "\n";
+          }
+      }
+    tests:
+      - stdin: "2 + 3 * 4\n20 / 3 * 3\n10 - 2 * 3 - 1\n"
+      - stdin: "7\n1+1*1+1\n"
+      - stdin: "100 / 10 / 5\n3 * 3 + 4 * 4\n"
+        hidden: true
+    hints:
+      - "An `eat(char c)` helper that skips spaces and consumes c if it's next makes every rule shorter."
+      - "term() is just like expr() but with * and /, and it calls factor() instead of term()."
+
+  - title: Parentheses and unary minus
+    text: |
+      Extend `factor`:
+
+      ```
+      factor = number | "(" expr ")" | "-" factor
+      ```
+
+      `(2 + 3) * 4` prints `20`; `-(4 - 10)` prints `6`; `--3` prints `3`.
+    solution: |
+      #include <iostream>
+      #include <string>
+
+      struct Parser {
+          const std::string& s;
+          std::size_t i = 0;
+
+          void skip() {
+              while (i < s.size() && s[i] == ' ') i++;
+          }
+          bool eat(char c) {
+              skip();
+              if (i < s.size() && s[i] == c) {
+                  i++;
+                  return true;
+              }
+              return false;
+          }
+          long long number() {
+              skip();
+              long long v = 0;
+              while (i < s.size() && s[i] >= '0' && s[i] <= '9') v = v * 10 + (s[i++] - '0');
+              return v;
+          }
+          long long factor() {
+              if (eat('-')) return -factor();
+              if (eat('(')) {
+                  long long v = expr();
+                  eat(')');
+                  return v;
+              }
+              return number();
+          }
+          long long term() {
+              long long v = factor();
+              for (;;) {
+                  if (eat('*')) v *= factor();
+                  else if (eat('/')) v /= factor();
+                  else return v;
+              }
+          }
+          long long expr() {
+              long long v = term();
+              for (;;) {
+                  if (eat('+')) v += term();
+                  else if (eat('-')) v -= term();
+                  else return v;
+              }
+          }
+      };
+
+      int main() {
+          std::string line;
+          while (std::getline(std::cin, line)) {
+              // evaluate the line and print the result
+              Parser p{line};
+              std::cout << p.expr() << "\n";
+          }
+      }
+    tests:
+      - stdin: "(2 + 3) * 4\n-(4 - 10)\n--3\n"
+      - stdin: "((1))\n2 * (3 + (4 - 1)) / 3\n"
+      - stdin: "-2 * -3\n(10 - 4) * -(1 + 1)\n"
+        hidden: true
+    hints:
+      - "factor() now checks three cases: a `-` (negate the next factor), a `(` (parse a whole expr, then eat `)`), or a number."
+      - "Calling expr() from factor() is fine. That mutual recursion is what makes nesting work."
+
+  - title: Variables
+    text: |
+      Add variables stored in a `std::map<std::string, long long>` (or unordered_map):
+
+      - `let NAME = EXPR` stores the value and prints `NAME = VALUE`
+      - a name inside an expression is replaced by its value
+
+      Names are letters and underscores. The map must survive from line to line.
+
+      ```
+      let hp = 100
+      let dmg = 27 * 2
+      hp - dmg
+      ```
+      prints
+      ```
+      hp = 100
+      dmg = 54
+      46
+      ```
+    solution: |
+      #include <iostream>
+      #include <map>
+      #include <string>
+
+      std::map<std::string, long long> vars;
+
+      struct Parser {
+          const std::string& s;
+          std::size_t i = 0;
+
+          void skip() {
+              while (i < s.size() && s[i] == ' ') i++;
+          }
+          bool eat(char c) {
+              skip();
+              if (i < s.size() && s[i] == c) {
+                  i++;
+                  return true;
+              }
+              return false;
+          }
+          static bool is_name_char(char c) { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'; }
+          std::string name() {
+              skip();
+              std::string n;
+              while (i < s.size() && is_name_char(s[i])) n += s[i++];
+              return n;
+          }
+          long long number() {
+              skip();
+              long long v = 0;
+              while (i < s.size() && s[i] >= '0' && s[i] <= '9') v = v * 10 + (s[i++] - '0');
+              return v;
+          }
+          long long factor() {
+              if (eat('-')) return -factor();
+              if (eat('(')) {
+                  long long v = expr();
+                  eat(')');
+                  return v;
+              }
+              skip();
+              if (i < s.size() && is_name_char(s[i])) return vars[name()];
+              return number();
+          }
+          long long term() {
+              long long v = factor();
+              for (;;) {
+                  if (eat('*')) v *= factor();
+                  else if (eat('/')) v /= factor();
+                  else return v;
+              }
+          }
+          long long expr() {
+              long long v = term();
+              for (;;) {
+                  if (eat('+')) v += term();
+                  else if (eat('-')) v -= term();
+                  else return v;
+              }
+          }
+      };
+
+      int main() {
+          std::string line;
+          while (std::getline(std::cin, line)) {
+              // evaluate the line and print the result
+              Parser p{line};
+              p.skip();
+              if (line.compare(p.i, 4, "let ") == 0) {
+                  p.i += 4;
+                  std::string n = p.name();
+                  p.eat('=');
+                  long long v = p.expr();
+                  vars[n] = v;
+                  std::cout << n << " = " << v << "\n";
+              } else {
+                  std::cout << p.expr() << "\n";
+              }
+          }
+      }
+    tests:
+      - stdin: "let hp = 100\nlet dmg = 27 * 2\nhp - dmg\n"
+      - stdin: "let x = 3\nlet x = x * x\nx + 1\n"
+      - stdin: "let money_left = 16000 - 4750\nmoney_left / 2\nlet a = -(money_left)\n"
+        hidden: true
+    hints:
+      - "Check whether the line starts with `let ` before parsing an expression."
+      - "In factor(): if the next char is a letter or `_`, read a name and return its value from the map."
+      - The map lives outside the loop (a global or a variable in main passed to the parser).
+
+  - title: Errors without exceptions
+    text: |
+      Bad input must not crash or print garbage. Report the **first** problem on each line and keep going with the next line:
+
+      - `error: division by zero`
+      - `error: unknown variable NAME`
+      - `error: syntax` for anything else malformed: a missing number, an unclosed `(`, or leftover characters after a complete expression (like `2 3` or `4 +`)
+
+      Exceptions aren't available, so give the parser an error field. Once it's set, every function returns immediately (any value) and the caller checks the flag. A failed `let` must not store anything.
+    solution: |
+      #include <iostream>
+      #include <map>
+      #include <string>
+
+      std::map<std::string, long long> vars;
+
+      struct Parser {
+          const std::string& s;
+          std::size_t i = 0;
+          std::string error{};
+
+          void fail(const std::string& msg) {
+              if (error.empty()) error = msg;
+          }
+          void skip() {
+              while (i < s.size() && s[i] == ' ') i++;
+          }
+          bool eat(char c) {
+              skip();
+              if (i < s.size() && s[i] == c) {
+                  i++;
+                  return true;
+              }
+              return false;
+          }
+          static bool is_name_char(char c) { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'; }
+          std::string name() {
+              skip();
+              std::string n;
+              while (i < s.size() && is_name_char(s[i])) n += s[i++];
+              return n;
+          }
+          long long number() {
+              skip();
+              if (i >= s.size() || s[i] < '0' || s[i] > '9') {
+                  fail("syntax");
+                  return 0;
+              }
+              long long v = 0;
+              while (i < s.size() && s[i] >= '0' && s[i] <= '9') v = v * 10 + (s[i++] - '0');
+              return v;
+          }
+          long long factor() {
+              if (!error.empty()) return 0;
+              if (eat('-')) return -factor();
+              if (eat('(')) {
+                  long long v = expr();
+                  if (!eat(')')) fail("syntax");
+                  return v;
+              }
+              skip();
+              if (i < s.size() && is_name_char(s[i])) {
+                  std::string n = name();
+                  auto it = vars.find(n);
+                  if (it == vars.end()) {
+                      fail("unknown variable " + n);
+                      return 0;
+                  }
+                  return it->second;
+              }
+              return number();
+          }
+          long long term() {
+              long long v = factor();
+              while (error.empty()) {
+                  if (eat('*')) {
+                      v *= factor();
+                  } else if (eat('/')) {
+                      long long d = factor();
+                      if (!error.empty()) break;
+                      if (d == 0) {
+                          fail("division by zero");
+                          break;
+                      }
+                      v /= d;
+                  } else {
+                      break;
+                  }
+              }
+              return v;
+          }
+          long long expr() {
+              long long v = term();
+              while (error.empty()) {
+                  if (eat('+')) v += term();
+                  else if (eat('-')) v -= term();
+                  else break;
+              }
+              return v;
+          }
+          bool at_end() {
+              skip();
+              return i == s.size();
+          }
+      };
+
+      int main() {
+          std::string line;
+          while (std::getline(std::cin, line)) {
+              // evaluate the line and print the result
+              Parser p{line};
+              p.skip();
+              bool is_let = line.compare(p.i, 4, "let ") == 0;
+              std::string n;
+              if (is_let) {
+                  p.i += 4;
+                  n = p.name();
+                  if (n.empty() || !p.eat('=')) p.fail("syntax");
+              }
+              long long v = p.error.empty() ? p.expr() : 0;
+              if (p.error.empty() && !p.at_end()) p.fail("syntax");
+              if (!p.error.empty()) {
+                  std::cout << "error: " << p.error << "\n";
+              } else if (is_let) {
+                  vars[n] = v;
+                  std::cout << n << " = " << v << "\n";
+              } else {
+                  std::cout << v << "\n";
+              }
+          }
+      }
+    tests:
+      - stdin: "10 / (5 - 5)\nx + 1\nlet x = 4\nx * x\n"
+      - stdin: "2 3\n4 +\n(1 + 2\n)\nlet = 5\n7\n"
+      - stdin: "let a = b\na\nlet b = 2\nlet a = 10 / b\na\n"
+        hidden: true
+    hints:
+      - "Add `std::string error{};` and a `fail(msg)` that only keeps the first message."
+      - "Every loop in term/expr should also stop when an error is set, so garbage isn't computed further."
+      - "After parsing a full expression, anything left besides spaces is a syntax error (that's how `2 3` is caught)."

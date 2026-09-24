@@ -1,0 +1,236 @@
+id: cpp-basics
+title: From C to C++
+lang: cpp
+phase: "C++: A Better C"
+summary: Everything you know from C still works, plus iostream, std::string, bool, auto and range-based for loops.
+steps:
+  - title: Hello, C++
+    text: |
+      C++ grew out of C, so almost all your C knowledge carries over. The first visible difference is output. Instead of `printf`, C++ uses **streams**:
+
+      ```cpp
+      #include <iostream>
+
+      int main() {
+          std::cout << "Kills: " << 25 << "\n";
+      }
+      ```
+
+      - `std::cout` is the standard output stream.
+      - `<<` sends things into it, left to right. No format specifiers needed: it knows the types.
+      - `std::` means these names live in the **standard namespace**.
+      - In C++, `main` may skip `return 0;` (it's implied).
+
+      **Your turn:** print `Rounds won: 13` using cout.
+    fill: |
+      #include <iostream>
+
+      int main() {
+          int won = 13;
+          [[std::cout]] [[<<]] "Rounds won: " << [[won]] << "\n";
+      }
+    hints:
+      - The output stream is `std::cout` and the operator that sends to it is `<<`.
+    tests:
+      - expect: "Rounds won: 13"
+
+  - title: Reading with cin
+    text: |
+      `std::cin >>` reads from input, skipping whitespace, into variables of any type. No `&` needed.
+
+      ```cpp
+      int age;
+      std::string name;
+      std::cin >> name >> age;
+      ```
+
+      `std::string` (from `<string>`) is a real string type: it grows as needed and cleans up after itself. No more buffer sizes or `'\0'`.
+
+      **Your turn:** read a name and a number of kills and print `NAME got N kills`.
+    fill: |
+      #include <iostream>
+      #include <string>
+
+      int main() {
+          [[std::string]] name;
+          int kills;
+          std::cin [[>>]] name >> kills;
+          std::cout << name << " got " << kills << " kills\n";
+      }
+    hints:
+      - The C++ string type is `std::string`.
+      - Reading uses `>>` (the arrows point where the data flows).
+    tests:
+      - stdin: "dev1ce 27\n"
+      - stdin: "twistzz 3\n"
+      - stdin: "karrigan 0\n"
+        hidden: true
+
+  - title: std::string is easy
+    text: |
+      `std::string` does what C strings made painful:
+
+      ```cpp
+      std::string a = "de_";
+      std::string b = a + "dust2";      // concatenation with +
+      b.size();                          // length (7)
+      b == "de_dust2";                   // real comparison with ==
+      b[0];                              // 'd'
+      b += "!";                          // append
+      ```
+
+      **Your turn:** read a first name and a last name, then print `Hello, First Last! (N letters)` where N is the number of letters in both names (not counting the space).
+    seed: |
+      #include <iostream>
+      #include <string>
+
+      int main() {
+          std::string first, last;
+          std::cin >> first >> last;
+
+      }
+    solution: |
+      #include <iostream>
+      #include <string>
+
+      int main() {
+          std::string first, last;
+          std::cin >> first >> last;
+          std::string full = first + " " + last;
+          std::cout << "Hello, " << full << "! (" << first.size() + last.size() << " letters)\n";
+      }
+    hints:
+      - "`first + \" \" + last` builds the full name."
+      - "`first.size() + last.size()` counts the letters."
+    tests:
+      - stdin: "Oleksandr Kostyliev\n"
+      - stdin: "Ada Lovelace\n"
+      - stdin: "Li Na\n"
+        hidden: true
+
+  - title: bool, auto and range-for
+    text: |
+      A few small upgrades:
+
+      - `bool` is a real type with `true` and `false` (no include needed).
+      - `auto` lets the compiler deduce a variable's type from its initializer: `auto x = 3.5;` is a `double`.
+      - The **range-based for loop** visits every element of a string, array or container:
+
+      ```cpp
+      std::string s = "awp";
+      for (char c : s) {
+          std::cout << c << "\n";
+      }
+      ```
+
+      **Your turn:** write `int count_vowels(std::string s)` that counts `a e i o u` (lowercase only) using a range-based for loop.
+    seed: |
+      #include <string>
+
+      int count_vowels(std::string s) {
+
+      }
+    solution: |
+      #include <string>
+
+      int count_vowels(std::string s) {
+          int n = 0;
+          for (char c : s) {
+              if (c == 'a' || c == 'e' || c == 'i' || c == 'o' || c == 'u') n++;
+          }
+          return n;
+      }
+    require:
+      - pattern: "for\\s*\\(\\s*(auto|char|const\\s+char|const\\s+auto)\\s*&?\\s*\\w+\\s*:"
+        message: "Use a range-based for loop (`for (char c : s)`)."
+    harness: |
+      int main() {
+          CHECK_EQ("count_vowels(\"inferno\")", count_vowels("inferno"), 3);
+          CHECK_EQ("count_vowels(\"rhythm\")", count_vowels("rhythm"), 0);
+          CHECK_EQ("count_vowels(\"\")", count_vowels(""), 0);
+          CHECK_EQ("count_vowels(\"aeiou aeiou\")", count_vowels("aeiou aeiou"), 10);
+      }
+    hints:
+      - "`for (char c : s)` gives you each character."
+      - "Check `c == 'a' || c == 'e' || ...` and count."
+
+  - title: Namespaces and using
+    text: |
+      A **namespace** groups names so different libraries don't collide. The standard library lives in `std`. You can define your own:
+
+      ```cpp
+      namespace game {
+          int max_players = 10;
+      }
+      std::cout << game::max_players;   // :: is the scope operator
+      ```
+
+      `using std::string;` lets you write `string` without the prefix. (You'll often see `using namespace std;`, which pulls in *everything*. It's fine for tiny programs but a bad habit in headers and bigger code.)
+
+      **Your turn:** fill in the scope operators and the using-declaration.
+    fill: |
+      #include <iostream>
+      #include <string>
+
+      namespace config {
+          const int tickrate = 128;
+      }
+
+      [[using]] std::string;
+
+      int main() {
+          string server = "faceit";
+          std::cout << server << " " << config[[::]]tickrate << "\n";
+      }
+    hints:
+      - "`using std::string;` brings just that one name into scope."
+      - The scope operator is `::`.
+    tests:
+      - expect: "faceit 128"
+
+  - title: Whole lines with getline
+    text: |
+      `cin >>` stops at whitespace. To read an entire line, spaces included, use `std::getline`:
+
+      ```cpp
+      std::string line;
+      std::getline(std::cin, line);
+      ```
+
+      It returns something that converts to `false` at the end of input, so this reads every line:
+
+      ```cpp
+      while (std::getline(std::cin, line)) { ... }
+      ```
+
+      **Your turn:** read lines until the end of input and print each one prefixed with its line number, like `1: first line`. Then print `total N`.
+    seed: |
+      #include <iostream>
+      #include <string>
+
+      int main() {
+          std::string line;
+
+      }
+    solution: |
+      #include <iostream>
+      #include <string>
+
+      int main() {
+          std::string line;
+          int n = 0;
+          while (std::getline(std::cin, line)) {
+              n++;
+              std::cout << n << ": " << line << "\n";
+          }
+          std::cout << "total " << n << "\n";
+      }
+    hints:
+      - "Loop with `while (std::getline(std::cin, line))`."
+      - Keep a counter, increment it before printing each line.
+    tests:
+      - stdin: "rush b\ndon't stop\n"
+      - stdin: "one line only\n"
+      - stdin: ""
+      - stdin: "a b c\n\nlast\n"
+        hidden: true

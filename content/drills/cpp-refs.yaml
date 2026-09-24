@@ -1,0 +1,118 @@
+topic: cpp-refs
+lang: cpp
+drills:
+  - type: predict
+    body: |
+      int a = 1;
+      int& r = a;
+      r = 5;
+      std::cout << a << "\n";
+    why: r is another name for a.
+  - type: predict
+    body: |
+      int a = 1, b = 2;
+      int& r = a;
+      r = b;
+      b = 9;
+      std::cout << a << " " << b << "\n";
+    why: "`r = b` copies b's value into a. A reference can't be re-seated."
+  - type: predict
+    pre: |
+      void inc(int& x) { x++; }
+      void inc_copy(int x) { x++; }
+    body: |
+      int v = 0;
+      inc(v);
+      inc_copy(v);
+      inc(v);
+      std::cout << v << "\n";
+    why: Only the by-reference calls change v.
+  - type: predict
+    pre: |
+      int f(int x) { return 1; }
+      int f(double x) { return 2; }
+    body: |
+      std::cout << f(3) << f(3.0) << f('a') << "\n";
+    why: "Overload resolution picks the best match: int, double, and char promotes to int."
+  - type: predict
+    pre: |
+      int area(int w, int h = 10) { return w * h; }
+    body: |
+      std::cout << area(2) << " " << area(2, 3) << "\n";
+    why: When h is omitted, the default 10 is used.
+  - type: fill
+    prompt: Take the parameter by reference so the caller's variable changes.
+    pre: |
+      void reset(int[[&]] hp) { hp = 100; }
+    body: |
+      int hp = 7;
+      reset(hp);
+      std::cout << hp << "\n";
+    why: "`int&` makes hp an alias of the caller's variable."
+  - type: fill
+    prompt: Read-only parameter without a copy.
+    pre: |
+      int len([[const]] std::string& s) { return (int)s.size(); }
+    body: |
+      std::cout << len("mirage") << "\n";
+    why: A const& can bind to a temporary like "mirage" converted to std::string.
+  - type: bug
+    pre: |
+      void swap_vals(int a, int& b) { // BUG
+          int t = a;
+          a = b;
+          b = t;
+      }
+    body: |
+      int x = 1, y = 2;
+      swap_vals(x, y);
+      std::cout << x << " " << y << "\n";
+    fix: "void swap_vals(int& a, int& b) {"
+    why: Both parameters must be references for the swap to affect the caller.
+  - type: compiles
+    body: |
+      int& r;
+      int x = 3;
+      r = x;
+      std::cout << r << "\n";
+    why: A reference must be initialized when it's declared.
+  - type: compiles
+    pre: |
+      void f(std::string& s) { s += "!"; }
+    body: |
+      f("gg");
+    why: A non-const reference can't bind to a temporary.
+  - type: compiles
+    pre: |
+      int pick(int a, int b = 0, int c) { return a + b + c; }
+    body: |
+      std::cout << pick(1, 2, 3) << "\n";
+    why: Parameters with defaults must come after all the ones without.
+  - type: boss
+    prompt: |
+      Write `void normalize(std::string& s)` that turns every uppercase letter in `s` to lowercase, in place.
+    seed: |
+      #include <string>
+
+      void normalize(std::string& s) {
+
+      }
+    solution: |
+      #include <string>
+
+      void normalize(std::string& s) {
+          for (char& c : s)
+              if (c >= 'A' && c <= 'Z') c = c - 'A' + 'a';
+      }
+    harness: |
+      int main() {
+          std::string a = "De_Dust2";
+          normalize(a);
+          CHECK_EQ("De_Dust2", a, std::string("de_dust2"));
+          std::string b = "";
+          normalize(b);
+          CHECK_EQ("empty", b, std::string(""));
+      }
+    hints:
+      - "`for (char& c : s)` gives references to each character, so you can modify them."
+    why: A range-for with `char&` modifies the string's characters in place.

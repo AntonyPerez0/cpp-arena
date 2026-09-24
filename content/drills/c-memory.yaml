@@ -1,0 +1,121 @@
+topic: c-memory
+lang: c
+drills:
+  - type: predict
+    body: |
+      int *p = malloc(3 * sizeof(int));
+      p[0] = 1; p[1] = 2; p[2] = 3;
+      printf("%d\n", p[0] + p[2]);
+      free(p);
+    why: Heap memory is used just like an array.
+  - type: predict
+    body: |
+      int *p = calloc(4, sizeof(int));
+      printf("%d %d\n", p[0], p[3]);
+      free(p);
+    why: calloc zeroes the memory.
+  - type: predict
+    body: |
+      int *p = malloc(2 * sizeof(int));
+      p[0] = 5; p[1] = 6;
+      p = realloc(p, 4 * sizeof(int));
+      p[3] = 9;
+      printf("%d %d\n", p[1], p[3]);
+      free(p);
+    why: realloc keeps the old contents when it grows the block.
+  - type: predict
+    body: |
+      char *s = malloc(strlen("gg") + 1);
+      strcpy(s, "gg");
+      printf("%zu\n", strlen(s));
+      free(s);
+    why: The +1 is room for '\0'; the length is still 2.
+  - type: fill
+    prompt: Allocate room for 10 doubles.
+    body: |
+      double *d = malloc(10 * [[sizeof(double)]]);
+      d[9] = 1.5;
+      printf("%.1f\n", d[9]);
+      free(d);
+    why: Multiply the count by the size of one element.
+  - type: fill
+    prompt: Release the memory.
+    body: |
+      int *p = malloc(sizeof(int));
+      *p = 3;
+      printf("%d\n", *p);
+      [[free]](p);
+    why: Every malloc needs a matching free.
+  - type: fill
+    prompt: Leave room for the terminator.
+    body: |
+      const char *src = "clutch";
+      char *copy = malloc(strlen(src) [[+ 1]]);
+      strcpy(copy, src);
+      printf("%s\n", copy);
+      free(copy);
+    why: The copy needs strlen + 1 bytes for the '\0'.
+  - type: bug
+    pre: |
+      int *make(void) {
+          int local[3] = {1, 2, 3}; // BUG
+          int *p = local;
+          return p;
+      }
+    body: |
+      int *a = make();
+      printf("%d\n", a[1]);
+    fix: "static int local[3] = {1, 2, 3};"
+    why: A local array dies when the function returns. (Making it static, or using malloc, keeps it alive.)
+    ub: true
+  - type: bug
+    body: |
+      int *p = malloc(2 * sizeof(int));
+      p[0] = 1;
+      realloc(p, 4 * sizeof(int)); // BUG
+      p[3] = 4;
+      printf("%d %d\n", p[0], p[3]);
+      free(p);
+    fix: "p = realloc(p, 4 * sizeof(int));"
+    why: realloc may move the block. You must use the pointer it returns; the old one may already be freed.
+    ub: true
+  - type: compiles
+    body: |
+      int *p = malloc(4 * sizeof(int));
+      p[0] = 1;
+      free(p);
+      free(NULL);
+      printf("ok\n");
+    why: free(NULL) is allowed and does nothing.
+  - type: boss
+    prompt: |
+      Write `int *repeat(int value, int n)` that returns a new heap array of `n` copies of `value`.
+    seed: |
+      #include <stdlib.h>
+
+      int *repeat(int value, int n) {
+
+      }
+    solution: |
+      #include <stdlib.h>
+
+      int *repeat(int value, int n) {
+          int *a = malloc(n * sizeof(int));
+          if (!a) return NULL;
+          for (int i = 0; i < n; i++) a[i] = value;
+          return a;
+      }
+    harness: |
+      int main(void) {
+          int *a = repeat(7, 4);
+          CHECK("not NULL", a != NULL);
+          CHECK("all 7", a[0] == 7 && a[1] == 7 && a[2] == 7 && a[3] == 7);
+          free(a);
+          int *b = repeat(-1, 1000);
+          CHECK_INT("b[999]", b[999], -1);
+          free(b);
+          return 0;
+      }
+    hints:
+      - malloc n ints, fill them, return the pointer.
+    why: Heap memory outlives the function, so it can be returned.

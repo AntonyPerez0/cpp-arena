@@ -1,0 +1,355 @@
+id: bank
+title: Bank account system
+lang: c
+level: Intermediate
+after: c-structs
+summary: A command-driven bank. Structs for accounts, string commands, validation, transfers and a sorted report.
+seed: |
+  #include <stdio.h>
+  #include <string.h>
+
+  struct Account {
+      char name[32];
+      int balance;
+  };
+
+  struct Account accounts[16];
+  int count = 0;
+
+  int main(void) {
+      char cmd[16];
+      while (scanf("%15s", cmd) == 1) {
+          // handle commands here
+
+      }
+      return 0;
+  }
+milestones:
+  - title: Open and check balances
+    text: |
+      Each input line is a command. Implement two:
+
+      - `open NAME AMOUNT` creates an account and prints `opened NAME`. If the name already exists, print `already exists`.
+      - `balance NAME` prints `NAME: AMOUNT`, or `no such account`.
+
+      ```
+      open ropz 800
+      balance ropz
+      balance rain
+      open ropz 5
+      ```
+      prints
+      ```
+      opened ropz
+      ropz: 800
+      no such account
+      already exists
+      ```
+
+      A helper `int find(const char *name)` that returns the index or -1 will pay off in every later milestone.
+    solution: |
+      #include <stdio.h>
+      #include <string.h>
+
+      struct Account {
+          char name[32];
+          int balance;
+      };
+
+      struct Account accounts[16];
+      int count = 0;
+
+      int find(const char *name) {
+          for (int i = 0; i < count; i++)
+              if (strcmp(accounts[i].name, name) == 0) return i;
+          return -1;
+      }
+
+      int main(void) {
+          char cmd[16];
+          while (scanf("%15s", cmd) == 1) {
+              // handle commands here
+              char name[32];
+              int amount;
+              if (strcmp(cmd, "open") == 0) {
+                  scanf("%31s %d", name, &amount);
+                  if (find(name) >= 0) {
+                      printf("already exists\n");
+                  } else {
+                      strcpy(accounts[count].name, name);
+                      accounts[count].balance = amount;
+                      count++;
+                      printf("opened %s\n", name);
+                  }
+              } else if (strcmp(cmd, "balance") == 0) {
+                  scanf("%31s", name);
+                  int i = find(name);
+                  if (i < 0) printf("no such account\n");
+                  else printf("%s: %d\n", accounts[i].name, accounts[i].balance);
+              }
+          }
+          return 0;
+      }
+    tests:
+      - stdin: "open ropz 800\nbalance ropz\nbalance rain\nopen ropz 5\n"
+      - stdin: "open a 1\nopen b 2\nbalance b\nbalance a\n"
+      - stdin: "balance x\nopen x 0\nbalance x\n"
+        hidden: true
+    hints:
+      - "Compare the command with `strcmp(cmd, \"open\") == 0`, then read the rest of that line's arguments with another scanf."
+      - "To add an account: `strcpy(accounts[count].name, name); accounts[count].balance = amount; count++;`"
+
+  - title: Deposit and withdraw
+    text: |
+      Add:
+
+      - `deposit NAME X` adds X and prints the new balance as `NAME: AMOUNT`
+      - `withdraw NAME X` subtracts X, or prints `insufficient funds` if the balance is too low
+
+      Both print `no such account` for unknown names. Amounts are positive.
+    solution: |
+      #include <stdio.h>
+      #include <string.h>
+
+      struct Account {
+          char name[32];
+          int balance;
+      };
+
+      struct Account accounts[16];
+      int count = 0;
+
+      int find(const char *name) {
+          for (int i = 0; i < count; i++)
+              if (strcmp(accounts[i].name, name) == 0) return i;
+          return -1;
+      }
+
+      int main(void) {
+          char cmd[16];
+          while (scanf("%15s", cmd) == 1) {
+              // handle commands here
+              char name[32];
+              int amount;
+              if (strcmp(cmd, "open") == 0) {
+                  scanf("%31s %d", name, &amount);
+                  if (find(name) >= 0) {
+                      printf("already exists\n");
+                  } else {
+                      strcpy(accounts[count].name, name);
+                      accounts[count].balance = amount;
+                      count++;
+                      printf("opened %s\n", name);
+                  }
+              } else if (strcmp(cmd, "balance") == 0) {
+                  scanf("%31s", name);
+                  int i = find(name);
+                  if (i < 0) printf("no such account\n");
+                  else printf("%s: %d\n", accounts[i].name, accounts[i].balance);
+              } else if (strcmp(cmd, "deposit") == 0 || strcmp(cmd, "withdraw") == 0) {
+                  scanf("%31s %d", name, &amount);
+                  int i = find(name);
+                  if (i < 0) {
+                      printf("no such account\n");
+                  } else if (cmd[0] == 'w' && accounts[i].balance < amount) {
+                      printf("insufficient funds\n");
+                  } else {
+                      accounts[i].balance += cmd[0] == 'd' ? amount : -amount;
+                      printf("%s: %d\n", accounts[i].name, accounts[i].balance);
+                  }
+              }
+          }
+          return 0;
+      }
+    tests:
+      - stdin: "open ropz 800\ndeposit ropz 3250\nwithdraw ropz 4750\nwithdraw ropz 4050\n"
+      - stdin: "deposit ghost 5\nopen a 10\nwithdraw a 11\nwithdraw a 10\n"
+      - stdin: "open z 0\ndeposit z 1\ndeposit z 1\nwithdraw z 3\n"
+        hidden: true
+    hints:
+      - Both commands have the same shape, so they can share the reading and lookup code.
+      - "Check `accounts[i].balance < amount` before a withdraw."
+
+  - title: Transfers
+    text: |
+      Add `transfer FROM TO X`, which moves money between accounts and prints both balances on one line: `FROM: A, TO: B`.
+
+      Errors, checked in this order: `no such account` (either name), `insufficient funds`.
+    solution: |
+      #include <stdio.h>
+      #include <string.h>
+
+      struct Account {
+          char name[32];
+          int balance;
+      };
+
+      struct Account accounts[16];
+      int count = 0;
+
+      int find(const char *name) {
+          for (int i = 0; i < count; i++)
+              if (strcmp(accounts[i].name, name) == 0) return i;
+          return -1;
+      }
+
+      int main(void) {
+          char cmd[16];
+          while (scanf("%15s", cmd) == 1) {
+              // handle commands here
+              char name[32];
+              int amount;
+              if (strcmp(cmd, "open") == 0) {
+                  scanf("%31s %d", name, &amount);
+                  if (find(name) >= 0) {
+                      printf("already exists\n");
+                  } else {
+                      strcpy(accounts[count].name, name);
+                      accounts[count].balance = amount;
+                      count++;
+                      printf("opened %s\n", name);
+                  }
+              } else if (strcmp(cmd, "balance") == 0) {
+                  scanf("%31s", name);
+                  int i = find(name);
+                  if (i < 0) printf("no such account\n");
+                  else printf("%s: %d\n", accounts[i].name, accounts[i].balance);
+              } else if (strcmp(cmd, "deposit") == 0 || strcmp(cmd, "withdraw") == 0) {
+                  scanf("%31s %d", name, &amount);
+                  int i = find(name);
+                  if (i < 0) {
+                      printf("no such account\n");
+                  } else if (cmd[0] == 'w' && accounts[i].balance < amount) {
+                      printf("insufficient funds\n");
+                  } else {
+                      accounts[i].balance += cmd[0] == 'd' ? amount : -amount;
+                      printf("%s: %d\n", accounts[i].name, accounts[i].balance);
+                  }
+              } else if (strcmp(cmd, "transfer") == 0) {
+                  char to[32];
+                  scanf("%31s %31s %d", name, to, &amount);
+                  int a = find(name), b = find(to);
+                  if (a < 0 || b < 0) {
+                      printf("no such account\n");
+                  } else if (accounts[a].balance < amount) {
+                      printf("insufficient funds\n");
+                  } else {
+                      accounts[a].balance -= amount;
+                      accounts[b].balance += amount;
+                      printf("%s: %d, %s: %d\n", accounts[a].name, accounts[a].balance, accounts[b].name, accounts[b].balance);
+                  }
+              }
+          }
+          return 0;
+      }
+    tests:
+      - stdin: "open a 1000\nopen b 50\ntransfer a b 300\ntransfer b a 500\ntransfer a c 1\n"
+      - stdin: "open x 5\nopen y 5\ntransfer x y 5\nbalance x\n"
+      - stdin: "open p 10\ntransfer q p 1\ntransfer p p 3\n"
+        hidden: true
+    hints:
+      - Look up both names first; if either is -1, it's an unknown account.
+      - "Print both in one printf: `\"%s: %d, %s: %d\\n\"`."
+
+  - title: Sorted report
+    text: |
+      Add `report`, which prints every account as `NAME BALANCE`, richest first. Equal balances are sorted by name (alphabetically).
+
+      Sort a **copy** of the array so the accounts' order isn't changed. The C library's `qsort` from `<stdlib.h>` takes a comparison function:
+
+      ```c
+      int cmp(const void *a, const void *b) {
+          const struct Account *x = a, *y = b;
+          ...   // negative if x comes first, positive if y comes first
+      }
+      qsort(copy, count, sizeof(struct Account), cmp);
+      ```
+
+      (A simple bubble sort is fine too.)
+    solution: |
+      #include <stdio.h>
+      #include <stdlib.h>
+      #include <string.h>
+
+      struct Account {
+          char name[32];
+          int balance;
+      };
+
+      struct Account accounts[16];
+      int count = 0;
+
+      int find(const char *name) {
+          for (int i = 0; i < count; i++)
+              if (strcmp(accounts[i].name, name) == 0) return i;
+          return -1;
+      }
+
+      int by_balance(const void *a, const void *b) {
+          const struct Account *x = a, *y = b;
+          if (x->balance != y->balance) return x->balance > y->balance ? -1 : 1;
+          return strcmp(x->name, y->name);
+      }
+
+      int main(void) {
+          char cmd[16];
+          while (scanf("%15s", cmd) == 1) {
+              // handle commands here
+              char name[32];
+              int amount;
+              if (strcmp(cmd, "open") == 0) {
+                  scanf("%31s %d", name, &amount);
+                  if (find(name) >= 0) {
+                      printf("already exists\n");
+                  } else {
+                      strcpy(accounts[count].name, name);
+                      accounts[count].balance = amount;
+                      count++;
+                      printf("opened %s\n", name);
+                  }
+              } else if (strcmp(cmd, "balance") == 0) {
+                  scanf("%31s", name);
+                  int i = find(name);
+                  if (i < 0) printf("no such account\n");
+                  else printf("%s: %d\n", accounts[i].name, accounts[i].balance);
+              } else if (strcmp(cmd, "deposit") == 0 || strcmp(cmd, "withdraw") == 0) {
+                  scanf("%31s %d", name, &amount);
+                  int i = find(name);
+                  if (i < 0) {
+                      printf("no such account\n");
+                  } else if (cmd[0] == 'w' && accounts[i].balance < amount) {
+                      printf("insufficient funds\n");
+                  } else {
+                      accounts[i].balance += cmd[0] == 'd' ? amount : -amount;
+                      printf("%s: %d\n", accounts[i].name, accounts[i].balance);
+                  }
+              } else if (strcmp(cmd, "transfer") == 0) {
+                  char to[32];
+                  scanf("%31s %31s %d", name, to, &amount);
+                  int a = find(name), b = find(to);
+                  if (a < 0 || b < 0) {
+                      printf("no such account\n");
+                  } else if (accounts[a].balance < amount) {
+                      printf("insufficient funds\n");
+                  } else {
+                      accounts[a].balance -= amount;
+                      accounts[b].balance += amount;
+                      printf("%s: %d, %s: %d\n", accounts[a].name, accounts[a].balance, accounts[b].name, accounts[b].balance);
+                  }
+              } else if (strcmp(cmd, "report") == 0) {
+                  struct Account copy[16];
+                  memcpy(copy, accounts, sizeof(struct Account) * count);
+                  qsort(copy, count, sizeof(struct Account), by_balance);
+                  for (int i = 0; i < count; i++) printf("%s %d\n", copy[i].name, copy[i].balance);
+              }
+          }
+          return 0;
+      }
+    tests:
+      - stdin: "open rain 900\nopen ropz 4000\nopen broky 900\nreport\n"
+      - stdin: "open a 1\nopen b 2\ntransfer b a 2\nreport\nbalance b\n"
+      - stdin: "report\nopen solo 10\nreport\n"
+        hidden: true
+    hints:
+      - Copy the array first (a loop or `memcpy`), then sort the copy.
+      - "In the comparator: bigger balance first, then `strcmp` on the names."

@@ -1,0 +1,123 @@
+topic: cpp-algorithms
+lang: cpp
+drills:
+  - type: predict
+    body: |
+      std::vector<int> v = {3, 1, 2};
+      std::sort(v.begin(), v.end());
+      std::cout << v[0] << v[1] << v[2] << "\n";
+    why: sort orders ascending by default.
+  - type: predict
+    body: |
+      std::vector<int> v = {3, 1, 2};
+      std::sort(v.begin(), v.end(), [](int a, int b) { return a > b; });
+      std::cout << v[0] << v[1] << v[2] << "\n";
+    why: The comparator says a comes first when it's bigger.
+  - type: predict
+    body: |
+      std::vector<int> v = {1, 2, 3, 4};
+      std::cout << std::accumulate(v.begin(), v.end(), 0) << "\n";
+    why: accumulate sums from the starting value 0.
+  - type: predict
+    body: |
+      std::vector<int> v = {1, 5, 8, 10};
+      std::cout << std::count_if(v.begin(), v.end(), [](int x) { return x > 4; }) << "\n";
+    why: Three elements satisfy x > 4.
+  - type: predict
+    body: |
+      std::vector<int> v = {4, 7, 9, 12};
+      auto it = std::find_if(v.begin(), v.end(), [](int x) { return x % 2 == 1; });
+      std::cout << *it << " " << (it - v.begin()) << "\n";
+    why: find_if returns the first match, 7 at index 1.
+  - type: predict
+    body: |
+      int base = 10;
+      auto add = [base](int x) { return x + base; };
+      base = 100;
+      std::cout << add(1) << "\n";
+    why: "[base] captured a copy when the lambda was created (10)."
+  - type: predict
+    body: |
+      int base = 10;
+      auto add = [&base](int x) { return x + base; };
+      base = 100;
+      std::cout << add(1) << "\n";
+    why: "[&base] captures by reference, so it sees 100."
+  - type: predict
+    body: |
+      std::vector<int> v = {1, 2, 3, 4, 5, 6};
+      std::erase_if(v, [](int x) { return x % 3 == 0; });
+      std::cout << v.size() << "\n";
+    why: 3 and 6 are removed.
+  - type: fill
+    prompt: Capture total by reference so the lambda can change it.
+    body: |
+      int total = 0;
+      std::vector<int> v = {1, 2, 3};
+      std::for_each(v.begin(), v.end(), [[[&total]]](int x) { total += x; });
+      std::cout << total << "\n";
+    why: Only a reference capture can modify the outer variable.
+  - type: fill
+    prompt: Pick the algorithm that sums.
+    body: |
+      std::vector<int> v = {5, 5, 5};
+      std::cout << std::[[accumulate]](v.begin(), v.end(), 0) << "\n";
+    why: accumulate (from <numeric>) folds a range into one value.
+  - type: bug
+    body: |
+      std::vector<int> v = {5, 3, 8};
+      std::sort(v.begin(), v.begin()); // BUG
+      std::cout << v[0] << v[1] << v[2] << "\n";
+    fix: "std::sort(v.begin(), v.end());"
+    why: "begin() to begin() is an empty range, so nothing gets sorted."
+  - type: bug
+    body: |
+      std::vector<int> v = {1, 2, 3, 4};
+      std::remove_if(v.begin(), v.end(), [](int x) { return x % 2 == 0; }); // BUG
+      std::cout << v.size() << "\n";
+    fix: "std::erase_if(v, [](int x) { return x % 2 == 0; });"
+    why: remove_if only shuffles elements; it doesn't shrink the vector. Use erase_if (or erase + remove_if).
+  - type: compiles
+    body: |
+      int n = 3;
+      auto f = []() { return n * 2; };
+      std::cout << f() << "\n";
+    why: The lambda uses n without capturing it.
+  - type: compiles
+    body: |
+      int n = 3;
+      auto f = [n]() { n++; return n; };
+      std::cout << f() << "\n";
+    why: By-value captures are const unless the lambda is marked mutable.
+  - type: boss
+    prompt: |
+      Write `std::vector<std::string> by_length(std::vector<std::string> words)` that returns the words sorted by length, and alphabetically among equal lengths. Use std::sort with a lambda.
+    seed: |
+      #include <algorithm>
+      #include <string>
+      #include <vector>
+
+      std::vector<std::string> by_length(std::vector<std::string> words) {
+
+      }
+    solution: |
+      #include <algorithm>
+      #include <string>
+      #include <vector>
+
+      std::vector<std::string> by_length(std::vector<std::string> words) {
+          std::sort(words.begin(), words.end(), [](const std::string& a, const std::string& b) {
+              if (a.size() != b.size()) return a.size() < b.size();
+              return a < b;
+          });
+          return words;
+      }
+    harness: |
+      int main() {
+          using V = std::vector<std::string>;
+          CHECK_EQ("maps", by_length({"nuke", "inferno", "dust2", "cache", "ancient"}), V{"nuke", "cache", "dust2", "ancient", "inferno"});
+          CHECK_EQ("empty", by_length({}), V{});
+      }
+    hints:
+      - Compare sizes first, then the strings themselves.
+    why: A two-level comparison in one lambda.

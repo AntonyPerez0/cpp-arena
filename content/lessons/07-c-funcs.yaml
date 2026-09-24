@@ -1,0 +1,268 @@
+id: c-funcs
+title: Functions
+lang: c
+phase: "C: Foundations"
+summary: Split programs into named, reusable pieces. Parameters, return values, prototypes, scope and recursion.
+steps:
+  - title: Define and call a function
+    text: |
+      A function packages code under a name. It has a **return type**, a **name**, **parameters**, and a **body**:
+
+      ```c
+      int square(int x) {
+          return x * x;
+      }
+      ```
+
+      You call it like `square(7)`, which evaluates to 49.
+
+      From now on, some steps are **function steps**: you write only the function, and hidden tests call it with different inputs. Don't write `main` on those steps.
+
+      **Your turn:** complete `add` so it returns the sum of its two parameters.
+    fill: |
+      [[int]] add(int a, int b) {
+          [[return]] a + b;
+      }
+    harness: |
+      int main(void) {
+          CHECK_INT("add(2, 3)", add(2, 3), 5);
+          CHECK_INT("add(-4, 4)", add(-4, 4), 0);
+          CHECK_INT("add(100, 23)", add(100, 23), 123);
+          return 0;
+      }
+    hints:
+      - The function returns an int, so the return type is `int`.
+      - "`return` sends a value back to the caller."
+
+  - title: Write a function
+    text: |
+      **Your turn:** write `int max3(int a, int b, int c)` that returns the largest of three numbers.
+    seed: |
+      int max3(int a, int b, int c) {
+
+      }
+    solution: |
+      int max3(int a, int b, int c) {
+          int m = a;
+          if (b > m) m = b;
+          if (c > m) m = c;
+          return m;
+      }
+    harness: |
+      int main(void) {
+          CHECK_INT("max3(1, 2, 3)", max3(1, 2, 3), 3);
+          CHECK_INT("max3(9, 2, 3)", max3(9, 2, 3), 9);
+          CHECK_INT("max3(1, 8, 3)", max3(1, 8, 3), 8);
+          CHECK_INT("max3(-5, -2, -9)", max3(-5, -2, -9), -2);
+          CHECK_INT("max3(4, 4, 4)", max3(4, 4, 4), 4);
+          return 0;
+      }
+    hints:
+      - Keep a running best. Start with `int m = a;` and compare it with b, then c.
+
+  - title: void functions
+    text: |
+      A function that doesn't return a value has return type `void`. It's used for its effect, like printing.
+
+      ```c
+      void banner(void) {
+          printf("=== ROUND START ===\n");
+      }
+      ```
+
+      (`(void)` in the parameter list means "takes no arguments".)
+
+      **Your turn:** write `void print_bar(int n)` that prints `n` `=` characters followed by a newline. `print_bar(5)` prints `=====`.
+    seed: |
+      #include <stdio.h>
+
+      void print_bar(int n) {
+
+      }
+    solution: |
+      #include <stdio.h>
+
+      void print_bar(int n) {
+          for (int i = 0; i < n; i++) {
+              printf("=");
+          }
+          printf("\n");
+      }
+    harness: |
+      int main(void) {
+          print_bar(5);
+          print_bar(1);
+          print_bar(12);
+          print_bar(0);
+          return 0;
+      }
+    compare: stdout
+    hints:
+      - Loop n times printing `=`, then print `\n` once after the loop.
+
+  - title: Prototypes
+    text: |
+      C reads your file top to bottom. If `main` calls a function that's defined *below* it, the compiler hasn't seen it yet. Fix that with a **prototype**: the function's first line followed by `;`.
+
+      ```c
+      int triple(int x);        // prototype: "this exists"
+
+      int main(void) {
+          printf("%d\n", triple(4));
+      }
+
+      int triple(int x) { return 3 * x; }   // definition
+      ```
+
+      **Your turn:** press Check to see the error, then add the missing prototype.
+    seed: |
+      #include <stdio.h>
+
+      int main(void) {
+          printf("%d\n", half(10));
+          return 0;
+      }
+
+      int half(int x) {
+          return x / 2;
+      }
+    solution: |
+      #include <stdio.h>
+
+      int half(int x);
+
+      int main(void) {
+          printf("%d\n", half(10));
+          return 0;
+      }
+
+      int half(int x) {
+          return x / 2;
+      }
+    require:
+      - pattern: "int\\s+half\\s*\\(\\s*int\\s*\\w*\\s*\\)\\s*;"
+        message: Add a prototype `int half(int x);` above main (keep the definition below).
+    hints:
+      - "A prototype is the first line of the function with a semicolon: `int half(int x);`"
+      - Put it after the `#include` and before `main`.
+    tests:
+      - expect: "5"
+
+  - title: Scope and pass by value
+    text: |
+      Variables declared inside a function only exist inside it (**local scope**).
+
+      C passes arguments **by value**: the function gets a *copy*. Changing the parameter doesn't change the caller's variable:
+
+      ```c
+      void reset(int hp) { hp = 100; }   // changes the copy only
+
+      int hp = 20;
+      reset(hp);
+      printf("%d\n", hp);   // still 20
+      ```
+
+      (To change the caller's variable you need pointers, coming soon.)
+
+      **Your turn:** `heal` below tries to modify its parameter. Rewrite it to **return** the new value instead, and store that result in `main` so the program prints `hp 75`.
+    seed: |
+      #include <stdio.h>
+
+      void heal(int hp, int amount) {
+          hp = hp + amount;
+      }
+
+      int main(void) {
+          int hp = 50;
+          heal(hp, 25);
+          printf("hp %d\n", hp);
+          return 0;
+      }
+    solution: |
+      #include <stdio.h>
+
+      int heal(int hp, int amount) {
+          return hp + amount;
+      }
+
+      int main(void) {
+          int hp = 50;
+          hp = heal(hp, 25);
+          printf("hp %d\n", hp);
+          return 0;
+      }
+    forbid:
+      - pattern: "hp\\s*=\\s*75|printf\\s*\\(\\s*\"\"\\s*,\\s*75"
+        message: Let heal() compute the value.
+    hints:
+      - Change the return type to `int` and `return hp + amount;`.
+      - "In main, store the result: `hp = heal(hp, 25);`"
+    tests:
+      - expect: "hp 75"
+
+  - title: Recursion
+    text: |
+      A function can call itself. That's **recursion**. Every recursive function needs a **base case** that stops, and a step that moves toward it.
+
+      ```c
+      int factorial(int n) {
+          if (n <= 1) return 1;          // base case
+          return n * factorial(n - 1);   // smaller problem
+      }
+      ```
+
+      **Your turn:** write `int fib(int n)` returning the n-th Fibonacci number, where `fib(0) = 0`, `fib(1) = 1` and every later number is the sum of the two before it.
+    seed: |
+      int fib(int n) {
+
+      }
+    solution: |
+      int fib(int n) {
+          if (n < 2) return n;
+          return fib(n - 1) + fib(n - 2);
+      }
+    harness: |
+      int main(void) {
+          CHECK_INT("fib(0)", fib(0), 0);
+          CHECK_INT("fib(1)", fib(1), 1);
+          CHECK_INT("fib(2)", fib(2), 1);
+          CHECK_INT("fib(7)", fib(7), 13);
+          CHECK_INT("fib(20)", fib(20), 6765);
+          return 0;
+      }
+    hints:
+      - "Base cases: if n is 0 or 1, return n."
+      - "Otherwise return `fib(n - 1) + fib(n - 2)`."
+
+  - title: "Challenge: is it prime?"
+    text: |
+      A prime is a whole number greater than 1 whose only divisors are 1 and itself.
+
+      **Your turn:** write `int is_prime(int n)` that returns `1` for primes and `0` otherwise. Only test divisors up to the square root (`d * d <= n`) so it stays fast for big numbers.
+    seed: |
+      int is_prime(int n) {
+
+      }
+    solution: |
+      int is_prime(int n) {
+          if (n < 2) return 0;
+          for (int d = 2; d * d <= n; d++) {
+              if (n % d == 0) return 0;
+          }
+          return 1;
+      }
+    harness: |
+      int main(void) {
+          CHECK_INT("is_prime(2)", is_prime(2), 1);
+          CHECK_INT("is_prime(1)", is_prime(1), 0);
+          CHECK_INT("is_prime(0)", is_prime(0), 0);
+          CHECK_INT("is_prime(-7)", is_prime(-7), 0);
+          CHECK_INT("is_prime(9)", is_prime(9), 0);
+          CHECK_INT("is_prime(97)", is_prime(97), 1);
+          CHECK_INT("is_prime(1000003)", is_prime(1000003), 1);
+          CHECK_INT("is_prime(1000001)", is_prime(1000001), 0);
+          return 0;
+      }
+    hints:
+      - Anything below 2 is not prime.
+      - Try every d from 2 while `d * d <= n`. If `n % d == 0`, it's not prime.

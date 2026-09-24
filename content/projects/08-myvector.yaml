@@ -1,0 +1,342 @@
+id: myvector
+title: "Your own vector<T>"
+lang: cpp
+level: Advanced
+after: cpp-move
+summary: Re-implement std::vector as a class template. Growth, deep copies, moves, iterators, so it works with range-for and std::sort.
+seed: |
+  #include <cstddef>
+
+  template <typename T>
+  class Vec {
+  public:
+
+  private:
+      T* data_ = nullptr;
+      std::size_t size_ = 0;
+      std::size_t cap_ = 0;
+  };
+milestones:
+  - title: Grow and index
+    text: |
+      Build `Vec<T>` step by step. Storage is a raw array from `new T[cap]`, released with `delete[]`. (That requires `T` to be default-constructible. The real `std::vector` uses lower-level tricks to avoid that; you don't need them here.)
+
+      Implement:
+
+      - a default constructor (empty, no allocation) and a destructor
+      - `void push_back(const T& x)`: when full, grow capacity to `cap == 0 ? 1 : cap * 2`, allocate a new array, **move** the old elements across, delete the old array
+      - `std::size_t size() const`, `std::size_t capacity() const`
+      - `T& operator[](std::size_t i)` and a const version
+
+      For now, delete the copy operations (`Vec(const Vec&) = delete;` and the same for `operator=`) so nothing copies by accident.
+    solution: |
+      #include <cstddef>
+      #include <utility>
+
+      template <typename T>
+      class Vec {
+      public:
+          Vec() = default;
+          ~Vec() { delete[] data_; }
+          Vec(const Vec&) = delete;
+          Vec& operator=(const Vec&) = delete;
+
+          void push_back(const T& x) {
+              if (size_ == cap_) grow(cap_ == 0 ? 1 : cap_ * 2);
+              data_[size_++] = x;
+          }
+          std::size_t size() const { return size_; }
+          std::size_t capacity() const { return cap_; }
+          T& operator[](std::size_t i) { return data_[i]; }
+          const T& operator[](std::size_t i) const { return data_[i]; }
+
+      private:
+          void grow(std::size_t new_cap) {
+              T* fresh = new T[new_cap];
+              for (std::size_t i = 0; i < size_; i++) fresh[i] = std::move(data_[i]);
+              delete[] data_;
+              data_ = fresh;
+              cap_ = new_cap;
+          }
+
+          T* data_ = nullptr;
+          std::size_t size_ = 0;
+          std::size_t cap_ = 0;
+      };
+    harness: |
+      int main() {
+          Vec<int> v;
+          CHECK_EQ("empty size", v.size(), 0);
+          CHECK_EQ("empty cap", v.capacity(), 0);
+          v.push_back(10);
+          CHECK_EQ("cap after 1 push", v.capacity(), 1);
+          v.push_back(20);
+          v.push_back(30);
+          CHECK_EQ("cap after 3 pushes", v.capacity(), 4);
+          CHECK_EQ("v[2]", v[2], 30);
+          v[0] = 5;
+          CHECK_EQ("write through []", v[0], 5);
+          Vec<std::string> s;
+          for (int i = 0; i < 100; i++) s.push_back(std::to_string(i));
+          CHECK_EQ("100 strings", s.size(), 100);
+          CHECK_EQ("s[99]", s[99], std::string("99"));
+          CHECK_EQ("cap 128", s.capacity(), 128);
+      }
+    hints:
+      - "A private helper `void grow(std::size_t new_cap)` keeps push_back short."
+      - "In grow: `T* fresh = new T[new_cap];` move elements with `fresh[i] = std::move(data_[i]);`, then `delete[] data_; data_ = fresh;`."
+
+  - title: Deep copies
+    text: |
+      Replace the deleted copy operations with real ones:
+
+      - copy constructor: allocate exactly `other.size()` elements and copy them
+      - copy assignment: use the **copy-and-swap** idiom so it's safe even for `v = v`:
+
+      ```cpp
+      Vec& operator=(Vec other) {    // takes a copy
+          swap(other);               // steal it; the old data dies with 'other'
+          return *this;
+      }
+      void swap(Vec& o) noexcept { std::swap(data_, o.data_); ... }
+      ```
+    solution: |
+      #include <cstddef>
+      #include <utility>
+
+      template <typename T>
+      class Vec {
+      public:
+          Vec() = default;
+          ~Vec() { delete[] data_; }
+          Vec(const Vec& other) : data_(other.size_ ? new T[other.size_] : nullptr), size_(other.size_), cap_(other.size_) {
+              for (std::size_t i = 0; i < size_; i++) data_[i] = other.data_[i];
+          }
+          Vec& operator=(Vec other) {
+              swap(other);
+              return *this;
+          }
+          void swap(Vec& o) noexcept {
+              std::swap(data_, o.data_);
+              std::swap(size_, o.size_);
+              std::swap(cap_, o.cap_);
+          }
+
+          void push_back(const T& x) {
+              if (size_ == cap_) grow(cap_ == 0 ? 1 : cap_ * 2);
+              data_[size_++] = x;
+          }
+          std::size_t size() const { return size_; }
+          std::size_t capacity() const { return cap_; }
+          T& operator[](std::size_t i) { return data_[i]; }
+          const T& operator[](std::size_t i) const { return data_[i]; }
+
+      private:
+          void grow(std::size_t new_cap) {
+              T* fresh = new T[new_cap];
+              for (std::size_t i = 0; i < size_; i++) fresh[i] = std::move(data_[i]);
+              delete[] data_;
+              data_ = fresh;
+              cap_ = new_cap;
+          }
+
+          T* data_ = nullptr;
+          std::size_t size_ = 0;
+          std::size_t cap_ = 0;
+      };
+    harness: |
+      int main() {
+          Vec<int> a;
+          for (int i = 0; i < 5; i++) a.push_back(i);
+          Vec<int> b = a;
+          CHECK_EQ("copy size", b.size(), 5);
+          CHECK("copy has own memory", &b[0] != &a[0]);
+          b[0] = 99;
+          CHECK_EQ("original untouched", a[0], 0);
+          Vec<int> c;
+          c.push_back(7);
+          c = a;
+          CHECK_EQ("assigned size", c.size(), 5);
+          CHECK_EQ("assigned values", c[4], 4);
+          Vec<int>& self = c;
+          c = self;
+          CHECK_EQ("self-assignment survives", c[3], 3);
+          Vec<std::string> e;
+          Vec<std::string> e2 = e;
+          CHECK_EQ("copy of empty", e2.size(), 0);
+      }
+    hints:
+      - "Copy constructor: allocate `new T[other.size_]` (or nullptr when empty) and copy element by element."
+      - "Copy assignment takes its parameter **by value**, then swaps. The parameter's destructor frees the old contents."
+
+  - title: Moves
+    text: |
+      Add a move constructor and a move assignment. They steal the pointer and leave the source empty (`nullptr`, size 0, capacity 0). Mark them `noexcept`.
+
+      Because copy assignment takes its parameter by value, the move assignment is optional (the by-value parameter can be move-constructed), but write the move constructor for sure.
+    solution: |
+      #include <cstddef>
+      #include <utility>
+
+      template <typename T>
+      class Vec {
+      public:
+          Vec() = default;
+          ~Vec() { delete[] data_; }
+          Vec(const Vec& other) : data_(other.size_ ? new T[other.size_] : nullptr), size_(other.size_), cap_(other.size_) {
+              for (std::size_t i = 0; i < size_; i++) data_[i] = other.data_[i];
+          }
+          Vec(Vec&& other) noexcept : data_(other.data_), size_(other.size_), cap_(other.cap_) {
+              other.data_ = nullptr;
+              other.size_ = 0;
+              other.cap_ = 0;
+          }
+          Vec& operator=(Vec other) {
+              swap(other);
+              return *this;
+          }
+          void swap(Vec& o) noexcept {
+              std::swap(data_, o.data_);
+              std::swap(size_, o.size_);
+              std::swap(cap_, o.cap_);
+          }
+
+          void push_back(const T& x) {
+              if (size_ == cap_) grow(cap_ == 0 ? 1 : cap_ * 2);
+              data_[size_++] = x;
+          }
+          std::size_t size() const { return size_; }
+          std::size_t capacity() const { return cap_; }
+          T& operator[](std::size_t i) { return data_[i]; }
+          const T& operator[](std::size_t i) const { return data_[i]; }
+
+      private:
+          void grow(std::size_t new_cap) {
+              T* fresh = new T[new_cap];
+              for (std::size_t i = 0; i < size_; i++) fresh[i] = std::move(data_[i]);
+              delete[] data_;
+              data_ = fresh;
+              cap_ = new_cap;
+          }
+
+          T* data_ = nullptr;
+          std::size_t size_ = 0;
+          std::size_t cap_ = 0;
+      };
+    harness: |
+      #include <type_traits>
+      int main() {
+          Vec<int> a;
+          for (int i = 0; i < 3; i++) a.push_back(i);
+          int* p = &a[0];
+          Vec<int> b = std::move(a);
+          CHECK("b stole the buffer", &b[0] == p);
+          CHECK("a is empty", a.size() == 0 && a.capacity() == 0);
+          Vec<int> c;
+          c = std::move(b);
+          CHECK("move-assigned", c.size() == 3 && &c[0] == p);
+          CHECK("move ctor is noexcept", std::is_nothrow_move_constructible_v<Vec<int>>);
+          Vec<Vec<int>> nested;
+          Vec<int> inner;
+          inner.push_back(42);
+          nested.push_back(inner);
+          nested.push_back(inner);
+          CHECK_EQ("nested vectors copy correctly", nested[1][0], 42);
+      }
+    hints:
+      - "`Vec(Vec&& other) noexcept : data_(other.data_), size_(other.size_), cap_(other.cap_) { ...reset other... }`"
+
+  - title: Iterators, back and pop_back
+    text: |
+      Make `Vec` work with range-for and the standard algorithms by adding iterators. For a contiguous array, plain pointers **are** iterators:
+
+      ```cpp
+      T* begin() { return data_; }
+      T* end() { return data_ + size_; }
+      ```
+
+      Add const versions too, plus `T& back()`, `void pop_back()` and `bool empty() const`.
+
+      Then `std::sort(v.begin(), v.end())` and `for (auto& x : v)` just work.
+    solution: |
+      #include <cstddef>
+      #include <utility>
+
+      template <typename T>
+      class Vec {
+      public:
+          Vec() = default;
+          ~Vec() { delete[] data_; }
+          Vec(const Vec& other) : data_(other.size_ ? new T[other.size_] : nullptr), size_(other.size_), cap_(other.size_) {
+              for (std::size_t i = 0; i < size_; i++) data_[i] = other.data_[i];
+          }
+          Vec(Vec&& other) noexcept : data_(other.data_), size_(other.size_), cap_(other.cap_) {
+              other.data_ = nullptr;
+              other.size_ = 0;
+              other.cap_ = 0;
+          }
+          Vec& operator=(Vec other) {
+              swap(other);
+              return *this;
+          }
+          void swap(Vec& o) noexcept {
+              std::swap(data_, o.data_);
+              std::swap(size_, o.size_);
+              std::swap(cap_, o.cap_);
+          }
+
+          void push_back(const T& x) {
+              if (size_ == cap_) grow(cap_ == 0 ? 1 : cap_ * 2);
+              data_[size_++] = x;
+          }
+          void pop_back() { size_--; }
+          T& back() { return data_[size_ - 1]; }
+          const T& back() const { return data_[size_ - 1]; }
+          bool empty() const { return size_ == 0; }
+          std::size_t size() const { return size_; }
+          std::size_t capacity() const { return cap_; }
+          T& operator[](std::size_t i) { return data_[i]; }
+          const T& operator[](std::size_t i) const { return data_[i]; }
+
+          T* begin() { return data_; }
+          T* end() { return data_ + size_; }
+          const T* begin() const { return data_; }
+          const T* end() const { return data_ + size_; }
+
+      private:
+          void grow(std::size_t new_cap) {
+              T* fresh = new T[new_cap];
+              for (std::size_t i = 0; i < size_; i++) fresh[i] = std::move(data_[i]);
+              delete[] data_;
+              data_ = fresh;
+              cap_ = new_cap;
+          }
+
+          T* data_ = nullptr;
+          std::size_t size_ = 0;
+          std::size_t cap_ = 0;
+      };
+    harness: |
+      #include <algorithm>
+      #include <numeric>
+      int main() {
+          Vec<int> v;
+          for (int x : {5, 3, 9, 1}) v.push_back(x);
+          std::sort(v.begin(), v.end());
+          CHECK("sorted", v[0] == 1 && v[1] == 3 && v[2] == 5 && v[3] == 9);
+          int sum = 0;
+          for (int x : v) sum += x;
+          CHECK_EQ("range-for sum", sum, 18);
+          const Vec<int>& c = v;
+          CHECK_EQ("accumulate on const", std::accumulate(c.begin(), c.end(), 0), 18);
+          CHECK_EQ("back", v.back(), 9);
+          v.pop_back();
+          CHECK_EQ("after pop_back", v.back(), 5);
+          CHECK_EQ("size 3", v.size(), 3);
+          Vec<int> e;
+          CHECK("empty()", e.empty() && !v.empty());
+          CHECK("empty range", e.begin() == e.end());
+      }
+    hints:
+      - "`T* begin() { return data_; }` and `T* end() { return data_ + size_; }`, plus const overloads returning `const T*`."
+      - "`back()` is `data_[size_ - 1]`; `pop_back()` just decrements size_."

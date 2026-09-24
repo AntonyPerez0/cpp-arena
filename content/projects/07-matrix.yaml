@@ -1,0 +1,420 @@
+id: matrix
+title: Matrix library
+lang: cpp
+level: Intermediate
+after: cpp-operators
+summary: A Matrix class with operators for addition, scaling, multiplication, transpose, printing and a determinant.
+seed: |
+  #include <vector>
+
+  class Matrix {
+  public:
+      Matrix(int rows, int cols) {}
+
+  private:
+      int rows_ = 0, cols_ = 0;
+      std::vector<double> data_;
+  };
+milestones:
+  - title: Storage and access
+    text: |
+      Store the elements in one `std::vector<double>` in **row-major** order: element `(r, c)` lives at index `r * cols + c`.
+
+      Implement:
+
+      - `Matrix(int rows, int cols)` creates a zero-filled matrix
+      - `int rows() const`, `int cols() const`
+      - `double& at(int r, int c)` and `double at(int r, int c) const`
+    solution: |
+      #include <vector>
+
+      class Matrix {
+      public:
+          Matrix(int rows, int cols) : rows_(rows), cols_(cols), data_(rows * cols, 0.0) {}
+          int rows() const { return rows_; }
+          int cols() const { return cols_; }
+          double& at(int r, int c) { return data_[r * cols_ + c]; }
+          double at(int r, int c) const { return data_[r * cols_ + c]; }
+
+      private:
+          int rows_ = 0, cols_ = 0;
+          std::vector<double> data_;
+      };
+    harness: |
+      int main() {
+          Matrix m(2, 3);
+          CHECK_EQ("rows", m.rows(), 2);
+          CHECK_EQ("cols", m.cols(), 3);
+          CHECK_EQ("zero filled", m.at(1, 2), 0.0);
+          m.at(1, 2) = 5;
+          m.at(0, 1) = -1;
+          CHECK_EQ("write/read (1,2)", m.at(1, 2), 5.0);
+          const Matrix& c = m;
+          CHECK_EQ("const at (0,1)", c.at(0, 1), -1.0);
+          CHECK_EQ("untouched (1,0)", c.at(1, 0), 0.0);
+      }
+    hints:
+      - "Initialize `data_(rows * cols, 0.0)` in the initializer list."
+      - "`return data_[r * cols_ + c];`"
+
+  - title: Add, compare, scale
+    text: |
+      Add non-member operators:
+
+      - `Matrix operator+(const Matrix& a, const Matrix& b)` (same size assumed)
+      - `bool operator==(const Matrix& a, const Matrix& b)` (same size and all elements equal)
+      - `Matrix operator*(const Matrix& m, double k)` (scale every element)
+    solution: |
+      #include <vector>
+
+      class Matrix {
+      public:
+          Matrix(int rows, int cols) : rows_(rows), cols_(cols), data_(rows * cols, 0.0) {}
+          int rows() const { return rows_; }
+          int cols() const { return cols_; }
+          double& at(int r, int c) { return data_[r * cols_ + c]; }
+          double at(int r, int c) const { return data_[r * cols_ + c]; }
+
+      private:
+          int rows_ = 0, cols_ = 0;
+          std::vector<double> data_;
+      };
+
+      Matrix operator+(const Matrix& a, const Matrix& b) {
+          Matrix out(a.rows(), a.cols());
+          for (int r = 0; r < a.rows(); r++)
+              for (int c = 0; c < a.cols(); c++) out.at(r, c) = a.at(r, c) + b.at(r, c);
+          return out;
+      }
+
+      bool operator==(const Matrix& a, const Matrix& b) {
+          if (a.rows() != b.rows() || a.cols() != b.cols()) return false;
+          for (int r = 0; r < a.rows(); r++)
+              for (int c = 0; c < a.cols(); c++)
+                  if (a.at(r, c) != b.at(r, c)) return false;
+          return true;
+      }
+
+      Matrix operator*(const Matrix& m, double k) {
+          Matrix out(m.rows(), m.cols());
+          for (int r = 0; r < m.rows(); r++)
+              for (int c = 0; c < m.cols(); c++) out.at(r, c) = m.at(r, c) * k;
+          return out;
+      }
+    harness: |
+      Matrix make(int r, int c, std::vector<double> v) {
+          Matrix m(r, c);
+          for (int i = 0; i < r * c; i++) m.at(i / c, i % c) = v[i];
+          return m;
+      }
+      int main() {
+          Matrix a = make(2, 2, {1, 2, 3, 4});
+          Matrix b = make(2, 2, {10, 20, 30, 40});
+          CHECK("a + b", a + b == make(2, 2, {11, 22, 33, 44}));
+          CHECK("a * 3", a * 3 == make(2, 2, {3, 6, 9, 12}));
+          CHECK("a == a", a == a);
+          CHECK("a != b", !(a == b));
+          CHECK("different sizes are not equal", !(Matrix(2, 3) == Matrix(3, 2)));
+      }
+    hints:
+      - Build a result matrix of the same size and fill it with nested loops.
+      - "For ==, compare sizes first, then every element."
+
+  - title: Matrix multiplication
+    text: |
+      Add `Matrix operator*(const Matrix& a, const Matrix& b)`: an `n x m` times an `m x p` gives an `n x p` matrix where
+
+      ```
+      out(r, c) = sum over k of a(r, k) * b(k, c)
+      ```
+
+      Also add a static `Matrix::identity(int n)` returning the `n x n` identity matrix (1 on the diagonal).
+    solution: |
+      #include <vector>
+
+      class Matrix {
+      public:
+          Matrix(int rows, int cols) : rows_(rows), cols_(cols), data_(rows * cols, 0.0) {}
+          int rows() const { return rows_; }
+          int cols() const { return cols_; }
+          double& at(int r, int c) { return data_[r * cols_ + c]; }
+          double at(int r, int c) const { return data_[r * cols_ + c]; }
+          static Matrix identity(int n) {
+              Matrix m(n, n);
+              for (int i = 0; i < n; i++) m.at(i, i) = 1;
+              return m;
+          }
+
+      private:
+          int rows_ = 0, cols_ = 0;
+          std::vector<double> data_;
+      };
+
+      Matrix operator+(const Matrix& a, const Matrix& b) {
+          Matrix out(a.rows(), a.cols());
+          for (int r = 0; r < a.rows(); r++)
+              for (int c = 0; c < a.cols(); c++) out.at(r, c) = a.at(r, c) + b.at(r, c);
+          return out;
+      }
+
+      bool operator==(const Matrix& a, const Matrix& b) {
+          if (a.rows() != b.rows() || a.cols() != b.cols()) return false;
+          for (int r = 0; r < a.rows(); r++)
+              for (int c = 0; c < a.cols(); c++)
+                  if (a.at(r, c) != b.at(r, c)) return false;
+          return true;
+      }
+
+      Matrix operator*(const Matrix& m, double k) {
+          Matrix out(m.rows(), m.cols());
+          for (int r = 0; r < m.rows(); r++)
+              for (int c = 0; c < m.cols(); c++) out.at(r, c) = m.at(r, c) * k;
+          return out;
+      }
+
+      Matrix operator*(const Matrix& a, const Matrix& b) {
+          Matrix out(a.rows(), b.cols());
+          for (int r = 0; r < a.rows(); r++)
+              for (int c = 0; c < b.cols(); c++) {
+                  double s = 0;
+                  for (int k = 0; k < a.cols(); k++) s += a.at(r, k) * b.at(k, c);
+                  out.at(r, c) = s;
+              }
+          return out;
+      }
+    harness: |
+      Matrix make(int r, int c, std::vector<double> v) {
+          Matrix m(r, c);
+          for (int i = 0; i < r * c; i++) m.at(i / c, i % c) = v[i];
+          return m;
+      }
+      int main() {
+          Matrix a = make(2, 3, {1, 2, 3, 4, 5, 6});
+          Matrix b = make(3, 2, {7, 8, 9, 10, 11, 12});
+          Matrix p = a * b;
+          CHECK("2x3 * 3x2 is 2x2", p.rows() == 2 && p.cols() == 2);
+          CHECK("values", p == make(2, 2, {58, 64, 139, 154}));
+          CHECK("identity * a == a", Matrix::identity(2) * a == a);
+          CHECK("a * identity == a", a * Matrix::identity(3) == a);
+          CHECK("scalar * still works", a * 2.0 == make(2, 3, {2, 4, 6, 8, 10, 12}));
+      }
+    hints:
+      - The result has a's rows and b's columns.
+      - Three nested loops. The innermost sums `a.at(r, k) * b.at(k, c)`.
+      - "`static Matrix identity(int n)` goes inside the class."
+
+  - title: Transpose and printing
+    text: |
+      Add:
+
+      - `Matrix transpose() const` (rows become columns)
+      - `std::ostream& operator<<(std::ostream&, const Matrix&)` that prints each row on its own line, elements separated by single spaces, e.g. `1 2 3`. Print numbers with plain `<<` (so 2.5 prints as `2.5` and 3.0 prints as `3`).
+    solution: |
+      #include <ostream>
+      #include <vector>
+
+      class Matrix {
+      public:
+          Matrix(int rows, int cols) : rows_(rows), cols_(cols), data_(rows * cols, 0.0) {}
+          int rows() const { return rows_; }
+          int cols() const { return cols_; }
+          double& at(int r, int c) { return data_[r * cols_ + c]; }
+          double at(int r, int c) const { return data_[r * cols_ + c]; }
+          static Matrix identity(int n) {
+              Matrix m(n, n);
+              for (int i = 0; i < n; i++) m.at(i, i) = 1;
+              return m;
+          }
+          Matrix transpose() const {
+              Matrix t(cols_, rows_);
+              for (int r = 0; r < rows_; r++)
+                  for (int c = 0; c < cols_; c++) t.at(c, r) = at(r, c);
+              return t;
+          }
+
+      private:
+          int rows_ = 0, cols_ = 0;
+          std::vector<double> data_;
+      };
+
+      Matrix operator+(const Matrix& a, const Matrix& b) {
+          Matrix out(a.rows(), a.cols());
+          for (int r = 0; r < a.rows(); r++)
+              for (int c = 0; c < a.cols(); c++) out.at(r, c) = a.at(r, c) + b.at(r, c);
+          return out;
+      }
+
+      bool operator==(const Matrix& a, const Matrix& b) {
+          if (a.rows() != b.rows() || a.cols() != b.cols()) return false;
+          for (int r = 0; r < a.rows(); r++)
+              for (int c = 0; c < a.cols(); c++)
+                  if (a.at(r, c) != b.at(r, c)) return false;
+          return true;
+      }
+
+      Matrix operator*(const Matrix& m, double k) {
+          Matrix out(m.rows(), m.cols());
+          for (int r = 0; r < m.rows(); r++)
+              for (int c = 0; c < m.cols(); c++) out.at(r, c) = m.at(r, c) * k;
+          return out;
+      }
+
+      Matrix operator*(const Matrix& a, const Matrix& b) {
+          Matrix out(a.rows(), b.cols());
+          for (int r = 0; r < a.rows(); r++)
+              for (int c = 0; c < b.cols(); c++) {
+                  double s = 0;
+                  for (int k = 0; k < a.cols(); k++) s += a.at(r, k) * b.at(k, c);
+                  out.at(r, c) = s;
+              }
+          return out;
+      }
+
+      std::ostream& operator<<(std::ostream& os, const Matrix& m) {
+          for (int r = 0; r < m.rows(); r++) {
+              for (int c = 0; c < m.cols(); c++) {
+                  if (c) os << ' ';
+                  os << m.at(r, c);
+              }
+              os << '\n';
+          }
+          return os;
+      }
+    harness: |
+      #include <sstream>
+      Matrix make(int r, int c, std::vector<double> v) {
+          Matrix m(r, c);
+          for (int i = 0; i < r * c; i++) m.at(i / c, i % c) = v[i];
+          return m;
+      }
+      int main() {
+          Matrix a = make(2, 3, {1, 2, 3, 4, 5, 6});
+          Matrix t = a.transpose();
+          CHECK("transpose is 3x2", t.rows() == 3 && t.cols() == 2);
+          CHECK("transpose values", t == make(3, 2, {1, 4, 2, 5, 3, 6}));
+          CHECK("double transpose", a.transpose().transpose() == a);
+          std::ostringstream out;
+          out << make(2, 2, {1, 2.5, -3, 4});
+          CHECK_EQ("printing", out.str(), std::string("1 2.5\n-3 4\n"));
+      }
+    hints:
+      - "transpose: result is cols x rows with `t.at(c, r) = at(r, c)`."
+      - "operator<<: a space before every element except the first in each row, then `'\\n'`."
+
+  - title: Determinant
+    text: |
+      Add `double determinant() const` for square matrices. The recursive **cofactor expansion** along the first row is the easiest to write:
+
+      ```
+      det([a]) = a
+      det(M) = sum over c of (-1)^c * M(0, c) * det(minor(0, c))
+      ```
+
+      where `minor(0, c)` is M without row 0 and column c. (It's slow for big matrices, and that's fine here.)
+    solution: |
+      #include <ostream>
+      #include <vector>
+
+      class Matrix {
+      public:
+          Matrix(int rows, int cols) : rows_(rows), cols_(cols), data_(rows * cols, 0.0) {}
+          int rows() const { return rows_; }
+          int cols() const { return cols_; }
+          double& at(int r, int c) { return data_[r * cols_ + c]; }
+          double at(int r, int c) const { return data_[r * cols_ + c]; }
+          static Matrix identity(int n) {
+              Matrix m(n, n);
+              for (int i = 0; i < n; i++) m.at(i, i) = 1;
+              return m;
+          }
+          Matrix transpose() const {
+              Matrix t(cols_, rows_);
+              for (int r = 0; r < rows_; r++)
+                  for (int c = 0; c < cols_; c++) t.at(c, r) = at(r, c);
+              return t;
+          }
+          double determinant() const {
+              if (rows_ == 1) return at(0, 0);
+              double det = 0;
+              for (int c = 0; c < cols_; c++) {
+                  Matrix minor(rows_ - 1, cols_ - 1);
+                  for (int r = 1; r < rows_; r++) {
+                      int mc = 0;
+                      for (int k = 0; k < cols_; k++) {
+                          if (k == c) continue;
+                          minor.at(r - 1, mc++) = at(r, k);
+                      }
+                  }
+                  double sign = (c % 2 == 0) ? 1.0 : -1.0;
+                  det += sign * at(0, c) * minor.determinant();
+              }
+              return det;
+          }
+
+      private:
+          int rows_ = 0, cols_ = 0;
+          std::vector<double> data_;
+      };
+
+      Matrix operator+(const Matrix& a, const Matrix& b) {
+          Matrix out(a.rows(), a.cols());
+          for (int r = 0; r < a.rows(); r++)
+              for (int c = 0; c < a.cols(); c++) out.at(r, c) = a.at(r, c) + b.at(r, c);
+          return out;
+      }
+
+      bool operator==(const Matrix& a, const Matrix& b) {
+          if (a.rows() != b.rows() || a.cols() != b.cols()) return false;
+          for (int r = 0; r < a.rows(); r++)
+              for (int c = 0; c < a.cols(); c++)
+                  if (a.at(r, c) != b.at(r, c)) return false;
+          return true;
+      }
+
+      Matrix operator*(const Matrix& m, double k) {
+          Matrix out(m.rows(), m.cols());
+          for (int r = 0; r < m.rows(); r++)
+              for (int c = 0; c < m.cols(); c++) out.at(r, c) = m.at(r, c) * k;
+          return out;
+      }
+
+      Matrix operator*(const Matrix& a, const Matrix& b) {
+          Matrix out(a.rows(), b.cols());
+          for (int r = 0; r < a.rows(); r++)
+              for (int c = 0; c < b.cols(); c++) {
+                  double s = 0;
+                  for (int k = 0; k < a.cols(); k++) s += a.at(r, k) * b.at(k, c);
+                  out.at(r, c) = s;
+              }
+          return out;
+      }
+
+      std::ostream& operator<<(std::ostream& os, const Matrix& m) {
+          for (int r = 0; r < m.rows(); r++) {
+              for (int c = 0; c < m.cols(); c++) {
+                  if (c) os << ' ';
+                  os << m.at(r, c);
+              }
+              os << '\n';
+          }
+          return os;
+      }
+    harness: |
+      #include <cmath>
+      Matrix make(int r, int c, std::vector<double> v) {
+          Matrix m(r, c);
+          for (int i = 0; i < r * c; i++) m.at(i / c, i % c) = v[i];
+          return m;
+      }
+      bool near(double a, double b) { return std::fabs(a - b) < 1e-9; }
+      int main() {
+          CHECK("1x1", near(make(1, 1, {7}).determinant(), 7));
+          CHECK("2x2", near(make(2, 2, {3, 8, 4, 6}).determinant(), -14));
+          CHECK("3x3", near(make(3, 3, {6, 1, 1, 4, -2, 5, 2, 8, 7}).determinant(), -306));
+          CHECK("identity 4x4", near(Matrix::identity(4).determinant(), 1));
+          CHECK("singular", near(make(3, 3, {1, 2, 3, 4, 5, 6, 7, 8, 9}).determinant(), 0));
+      }
+    hints:
+      - Base case 1x1 returns the element.
+      - "For each column c of row 0: build the minor by copying rows 1..n-1 and skipping column c."
+      - "Alternate the sign: + for even c, - for odd c."

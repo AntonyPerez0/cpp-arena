@@ -1,0 +1,483 @@
+id: buymenu
+title: Buy menu and economy
+lang: cpp
+level: Advanced
+after: cpp-oop
+summary: A round-based buy menu. Maps for the shop, polymorphic item classes in unique_ptrs, slot rules, selling and the round economy.
+seed: |
+  #include <iostream>
+  #include <map>
+  #include <string>
+
+  int main() {
+      int money = 4000;
+      std::string cmd;
+      while (std::cin >> cmd) {
+
+      }
+  }
+milestones:
+  - title: The shop
+    text: |
+      The shop sells these items (name, price, kind):
+
+      | Item | Price | Kind |
+      |---|---|---|
+      | ak47 | 2700 | primary |
+      | awp | 4750 | primary |
+      | deagle | 700 | secondary |
+      | flash | 200 | grenade |
+      | smoke | 300 | grenade |
+      | kevlar | 650 | gear |
+
+      Commands (one per line):
+
+      - `buy NAME`: print `bought NAME` and subtract the price, or `not enough money`, or `unknown item` if it's not in the shop
+      - `money`: print `$AMOUNT`
+
+      The player starts with $4000. Put the shop in a `std::map<std::string, ...>`.
+    solution: |
+      #include <iostream>
+      #include <map>
+      #include <string>
+
+      struct ShopEntry {
+          int price;
+          std::string kind;
+      };
+
+      const std::map<std::string, ShopEntry> shop = {
+          {"ak47", {2700, "primary"}},
+          {"awp", {4750, "primary"}},
+          {"deagle", {700, "secondary"}},
+          {"flash", {200, "grenade"}},
+          {"smoke", {300, "grenade"}},
+          {"kevlar", {650, "gear"}},
+      };
+
+      int main() {
+          int money = 4000;
+          std::string cmd;
+          while (std::cin >> cmd) {
+              if (cmd == "buy") {
+                  std::string name;
+                  std::cin >> name;
+                  auto it = shop.find(name);
+                  if (it == shop.end()) {
+                      std::cout << "unknown item\n";
+                  } else if (it->second.price > money) {
+                      std::cout << "not enough money\n";
+                  } else {
+                      money -= it->second.price;
+                      std::cout << "bought " << name << "\n";
+                  }
+              } else if (cmd == "money") {
+                  std::cout << "$" << money << "\n";
+              }
+          }
+      }
+    tests:
+      - stdin: "buy ak47\nmoney\nbuy awp\nbuy negev\nbuy flash\nmoney\n"
+      - stdin: "money\nbuy deagle\nbuy deagle\nbuy deagle\nbuy deagle\nbuy deagle\nbuy deagle\nmoney\n"
+      - stdin: "buy kevlar\nbuy smoke\nbuy awp\nmoney\n"
+        hidden: true
+    hints:
+      - "A small struct for {price, kind} and a `const std::map<std::string, ShopEntry>` initialized with braces."
+      - "Look up with `shop.find(name)`; `it->second.price` is the price."
+
+  - title: Polymorphic items
+    text: |
+      Now keep what the player owns. Model items as a class hierarchy:
+
+      ```cpp
+      class Item {
+      public:
+          virtual ~Item() = default;
+          virtual std::string name() const = 0;
+          virtual int slot() const = 0;       // 1 primary, 2 secondary, 4 grenade, 5 gear
+          virtual int price() const = 0;
+      };
+      ```
+
+      Write derived classes `Primary`, `Secondary`, `Grenade` and `Gear` (each stores its name and price; `slot()` is fixed per class) and a factory `std::unique_ptr<Item> make_item(const std::string& name)` using the shop table.
+
+      Store the inventory in `std::vector<std::unique_ptr<Item>>`. Add the command `list`, which prints each item as `SLOT NAME`, sorted by slot and then by purchase order, or `nothing` if empty.
+    solution: |
+      #include <algorithm>
+      #include <iostream>
+      #include <map>
+      #include <memory>
+      #include <string>
+      #include <vector>
+
+      struct ShopEntry {
+          int price;
+          std::string kind;
+      };
+
+      const std::map<std::string, ShopEntry> shop = {
+          {"ak47", {2700, "primary"}},
+          {"awp", {4750, "primary"}},
+          {"deagle", {700, "secondary"}},
+          {"flash", {200, "grenade"}},
+          {"smoke", {300, "grenade"}},
+          {"kevlar", {650, "gear"}},
+      };
+
+      class Item {
+      public:
+          Item(std::string name, int price) : name_(std::move(name)), price_(price) {}
+          virtual ~Item() = default;
+          std::string name() const { return name_; }
+          int price() const { return price_; }
+          virtual int slot() const = 0;
+
+      private:
+          std::string name_;
+          int price_;
+      };
+
+      class Primary : public Item {
+      public:
+          using Item::Item;
+          int slot() const override { return 1; }
+      };
+      class Secondary : public Item {
+      public:
+          using Item::Item;
+          int slot() const override { return 2; }
+      };
+      class Grenade : public Item {
+      public:
+          using Item::Item;
+          int slot() const override { return 4; }
+      };
+      class Gear : public Item {
+      public:
+          using Item::Item;
+          int slot() const override { return 5; }
+      };
+
+      std::unique_ptr<Item> make_item(const std::string& name) {
+          const ShopEntry& e = shop.at(name);
+          if (e.kind == "primary") return std::make_unique<Primary>(name, e.price);
+          if (e.kind == "secondary") return std::make_unique<Secondary>(name, e.price);
+          if (e.kind == "grenade") return std::make_unique<Grenade>(name, e.price);
+          return std::make_unique<Gear>(name, e.price);
+      }
+
+      int main() {
+          int money = 4000;
+          std::vector<std::unique_ptr<Item>> inventory;
+          std::string cmd;
+          while (std::cin >> cmd) {
+              if (cmd == "buy") {
+                  std::string name;
+                  std::cin >> name;
+                  auto it = shop.find(name);
+                  if (it == shop.end()) {
+                      std::cout << "unknown item\n";
+                  } else if (it->second.price > money) {
+                      std::cout << "not enough money\n";
+                  } else {
+                      money -= it->second.price;
+                      inventory.push_back(make_item(name));
+                      std::cout << "bought " << name << "\n";
+                  }
+              } else if (cmd == "money") {
+                  std::cout << "$" << money << "\n";
+              } else if (cmd == "list") {
+                  if (inventory.empty()) std::cout << "nothing\n";
+                  std::vector<const Item*> sorted;
+                  for (const auto& it : inventory) sorted.push_back(it.get());
+                  std::stable_sort(sorted.begin(), sorted.end(), [](const Item* a, const Item* b) { return a->slot() < b->slot(); });
+                  for (const Item* it : sorted) std::cout << it->slot() << " " << it->name() << "\n";
+              }
+          }
+      }
+    require:
+      - pattern: "virtual"
+        message: Use a class hierarchy with virtual functions.
+      - pattern: "unique_ptr"
+        message: "Store the items as `std::unique_ptr<Item>`."
+    tests:
+      - stdin: "list\nbuy kevlar\nbuy flash\nbuy ak47\nbuy smoke\nlist\n"
+      - stdin: "buy deagle\nbuy deagle\nlist\nmoney\n"
+      - stdin: "buy smoke\nbuy awp\nbuy flash\nlist\n"
+        hidden: true
+    hints:
+      - "Putting name and price in the base class (with a constructor) and inheriting it with `using Item::Item;` saves repetition."
+      - "For list, copy raw pointers (`.get()`) into a vector and `std::stable_sort` by slot, so equal slots keep purchase order."
+
+  - title: Slot rules
+    text: |
+      Enforce the loadout rules when buying (check them after `unknown item`, before the money check):
+
+      - only **one** primary and **one** secondary: buying another prints `slot full`
+      - at most **2 grenades of the same name**: a third prints `limit reached`
+      - kevlar only once: a second prints `already have kevlar`
+
+      Nothing is bought or charged when a rule fails.
+    solution: |
+      #include <algorithm>
+      #include <iostream>
+      #include <map>
+      #include <memory>
+      #include <string>
+      #include <vector>
+
+      struct ShopEntry {
+          int price;
+          std::string kind;
+      };
+
+      const std::map<std::string, ShopEntry> shop = {
+          {"ak47", {2700, "primary"}},
+          {"awp", {4750, "primary"}},
+          {"deagle", {700, "secondary"}},
+          {"flash", {200, "grenade"}},
+          {"smoke", {300, "grenade"}},
+          {"kevlar", {650, "gear"}},
+      };
+
+      class Item {
+      public:
+          Item(std::string name, int price) : name_(std::move(name)), price_(price) {}
+          virtual ~Item() = default;
+          std::string name() const { return name_; }
+          int price() const { return price_; }
+          virtual int slot() const = 0;
+
+      private:
+          std::string name_;
+          int price_;
+      };
+
+      class Primary : public Item {
+      public:
+          using Item::Item;
+          int slot() const override { return 1; }
+      };
+      class Secondary : public Item {
+      public:
+          using Item::Item;
+          int slot() const override { return 2; }
+      };
+      class Grenade : public Item {
+      public:
+          using Item::Item;
+          int slot() const override { return 4; }
+      };
+      class Gear : public Item {
+      public:
+          using Item::Item;
+          int slot() const override { return 5; }
+      };
+
+      std::unique_ptr<Item> make_item(const std::string& name) {
+          const ShopEntry& e = shop.at(name);
+          if (e.kind == "primary") return std::make_unique<Primary>(name, e.price);
+          if (e.kind == "secondary") return std::make_unique<Secondary>(name, e.price);
+          if (e.kind == "grenade") return std::make_unique<Grenade>(name, e.price);
+          return std::make_unique<Gear>(name, e.price);
+      }
+
+      std::string rule_problem(const std::vector<std::unique_ptr<Item>>& inv, const Item& want) {
+          int same_slot = 0, same_name = 0;
+          for (const auto& it : inv) {
+              if (it->slot() == want.slot()) same_slot++;
+              if (it->name() == want.name()) same_name++;
+          }
+          if ((want.slot() == 1 || want.slot() == 2) && same_slot > 0) return "slot full";
+          if (want.slot() == 4 && same_name >= 2) return "limit reached";
+          if (want.slot() == 5 && same_name > 0) return "already have " + want.name();
+          return "";
+      }
+
+      int main() {
+          int money = 4000;
+          std::vector<std::unique_ptr<Item>> inventory;
+          std::string cmd;
+          while (std::cin >> cmd) {
+              if (cmd == "buy") {
+                  std::string name;
+                  std::cin >> name;
+                  auto it = shop.find(name);
+                  if (it == shop.end()) {
+                      std::cout << "unknown item\n";
+                      continue;
+                  }
+                  auto item = make_item(name);
+                  std::string problem = rule_problem(inventory, *item);
+                  if (!problem.empty()) {
+                      std::cout << problem << "\n";
+                  } else if (item->price() > money) {
+                      std::cout << "not enough money\n";
+                  } else {
+                      money -= item->price();
+                      inventory.push_back(std::move(item));
+                      std::cout << "bought " << name << "\n";
+                  }
+              } else if (cmd == "money") {
+                  std::cout << "$" << money << "\n";
+              } else if (cmd == "list") {
+                  if (inventory.empty()) std::cout << "nothing\n";
+                  std::vector<const Item*> sorted;
+                  for (const auto& it : inventory) sorted.push_back(it.get());
+                  std::stable_sort(sorted.begin(), sorted.end(), [](const Item* a, const Item* b) { return a->slot() < b->slot(); });
+                  for (const Item* it : sorted) std::cout << it->slot() << " " << it->name() << "\n";
+              }
+          }
+      }
+    tests:
+      - stdin: "buy ak47\nbuy awp\nbuy flash\nbuy flash\nbuy flash\nmoney\n"
+      - stdin: "buy kevlar\nbuy kevlar\nbuy deagle\nbuy deagle\nbuy smoke\nlist\n"
+      - stdin: "buy flash\nbuy smoke\nbuy flash\nbuy smoke\nbuy smoke\nbuy awp\nlist\n"
+        hidden: true
+    hints:
+      - "Build the item first with make_item, then check the rules against the inventory."
+      - "Count items in the same slot and items with the same name in one pass."
+
+  - title: Selling and the round economy
+    text: |
+      Finish the game:
+
+      - `sell NAME` removes the **most recently bought** item with that name and refunds its full price: `sold NAME`, or `you don't have NAME`
+      - `round win` adds $3250, `round loss` adds $1400; both print the new `$AMOUNT`
+      - money is capped at **$16000**
+    solution: |
+      #include <algorithm>
+      #include <iostream>
+      #include <map>
+      #include <memory>
+      #include <string>
+      #include <vector>
+
+      struct ShopEntry {
+          int price;
+          std::string kind;
+      };
+
+      const std::map<std::string, ShopEntry> shop = {
+          {"ak47", {2700, "primary"}},
+          {"awp", {4750, "primary"}},
+          {"deagle", {700, "secondary"}},
+          {"flash", {200, "grenade"}},
+          {"smoke", {300, "grenade"}},
+          {"kevlar", {650, "gear"}},
+      };
+
+      class Item {
+      public:
+          Item(std::string name, int price) : name_(std::move(name)), price_(price) {}
+          virtual ~Item() = default;
+          std::string name() const { return name_; }
+          int price() const { return price_; }
+          virtual int slot() const = 0;
+
+      private:
+          std::string name_;
+          int price_;
+      };
+
+      class Primary : public Item {
+      public:
+          using Item::Item;
+          int slot() const override { return 1; }
+      };
+      class Secondary : public Item {
+      public:
+          using Item::Item;
+          int slot() const override { return 2; }
+      };
+      class Grenade : public Item {
+      public:
+          using Item::Item;
+          int slot() const override { return 4; }
+      };
+      class Gear : public Item {
+      public:
+          using Item::Item;
+          int slot() const override { return 5; }
+      };
+
+      std::unique_ptr<Item> make_item(const std::string& name) {
+          const ShopEntry& e = shop.at(name);
+          if (e.kind == "primary") return std::make_unique<Primary>(name, e.price);
+          if (e.kind == "secondary") return std::make_unique<Secondary>(name, e.price);
+          if (e.kind == "grenade") return std::make_unique<Grenade>(name, e.price);
+          return std::make_unique<Gear>(name, e.price);
+      }
+
+      std::string rule_problem(const std::vector<std::unique_ptr<Item>>& inv, const Item& want) {
+          int same_slot = 0, same_name = 0;
+          for (const auto& it : inv) {
+              if (it->slot() == want.slot()) same_slot++;
+              if (it->name() == want.name()) same_name++;
+          }
+          if ((want.slot() == 1 || want.slot() == 2) && same_slot > 0) return "slot full";
+          if (want.slot() == 4 && same_name >= 2) return "limit reached";
+          if (want.slot() == 5 && same_name > 0) return "already have " + want.name();
+          return "";
+      }
+
+      int main() {
+          int money = 4000;
+          std::vector<std::unique_ptr<Item>> inventory;
+          std::string cmd;
+          while (std::cin >> cmd) {
+              if (cmd == "buy") {
+                  std::string name;
+                  std::cin >> name;
+                  auto it = shop.find(name);
+                  if (it == shop.end()) {
+                      std::cout << "unknown item\n";
+                      continue;
+                  }
+                  auto item = make_item(name);
+                  std::string problem = rule_problem(inventory, *item);
+                  if (!problem.empty()) {
+                      std::cout << problem << "\n";
+                  } else if (item->price() > money) {
+                      std::cout << "not enough money\n";
+                  } else {
+                      money -= item->price();
+                      inventory.push_back(std::move(item));
+                      std::cout << "bought " << name << "\n";
+                  }
+              } else if (cmd == "sell") {
+                  std::string name;
+                  std::cin >> name;
+                  auto it = std::find_if(inventory.rbegin(), inventory.rend(), [&](const auto& p) { return p->name() == name; });
+                  if (it == inventory.rend()) {
+                      std::cout << "you don't have " << name << "\n";
+                  } else {
+                      money = std::min(16000, money + (*it)->price());
+                      inventory.erase(std::next(it).base());
+                      std::cout << "sold " << name << "\n";
+                  }
+              } else if (cmd == "round") {
+                  std::string result;
+                  std::cin >> result;
+                  money = std::min(16000, money + (result == "win" ? 3250 : 1400));
+                  std::cout << "$" << money << "\n";
+              } else if (cmd == "money") {
+                  std::cout << "$" << money << "\n";
+              } else if (cmd == "list") {
+                  if (inventory.empty()) std::cout << "nothing\n";
+                  std::vector<const Item*> sorted;
+                  for (const auto& it : inventory) sorted.push_back(it.get());
+                  std::stable_sort(sorted.begin(), sorted.end(), [](const Item* a, const Item* b) { return a->slot() < b->slot(); });
+                  for (const Item* it : sorted) std::cout << it->slot() << " " << it->name() << "\n";
+              }
+          }
+      }
+    tests:
+      - stdin: "buy ak47\nsell ak47\nmoney\nsell ak47\nbuy flash\nbuy flash\nsell flash\nlist\n"
+      - stdin: "round win\nround win\nround win\nround win\nround loss\nmoney\n"
+      - stdin: "buy awp\nround loss\nbuy deagle\nsell awp\nbuy ak47\nlist\nmoney\n"
+        hidden: true
+    hints:
+      - "Search from the back with `std::find_if(inventory.rbegin(), inventory.rend(), ...)` to get the most recent one."
+      - "To erase with a reverse iterator: `inventory.erase(std::next(it).base());`. Or loop over indexes from the end, which is simpler."
+      - "Clamp with `std::min(16000, money + amount)`."

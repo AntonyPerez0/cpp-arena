@@ -1,0 +1,194 @@
+id: c-input
+title: Reading input
+lang: c
+phase: "C: Foundations"
+summary: Make programs interactive with scanf. Reading numbers, characters and words, and checking that the read worked.
+steps:
+  - title: Read a number
+    text: |
+      `scanf` is the mirror image of `printf`: it reads values from input (stdin) into variables.
+
+      ```c
+      int n;
+      scanf("%d", &n);
+      ```
+
+      The `&` means "the address of `n`". scanf needs to know *where* to store the value, not what's currently in it. Forgetting `&` is the #1 scanf bug.
+
+      On this site, each test feeds the program some input. Use **Run with my input** to try your own.
+
+      **Your turn:** read an int and print it doubled. Input `21` prints `42`.
+    fill: |
+      #include <stdio.h>
+
+      int main(void) {
+          int n;
+          scanf("%d", [[&n]]);
+          printf("%d\n", n * 2);
+          return 0;
+      }
+    hints:
+      - scanf needs the address of the variable, written `&n`.
+    tests:
+      - stdin: "21\n"
+      - stdin: "-5\n"
+      - stdin: "1000\n"
+        hidden: true
+
+  - title: Several values at once
+    text: |
+      One `scanf` can read several values. Whitespace (spaces, newlines) between them is skipped automatically for numbers.
+
+      ```c
+      int a, b;
+      scanf("%d %d", &a, &b);
+      ```
+
+      **Your turn:** read a player's kills and deaths and print their difference.
+
+      Input: `18 11` prints `+/-: 7`
+    seed: |
+      #include <stdio.h>
+
+      int main(void) {
+          int kills, deaths;
+          // read both numbers
+
+          printf("+/-: %d\n", kills - deaths);
+          return 0;
+      }
+    solution: |
+      #include <stdio.h>
+
+      int main(void) {
+          int kills, deaths;
+          // read both numbers
+          scanf("%d %d", &kills, &deaths);
+          printf("+/-: %d\n", kills - deaths);
+          return 0;
+      }
+    hints:
+      - "`scanf(\"%d %d\", &kills, &deaths);`"
+    tests:
+      - stdin: "18 11\n"
+      - stdin: "3 9\n"
+      - stdin: "40\n40\n"
+        hidden: true
+
+  - title: Reading doubles
+    text: |
+      Here's a quirk: `printf` uses `%f` for a double, but `scanf` needs **`%lf`** ("long float") to read into a `double`.
+
+      ```c
+      double price;
+      scanf("%lf", &price);
+      printf("%.2f\n", price);
+      ```
+
+      **Your turn:** read a temperature in Celsius and print it in Fahrenheit with one decimal. The formula is `f = c * 9 / 5 + 32`.
+
+      Input `100` prints `212.0`. Input `36.6` prints `97.9`.
+    seed: |
+      #include <stdio.h>
+
+      int main(void) {
+          double c;
+
+          return 0;
+      }
+    solution: |
+      #include <stdio.h>
+
+      int main(void) {
+          double c;
+          scanf("%lf", &c);
+          double f = c * 9 / 5 + 32;
+          printf("%.1f\n", f);
+          return 0;
+      }
+    hints:
+      - "Read with `scanf(\"%lf\", &c);`"
+      - "Compute `double f = c * 9 / 5 + 32;` then print with `%.1f`."
+    tests:
+      - stdin: "100\n"
+      - stdin: "36.6\n"
+      - stdin: "-40\n"
+        hidden: true
+
+  - title: Characters and words
+    text: |
+      - `%c` reads **one character**, and it does *not* skip whitespace. Write `" %c"` (with a leading space) to skip spaces and newlines first.
+      - `%s` reads a **word** (up to the next space) into a char array. Arrays don't need `&`. You'll learn why in the pointers module.
+
+      ```c
+      char name[32];
+      scanf("%31s", name);   // 31 = max chars, leaving room for the terminator
+      ```
+
+      **Your turn:** the input is a name followed by a team letter, like `s1mple T`. Print `s1mple plays on T`.
+    fill: |
+      #include <stdio.h>
+
+      int main(void) {
+          char name[32];
+          char team;
+          scanf("%31s [[%c]]", name, [[&team]]);
+          printf("%s plays on %c\n", name, team);
+          return 0;
+      }
+    hints:
+      - The format for one char is `%c`. The space before it in the format string skips the space in the input.
+      - team is a plain char variable, so scanf needs its address, `&team`.
+    tests:
+      - stdin: "s1mple T\n"
+      - stdin: "ZywOo CT\n"
+        expect: "ZywOo plays on C"
+      - stdin: "niko\nT\n"
+        hidden: true
+
+  - title: Did the read work?
+    text: |
+      `scanf` returns how many values it successfully read. If the input isn't a number, reading `%d` fails and returns 0. At the end of input it returns `EOF` (a negative number).
+
+      ```c
+      int n;
+      if (scanf("%d", &n) == 1) {
+          // n is valid
+      }
+      ```
+
+      You'll learn `if` properly in the next module; for now just follow the pattern.
+
+      **Your turn:** read one int. If it worked, print `Got N`. Otherwise print `Not a number`.
+    seed: |
+      #include <stdio.h>
+
+      int main(void) {
+          int n;
+          if (/* check the scanf result here */ 0) {
+              printf("Got %d\n", n);
+          } else {
+              printf("Not a number\n");
+          }
+          return 0;
+      }
+    solution: |
+      #include <stdio.h>
+
+      int main(void) {
+          int n;
+          if (scanf("%d", &n) == 1) {
+              printf("Got %d\n", n);
+          } else {
+              printf("Not a number\n");
+          }
+          return 0;
+      }
+    hints:
+      - "Replace the `0` with the scanf call and compare its result: `scanf(\"%d\", &n) == 1`."
+    tests:
+      - stdin: "7\n"
+      - stdin: "abc\n"
+      - stdin: ""
+      - stdin: "-3\n"
+        hidden: true

@@ -1,0 +1,68 @@
+# C/C++ Arena
+
+Learn C and C++ from zero to advanced, freeCodeCamp style, with **real compilation in your browser**.
+
+- **Learn**: 28 modules, 157 steps. C first (printf to pointers, memory, structs, linked lists, bits), then C++ (classes, RAII, the STL, lambdas, smart pointers, move semantics, templates, polymorphism, C++20). Early steps are fill-in-the-blank; later steps have you write most of the code. Every step has hints you reveal one at a time and a "show solution" escape hatch.
+- **Deathmatch**: endless reps drawn from the topics you've unlocked. Predict the output, fill the token, spot the bug, will it compile. Instant checks keep the respawn fast, and every 8th rep is a compiled boss rep. One life (ranked), three lives (casual), or a spaced-review warm-up that feeds you what you missed. 338 drills, CS-style ranks from Silver I to The Global Elite.
+- **Projects**: 11 multi-milestone builds, from a calculator and a text adventure to a dynamic array, a memory allocator, a matrix library, your own `vector<T>`, an expression interpreter and a buy-menu economy.
+
+Everything you submit is compiled by Clang 20 running as WebAssembly in a Web Worker and executed on a WASI runtime, with a 3 second time limit for infinite loops. Compiler errors come with plain-English explanations. There is no server: the site is static and works on GitHub Pages.
+
+## Deploy to GitHub Pages
+
+1. Create an empty repository on GitHub (any name, for example `cpp-arena`).
+2. Push this folder to it:
+
+   ```bash
+   cd cpp-arena
+   git init -b main
+   git add .
+   git commit -m "C/C++ Arena"
+   git remote add origin https://github.com/<you>/<repo>.git
+   git push -u origin main
+   ```
+
+3. On GitHub, open **Settings > Pages** and set **Source** to **GitHub Actions**.
+
+The workflow in `.github/workflows/deploy.yml` then runs on every push to `main`. It installs dependencies, compiles and runs every lesson solution, drill and project milestone with GCC (the build fails if any expected output is wrong), builds the site and publishes it at `https://<you>.github.io/<repo>/`. The site uses relative URLs and hash routing, so any repository name works.
+
+## Run locally
+
+```bash
+npm install        # also copies the Clang toolchain into public/toolchain
+npm run dev        # http://localhost:5173
+```
+
+Other scripts:
+
+| Script | What it does |
+|---|---|
+| `npm run content` | Rebuilds `src/generated/content.json` from `content/**/*.yaml`, compiling and running everything with GCC/G++ |
+| `npm run verify:wasm` | Cross-checks all content against the exact browser toolchain (browsercc Clang in Node) |
+| `npm run build` | Type-checks and builds `dist/` |
+| `npm run test:e2e` | Serves `dist/` and drives the real UI in headless Chromium |
+
+## How it works
+
+- **Compiler**: [browsercc](https://github.com/BertalanD/browsercc) (Clang/LLD 20 compiled to WebAssembly, MIT license). `src/compiler/core.js` compiles the big wasm modules once and re-instantiates them per compile. The toolchain (about 95 MB, plus a 19 MB precompiled C++ standard library header) downloads once and is kept in Cache Storage.
+- **Flags**: C uses `-std=c17 -O1 -Wall -Wextra`. C++ uses `-std=c++20 -O2 -fno-exceptions -Wall -Wextra` with the precompiled header, which is why a warm C++ compile takes about a second.
+- **Running**: each run happens in a short-lived worker with `@bjorn3/browser_wasi_shim`. stdin is supplied up front, output is capped at 64 KB, and the worker is killed after 3 seconds.
+- **Grading**: stdout steps compare normalized output against test cases (some hidden, so hard-coding answers fails). Function steps append a hidden `main()` that calls your code and reports `@@PASS`/`@@FAIL` lines. Steps can also require or forbid patterns (for example "use a for loop").
+- **Progress**: stored in your browser's localStorage. Export and import it from the Profile page.
+
+## Known limits
+
+- No C++ exceptions or threads (WASI). The error-handling module teaches the exception-free patterns instead.
+- WebAssembly memory is only bounds-checked at its outer edge, so many out-of-bounds bugs won't crash the way they do natively.
+- Programs can't read input interactively; each test supplies stdin in advance. Use "Run with my input" to try your own.
+- Because C++ compiles with a precompiled `<bits/stdc++.h>`, a missing `#include` in C++ code still compiles here. The GCC check in CI uses real includes.
+
+## Writing content
+
+Content lives in YAML under `content/`:
+
+- `content/lessons/NN-id.yaml`: a module with `steps`. A step has `title`, `text` (Markdown), `hints`, and either `fill:` (code with `[[answer]]` blanks) or `seed:` + `solution:`. Add `tests:` with `stdin:` for programs, or `harness:` (a hidden `main` using `CHECK`, `CHECK_INT`, `CHECK_STR`, `CHECK_DBL` in C, or `CHECK` and `CHECK_EQ` in C++) for function steps. Optional `require:`/`forbid:` rules take a regex `pattern` and a `message`.
+- `content/drills/<module-id>.yaml`: drills of type `predict`, `fill`, `bug` (mark the line with `// BUG` and give `fix:`), `compiles` and `boss` (an exercise like a lesson step). `pre:` holds code above `main`; `body:` goes inside `main`.
+- `content/projects/NN-id.yaml`: a `seed` and `milestones`, each with the full `solution` at that point. Your code carries forward between milestones.
+
+Expected outputs are computed from the reference solutions by `npm run content`, so you never type them by hand. `python3 scripts/yaml-quote-fix.py content/*/*.yaml` quotes prose lines that contain colons.

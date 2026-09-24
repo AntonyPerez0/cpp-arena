@@ -1,0 +1,114 @@
+topic: c-strings
+lang: c
+drills:
+  - type: predict
+    body: |
+      printf("%zu\n", strlen("dust2"));
+    why: strlen counts the characters before the terminator.
+  - type: predict
+    body: |
+      char s[] = "dust2";
+      printf("%zu\n", sizeof(s));
+    why: sizeof includes the '\0' terminator, so 6.
+  - type: predict
+    body: |
+      char s[] = "nuke";
+      s[0] = 'd';
+      printf("%s\n", s);
+    why: A char array's contents can be modified.
+  - type: predict
+    body: |
+      char s[] = "mirage";
+      s[3] = '\0';
+      printf("%s\n", s);
+    why: printf stops at the first '\0'.
+  - type: predict
+    body: |
+      printf("%d\n", strcmp("abc", "abc") == 0);
+    why: strcmp returns 0 when the strings are equal.
+  - type: predict
+    body: |
+      char buf[16] = "rush";
+      strcat(buf, " b");
+      printf("%s %zu\n", buf, strlen(buf));
+    why: strcat appends, giving "rush b" with 6 characters.
+  - type: predict
+    body: |
+      char c = '7';
+      printf("%d\n", c - '0');
+    why: Digit characters are consecutive, so '7' - '0' is the number 7.
+  - type: fill
+    prompt: Compare the strings' contents.
+    body: |
+      char map[] = "inferno";
+      if ([[strcmp]](map, "inferno") == 0) printf("match\n");
+    why: "`==` would compare addresses; strcmp compares text."
+  - type: fill
+    prompt: Terminate the string.
+    body: |
+      char s[3];
+      s[0] = 'o';
+      s[1] = 'k';
+      s[2] = [['\0']];
+      printf("%s\n", s);
+    why: C strings end with the null character '\0'.
+  - type: bug
+    body: |
+      char a[] = "gg";
+      char b[] = "gg";
+      if (a == b) printf("same\n"); // BUG
+      else printf("different\n");
+    fix: 'if (strcmp(a, b) == 0) printf("same\n");'
+    why: "`a == b` compares two different addresses. Use strcmp."
+  - type: bug
+    body: |
+      char name[5]; // BUG
+      strcpy(name, "flusha");
+      printf("%s\n", name);
+    fix: "char name[7];"
+    why: "\"flusha\" needs 6 chars plus the terminator. The copy overflows the buffer."
+    ub: true
+  - type: compiles
+    body: |
+      char s[10];
+      s = "hello";
+      printf("%s\n", s);
+    why: You can't assign to an array. Use strcpy (or initialize at declaration).
+  - type: compiles
+    body: |
+      char c = "x";
+      printf("%c\n", c);
+    answer: "no"
+    why: "\"x\" is a string (a char array), not a char. Chars use single quotes."
+  - type: boss
+    prompt: |
+      Write `int count_words(const char *s)` that counts words separated by single or multiple spaces. `"  rush  b now "` has 3 words.
+    seed: |
+      int count_words(const char *s) {
+
+      }
+    solution: |
+      int count_words(const char *s) {
+          int n = 0, in_word = 0;
+          for (; *s; s++) {
+              if (*s == ' ') {
+                  in_word = 0;
+              } else if (!in_word) {
+                  in_word = 1;
+                  n++;
+              }
+          }
+          return n;
+      }
+    harness: |
+      int main(void) {
+          CHECK_INT("\"rush b\"", count_words("rush b"), 2);
+          CHECK_INT("\"  rush  b now \"", count_words("  rush  b now "), 3);
+          CHECK_INT("empty", count_words(""), 0);
+          CHECK_INT("spaces only", count_words("    "), 0);
+          CHECK_INT("one", count_words("eco"), 1);
+          return 0;
+      }
+    hints:
+      - Count the moments where a non-space follows a space (or the start).
+    why: Track whether you're inside a word; count each transition into one.

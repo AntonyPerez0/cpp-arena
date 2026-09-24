@@ -1,0 +1,220 @@
+id: cpp-operators
+title: Operator overloading
+lang: cpp
+phase: "C++: A Better C"
+summary: Teach your own types to work with +, ==, <<, [] and <, so they read like built-in types.
+steps:
+  - title: operator+
+    text: |
+      You can define what operators mean for your types. An operator is just a function with a special name:
+
+      ```cpp
+      struct Vec2 { double x, y; };
+
+      Vec2 operator+(Vec2 a, Vec2 b) {
+          return {a.x + b.x, a.y + b.y};
+      }
+
+      Vec2 c = Vec2{1, 2} + Vec2{3, 4};   // {4, 6}
+      ```
+
+      **Your turn:** complete `operator-` and `operator*` (vector times a number).
+    fill: |
+      #include <iostream>
+
+      struct Vec2 { double x, y; };
+
+      Vec2 [[operator-]](Vec2 a, Vec2 b) { return {a.x - b.x, a.y - b.y}; }
+      Vec2 operator*(Vec2 a, double k) { return {a.x [[*]] k, a.y * k}; }
+
+      int main() {
+          Vec2 v = (Vec2{5, 5} - Vec2{2, 1}) * 2;
+          std::cout << v.x << " " << v.y << "\n";
+      }
+    hints:
+      - "The function for `-` is named `operator-`."
+    tests:
+      - expect: "6 8"
+
+  - title: operator== and !=
+    text: |
+      For comparisons, define `operator==`. Since C++20 the compiler automatically gives you `!=` from it. You can even ask it to generate `==` for you, comparing every member:
+
+      ```cpp
+      struct Point {
+          int x, y;
+          bool operator==(const Point&) const = default;
+      };
+      ```
+
+      **Your turn:** write `operator==` for `Score` by hand. Two scores are equal if both teams' round counts match; the map name doesn't matter.
+    seed: |
+      #include <string>
+
+      struct Score {
+          int t;
+          int ct;
+          std::string map;
+      };
+
+      // operator== here
+    solution: |
+      #include <string>
+
+      struct Score {
+          int t;
+          int ct;
+          std::string map;
+      };
+
+      // operator== here
+      bool operator==(const Score& a, const Score& b) {
+          return a.t == b.t && a.ct == b.ct;
+      }
+    harness: |
+      int main() {
+          Score a{13, 7, "mirage"}, b{13, 7, "nuke"}, c{7, 13, "mirage"};
+          CHECK("13-7 == 13-7 on another map", a == b);
+          CHECK("13-7 != 7-13", !(a == c));
+          CHECK("!= works too (C++20)", a != c);
+      }
+    hints:
+      - "`bool operator==(const Score& a, const Score& b)`"
+      - Compare only `t` and `ct`.
+
+  - title: Printing with operator<<
+    text: |
+      To make `std::cout << obj` work, overload `<<` for `std::ostream`. It must return the stream so calls can chain:
+
+      ```cpp
+      std::ostream& operator<<(std::ostream& os, const Vec2& v) {
+          return os << "(" << v.x << ", " << v.y << ")";
+      }
+      ```
+
+      **Your turn:** make `Score` printable as `T 13 - 7 CT`.
+    seed: |
+      #include <iostream>
+
+      struct Score {
+          int t;
+          int ct;
+      };
+
+      // operator<< here
+    solution: |
+      #include <iostream>
+
+      struct Score {
+          int t;
+          int ct;
+      };
+
+      // operator<< here
+      std::ostream& operator<<(std::ostream& os, const Score& s) {
+          return os << "T " << s.t << " - " << s.ct << " CT";
+      }
+    harness: |
+      #include <sstream>
+      int main() {
+          std::ostringstream out;
+          out << Score{13, 7};
+          CHECK_EQ("print 13-7", out.str(), std::string("T 13 - 7 CT"));
+          std::ostringstream out2;
+          out2 << Score{0, 0} << "|" << Score{16, 14};
+          CHECK_EQ("chained", out2.str(), std::string("T 0 - 0 CT|T 16 - 14 CT"));
+      }
+    hints:
+      - "Signature: `std::ostream& operator<<(std::ostream& os, const Score& s)`."
+      - "`return os << \"T \" << s.t << \" - \" << s.ct << \" CT\";`"
+
+  - title: operator[]
+    text: |
+      `operator[]` must be a **member** function. Returning a reference lets callers assign through it. Usually you provide a const and a non-const version:
+
+      ```cpp
+      int& operator[](int i) { return data_[i]; }
+      const int& operator[](int i) const { return data_[i]; }
+      ```
+
+      **Your turn:** give `Loadout` an `operator[]` taking a slot number 1 to 5 (not 0 to 4!) and returning the weapon name in that slot.
+    seed: |
+      #include <string>
+
+      class Loadout {
+      public:
+
+      private:
+          std::string slots_[5] = {"rifle", "pistol", "knife", "grenade", "bomb"};
+      };
+    solution: |
+      #include <string>
+
+      class Loadout {
+      public:
+          std::string& operator[](int slot) { return slots_[slot - 1]; }
+          const std::string& operator[](int slot) const { return slots_[slot - 1]; }
+
+      private:
+          std::string slots_[5] = {"rifle", "pistol", "knife", "grenade", "bomb"};
+      };
+    harness: |
+      int main() {
+          Loadout l;
+          CHECK_EQ("l[1]", l[1], std::string("rifle"));
+          CHECK_EQ("l[3]", l[3], std::string("knife"));
+          l[2] = "deagle";
+          CHECK_EQ("assign through l[2]", l[2], std::string("deagle"));
+          const Loadout& c = l;
+          CHECK_EQ("const access c[5]", c[5], std::string("bomb"));
+      }
+    hints:
+      - "Slot 1 is index 0, so return `slots_[slot - 1]`."
+      - Write both `std::string& operator[](int)` and a `const` version returning `const std::string&`.
+
+  - title: operator< and sorting
+    text: |
+      `std::sort` (from `<algorithm>`) orders anything that has a `<`. Define `operator<` and your own type becomes sortable:
+
+      ```cpp
+      std::vector<Player> team = ...;
+      std::sort(team.begin(), team.end());
+      ```
+
+      (Vectors are the next module; for now just know `team.begin(), team.end()` means "the whole vector".)
+
+      **Your turn:** define `operator<` for `Player` so sorting puts the **most kills first**, and for equal kills, the name alphabetically first.
+    seed: |
+      #include <string>
+
+      struct Player {
+          std::string name;
+          int kills;
+      };
+
+      // operator< here
+    solution: |
+      #include <string>
+
+      struct Player {
+          std::string name;
+          int kills;
+      };
+
+      // operator< here
+      bool operator<(const Player& a, const Player& b) {
+          if (a.kills != b.kills) return a.kills > b.kills;
+          return a.name < b.name;
+      }
+    harness: |
+      #include <algorithm>
+      int main() {
+          std::vector<Player> t = {{"rain", 18}, {"ropz", 25}, {"broky", 25}, {"karrigan", 9}};
+          std::sort(t.begin(), t.end());
+          std::vector<std::string> names;
+          for (auto& p : t) names.push_back(p.name);
+          CHECK_EQ("sorted order", names, std::vector<std::string>{"broky", "ropz", "rain", "karrigan"});
+      }
+    hints:
+      - "\"Comes first\" means \"is less\". a comes before b if a has **more** kills."
+      - "`if (a.kills != b.kills) return a.kills > b.kills; return a.name < b.name;`"

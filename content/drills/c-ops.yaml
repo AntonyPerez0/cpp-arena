@@ -1,0 +1,81 @@
+topic: c-ops
+lang: c
+drills:
+  - type: predict
+    body: |
+      printf("%d\n", 7 / 2);
+    why: int / int drops the fraction, so 7 / 2 is 3.
+  - type: predict
+    body: |
+      printf("%d\n", 17 % 5);
+    why: 17 = 3 * 5 + 2, so the remainder is 2.
+  - type: predict
+    body: |
+      printf("%d\n", 2 + 3 * 4);
+    why: "`*` binds tighter than `+`: 2 + 12 = 14."
+  - type: predict
+    body: |
+      printf("%d\n", (2 + 3) * 4);
+    why: Parentheses first, then multiply.
+  - type: predict
+    body: |
+      printf("%.1f\n", 7 / 2.0);
+    why: "One side is a double, so the division is real: 3.5."
+  - type: predict
+    body: |
+      int a = 5;
+      int b = a++;
+      printf("%d %d\n", a, b);
+    why: Postfix `a++` hands out the old value (5) and then increments a to 6.
+  - type: predict
+    body: |
+      int a = 5;
+      int b = ++a;
+      printf("%d %d\n", a, b);
+    why: Prefix `++a` increments first, so both are 6.
+  - type: predict
+    body: |
+      int x = 10;
+      x -= 3;
+      x *= 2;
+      printf("%d\n", x);
+    why: 10 - 3 = 7, then 7 * 2 = 14.
+  - type: predict
+    body: |
+      printf("%d\n", -7 / 2);
+    why: C truncates toward zero, so -3.5 becomes -3.
+  - type: fill
+    prompt: Get the remainder of seconds after whole minutes.
+    body: |
+      int total = 125;
+      printf("%d\n", total [[%]] 60);
+    why: "`%` gives the remainder: 125 - 120 = 5."
+  - type: fill
+    prompt: Make it a real (non-integer) division.
+    body: |
+      int kills = 7, rounds = 2;
+      printf("%.1f\n", ([[double]])kills / rounds);
+    why: Casting one operand to double makes the division real.
+  - type: bug
+    body: |
+      int kills = 25, rounds = 10;
+      double kpr = kills / rounds; // BUG
+      printf("%.2f\n", kpr);
+    fix: "double kpr = (double)kills / rounds;"
+    why: kills / rounds is integer division (2) before it's stored in the double.
+  - type: compiles
+    body: |
+      int a = 5;
+      a++ ++;
+      printf("%d\n", a);
+    why: "`a++` is not something you can increment again (it isn't an lvalue)."
+  - type: compiles
+    body: |
+      double d = 5.5;
+      printf("%d\n", (int)d % 2);
+    why: Casting to int first makes `%` legal.
+  - type: compiles
+    body: |
+      double d = 5.5;
+      printf("%f\n", d % 2);
+    why: "`%` only works on integers. Use fmod() for doubles."

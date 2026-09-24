@@ -1,0 +1,263 @@
+id: c-pointers
+title: Pointers
+lang: c
+phase: "C: Memory"
+summary: Addresses and the variables that hold them. & and *, changing a caller's variables, pointer arithmetic, arrays vs pointers, NULL and const.
+steps:
+  - title: Addresses and pointers
+    text: |
+      Every variable lives at an **address** in memory. `&x` gives you that address. A **pointer** is a variable that stores an address.
+
+      ```c
+      int hp = 100;
+      int *p = &hp;     // p points at hp
+      printf("%d\n", *p);   // 100: *p means "the value p points at"
+      *p = 75;              // changes hp itself!
+      printf("%d\n", hp);   // 75
+      ```
+
+      - `int *p` declares "p is a pointer to int".
+      - `&hp` is "address of hp".
+      - `*p` (the **dereference** operator) is "the thing at that address".
+
+      **Your turn:** make `p` point at `armor`, then use `p` (not `armor` directly) to set it to `50`.
+    fill: |
+      #include <stdio.h>
+
+      int main(void) {
+          int armor = 100;
+          int *p = [[&armor]];
+          [[*p]] = 50;
+          printf("armor %d\n", armor);
+          return 0;
+      }
+    hints:
+      - The address of armor is `&armor`.
+      - To write to the variable p points at, use `*p = ...`.
+    tests:
+      - expect: "armor 50"
+
+  - title: Change the caller's variable
+    text: |
+      Remember that C passes arguments by value, so a function can't change your variables... unless you pass their **address**:
+
+      ```c
+      void damage(int *hp, int amount) {
+          *hp -= amount;
+      }
+
+      int hp = 100;
+      damage(&hp, 30);   // hp is now 70
+      ```
+
+      That's why `scanf` needs `&x`: it writes into your variable through a pointer.
+
+      **Your turn:** write `void swap(int *a, int *b)` that exchanges the two values.
+    seed: |
+      void swap(int *a, int *b) {
+
+      }
+    solution: |
+      void swap(int *a, int *b) {
+          int tmp = *a;
+          *a = *b;
+          *b = tmp;
+      }
+    harness: |
+      int main(void) {
+          int x = 1, y = 2;
+          swap(&x, &y);
+          CHECK_INT("x after swap", x, 2);
+          CHECK_INT("y after swap", y, 1);
+          int z = -7, w = -7;
+          swap(&z, &w);
+          CHECK("equal values stay equal", z == -7 && w == -7);
+          return 0;
+      }
+    hints:
+      - "Save the value at a: `int tmp = *a;`"
+      - "Then `*a = *b;` and `*b = tmp;`"
+
+  - title: Returning two results
+    text: |
+      A function can only `return` one value. Pointer parameters let it hand back more ("out parameters"):
+
+      ```c
+      void minmax(int a[], int n, int *min, int *max);
+      ```
+
+      **Your turn:** write `void divmod(int a, int b, int *q, int *r)` that stores `a / b` in `*q` and `a % b` in `*r`.
+    seed: |
+      void divmod(int a, int b, int *q, int *r) {
+
+      }
+    solution: |
+      void divmod(int a, int b, int *q, int *r) {
+          *q = a / b;
+          *r = a % b;
+      }
+    harness: |
+      int main(void) {
+          int q = 0, r = 0;
+          divmod(17, 5, &q, &r);
+          CHECK_INT("17 / 5", q, 3);
+          CHECK_INT("17 % 5", r, 2);
+          divmod(754, 60, &q, &r);
+          CHECK_INT("754 / 60", q, 12);
+          CHECK_INT("754 % 60", r, 34);
+          return 0;
+      }
+    hints:
+      - "Write through the pointers: `*q = a / b;` and `*r = a % b;`"
+
+  - title: Pointer arithmetic and arrays
+    text: |
+      An array's name turns into a pointer to its first element when you use it ("decays"). Adding 1 to a pointer moves it to the **next element** (not the next byte):
+
+      ```c
+      int a[3] = {10, 20, 30};
+      int *p = a;          // same as &a[0]
+      printf("%d\n", *(p + 1));   // 20
+      ```
+
+      In fact `a[i]` is defined as `*(a + i)`. That's why arrays passed to functions can be modified: the function receives a pointer to the original elements.
+
+      **Your turn:** write `int sum(const int *p, int n)` using pointer arithmetic instead of `[]`.
+    seed: |
+      int sum(const int *p, int n) {
+
+      }
+    solution: |
+      int sum(const int *p, int n) {
+          int s = 0;
+          for (const int *end = p + n; p < end; p++) {
+              s += *p;
+          }
+          return s;
+      }
+    forbid:
+      - pattern: "\\["
+        message: Use pointer arithmetic (`*p`, `p++`, `*(p + i)`) instead of `[ ]` on this step.
+    harness: |
+      int main(void) {
+          int a[] = {1, 2, 3, 4};
+          CHECK_INT("sum {1,2,3,4}", sum(a, 4), 10);
+          CHECK_INT("sum of first 2", sum(a, 2), 3);
+          CHECK_INT("sum of middle 2", sum(a + 1, 2), 5);
+          CHECK_INT("empty", sum(a, 0), 0);
+          return 0;
+      }
+    hints:
+      - "`*(p + i)` is element i. Or walk the pointer itself: `s += *p; p++;`"
+      - "One neat version: `for (const int *end = p + n; p < end; p++) s += *p;`"
+
+  - title: NULL
+    text: |
+      `NULL` is a special pointer value meaning "points at nothing". Dereferencing NULL crashes the program (on a normal OS it's the famous *segmentation fault*).
+
+      Always check a pointer that might be NULL before using it:
+
+      ```c
+      if (p != NULL) {
+          printf("%d\n", *p);
+      }
+      ```
+
+      **Your turn:** write `int safe_get(const int *p, int fallback)` that returns `*p`, or `fallback` if `p` is `NULL`.
+    seed: |
+      #include <stddef.h>
+
+      int safe_get(const int *p, int fallback) {
+
+      }
+    solution: |
+      #include <stddef.h>
+
+      int safe_get(const int *p, int fallback) {
+          if (p == NULL) return fallback;
+          return *p;
+      }
+    harness: |
+      int main(void) {
+          int v = 42;
+          CHECK_INT("valid pointer", safe_get(&v, -1), 42);
+          CHECK_INT("NULL pointer", safe_get(NULL, -1), -1);
+          CHECK_INT("NULL with other fallback", safe_get(NULL, 7), 7);
+          return 0;
+      }
+    hints:
+      - "Check `if (p == NULL) return fallback;` before touching `*p`."
+
+  - title: Strings through pointers
+    text: |
+      Since strings are char arrays, `char *` is the usual way to walk through one:
+
+      ```c
+      for (const char *c = s; *c != '\0'; c++) {
+          // *c is the current character
+      }
+      ```
+
+      **Your turn:** write `int count_char(const char *s, char ch)` that returns how many times `ch` appears in `s`.
+    seed: |
+      int count_char(const char *s, char ch) {
+
+      }
+    solution: |
+      int count_char(const char *s, char ch) {
+          int n = 0;
+          for (; *s != '\0'; s++) {
+              if (*s == ch) n++;
+          }
+          return n;
+      }
+    harness: |
+      int main(void) {
+          CHECK_INT("'s' in \"headshots\"", count_char("headshots", 's'), 2);
+          CHECK_INT("'z' in \"dust\"", count_char("dust", 'z'), 0);
+          CHECK_INT("'a' in \"\"", count_char("", 'a'), 0);
+          CHECK_INT("' ' in \"a b c\"", count_char("a b c", ' '), 2);
+          return 0;
+      }
+    hints:
+      - Walk the pointer until `*s == '\0'`, counting matches.
+
+  - title: Pointers to pointers
+    text: |
+      A pointer is a variable too, so it has an address. `int **pp` is a pointer to a pointer to int. You need one when a function must change **which address** a pointer holds.
+
+      ```c
+      void point_at_max(int *a, int n, int **out) {
+          *out = &a[0];
+          for (int i = 1; i < n; i++)
+              if (a[i] > **out) *out = &a[i];
+      }
+      ```
+
+      **Your turn:** write `void advance(const char **s)` that moves the caller's string pointer past any leading spaces. After `advance(&p)` with `p` pointing at `"   go"`, `p` should point at `"go"`.
+    seed: |
+      void advance(const char **s) {
+
+      }
+    solution: |
+      void advance(const char **s) {
+          while (**s == ' ') {
+              (*s)++;
+          }
+      }
+    harness: |
+      int main(void) {
+          const char *p = "   go";
+          advance(&p);
+          CHECK_STR("\"   go\"", p, "go");
+          const char *q = "ready";
+          advance(&q);
+          CHECK_STR("no spaces", q, "ready");
+          const char *r = "    ";
+          advance(&r);
+          CHECK_STR("only spaces", r, "");
+          return 0;
+      }
+    hints:
+      - "`*s` is the caller's pointer, and `**s` is the character it points at."
+      - "While `**s == ' '`, move the caller's pointer: `(*s)++;` (parentheses matter)."

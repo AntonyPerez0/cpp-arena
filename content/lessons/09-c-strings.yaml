@@ -1,0 +1,242 @@
+id: c-strings
+title: Strings
+lang: c
+phase: "C: Memory"
+summary: C strings are char arrays ending in '\0'. Length, copying, comparing, and writing string functions yourself.
+steps:
+  - title: The null terminator
+    text: |
+      C has no built-in string type. A string is a **char array** that ends with the special character `'\0'` (value 0), called the **null terminator**.
+
+      ```c
+      char name[] = "dust";
+      // stored as: 'd' 'u' 's' 't' '\0'   (5 chars!)
+      ```
+
+      Functions like `printf("%s")` print characters until they hit `'\0'`. Forget it, and they keep reading random memory.
+
+      **Your turn:** build the string `"ak"` by hand and print it.
+    fill: |
+      #include <stdio.h>
+
+      int main(void) {
+          char gun[3];
+          gun[0] = 'a';
+          gun[1] = 'k';
+          gun[2] = [['\0']];
+          printf("%s\n", gun);
+          return 0;
+      }
+    hints:
+      - The terminator character is written `'\0'` (backslash zero, in single quotes).
+    tests:
+      - expect: "ak"
+
+  - title: strlen and friends
+    text: |
+      `<string.h>` has the standard string functions:
+
+      | Function | Does |
+      |---|---|
+      | `strlen(s)` | number of chars before `'\0'` |
+      | `strcpy(dst, src)` | copy src into dst |
+      | `strcat(dst, src)` | append src to dst |
+      | `strcmp(a, b)` | 0 if equal, negative/positive otherwise |
+
+      `dst` must be big enough, including room for the `'\0'`.
+
+      **Your turn:** read two words and print them joined with a `-` between, followed by the total length. Input `de dust2` prints `de-dust2 8`.
+    seed: |
+      #include <stdio.h>
+      #include <string.h>
+
+      int main(void) {
+          char a[32], b[32];
+          scanf("%31s %31s", a, b);
+          char out[80];
+          // build out = a + "-" + b
+
+          printf("%s %zu\n", out, strlen(out));
+          return 0;
+      }
+    solution: |
+      #include <stdio.h>
+      #include <string.h>
+
+      int main(void) {
+          char a[32], b[32];
+          scanf("%31s %31s", a, b);
+          char out[80];
+          // build out = a + "-" + b
+          strcpy(out, a);
+          strcat(out, "-");
+          strcat(out, b);
+          printf("%s %zu\n", out, strlen(out));
+          return 0;
+      }
+    hints:
+      - "Copy the first word in with `strcpy(out, a);`"
+      - "Then `strcat(out, \"-\");` and `strcat(out, b);`"
+    tests:
+      - stdin: "de dust2\n"
+      - stdin: "a b\n"
+      - stdin: "mirage inferno\n"
+        hidden: true
+
+  - title: Write your own strlen
+    text: |
+      Knowing how the library works makes you dangerous (in a good way). A string's length is the number of chars before `'\0'`.
+
+      **Your turn:** write `int my_strlen(const char s[])` without using `<string.h>`.
+
+      `const` here promises the function won't modify the string.
+    seed: |
+      int my_strlen(const char s[]) {
+
+      }
+    solution: |
+      int my_strlen(const char s[]) {
+          int n = 0;
+          while (s[n] != '\0') {
+              n++;
+          }
+          return n;
+      }
+    forbid:
+      - pattern: "\\bstrlen\\s*\\("
+        message: Don't call the library strlen; count the characters yourself.
+    harness: |
+      int main(void) {
+          CHECK_INT("my_strlen(\"\")", my_strlen(""), 0);
+          CHECK_INT("my_strlen(\"a\")", my_strlen("a"), 1);
+          CHECK_INT("my_strlen(\"headshot\")", my_strlen("headshot"), 8);
+          CHECK_INT("my_strlen(\"with spaces too\")", my_strlen("with spaces too"), 15);
+          return 0;
+      }
+    hints:
+      - Start a counter at 0 and move forward while `s[n] != '\0'`.
+
+  - title: Compare strings correctly
+    text: |
+      `a == b` on two strings compares their **addresses**, not their contents. To compare text, use `strcmp`:
+
+      ```c
+      if (strcmp(map, "mirage") == 0) { ... }   // equal
+      ```
+
+      **Your turn:** read a command word. Print `planting` for `plant`, `defusing` for `defuse`, and `unknown command` for anything else.
+    seed: |
+      #include <stdio.h>
+      #include <string.h>
+
+      int main(void) {
+          char cmd[32];
+          scanf("%31s", cmd);
+
+          return 0;
+      }
+    solution: |
+      #include <stdio.h>
+      #include <string.h>
+
+      int main(void) {
+          char cmd[32];
+          scanf("%31s", cmd);
+          if (strcmp(cmd, "plant") == 0) {
+              printf("planting\n");
+          } else if (strcmp(cmd, "defuse") == 0) {
+              printf("defusing\n");
+          } else {
+              printf("unknown command\n");
+          }
+          return 0;
+      }
+    require:
+      - pattern: "strcmp\\s*\\("
+        message: Compare the text with `strcmp`.
+    hints:
+      - "`strcmp(cmd, \"plant\") == 0` is true when they match."
+    tests:
+      - stdin: "plant\n"
+      - stdin: "defuse\n"
+      - stdin: "rush\n"
+      - stdin: "Plant\n"
+        hidden: true
+
+  - title: Characters are numbers
+    text: |
+      Because chars are small numbers, you can do math on them. Letters `'a'` to `'z'` are consecutive, so `'a' + 2` is `'c'`, and `c - 'a'` gives a letter's position in the alphabet.
+
+      `<ctype.h>` has helpers: `isdigit(c)`, `isalpha(c)`, `isupper(c)`, `toupper(c)`, `tolower(c)`.
+
+      **Your turn:** write `void to_upper(char s[])` that converts every lowercase letter in the string to uppercase **in place**. Leave other characters alone.
+    seed: |
+      void to_upper(char s[]) {
+
+      }
+    solution: |
+      void to_upper(char s[]) {
+          for (int i = 0; s[i] != '\0'; i++) {
+              if (s[i] >= 'a' && s[i] <= 'z') {
+                  s[i] = s[i] - 'a' + 'A';
+              }
+          }
+      }
+    harness: |
+      int main(void) {
+          char a[] = "rush b";
+          to_upper(a);
+          CHECK_STR("\"rush b\"", a, "RUSH B");
+          char b[] = "AWP-123";
+          to_upper(b);
+          CHECK_STR("\"AWP-123\"", b, "AWP-123");
+          char c[] = "";
+          to_upper(c);
+          CHECK_STR("empty string", c, "");
+          char d[] = "gG wP!";
+          to_upper(d);
+          CHECK_STR("\"gG wP!\"", d, "GG WP!");
+          return 0;
+      }
+    hints:
+      - Loop until you reach `'\0'`.
+      - "If `s[i]` is between 'a' and 'z', subtract `'a' - 'A'` (or call `toupper` from `<ctype.h>`)."
+
+  - title: "Challenge: palindromes"
+    text: |
+      A palindrome reads the same forwards and backwards, like `level` or `racecar`.
+
+      **Your turn:** write `int is_palindrome(const char s[])` returning 1 or 0. Compare characters from both ends moving inward, like reversing an array.
+    seed: |
+      #include <string.h>
+
+      int is_palindrome(const char s[]) {
+
+      }
+    solution: |
+      #include <string.h>
+
+      int is_palindrome(const char s[]) {
+          int i = 0;
+          int j = (int)strlen(s) - 1;
+          while (i < j) {
+              if (s[i] != s[j]) return 0;
+              i++;
+              j--;
+          }
+          return 1;
+      }
+    harness: |
+      int main(void) {
+          CHECK_INT("\"level\"", is_palindrome("level"), 1);
+          CHECK_INT("\"racecar\"", is_palindrome("racecar"), 1);
+          CHECK_INT("\"abba\"", is_palindrome("abba"), 1);
+          CHECK_INT("\"ab\"", is_palindrome("ab"), 0);
+          CHECK_INT("\"a\"", is_palindrome("a"), 1);
+          CHECK_INT("\"\"", is_palindrome(""), 1);
+          CHECK_INT("\"nuke\"", is_palindrome("nuke"), 0);
+          return 0;
+      }
+    hints:
+      - "Two indexes: `i = 0` and `j = strlen(s) - 1`."
+      - While `i < j`, if `s[i] != s[j]` it's not a palindrome. Otherwise move both inward.

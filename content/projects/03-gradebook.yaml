@@ -1,0 +1,214 @@
+id: gradebook
+title: Grade book
+lang: c
+level: Beginner
+after: c-arrays
+summary: Read a class's scores, compute statistics, count letter grades and draw a text histogram.
+seed: |
+  #include <stdio.h>
+
+  int main(void) {
+      int n;
+      int scores[100];
+      scanf("%d", &n);
+
+      return 0;
+  }
+milestones:
+  - title: Average
+    text: |
+      Input is `n` (1 to 100) followed by `n` scores between 0 and 100. Print the average with two decimals:
+
+      ```
+      4
+      90 72 85 60
+      ```
+      prints `average 76.75`
+    solution: |
+      #include <stdio.h>
+
+      int main(void) {
+          int n;
+          int scores[100];
+          scanf("%d", &n);
+          int sum = 0;
+          for (int i = 0; i < n; i++) {
+              scanf("%d", &scores[i]);
+              sum += scores[i];
+          }
+          printf("average %.2f\n", (double)sum / n);
+          return 0;
+      }
+    tests:
+      - stdin: "4\n90 72 85 60\n"
+      - stdin: "1\n100\n"
+      - stdin: "3\n0 0 1\n"
+        hidden: true
+    hints:
+      - Read into the array and keep a running sum.
+      - "Divide as doubles: `(double)sum / n`."
+
+  - title: Min and max
+    text: |
+      After the average, print the lowest and highest score:
+
+      ```
+      average 76.75
+      min 60 max 90
+      ```
+    solution: |
+      #include <stdio.h>
+
+      int main(void) {
+          int n;
+          int scores[100];
+          scanf("%d", &n);
+          int sum = 0;
+          for (int i = 0; i < n; i++) {
+              scanf("%d", &scores[i]);
+              sum += scores[i];
+          }
+          printf("average %.2f\n", (double)sum / n);
+          int mn = scores[0], mx = scores[0];
+          for (int i = 1; i < n; i++) {
+              if (scores[i] < mn) mn = scores[i];
+              if (scores[i] > mx) mx = scores[i];
+          }
+          printf("min %d max %d\n", mn, mx);
+          return 0;
+      }
+    tests:
+      - stdin: "4\n90 72 85 60\n"
+      - stdin: "1\n55\n"
+      - stdin: "5\n10 99 43 99 10\n"
+        hidden: true
+    hints:
+      - Start both min and max at scores[0], then compare with the rest.
+
+  - title: Letter grades
+    text: |
+      Count how many scores fall in each band and print one line per letter:
+
+      | Letter | Scores |
+      |---|---|
+      | A | 90-100 |
+      | B | 80-89 |
+      | C | 70-79 |
+      | D | 60-69 |
+      | F | below 60 |
+
+      ```
+      A: 1
+      B: 1
+      C: 1
+      D: 1
+      F: 0
+      ```
+      (after the average and min/max lines). Write a helper `char letter(int score)` to keep main tidy.
+    solution: |
+      #include <stdio.h>
+
+      char letter(int score) {
+          if (score >= 90) return 'A';
+          if (score >= 80) return 'B';
+          if (score >= 70) return 'C';
+          if (score >= 60) return 'D';
+          return 'F';
+      }
+
+      int main(void) {
+          int n;
+          int scores[100];
+          scanf("%d", &n);
+          int sum = 0;
+          for (int i = 0; i < n; i++) {
+              scanf("%d", &scores[i]);
+              sum += scores[i];
+          }
+          printf("average %.2f\n", (double)sum / n);
+          int mn = scores[0], mx = scores[0];
+          for (int i = 1; i < n; i++) {
+              if (scores[i] < mn) mn = scores[i];
+              if (scores[i] > mx) mx = scores[i];
+          }
+          printf("min %d max %d\n", mn, mx);
+          const char letters[] = "ABCDF";
+          int counts[5] = {0};
+          for (int i = 0; i < n; i++) {
+              char l = letter(scores[i]);
+              for (int k = 0; k < 5; k++)
+                  if (letters[k] == l) counts[k]++;
+          }
+          for (int k = 0; k < 5; k++) printf("%c: %d\n", letters[k], counts[k]);
+          return 0;
+      }
+    tests:
+      - stdin: "4\n90 72 85 60\n"
+      - stdin: "3\n100 100 0\n"
+      - stdin: "6\n59 60 69 70 89 90\n"
+        hidden: true
+    hints:
+      - Write `char letter(int score)` above main with an if/else-if chain.
+      - "Keep an array `int counts[5]` for A, B, C, D, F and loop over the scores to fill it."
+
+  - title: Histogram
+    text: |
+      Replace the `A: 1` lines with a histogram: each letter, a space, then one `*` per score. Letters with no scores still print their letter.
+
+      ```
+      average 76.75
+      min 60 max 90
+      A *
+      B *
+      C *
+      D *
+      F
+      ```
+    solution: |
+      #include <stdio.h>
+
+      char letter(int score) {
+          if (score >= 90) return 'A';
+          if (score >= 80) return 'B';
+          if (score >= 70) return 'C';
+          if (score >= 60) return 'D';
+          return 'F';
+      }
+
+      int main(void) {
+          int n;
+          int scores[100];
+          scanf("%d", &n);
+          int sum = 0;
+          for (int i = 0; i < n; i++) {
+              scanf("%d", &scores[i]);
+              sum += scores[i];
+          }
+          printf("average %.2f\n", (double)sum / n);
+          int mn = scores[0], mx = scores[0];
+          for (int i = 1; i < n; i++) {
+              if (scores[i] < mn) mn = scores[i];
+              if (scores[i] > mx) mx = scores[i];
+          }
+          printf("min %d max %d\n", mn, mx);
+          const char letters[] = "ABCDF";
+          int counts[5] = {0};
+          for (int i = 0; i < n; i++) {
+              char l = letter(scores[i]);
+              for (int k = 0; k < 5; k++)
+                  if (letters[k] == l) counts[k]++;
+          }
+          for (int k = 0; k < 5; k++) {
+              printf("%c ", letters[k]);
+              for (int s = 0; s < counts[k]; s++) printf("*");
+              printf("\n");
+          }
+          return 0;
+      }
+    tests:
+      - stdin: "4\n90 72 85 60\n"
+      - stdin: "5\n95 91 93 20 88\n"
+      - stdin: "2\n0 1\n"
+        hidden: true
+    hints:
+      - "Print the letter and a space, then a loop of `*`, then `\\n`. Trailing spaces are ignored by the checker."

@@ -1,0 +1,280 @@
+id: allocator
+title: Write a memory allocator
+lang: c
+level: Advanced
+after: c-bits
+summary: See what malloc does underneath. A bump allocator with alignment, then a fixed-size pool allocator built on a free list.
+seed: |
+  #include <stddef.h>
+
+  static _Alignas(16) unsigned char heap[4096];
+  static size_t used = 0;
+
+  void *bump_alloc(size_t n) {
+
+  }
+
+  void bump_reset(void) {
+
+  }
+milestones:
+  - title: Bump allocator
+    text: |
+      The simplest allocator hands out memory from one big array by moving a pointer forward ("bumping" it). It can't free individual blocks, only reset everything at once. Game engines use exactly this for per-frame scratch memory.
+
+      - `void *bump_alloc(size_t n)` returns `heap + used` and advances `used` by `n`. If fewer than `n` bytes are left, return `NULL` and change nothing.
+      - `void bump_reset(void)` makes all 4096 bytes available again.
+    solution: |
+      #include <stddef.h>
+
+      static _Alignas(16) unsigned char heap[4096];
+      static size_t used = 0;
+
+      void *bump_alloc(size_t n) {
+          if (n > sizeof(heap) - used) return NULL;
+          void *p = heap + used;
+          used += n;
+          return p;
+      }
+
+      void bump_reset(void) {
+          used = 0;
+      }
+    harness: |
+      int main(void) {
+          char *a = bump_alloc(10);
+          char *b = bump_alloc(20);
+          CHECK("a is not NULL", a != NULL);
+          CHECK("b follows a", b == a + 10);
+          CHECK("4066 more fit exactly", bump_alloc(4066) != NULL);
+          CHECK("heap full -> NULL", bump_alloc(1) == NULL);
+          bump_reset();
+          CHECK("after reset, starts over", bump_alloc(10) == a);
+          CHECK("too big -> NULL", bump_alloc(5000) == NULL);
+          return 0;
+      }
+    hints:
+      - "Bytes left are `sizeof(heap) - used`. Compare with that (not `used + n > 4096`) to avoid overflow."
+      - "Return `heap + used` before advancing."
+
+  - title: Alignment
+    text: |
+      CPUs want an `int` at an address divisible by 4, a `double` by 8, and so on. `malloc` guarantees suitably aligned memory, so yours should too.
+
+      Round every request **up to a multiple of 8** before bumping, so every returned address is 8-aligned (the heap itself starts 16-aligned):
+
+      ```c
+      size_t rounded = (n + 7) & ~(size_t)7;
+      ```
+
+      Also make `bump_alloc(0)` return `NULL`.
+    solution: |
+      #include <stddef.h>
+
+      static _Alignas(16) unsigned char heap[4096];
+      static size_t used = 0;
+
+      void *bump_alloc(size_t n) {
+          if (n == 0) return NULL;
+          size_t rounded = (n + 7) & ~(size_t)7;
+          if (rounded > sizeof(heap) - used) return NULL;
+          void *p = heap + used;
+          used += rounded;
+          return p;
+      }
+
+      void bump_reset(void) {
+          used = 0;
+      }
+    harness: |
+      #include <stdint.h>
+      int main(void) {
+          char *a = bump_alloc(1);
+          char *b = bump_alloc(13);
+          char *c = bump_alloc(8);
+          CHECK("1 byte rounds to 8", b == a + 8);
+          CHECK("13 bytes round to 16", c == b + 16);
+          CHECK("all 8-aligned", ((uintptr_t)a % 8) == 0 && ((uintptr_t)b % 8) == 0 && ((uintptr_t)c % 8) == 0);
+          double *d = bump_alloc(sizeof(double) * 4);
+          d[3] = 2.5;
+          CHECK("doubles usable", d[3] == 2.5);
+          CHECK("zero bytes -> NULL", bump_alloc(0) == NULL);
+          bump_reset();
+          CHECK("4096 fits exactly", bump_alloc(4096) != NULL);
+          CHECK("then full", bump_alloc(1) == NULL);
+          return 0;
+      }
+    hints:
+      - "`(n + 7) & ~(size_t)7` clears the low 3 bits after adding 7, rounding up to a multiple of 8."
+      - Use the rounded size for both the space check and the bump.
+
+  - title: A pool with a free list
+    text: |
+      A **pool allocator** hands out blocks of one fixed size, and *can* free them individually. The trick: free blocks store a pointer to the next free block **inside themselves**, forming a linked list that costs zero extra memory.
+
+      ```c
+      #define BLOCK 16
+      #define BLOCKS 32
+      static _Alignas(16) unsigned char pool[BLOCK * BLOCKS];
+      static void *free_list = NULL;
+      ```
+
+      - `void pool_init(void)` links all 32 blocks into the free list, **block 0 first** (block i points to block i + 1, the last points to NULL)
+      - `void *pool_alloc(void)` pops the head of the free list (or returns NULL when empty)
+      - `void pool_free(void *p)` pushes `p` back onto the front of the list
+
+      Keep your bump allocator; the pool lives alongside it.
+    solution: |
+      #include <stddef.h>
+
+      static _Alignas(16) unsigned char heap[4096];
+      static size_t used = 0;
+
+      void *bump_alloc(size_t n) {
+          if (n == 0) return NULL;
+          size_t rounded = (n + 7) & ~(size_t)7;
+          if (rounded > sizeof(heap) - used) return NULL;
+          void *p = heap + used;
+          used += rounded;
+          return p;
+      }
+
+      void bump_reset(void) {
+          used = 0;
+      }
+
+      #define BLOCK 16
+      #define BLOCKS 32
+      static _Alignas(16) unsigned char pool[BLOCK * BLOCKS];
+      static void *free_list = NULL;
+
+      void pool_init(void) {
+          for (int i = 0; i < BLOCKS; i++) {
+              void **block = (void **)(pool + i * BLOCK);
+              *block = (i + 1 < BLOCKS) ? (void *)(pool + (i + 1) * BLOCK) : NULL;
+          }
+          free_list = pool;
+      }
+
+      void *pool_alloc(void) {
+          if (free_list == NULL) return NULL;
+          void *p = free_list;
+          free_list = *(void **)p;
+          return p;
+      }
+
+      void pool_free(void *p) {
+          *(void **)p = free_list;
+          free_list = p;
+      }
+    harness: |
+      int main(void) {
+          pool_init();
+          char *a = pool_alloc();
+          char *b = pool_alloc();
+          CHECK("first block is the pool start", a != NULL && b == a + 16);
+          int n = 2;
+          while (pool_alloc() != NULL) n++;
+          CHECK_INT("exactly 32 blocks", n, 32);
+          pool_free(b);
+          CHECK("freed block is reused first", pool_alloc() == b);
+          CHECK("empty again", pool_alloc() == NULL);
+          pool_free(a);
+          pool_free(b);
+          CHECK("LIFO order", pool_alloc() == b && pool_alloc() == a);
+          pool_init();
+          int *x = pool_alloc();
+          x[0] = 1; x[1] = 2; x[2] = 3; x[3] = 4;
+          int *y = pool_alloc();
+          y[0] = 9;
+          CHECK("blocks don't overlap", x[3] == 4 && y[0] == 9);
+          return 0;
+      }
+    hints:
+      - "Treat the start of each free block as a `void *` slot: `*(void **)block = next;`"
+      - "Alloc pops: `p = free_list; free_list = *(void **)p;`. Free pushes: `*(void **)p = free_list; free_list = p;`"
+
+  - title: Safety checks
+    text: |
+      Real allocators defend against misuse. Add:
+
+      - `int pool_owns(const void *p)`: 1 if `p` is the **start** of a block inside the pool, else 0
+      - `int pool_available(void)`: how many blocks are currently free (walk the list)
+      - make `pool_free` ignore pointers the pool doesn't own (do nothing)
+    solution: |
+      #include <stddef.h>
+      #include <stdint.h>
+
+      static _Alignas(16) unsigned char heap[4096];
+      static size_t used = 0;
+
+      void *bump_alloc(size_t n) {
+          if (n == 0) return NULL;
+          size_t rounded = (n + 7) & ~(size_t)7;
+          if (rounded > sizeof(heap) - used) return NULL;
+          void *p = heap + used;
+          used += rounded;
+          return p;
+      }
+
+      void bump_reset(void) {
+          used = 0;
+      }
+
+      #define BLOCK 16
+      #define BLOCKS 32
+      static _Alignas(16) unsigned char pool[BLOCK * BLOCKS];
+      static void *free_list = NULL;
+
+      void pool_init(void) {
+          for (int i = 0; i < BLOCKS; i++) {
+              void **block = (void **)(pool + i * BLOCK);
+              *block = (i + 1 < BLOCKS) ? (void *)(pool + (i + 1) * BLOCK) : NULL;
+          }
+          free_list = pool;
+      }
+
+      void *pool_alloc(void) {
+          if (free_list == NULL) return NULL;
+          void *p = free_list;
+          free_list = *(void **)p;
+          return p;
+      }
+
+      int pool_owns(const void *p) {
+          uintptr_t start = (uintptr_t)pool, addr = (uintptr_t)p;
+          if (addr < start || addr >= start + sizeof(pool)) return 0;
+          return (addr - start) % BLOCK == 0;
+      }
+
+      void pool_free(void *p) {
+          if (!pool_owns(p)) return;
+          *(void **)p = free_list;
+          free_list = p;
+      }
+
+      int pool_available(void) {
+          int n = 0;
+          for (void *p = free_list; p != NULL; p = *(void **)p) n++;
+          return n;
+      }
+    harness: |
+      int main(void) {
+          pool_init();
+          CHECK_INT("32 available", pool_available(), 32);
+          char *a = pool_alloc();
+          CHECK_INT("31 after one alloc", pool_available(), 31);
+          CHECK("owns a", pool_owns(a));
+          CHECK("not the middle of a block", !pool_owns(a + 3));
+          int outside;
+          CHECK("not a stack variable", !pool_owns(&outside));
+          CHECK("not NULL", !pool_owns(NULL));
+          pool_free(&outside);
+          CHECK_INT("foreign free ignored", pool_available(), 31);
+          pool_free(a);
+          CHECK_INT("back to 32", pool_available(), 32);
+          return 0;
+      }
+    hints:
+      - "Convert addresses to `uintptr_t` (from `<stdint.h>`) to compare and subtract them safely."
+      - "Inside the pool and `(addr - start) % BLOCK == 0` means it's a block start."

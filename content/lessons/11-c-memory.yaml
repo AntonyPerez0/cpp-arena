@@ -1,0 +1,312 @@
+id: c-memory
+title: Dynamic memory
+lang: c
+phase: "C: Memory"
+summary: The stack vs the heap. malloc, free, calloc and realloc, growing arrays, and who owns what.
+steps:
+  - title: Stack vs heap
+    text: |
+      So far every variable lived on the **stack**: it's created when its block starts and destroyed automatically when the block ends. Stack arrays need a size known up front, and they die when the function returns.
+
+      The **heap** is memory you request at runtime and give back when you're done:
+
+      ```c
+      #include <stdlib.h>
+
+      int *a = malloc(n * sizeof(int));   // room for n ints
+      if (a == NULL) { /* out of memory */ }
+      a[0] = 42;                          // use it like an array
+      free(a);                            // give it back
+      ```
+
+      `malloc` returns `NULL` if it fails. Every `malloc` needs exactly one matching `free`.
+
+      **Your turn:** allocate room for `n` ints.
+    fill: |
+      #include <stdio.h>
+      #include <stdlib.h>
+
+      int main(void) {
+          int n = 5;
+          int *a = [[malloc]](n * [[sizeof(int)]]);
+          if (a == NULL) return 1;
+          for (int i = 0; i < n; i++) a[i] = i * 10;
+          printf("%d %d\n", a[0], a[4]);
+          [[free]](a);
+          return 0;
+      }
+    hints:
+      - "`malloc(bytes)` allocates; the number of bytes is `n * sizeof(int)`."
+      - The function that releases heap memory is `free`.
+    tests:
+      - expect: "0 40"
+
+  - title: Size decided at runtime
+    text: |
+      The real power of `malloc`: the size can come from input.
+
+      **Your turn:** read `n`, then `n` numbers into a heap array. Print how many are **above the average**. Free the array at the end.
+
+      Input `4` / `2 4 6 8` (average 5) prints `2`.
+    seed: |
+      #include <stdio.h>
+      #include <stdlib.h>
+
+      int main(void) {
+          int n;
+          scanf("%d", &n);
+
+          return 0;
+      }
+    solution: |
+      #include <stdio.h>
+      #include <stdlib.h>
+
+      int main(void) {
+          int n;
+          scanf("%d", &n);
+          int *a = malloc(n * sizeof(int));
+          if (a == NULL) return 1;
+          long long sum = 0;
+          for (int i = 0; i < n; i++) {
+              scanf("%d", &a[i]);
+              sum += a[i];
+          }
+          int above = 0;
+          for (int i = 0; i < n; i++) {
+              if ((long long)a[i] * n > sum) above++;
+          }
+          printf("%d\n", above);
+          free(a);
+          return 0;
+      }
+    require:
+      - pattern: "malloc\\s*\\(|calloc\\s*\\("
+        message: Allocate the array with `malloc` (the size comes from input).
+      - pattern: "free\\s*\\("
+        message: "Don't forget to `free` the array."
+    hints:
+      - "`int *a = malloc(n * sizeof(int));`"
+      - Two passes. The first reads and sums, the second counts values greater than the average.
+      - "Compare with a double average: `a[i] > (double)sum / n`."
+    tests:
+      - stdin: "4\n2 4 6 8\n"
+      - stdin: "3\n5 5 5\n"
+      - stdin: "6\n1 1 1 1 1 100\n"
+        hidden: true
+
+  - title: Return heap memory from a function
+    text: |
+      A stack array dies when its function returns, so returning its address is a bug (a **dangling pointer**):
+
+      ```c
+      int *bad(void) {
+          int a[3] = {1, 2, 3};
+          return a;       // a is destroyed here!
+      }
+      ```
+
+      Heap memory survives until someone frees it, so a function can create it and hand it back. The caller then **owns** it and must `free` it.
+
+      **Your turn:** write `int *range(int n)` returning a new heap array `{0, 1, ..., n-1}`.
+    seed: |
+      #include <stdlib.h>
+
+      int *range(int n) {
+
+      }
+    solution: |
+      #include <stdlib.h>
+
+      int *range(int n) {
+          int *a = malloc(n * sizeof(int));
+          if (a == NULL) return NULL;
+          for (int i = 0; i < n; i++) a[i] = i;
+          return a;
+      }
+    harness: |
+      int main(void) {
+          int *a = range(5);
+          CHECK("range(5) not NULL", a != NULL);
+          int ok = 1;
+          for (int i = 0; i < 5; i++) if (a[i] != i) ok = 0;
+          CHECK("range(5) is {0,1,2,3,4}", ok);
+          free(a);
+          int *b = range(1000);
+          CHECK_INT("range(1000)[999]", b[999], 999);
+          free(b);
+          return 0;
+      }
+    hints:
+      - Allocate with malloc, fill it in a loop, and return the pointer.
+
+  - title: calloc and strdup-style copies
+    text: |
+      - `calloc(count, size)` allocates **and zeroes** the memory.
+      - To keep a copy of a string, allocate `strlen(s) + 1` bytes (the +1 is for `'\0'`) and copy it in.
+
+      **Your turn:** write `char *copy_string(const char *s)` that returns a new heap copy of `s`.
+    seed: |
+      #include <stdlib.h>
+      #include <string.h>
+
+      char *copy_string(const char *s) {
+
+      }
+    solution: |
+      #include <stdlib.h>
+      #include <string.h>
+
+      char *copy_string(const char *s) {
+          size_t n = strlen(s);
+          char *c = malloc(n + 1);
+          if (c == NULL) return NULL;
+          memcpy(c, s, n + 1);
+          return c;
+      }
+    harness: |
+      int main(void) {
+          char src[] = "clutch";
+          char *c = copy_string(src);
+          CHECK_STR("copy equals original", c, "clutch");
+          CHECK("copy is a different address", c != src);
+          src[0] = 'X';
+          CHECK_STR("copy unaffected by changes to original", c, "clutch");
+          free(c);
+          char *e = copy_string("");
+          CHECK_STR("empty string", e, "");
+          free(e);
+          return 0;
+      }
+    hints:
+      - "Allocate `strlen(s) + 1` bytes."
+      - Copy with `strcpy(c, s)` (or memcpy of n + 1 bytes) and return c.
+
+  - title: Growing with realloc
+    text: |
+      `realloc(p, new_size)` resizes a heap block, keeping the old contents. It may move the block, so always use the pointer it returns:
+
+      ```c
+      int *tmp = realloc(a, new_cap * sizeof(int));
+      if (tmp == NULL) { /* a is still valid */ }
+      a = tmp;
+      ```
+
+      Growing by **doubling** the capacity keeps it fast even for many pushes.
+
+      **Your turn:** read integers until the end of input (you don't know how many!) into a heap array that starts with capacity 2 and doubles when full. Print how many you read, the capacity at the end, and the last number:
+
+      Input `5 6 7 8 9` prints `count 5 cap 8 last 9`.
+    seed: |
+      #include <stdio.h>
+      #include <stdlib.h>
+
+      int main(void) {
+          int cap = 2, count = 0;
+          int *a = malloc(cap * sizeof(int));
+          int x;
+          while (scanf("%d", &x) == 1) {
+              // grow if full, then store x
+
+          }
+          printf("count %d cap %d last %d\n", count, cap, a[count - 1]);
+          free(a);
+          return 0;
+      }
+    solution: |
+      #include <stdio.h>
+      #include <stdlib.h>
+
+      int main(void) {
+          int cap = 2, count = 0;
+          int *a = malloc(cap * sizeof(int));
+          int x;
+          while (scanf("%d", &x) == 1) {
+              // grow if full, then store x
+              if (count == cap) {
+                  cap *= 2;
+                  int *tmp = realloc(a, cap * sizeof(int));
+                  if (tmp == NULL) {
+                      free(a);
+                      return 1;
+                  }
+                  a = tmp;
+              }
+              a[count++] = x;
+          }
+          printf("count %d cap %d last %d\n", count, cap, a[count - 1]);
+          free(a);
+          return 0;
+      }
+    require:
+      - pattern: "realloc\\s*\\("
+        message: Grow the array with `realloc`.
+    hints:
+      - "Before storing, check `if (count == cap)`. If so, double cap and realloc."
+      - "`a[count++] = x;` stores and advances in one go."
+    tests:
+      - stdin: "5 6 7 8 9\n"
+      - stdin: "1\n"
+      - stdin: "1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17\n"
+        hidden: true
+
+  - title: Memory bugs to avoid
+    text: |
+      The classic heap mistakes, which C won't catch for you:
+
+      | Bug | What happens |
+      |---|---|
+      | **Leak** | forgetting `free`; memory is lost until the program exits |
+      | **Use after free** | using a pointer after `free`; it may point at reused memory |
+      | **Double free** | freeing twice; corrupts the allocator |
+      | **Out of bounds** | writing past the end; silently corrupts neighbours |
+
+      A good habit: set a pointer to `NULL` right after freeing it. `free(NULL)` is safe and does nothing.
+
+      **Your turn:** this function should build a message but it has two memory bugs (a missing `+ 1` for the terminator, and a leak of `tmp`). Fix both so it returns `"gg wp"` correctly.
+    seed: |
+      #include <stdlib.h>
+      #include <string.h>
+
+      char *join(const char *a, const char *b) {
+          char *tmp = malloc(strlen(a) + 1);
+          strcpy(tmp, a);
+          char *out = malloc(strlen(a) + 1 + strlen(b));
+          strcpy(out, tmp);
+          strcat(out, " ");
+          strcat(out, b);
+          return out;
+      }
+    solution: |
+      #include <stdlib.h>
+      #include <string.h>
+
+      char *join(const char *a, const char *b) {
+          char *tmp = malloc(strlen(a) + 1);
+          strcpy(tmp, a);
+          char *out = malloc(strlen(a) + 1 + strlen(b) + 1);
+          strcpy(out, tmp);
+          strcat(out, " ");
+          strcat(out, b);
+          free(tmp);
+          return out;
+      }
+    seedMayPass: true
+    require:
+      - pattern: "free\\s*\\(\\s*tmp\\s*\\)"
+        message: "`tmp` is never freed. That's a leak."
+      - pattern: "strlen\\s*\\(\\s*b\\s*\\)\\s*\\+\\s*1|\\+\\s*2\\s*\\)"
+        message: "The size for `out` has no room for the `'\\0'` terminator. Add `+ 1`."
+    harness: |
+      int main(void) {
+          char *s = join("gg", "wp");
+          CHECK_STR("join(\"gg\", \"wp\")", s, "gg wp");
+          free(s);
+          char *t = join("", "x");
+          CHECK_STR("join(\"\", \"x\")", t, " x");
+          free(t);
+          return 0;
+      }
+    hints:
+      - "\"gg wp\" needs 2 + 1 + 2 = 5 chars **plus** the terminator. Add `+ 1` to the size of `out`."
+      - "`tmp` is only a scratch copy. Call `free(tmp);` before returning."

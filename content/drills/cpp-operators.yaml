@@ -1,0 +1,129 @@
+topic: cpp-operators
+lang: cpp
+drills:
+  - type: predict
+    pre: |
+      struct V { int x, y; };
+      V operator+(V a, V b) { return {a.x + b.x, a.y + b.y}; }
+    body: |
+      V v = V{1, 2} + V{3, 4} + V{10, 10};
+      std::cout << v.x << " " << v.y << "\n";
+    why: + chains left to right.
+  - type: predict
+    pre: |
+      struct P {
+          int a, b;
+          bool operator==(const P&) const = default;
+      };
+    body: |
+      std::cout << (P{1, 2} == P{1, 2}) << (P{1, 2} != P{2, 1}) << "\n";
+    why: The defaulted == compares every member, and C++20 derives != from it.
+  - type: predict
+    pre: |
+      struct S { int v; };
+      std::ostream& operator<<(std::ostream& os, const S& s) { return os << "<" << s.v << ">"; }
+    body: |
+      std::cout << S{7} << S{8} << "\n";
+    why: Returning the stream lets << chain.
+  - type: predict
+    pre: |
+      struct Arr {
+          int d[3] = {5, 6, 7};
+          int& operator[](int i) { return d[i]; }
+      };
+    body: |
+      Arr a;
+      a[1] = 60;
+      std::cout << a[0] + a[1] << "\n";
+    why: Returning int& lets a[1] = 60 write into the array.
+  - type: predict
+    pre: |
+      struct P {
+          int k;
+          bool operator<(const P& o) const { return k > o.k; }
+      };
+    body: |
+      std::vector<P> v = {{3}, {9}, {1}};
+      std::sort(v.begin(), v.end());
+      std::cout << v[0].k << v[1].k << v[2].k << "\n";
+    why: This < means "more kills", so sort puts the biggest first.
+  - type: fill
+    prompt: Name the addition operator function.
+    pre: |
+      struct M { int v; };
+      M [[operator+]](M a, M b) { return {a.v + b.v}; }
+    body: |
+      std::cout << (M{2} + M{3}).v << "\n";
+    why: Operators are functions named operator followed by the symbol.
+  - type: fill
+    prompt: Return the stream so << can chain.
+    pre: |
+      struct S { int v; };
+      std::ostream& operator<<(std::ostream& os, const S& s) {
+          [[return]] os << s.v;
+      }
+    body: |
+      std::cout << S{1} << S{2} << "\n";
+    why: The function must hand back the same stream it was given.
+  - type: bug
+    pre: |
+      struct Grid {
+          int d[4] = {0, 0, 0, 0};
+          int operator[](int i) { return d[i]; } // BUG
+      };
+    body: |
+      Grid g;
+      g[2] = 7;
+      std::cout << g[2] << "\n";
+    fix: "int& operator[](int i) { return d[i]; }"
+    why: "Returning by value gives a temporary copy, so `g[2] = 7` can't assign to it. Return int&."
+  - type: compiles
+    pre: |
+      struct S { int v; };
+    body: |
+      S a{1}, b{2};
+      std::cout << (a == b) << "\n";
+    why: S has no operator==, so == doesn't compile.
+  - type: compiles
+    pre: |
+      struct S { int v; };
+    body: |
+      S a{1};
+      std::cout << a << "\n";
+    why: There's no operator<< for S.
+  - type: boss
+    prompt: |
+      Give `Money` an `operator+=` (member, returns `Money&`) and a non-member `operator+` built on it. Amounts cap at 16000.
+    seed: |
+      struct Money {
+          int amount;
+
+      };
+    solution: |
+      struct Money {
+          int amount;
+          Money& operator+=(const Money& o) {
+              amount += o.amount;
+              if (amount > 16000) amount = 16000;
+              return *this;
+          }
+      };
+
+      Money operator+(Money a, const Money& b) {
+          a += b;
+          return a;
+      }
+    harness: |
+      int main() {
+          Money m{800};
+          m += Money{3250};
+          CHECK_EQ("+=", m.amount, 4050);
+          Money t = Money{15000} + Money{3000};
+          CHECK_EQ("+ caps", t.amount, 16000);
+          Money a{1}, b{2}, c{3};
+          CHECK_EQ("chain", (a + b + c).amount, 6);
+      }
+    hints:
+      - "+= modifies *this and returns *this."
+      - "+ takes a copy, applies +=, returns it."
+    why: Implementing + in terms of += is the standard idiom.

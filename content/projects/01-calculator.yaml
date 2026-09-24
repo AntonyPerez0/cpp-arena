@@ -1,0 +1,178 @@
+id: calculator
+title: Command-line calculator
+lang: c
+level: Beginner
+after: c-if
+summary: Read expressions like `3 + 4`, handle every operator, refuse division by zero, and keep going until the user types q.
+seed: |
+  #include <stdio.h>
+
+  int main(void) {
+      double a, b;
+      // read two numbers and print their sum
+
+      return 0;
+  }
+milestones:
+  - title: Add two numbers
+    text: |
+      Read two numbers from input and print their sum with two decimals.
+
+      Input:
+      ```
+      3 4.5
+      ```
+      Output:
+      ```
+      7.50
+      ```
+
+      Use `scanf("%lf %lf", &a, &b)` to read two doubles, then `printf("%.2f\n", a + b)`.
+    solution: |
+      #include <stdio.h>
+
+      int main(void) {
+          double a, b;
+          scanf("%lf %lf", &a, &b);
+          printf("%.2f\n", a + b);
+          return 0;
+      }
+    tests:
+      - stdin: "3 4.5\n"
+      - stdin: "-2 2\n"
+      - stdin: "0.1 0.2\n"
+        hidden: true
+    hints:
+      - "`%lf` reads a double with scanf. Don't forget the `&` before each variable."
+      - "`%.2f` prints a number with exactly two digits after the decimal point."
+  - title: Pick the operator
+    text: |
+      Now the input includes an operator between the numbers: `+`, `-`, `*` or `/`.
+
+      ```
+      6 * 7
+      ```
+      prints `42.00`.
+
+      Read the operator with `%c`. Put a space before it in the format (`" %c"`) so scanf skips the space after the first number.
+    solution: |
+      #include <stdio.h>
+
+      int main(void) {
+          double a, b;
+          char op;
+          scanf("%lf %c %lf", &a, &op, &b);
+          double r = 0;
+          switch (op) {
+              case '+': r = a + b; break;
+              case '-': r = a - b; break;
+              case '*': r = a * b; break;
+              case '/': r = a / b; break;
+          }
+          printf("%.2f\n", r);
+          return 0;
+      }
+    tests:
+      - stdin: "6 * 7\n"
+      - stdin: "10 - 12.5\n"
+      - stdin: "9 / 4\n"
+      - stdin: "1.5 + 1.5\n"
+        hidden: true
+    hints:
+      - "`scanf(\"%lf %c %lf\", &a, &op, &b)` reads number, operator, number."
+      - A `switch (op)` with `case '+':` etc. keeps it tidy. Remember `break;` after each case.
+  - title: Guard against bad input
+    text: |
+      Two things can go wrong:
+
+      - Dividing by zero should print `error: division by zero`
+      - An unknown operator like `%` should print `error: unknown operator %`
+
+      Everything else works as before.
+    solution: |
+      #include <stdio.h>
+
+      int main(void) {
+          double a, b;
+          char op;
+          scanf("%lf %c %lf", &a, &op, &b);
+          double r = 0;
+          switch (op) {
+              case '+': r = a + b; break;
+              case '-': r = a - b; break;
+              case '*': r = a * b; break;
+              case '/':
+                  if (b == 0) {
+                      printf("error: division by zero\n");
+                      return 0;
+                  }
+                  r = a / b;
+                  break;
+              default:
+                  printf("error: unknown operator %c\n", op);
+                  return 0;
+          }
+          printf("%.2f\n", r);
+          return 0;
+      }
+    tests:
+      - stdin: "8 / 0\n"
+      - stdin: "8 % 3\n"
+      - stdin: "8 / 2\n"
+      - stdin: "2 ^ 2\n"
+        hidden: true
+    hints:
+      - Check `b == 0` inside the `/` case before dividing.
+      - The `default:` case of a switch runs when no other case matches.
+  - title: Keep calculating until q
+    text: |
+      Turn it into a loop. Keep reading expressions and printing results until the input line is just `q`.
+
+      ```
+      1 + 1
+      5 / 0
+      2 * 3
+      q
+      ```
+      prints
+      ```
+      2.00
+      error: division by zero
+      6.00
+      ```
+
+      Tip: read the first thing as a string with `scanf("%s", word)`, stop if it's `q`, otherwise convert it with `atof(word)` from `<stdlib.h>`. Or check scanf's return value: `scanf("%lf %c %lf", ...)` returns 3 when it read all three values.
+    solution: |
+      #include <stdio.h>
+      #include <stdlib.h>
+      #include <string.h>
+
+      int main(void) {
+          char word[64];
+          while (scanf("%63s", word) == 1) {
+              if (strcmp(word, "q") == 0) break;
+              double a = atof(word), b;
+              char op;
+              if (scanf(" %c %lf", &op, &b) != 2) break;
+              switch (op) {
+                  case '+': printf("%.2f\n", a + b); break;
+                  case '-': printf("%.2f\n", a - b); break;
+                  case '*': printf("%.2f\n", a * b); break;
+                  case '/':
+                      if (b == 0) printf("error: division by zero\n");
+                      else printf("%.2f\n", a / b);
+                      break;
+                  default: printf("error: unknown operator %c\n", op);
+              }
+          }
+          return 0;
+      }
+    tests:
+      - stdin: "1 + 1\n5 / 0\n2 * 3\nq\n"
+      - stdin: "7 - 10\n3 x 3\nq\n"
+      - stdin: "2.5 * 4\n100 / 8\nq\n"
+        hidden: true
+    hints:
+      - Wrap the reading and printing in `while (...)`. Decide how to stop when you see `q`.
+      - "`strcmp(word, \"q\") == 0` is true when the word is exactly q (needs `<string.h>`)."
+      - After a result is printed, `continue` to the next line instead of `return 0`.

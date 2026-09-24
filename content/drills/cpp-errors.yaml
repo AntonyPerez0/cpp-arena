@@ -1,0 +1,56 @@
+topic: cpp-errors
+lang: cpp
+drills:
+  - type: predict
+    pre: |
+      bool div(int a, int b, int& out) {
+          if (b == 0) return false;
+          out = a / b;
+          return true;
+      }
+    body: |
+      int r = -1;
+      bool ok1 = div(9, 3, r);
+      bool ok2 = div(1, 0, r);
+      std::cout << ok1 << ok2 << r << "\n";
+    why: The failed call leaves r untouched at 3.
+  - type: predict
+    pre: |
+      std::optional<int> parse(const std::string& s) {
+          if (s.empty()) return std::nullopt;
+          return (int)s.size();
+      }
+    body: |
+      std::cout << parse("").value_or(-1) << " " << parse("abc").value_or(-1) << "\n";
+    why: value_or supplies a default for the empty case.
+  - type: fill
+    prompt: The header for assert.
+    body: |
+      int hp = 50;
+      assert(hp > 0);
+      std::cout << "alive\n";
+    pre: |
+      #include <[[cassert]]>
+    why: assert lives in <cassert>.
+  - type: compiles
+    body: |
+      throw 5;
+    why: This site's WebAssembly compiler has exceptions disabled (-fno-exceptions), so throw is rejected.
+  - type: compiles
+    pre: |
+      [[nodiscard]] int status() { return 0; }
+    body: |
+      int s = status();
+      std::cout << s << "\n";
+    why: The result is used, so [[nodiscard]] is satisfied.
+  - type: predict
+    pre: |
+      struct Result { std::optional<int> value; std::string error; };
+      Result half(int x) {
+          if (x % 2) return {std::nullopt, "odd"};
+          return {x / 2, ""};
+      }
+    body: |
+      auto a = half(8), b = half(7);
+      std::cout << *a.value << " " << b.error << "\n";
+    why: The Result carries either a value or an error message.
