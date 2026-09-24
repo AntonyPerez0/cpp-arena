@@ -39,7 +39,10 @@ const server = http.createServer((req, res) => {
 await new Promise((r) => server.listen(PORT, r));
 
 const exe = process.env.CHROMIUM_PATH || (fs.existsSync("/opt/pw-browsers/chromium") ? "/opt/pw-browsers/chromium" : undefined);
-const browser = await chromium.launch(exe ? { executablePath: exe } : {});
+// Use full Chromium (the "chromium" channel), the build real browsers are based on. Playwright's
+// default headless shell crashes the tab on the out-of-bounds-crash test, which full Chromium
+// (and Chrome) handle correctly by reporting the program's crash.
+const browser = await chromium.launch(exe ? { executablePath: exe } : { channel: "chromium" });
 const page = await browser.newPage({ viewport: { width: 1360, height: 900 } });
 const errors = [];
 page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
