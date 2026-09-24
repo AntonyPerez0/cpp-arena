@@ -1,0 +1,433 @@
+id: c-files
+title: Files
+lang: c
+phase: "C: Real-World C"
+summary: Read and write real files. fopen modes, fprintf and fscanf, reading lines with fgets, handling errors, appending, safe formatting with snprintf, and a CSV report.
+steps:
+  - title: Write a file, read it back
+    id: c-files-1
+    text: |
+      `fopen` opens a file and gives you a `FILE *` handle. The second argument is the **mode**:
+
+      | Mode | Meaning |
+      |---|---|
+      | `"r"` | read; fails if the file doesn't exist |
+      | `"w"` | write; creates the file, or **empties** it if it exists |
+      | `"a"` | append; writes go to the end |
+
+      Then use `fprintf(f, ...)` exactly like `printf`, and always `fclose(f)` when you're done. Closing flushes buffered data to disk and frees the handle.
+
+      On this site, each run gets its own private, empty folder, so your program can create files freely.
+
+      **Your turn:** open `scores.txt` for writing, then for reading.
+    fill: |
+      #include <stdio.h>
+
+      int main(void) {
+          FILE *out = fopen("scores.txt", [["w"]]);
+          fprintf(out, "ace %d\n", 5);
+          fprintf(out, "clutch %d\n", 3);
+          fclose(out);
+
+          FILE *in = fopen("scores.txt", [["r"]]);
+          char word[32];
+          int n;
+          while (fscanf(in, "%31s %d", word, &n) == 2) {
+              printf("%s=%d\n", word, n);
+          }
+          fclose(in);
+          return 0;
+      }
+    hints:
+      - "Writing mode is `\"w\"` and reading mode is `\"r\"`. Include the double quotes: they're strings."
+    tests:
+      - expect: "ace=5\nclutch=3"
+
+  - title: Reading lines with fgets
+    id: c-files-2
+    text: |
+      `fgets(buf, size, f)` reads one line (including its `'\n'`) into `buf`, never writing more than `size` bytes. It returns `NULL` at the end of the file. It's the safe way to read text, because unlike `scanf("%s")` it can't overflow your buffer.
+
+      ```c
+      char line[256];
+      while (fgets(line, sizeof line, f) != NULL) {
+          line[strcspn(line, "\n")] = '\0';   // chop the newline, if any
+          /* use line */
+      }
+      ```
+
+      `strcspn(line, "\n")` returns the index of the first `'\n'` (or the length, if there is none), so that one line strips the newline safely.
+
+      **Your turn:** the folder contains `maps.txt`. Print how many lines it has and the longest line (the first one, if there's a tie).
+    seed: |
+      #include <stdio.h>
+      #include <string.h>
+
+      int main(void) {
+          FILE *f = fopen("maps.txt", "r");
+          if (f == NULL) {
+              printf("cannot open maps.txt\n");
+              return 1;
+          }
+          char line[256], longest[256] = "";
+          int count = 0;
+          // read every line here
+
+          fclose(f);
+          printf("%d lines, longest: %s\n", count, longest);
+          return 0;
+      }
+    solution: |
+      #include <stdio.h>
+      #include <string.h>
+
+      int main(void) {
+          FILE *f = fopen("maps.txt", "r");
+          if (f == NULL) {
+              printf("cannot open maps.txt\n");
+              return 1;
+          }
+          char line[256], longest[256] = "";
+          int count = 0;
+          // read every line here
+          while (fgets(line, sizeof line, f) != NULL) {
+              line[strcspn(line, "\n")] = '\0';
+              count++;
+              if (strlen(line) > strlen(longest)) strcpy(longest, line);
+          }
+          fclose(f);
+          printf("%d lines, longest: %s\n", count, longest);
+          return 0;
+      }
+    require:
+      - pattern: "fgets\\s*\\("
+        message: "Read the file line by line with `fgets`."
+    hints:
+      - "`while (fgets(line, sizeof line, f) != NULL)` loops over the lines."
+      - "Strip the newline with `line[strcspn(line, \"\\n\")] = '\\0';` before measuring."
+      - "Use `>` (not `>=`) so the first of equally long lines wins."
+    tests:
+      - files:
+          maps.txt: "dust2\nmirage\ninferno\nnuke\n"
+      - files:
+          maps.txt: "ancient\nanubis"
+      - files:
+          maps.txt: "a\nbb\ncc\n"
+        hidden: true
+
+  - title: When fopen fails
+    id: c-files-3
+    text: |
+      Files go missing, permissions get denied and disks fill up. `fopen` returns `NULL` when it fails, and every professional C program checks it:
+
+      ```c
+      FILE *f = fopen(path, "r");
+      if (f == NULL) {
+          perror(path);     // prints e.g. "config.txt: No such file or directory" to stderr
+          return -1;
+      }
+      ```
+
+      A function that opens a file should also close it on **every** path out of the function, including early returns after errors.
+
+      **Your turn:** write `long count_lines(const char *path)` that returns the number of `'\n'` characters in the file, or `-1` if it can't be opened. Read with `fgetc`, which returns one character at a time, or `EOF` at the end.
+    seed: |
+      #include <stdio.h>
+
+      long count_lines(const char *path) {
+
+      }
+    solution: |
+      #include <stdio.h>
+
+      long count_lines(const char *path) {
+          FILE *f = fopen(path, "r");
+          if (f == NULL) return -1;
+          long n = 0;
+          int c;
+          while ((c = fgetc(f)) != EOF) {
+              if (c == '\n') n++;
+          }
+          fclose(f);
+          return n;
+      }
+    harness: |
+      int main(void) {
+          CHECK_INT("three lines", count_lines("round.log"), 3);
+          CHECK_INT("empty file", count_lines("empty.txt"), 0);
+          CHECK_INT("missing file", count_lines("nope.txt"), -1);
+          CHECK_INT("count again (was the file closed?)", count_lines("round.log"), 3);
+          return 0;
+      }
+    tests:
+      - files:
+          round.log: "freeze time\nbuy\nlive\n"
+          empty.txt: ""
+    hints:
+      - "Open with `fopen(path, \"r\")` and return -1 if it's NULL."
+      - "Store fgetc's result in an **int**, not a char, so EOF can be told apart from a real byte: `int c; while ((c = fgetc(f)) != EOF)`."
+      - "Don't forget `fclose(f);` before returning the count."
+
+  - title: Loading records
+    id: c-files-4
+    text: |
+      Structured text files are everywhere: one record per line, fields separated by spaces or commas. `fscanf` reads fields straight into variables and returns **how many it matched**, which is how you detect both the end of the file and malformed lines.
+
+      ```c
+      while (fscanf(f, "%31s %d", p.name, &p.score) == 2) { ... }
+      ```
+
+      Always give `%s` a width (`%31s` for a 32-byte buffer), so a long word can't overflow the array.
+
+      **Your turn:** `roster.txt` holds `name score` pairs. Load them into the array (at most 32) and print the player with the highest score, then the average score with one decimal place.
+    seed: |
+      #include <stdio.h>
+
+      typedef struct {
+          char name[32];
+          int score;
+      } Player;
+
+      int main(void) {
+          Player team[32];
+          int n = 0;
+          FILE *f = fopen("roster.txt", "r");
+          if (f == NULL) return 1;
+          // load up to 32 players
+
+          fclose(f);
+          if (n == 0) {
+              printf("no players\n");
+              return 0;
+          }
+          // print "best NAME SCORE" and "average X.X"
+
+          return 0;
+      }
+    solution: |
+      #include <stdio.h>
+
+      typedef struct {
+          char name[32];
+          int score;
+      } Player;
+
+      int main(void) {
+          Player team[32];
+          int n = 0;
+          FILE *f = fopen("roster.txt", "r");
+          if (f == NULL) return 1;
+          // load up to 32 players
+          while (n < 32 && fscanf(f, "%31s %d", team[n].name, &team[n].score) == 2) n++;
+          fclose(f);
+          if (n == 0) {
+              printf("no players\n");
+              return 0;
+          }
+          // print "best NAME SCORE" and "average X.X"
+          int best = 0;
+          long total = 0;
+          for (int i = 0; i < n; i++) {
+              if (team[i].score > team[best].score) best = i;
+              total += team[i].score;
+          }
+          printf("best %s %d\n", team[best].name, team[best].score);
+          printf("average %.1f\n", (double)total / n);
+          return 0;
+      }
+    hints:
+      - "`while (n < 32 && fscanf(f, \"%31s %d\", team[n].name, &team[n].score) == 2) n++;`"
+      - "Track the index of the best player and a running total while looping."
+      - "Divide as doubles for the average: `(double)total / n`, printed with `%.1f`."
+    tests:
+      - files:
+          roster.txt: "karrigan 12\nropz 25\nbroky 19\n"
+      - files:
+          roster.txt: ""
+      - files:
+          roster.txt: "solo 7\n"
+        hidden: true
+
+  - title: Appending
+    id: c-files-5
+    text: |
+      Mode `"a"` opens a file for **appending**: it's created if missing, and every write goes to the end, keeping what was there. That's exactly what log files need.
+
+      Other modes you'll meet:
+
+      | Mode | Meaning |
+      |---|---|
+      | `"r+"` | read and write an existing file |
+      | `"rb"`, `"wb"` | binary mode: no newline translation (matters on Windows) |
+
+      **Your turn:** write `int append_line(const char *path, const char *line)` that appends `line` plus a newline. Return 0 on success and -1 if the file can't be opened.
+    seed: |
+      #include <stdio.h>
+
+      int append_line(const char *path, const char *line) {
+
+      }
+    solution: |
+      #include <stdio.h>
+
+      int append_line(const char *path, const char *line) {
+          FILE *f = fopen(path, "a");
+          if (f == NULL) return -1;
+          fprintf(f, "%s\n", line);
+          fclose(f);
+          return 0;
+      }
+    harness: |
+      #include <string.h>
+      static void slurp(const char *path, char *buf, size_t size) {
+          FILE *f = fopen(path, "r");
+          size_t n = f ? fread(buf, 1, size - 1, f) : 0;
+          buf[n] = '\0';
+          if (f) fclose(f);
+      }
+      int main(void) {
+          char buf[256];
+          CHECK_INT("append to existing file", append_line("match.log", "round 2"), 0);
+          append_line("match.log", "round 3");
+          slurp("match.log", buf, sizeof buf);
+          CHECK_STR("old lines kept, new lines at the end", buf, "round 1\nround 2\nround 3\n");
+          append_line("new.log", "first");
+          slurp("new.log", buf, sizeof buf);
+          CHECK_STR("creates a missing file", buf, "first\n");
+          CHECK_INT("a folder path can't be opened", append_line("no/such/dir/x.log", "x"), -1);
+          return 0;
+      }
+    tests:
+      - files:
+          match.log: "round 1\n"
+    hints:
+      - "Open with mode `\"a\"`, check for NULL, write with `fprintf(f, \"%s\\n\", line);`, then fclose."
+
+  - title: Safe formatting with snprintf
+    id: c-files-6
+    text: |
+      `sprintf(buf, ...)` writes as much as the format produces, overflowing `buf` if it's too small. That exact bug has caused countless security holes. `snprintf` takes the buffer size and **never** writes past it:
+
+      ```c
+      char buf[16];
+      int needed = snprintf(buf, sizeof buf, "%s scored %d", name, score);
+      if (needed < 0 || (size_t)needed >= sizeof buf) {
+          /* output was truncated (or an encoding error happened) */
+      }
+      ```
+
+      Its return value is the length the full output *would* have had, so comparing it with the buffer size tells you whether anything was cut off. The result is always `'\0'`-terminated (for a nonzero size).
+
+      **Your turn:** write `int format_kd(char *buf, size_t size, const char *name, int kills, int deaths)` that writes `NAME K/D` (like `ropz 25/12`). Return 0 if it fit, -1 if it was truncated.
+    seed: |
+      #include <stdio.h>
+
+      int format_kd(char *buf, size_t size, const char *name, int kills, int deaths) {
+
+      }
+    solution: |
+      #include <stdio.h>
+
+      int format_kd(char *buf, size_t size, const char *name, int kills, int deaths) {
+          int needed = snprintf(buf, size, "%s %d/%d", name, kills, deaths);
+          if (needed < 0 || (size_t)needed >= size) return -1;
+          return 0;
+      }
+    forbid:
+      - pattern: "\\bsprintf\\s*\\("
+        message: "Use `snprintf` with the buffer size, never plain `sprintf`."
+    harness: |
+      int main(void) {
+          char buf[16];
+          CHECK_INT("fits", format_kd(buf, sizeof buf, "ropz", 25, 12), 0);
+          CHECK_STR("text", buf, "ropz 25/12");
+          char small[8];
+          CHECK_INT("too long is reported", format_kd(small, sizeof small, "karrigan", 3, 20), -1);
+          CHECK_STR("truncated but terminated", small, "karriga");
+          char exact[11];
+          CHECK_INT("exactly fits with the terminator", format_kd(exact, sizeof exact, "ropz", 25, 12), 0);
+          return 0;
+      }
+    hints:
+      - "`int needed = snprintf(buf, size, \"%s %d/%d\", name, kills, deaths);`"
+      - "It was truncated when `needed >= size` (compare as size_t after checking needed isn't negative)."
+
+  - title: "Challenge: a CSV report"
+    id: c-files-7
+    text: |
+      A realistic batch job: read input data, aggregate it, write an output file.
+
+      `sales.csv` starts with a header line, then `region,amount` rows (amounts are whole dollars). **Your turn:**
+
+      1. Skip the header, then total the amounts per region (at most 10 regions, names up to 15 characters), keeping regions in the order they first appear.
+      2. Write `report.txt` with one `REGION TOTAL` line per region.
+      3. Then read `report.txt` back and print it, so the test can see what you wrote.
+
+      Tip: `sscanf(line, "%15[^,],%d", region, &amount)` reads everything up to the comma as the region, then the number.
+    seed: |
+      #include <stdio.h>
+      #include <string.h>
+
+      int main(void) {
+
+          return 0;
+      }
+    solution: |
+      #include <stdio.h>
+      #include <string.h>
+
+      int main(void) {
+          char names[10][16];
+          long totals[10];
+          int n = 0;
+          FILE *in = fopen("sales.csv", "r");
+          if (in == NULL) {
+              printf("cannot open sales.csv\n");
+              return 1;
+          }
+          char line[128];
+          fgets(line, sizeof line, in); /* header */
+          while (fgets(line, sizeof line, in) != NULL) {
+              char region[16];
+              int amount;
+              if (sscanf(line, "%15[^,],%d", region, &amount) != 2) continue;
+              int i = 0;
+              while (i < n && strcmp(names[i], region) != 0) i++;
+              if (i == n) {
+                  if (n == 10) continue;
+                  strcpy(names[n], region);
+                  totals[n] = 0;
+                  n++;
+              }
+              totals[i] += amount;
+          }
+          fclose(in);
+
+          FILE *out = fopen("report.txt", "w");
+          if (out == NULL) return 1;
+          for (int i = 0; i < n; i++) fprintf(out, "%s %ld\n", names[i], totals[i]);
+          fclose(out);
+
+          FILE *back = fopen("report.txt", "r");
+          if (back == NULL) return 1;
+          while (fgets(line, sizeof line, back) != NULL) fputs(line, stdout);
+          fclose(back);
+          return 0;
+      }
+    require:
+      - pattern: "fopen[\\s\\S]*fopen[\\s\\S]*fopen"
+        message: "Write the results to `report.txt` (opened with mode \"w\"), then read that file back to print it."
+    hints:
+      - "Keep two parallel arrays: `char names[10][16]` and `long totals[10]`, plus a count."
+      - "For each row, search names for the region. If it's new, add it with a total of 0. Then add the amount."
+      - "Read the header once with `fgets` before the loop so it isn't counted."
+      - "After writing and closing report.txt, reopen it with \"r\" and copy each line to stdout with `fputs`."
+    tests:
+      - files:
+          sales.csv: "region,amount\neu,100\nna,250\neu,40\nasia,75\nna,5\n"
+      - files:
+          sales.csv: "region,amount\n"
+        allowEmpty: true
+      - files:
+          sales.csv: "region,amount\ncis,1\ncis,2\ncis,3\nbr,10\n"
+        hidden: true

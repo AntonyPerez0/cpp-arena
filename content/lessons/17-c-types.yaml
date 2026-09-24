@@ -1,0 +1,361 @@
+id: c-types
+title: Integer types and undefined behavior
+lang: c
+phase: "C: Real-World C"
+summary: How big each integer type really is, unsigned wraparound, signed overflow, fixed-width types, size_t traps, floating-point rounding, and the undefined behavior every C programmer must recognize.
+steps:
+  - title: Sizes and limits
+    id: c-types-1
+    text: |
+      C only promises **minimum** sizes. On today's common platforms:
+
+      | Type | Usual size | Range (signed) |
+      |---|---|---|
+      | `char` | 1 byte | -128 to 127 |
+      | `short` | 2 bytes | about ±32 thousand |
+      | `int` | 4 bytes | about ±2.1 billion |
+      | `long` | 4 **or** 8 bytes | depends on the platform! |
+      | `long long` | 8 bytes | about ±9.2 × 10¹⁸ |
+
+      `long` is 8 bytes on 64-bit Linux and macOS, but 4 bytes on Windows and on 32-bit systems (including the WebAssembly this site runs on). Code that assumes one or the other breaks when it moves. That's why professional code uses the exact-width types you'll meet in a few steps.
+
+      `<limits.h>` gives the real limits for the platform you compile on: `INT_MAX`, `INT_MIN`, `LLONG_MAX`, `UINT_MAX`, `CHAR_BIT` (bits in a byte, 8 everywhere you'll ever work).
+
+      **Your turn:** print the largest `int`, then the smallest.
+    fill: |
+      #include <limits.h>
+      #include <stdio.h>
+
+      int main(void) {
+          printf("max %d\n", [[INT_MAX]]);
+          printf("min %d\n", [[INT_MIN]]);
+          printf("bits per byte %d\n", CHAR_BIT);
+          return 0;
+      }
+    hints:
+      - "The macros are `INT_MAX` and `INT_MIN`, from `<limits.h>`."
+    tests:
+      - expect: "max 2147483647\nmin -2147483648\nbits per byte 8"
+
+  - title: Unsigned wraparound
+    id: c-types-2
+    text: |
+      Unsigned integers can't be negative. Their arithmetic is defined to **wrap around** modulo 2ᴺ: go below 0 and you land at the top.
+
+      ```c
+      unsigned int x = 0;
+      x = x - 1;               // 4294967295, not -1
+      ```
+
+      This is well-defined (unlike signed overflow, next step), and it's useful for hashing and bit manipulation. It's also a classic trap in countdown loops:
+
+      ```c
+      for (size_t i = n - 1; i >= 0; i--)   // i >= 0 is ALWAYS true: infinite loop
+      ```
+
+      The idiomatic safe countdown tests *before* decrementing:
+
+      ```c
+      for (size_t i = n; i-- > 0; )         // visits n-1, n-2, ..., 0
+      ```
+
+      **Your turn:** read a count `n` and then `n` integers into an array (at most 100), and print them in **reverse** order on one line, separated by spaces. Use a `size_t` index for the reverse loop.
+    seed: |
+      #include <stddef.h>
+      #include <stdio.h>
+
+      int main(void) {
+          size_t n;
+          int a[100];
+          if (scanf("%zu", &n) != 1 || n > 100) return 1;
+          for (size_t i = 0; i < n; i++) scanf("%d", &a[i]);
+          // print a[n-1] ... a[0] here
+
+          printf("\n");
+          return 0;
+      }
+    solution: |
+      #include <stddef.h>
+      #include <stdio.h>
+
+      int main(void) {
+          size_t n;
+          int a[100];
+          if (scanf("%zu", &n) != 1 || n > 100) return 1;
+          for (size_t i = 0; i < n; i++) scanf("%d", &a[i]);
+          // print a[n-1] ... a[0] here
+          for (size_t i = n; i-- > 0;) {
+              printf("%d", a[i]);
+              if (i > 0) printf(" ");
+          }
+          printf("\n");
+          return 0;
+      }
+    require:
+      - pattern: "size_t\\s+\\w+\\s*=\\s*n"
+        message: "Count down with a `size_t` index, starting from `n`: `for (size_t i = n; i-- > 0; )`."
+    hints:
+      - "`for (size_t i = n; i-- > 0; )` checks i > 0 and *then* decrements, so the body sees n-1 down to 0."
+      - "Print a space after every number except the last one printed (when i is 0)."
+    tests:
+      - stdin: "4\n1 2 3 4\n"
+      - stdin: "1\n9\n"
+      - stdin: "0\n"
+        allowEmpty: true
+      - stdin: "5\n-1 0 7 7 3\n"
+        hidden: true
+
+  - title: Signed overflow is undefined
+    id: c-types-3
+    text: |
+      For **signed** integers, going past `INT_MAX` is **undefined behavior** (UB). "Undefined" doesn't mean "wraps around". It means the C standard puts *no requirements at all* on what happens, and optimizers rely on that. For example, the compiler may delete `if (x + 1 < x)` entirely, because in a program without UB that condition can never be true.
+
+      So you must check **before** the operation, using only operations that can't overflow:
+
+      ```c
+      if (b > 0 && a > INT_MAX - b)  /* a + b would overflow upward */
+      if (b < 0 && a < INT_MIN - b)  /* a + b would overflow downward */
+      ```
+
+      (GCC and Clang also offer `__builtin_add_overflow`, and C23 standardizes `ckd_add` in `<stdckdint.h>`. It's still worth knowing how to write the check yourself.)
+
+      **Your turn:** write `int checked_add(int a, int b, int *out)`. If the sum fits, store it in `*out` and return 1. Otherwise return 0 and leave `*out` untouched.
+    seed: |
+      #include <limits.h>
+
+      int checked_add(int a, int b, int *out) {
+
+      }
+    solution: |
+      #include <limits.h>
+
+      int checked_add(int a, int b, int *out) {
+          if (b > 0 && a > INT_MAX - b) return 0;
+          if (b < 0 && a < INT_MIN - b) return 0;
+          *out = a + b;
+          return 1;
+      }
+    forbid:
+      - pattern: "__builtin|ckd_add|long\\s+long"
+        message: Write the check with plain `int` comparisons against INT_MAX and INT_MIN.
+    harness: |
+      #include <limits.h>
+      int main(void) {
+          int r = 0;
+          CHECK_INT("2 + 3 fits", checked_add(2, 3, &r), 1);
+          CHECK_INT("2 + 3 result", r, 5);
+          r = 42;
+          CHECK_INT("INT_MAX + 1 overflows", checked_add(INT_MAX, 1, &r), 0);
+          CHECK_INT("out untouched on overflow", r, 42);
+          CHECK_INT("INT_MIN + -1 overflows", checked_add(INT_MIN, -1, &r), 0);
+          CHECK_INT("INT_MAX + INT_MIN fits", checked_add(INT_MAX, INT_MIN, &r), 1);
+          CHECK_INT("INT_MAX + INT_MIN is -1", r, -1);
+          CHECK_INT("INT_MAX + 0 fits", checked_add(INT_MAX, 0, &r), 1);
+          CHECK_INT("-5 + -7", checked_add(-5, -7, &r) && r == -12, 1);
+          return 0;
+      }
+    hints:
+      - "Positive b: the sum overflows exactly when `a > INT_MAX - b`. That subtraction is safe because b > 0."
+      - "Negative b: the sum underflows exactly when `a < INT_MIN - b`."
+      - "Only compute `a + b` after both checks pass."
+
+  - title: Fixed-width types
+    id: c-types-4
+    text: |
+      `<stdint.h>` gives types with an **exact** size on every platform:
+
+      | Type | Size | Use it for |
+      |---|---|---|
+      | `int8_t` / `uint8_t` | 1 byte | raw bytes, pixels |
+      | `int32_t` / `uint32_t` | 4 bytes | file formats, protocols |
+      | `int64_t` / `uint64_t` | 8 bytes | big counters, hashes, timestamps |
+
+      Whenever data leaves the program (files, network packets, hashes), professional code uses these instead of `int` or `long`, so it means the same thing on every machine.
+
+      To print them portably, `<inttypes.h>` has format macros: `printf("%" PRIu64 "\n", x);`
+
+      **Your turn:** implement the 64-bit **FNV-1a** hash, a simple, widely used string hash:
+
+      ```
+      hash = 14695981039346656037
+      for each byte b of the string:
+          hash = hash XOR b
+          hash = hash * 1099511628211      (wrapping, which uint64_t does for free)
+      ```
+    seed: |
+      #include <stdint.h>
+
+      uint64_t fnv1a(const char *s) {
+
+      }
+    solution: |
+      #include <stdint.h>
+
+      uint64_t fnv1a(const char *s) {
+          uint64_t h = 14695981039346656037ULL;
+          for (const unsigned char *p = (const unsigned char *)s; *p; p++) {
+              h ^= *p;
+              h *= 1099511628211ULL;
+          }
+          return h;
+      }
+    harness: |
+      #include <inttypes.h>
+      int main(void) {
+          CHECK("empty string gives the offset basis", fnv1a("") == 14695981039346656037ULL);
+          CHECK("\"a\"", fnv1a("a") == 12638187200555641996ULL);
+          CHECK("\"de_dust2\"", fnv1a("de_dust2") == 5579206504554651827ULL);
+          CHECK("\"inferno\"", fnv1a("inferno") == 2781478895320847780ULL);
+          CHECK("different strings, different hashes", fnv1a("ab") != fnv1a("ba"));
+          return 0;
+      }
+    hints:
+      - "Start with `uint64_t h = 14695981039346656037ULL;`. The `ULL` suffix makes the constant unsigned long long."
+      - "Walk the string as `unsigned char` so bytes above 127 aren't negative: `(const unsigned char *)s`."
+      - "In the loop: `h ^= *p; h *= 1099511628211ULL;`"
+
+  - title: The signed/unsigned comparison trap
+    id: c-types-5
+    text: |
+      When you compare a signed `int` with an unsigned value like `size_t` (what `strlen` and `sizeof` return), C converts the **int to unsigned** first. A negative int becomes a huge positive number:
+
+      ```c
+      int n = -1;
+      if (strlen("abc") > n)   // false! -1 becomes 18446744073709551615 (or 4294967295)
+      ```
+
+      `-Wall -Wextra` warns about this (`-Wsign-compare`). Treat that warning as a bug report, not noise.
+
+      **Your turn:** `longer_than(s, n)` should return 1 when `s` has more than `n` characters. It's wrong for negative `n` (every string is longer than -1 characters). Fix it without casting the length to `int` (strings can be longer than `INT_MAX`).
+    seed: |
+      #include <string.h>
+
+      int longer_than(const char *s, int n) {
+          return strlen(s) > n;
+      }
+    solution: |
+      #include <string.h>
+
+      int longer_than(const char *s, int n) {
+          return n < 0 || strlen(s) > (size_t)n;
+      }
+    forbid:
+      - pattern: "\\(\\s*int\\s*\\)\\s*strlen"
+        message: "Don't cast the length to int; handle negative n first, then compare as size_t."
+    harness: |
+      int main(void) {
+          CHECK_INT("\"abc\" longer than 2", longer_than("abc", 2), 1);
+          CHECK_INT("\"abc\" not longer than 3", longer_than("abc", 3), 0);
+          CHECK_INT("\"\" not longer than 0", longer_than("", 0), 0);
+          CHECK_INT("\"abc\" longer than -1", longer_than("abc", -1), 1);
+          CHECK_INT("\"\" longer than -5", longer_than("", -5), 1);
+          return 0;
+      }
+    hints:
+      - "Handle the negative case first: any string is longer than a negative length."
+      - "Once n is known to be >= 0, `(size_t)n` is safe: `return n < 0 || strlen(s) > (size_t)n;`"
+
+  - title: Floating-point rounding
+    id: c-types-6
+    text: |
+      `double` stores numbers in binary, and most decimal fractions (like 0.1) have no exact binary form. So:
+
+      ```c
+      0.1 + 0.2 == 0.3    // false! 0.30000000000000004 vs 0.29999999999999998
+      ```
+
+      Two rules professionals follow:
+
+      1. **Never compare doubles with `==`** after arithmetic. Check they're *close enough*, relative to their size.
+      2. **Never store money in `double`.** Store integer **cents** (`int64_t`), and only format as dollars for display.
+
+      A good closeness test scales the tolerance with the numbers:
+
+      ```
+      |a - b| <= eps * max(1, |a|, |b|)
+      ```
+
+      **Your turn:** write `int nearly_equal(double a, double b, double eps)` using that formula. Don't use `<math.h>`; write the absolute value yourself.
+    seed: |
+      int nearly_equal(double a, double b, double eps) {
+
+      }
+    solution: |
+      static double absd(double x) { return x < 0 ? -x : x; }
+
+      int nearly_equal(double a, double b, double eps) {
+          double scale = 1.0;
+          if (absd(a) > scale) scale = absd(a);
+          if (absd(b) > scale) scale = absd(b);
+          return absd(a - b) <= eps * scale;
+      }
+    harness: |
+      int main(void) {
+          CHECK_INT("0.1 + 0.2 vs 0.3", nearly_equal(0.1 + 0.2, 0.3, 1e-9), 1);
+          CHECK_INT("but == says no", (0.1 + 0.2 == 0.3), 0);
+          CHECK_INT("1.0 vs 1.1", nearly_equal(1.0, 1.1, 1e-9), 0);
+          CHECK_INT("big numbers scale the tolerance", nearly_equal(1e12, 1e12 + 1, 1e-9), 1);
+          CHECK_INT("small numbers use absolute tolerance", nearly_equal(1e-12, 0.0, 1e-9), 1);
+          CHECK_INT("negative numbers", nearly_equal(-2.5, -2.5000000001, 1e-9), 1);
+          return 0;
+      }
+    hints:
+      - "Write a tiny helper: `static double absd(double x) { return x < 0 ? -x : x; }`"
+      - "scale starts at 1.0 and grows to |a| or |b| if either is bigger."
+      - "`return absd(a - b) <= eps * scale;`"
+
+  - title: "Challenge: hunt the undefined behavior"
+    id: c-types-7
+    text: |
+      Undefined behavior is the biggest source of security holes in C. Learn to spot the usual suspects:
+
+      | UB | Example |
+      |---|---|
+      | Out-of-bounds access | `a[n]` in an array of n elements |
+      | Signed overflow | `INT_MAX + 1` |
+      | Reading uninitialized memory | `int x; printf("%d", x);` |
+      | Null or dangling pointer use | `*NULL`, use after `free` |
+      | Shifting too far | `1 << 32` on a 32-bit int |
+      | Modifying twice without sequencing | `i = i++ + 1;` |
+
+      The worst part: UB often *seems* to work, until a new compiler version, an optimization level or an input changes. On a real machine, `-fsanitize=address,undefined` catches most of these at runtime (the Pro Track covers it).
+
+      **Your turn:** these two functions each have undefined behavior. Fix both:
+
+      - `sum` reads one element past the end of the array.
+      - `midpoint` overflows for large inputs. Compute it without overflowing (assume `lo <= hi`).
+    seed: |
+      int sum(const int *a, int n) {
+          int s = 0;
+          for (int i = 0; i <= n; i++) s += a[i];
+          return s;
+      }
+
+      int midpoint(int lo, int hi) {
+          return (lo + hi) / 2;
+      }
+    solution: |
+      int sum(const int *a, int n) {
+          int s = 0;
+          for (int i = 0; i < n; i++) s += a[i];
+          return s;
+      }
+
+      int midpoint(int lo, int hi) {
+          return lo + (hi - lo) / 2;
+      }
+    harness: |
+      #include <limits.h>
+      struct Guarded { int a[4]; int canary; };
+      int main(void) {
+          struct Guarded g = {{1, 2, 3, 4}, 1000};
+          CHECK_INT("sum of 4 elements", sum(g.a, 4), 10);
+          CHECK_INT("sum of 0 elements", sum(g.a, 0), 0);
+          CHECK_INT("midpoint(2, 8)", midpoint(2, 8), 5);
+          CHECK_INT("midpoint near INT_MAX", midpoint(INT_MAX - 10, INT_MAX), INT_MAX - 5);
+          CHECK_INT("midpoint(-7, -1)", midpoint(-7, -1), -4);
+          return 0;
+      }
+    hints:
+      - "An array of n elements has indexes 0 to n - 1. The loop condition should be `i < n`."
+      - "`lo + (hi - lo) / 2` never overflows when lo <= hi, because `hi - lo` fits."

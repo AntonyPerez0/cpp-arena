@@ -1,0 +1,111 @@
+topic: c-types
+lang: c
+drills:
+  - type: predict
+    body: |
+      unsigned int x = 0;
+      x = x - 1;
+      printf("%u\n", x);
+    why: Unsigned arithmetic wraps modulo 2^32, so 0 - 1 is the largest unsigned int.
+  - type: predict
+    body: |
+      unsigned char c = 250;
+      c = c + 10;
+      printf("%d\n", c);
+    why: "unsigned char holds 0..255, so 260 wraps to 260 - 256 = 4."
+  - type: predict
+    body: |
+      int n = -1;
+      if (sizeof(int) > n) printf("bigger\n");
+      else printf("surprise\n");
+    why: "n is converted to the unsigned type of sizeof, becoming a huge number, so 4 > n is false."
+  - type: predict
+    body: |
+      printf("%d %d\n", 7 / 2, -7 / 2);
+    why: Integer division truncates toward zero, so -7 / 2 is -3, not -4.
+  - type: predict
+    body: |
+      printf("%d\n", 0.1 + 0.2 == 0.3);
+    why: 0.1 and 0.2 have no exact binary form, so their sum is not exactly the double closest to 0.3.
+  - type: predict
+    body: |
+      uint8_t a = 200, b = 100;
+      int sum = a + b;
+      printf("%d\n", sum);
+    why: Small types are promoted to int before arithmetic, so the sum is 300. Only storing it back in a uint8_t would wrap.
+  - type: fill
+    prompt: Print a uint64_t portably.
+    pre: |
+      #include <inttypes.h>
+    body: |
+      uint64_t big = 10000000000ULL;
+      printf("%" [[PRIu64]] "\n", big);
+    why: "PRIu64 expands to the right conversion (like \"lu\" or \"llu\") for the platform."
+  - type: bug
+    pre: |
+      int safe_add(int a, int b, int *out) {
+          if (a + b < a) return 0; // BUG
+          *out = a + b;
+          return 1;
+      }
+    body: |
+      int r = 0;
+      printf("%d\n", safe_add(INT_MAX, 1, &r));
+    fix: "if (b > 0 && a > INT_MAX - b) return 0;"
+    ub: true
+    why: The check itself overflows (undefined), so the compiler may delete it. Test before adding, with operations that can't overflow.
+  - type: bug
+    body: |
+      int a[4] = {1, 2, 3, 4};
+      int s = 0;
+      for (int i = 0; i <= 4; i++) s += a[i]; // BUG
+      printf("%d\n", s);
+    fix: "for (int i = 0; i < 4; i++) s += a[i];"
+    ub: true
+    why: Index 4 is one past the end of a 4-element array. Reading it is undefined behavior.
+  - type: compiles
+    body: |
+      int x = 1;
+      int y = x << 3;
+      printf("%d\n", y);
+    why: Shifting by less than the width is fine; this prints 8.
+  - type: boss
+    why: Do range checks in the wider type, before narrowing.
+    prompt: |
+      Write `int in_range(long long v)` that returns 1 if `v` fits in an `int` (between INT_MIN and INT_MAX inclusive), else 0. Then `int narrow(long long v, int *out)` stores the value in `*out` and returns 1 only when it fits.
+    seed: |
+      #include <limits.h>
+
+      int in_range(long long v) {
+
+      }
+
+      int narrow(long long v, int *out) {
+
+      }
+    solution: |
+      #include <limits.h>
+
+      int in_range(long long v) {
+          return v >= INT_MIN && v <= INT_MAX;
+      }
+
+      int narrow(long long v, int *out) {
+          if (!in_range(v)) return 0;
+          *out = (int)v;
+          return 1;
+      }
+    harness: |
+      int main(void) {
+          int r = 7;
+          CHECK_INT("small fits", in_range(5), 1);
+          CHECK_INT("INT_MAX fits", in_range(INT_MAX), 1);
+          CHECK_INT("INT_MAX + 1 doesn't", in_range((long long)INT_MAX + 1), 0);
+          CHECK_INT("INT_MIN fits", in_range(INT_MIN), 1);
+          CHECK_INT("narrow fails", narrow(5000000000LL, &r), 0);
+          CHECK_INT("out untouched", r, 7);
+          CHECK_INT("narrow ok", narrow(-42, &r) && r == -42, 1);
+          return 0;
+      }
+    hints:
+      - "Compare against INT_MIN and INT_MAX while still in long long."

@@ -1,0 +1,114 @@
+topic: c-funcptr
+lang: c
+drills:
+  - type: predict
+    pre: |
+      int twice(int x) { return 2 * x; }
+      int square(int x) { return x * x; }
+    body: |
+      int (*f)(int) = twice;
+      int a = f(5);
+      f = square;
+      printf("%d %d\n", a, f(5));
+    why: f first calls twice, then is re-pointed at square.
+  - type: predict
+    pre: |
+      typedef int (*Op)(int, int);
+      int add(int a, int b) { return a + b; }
+      int mul(int a, int b) { return a * b; }
+    body: |
+      Op ops[] = {add, mul, add};
+      int acc = 1;
+      for (int i = 0; i < 3; i++) acc = ops[i](acc, 3);
+      printf("%d\n", acc);
+    why: "((1 + 3) * 3) + 3 = 15."
+  - type: fill
+    prompt: Declare p as a pointer to a function taking two ints and returning int.
+    pre: |
+      int maxi(int a, int b) { return a > b ? a : b; }
+    body: |
+      int [[(*p)]](int, int) = maxi;
+      printf("%d\n", p(3, 8));
+    why: "The parentheses make p a pointer; without them `int *p(int, int)` declares a function."
+  - type: predict
+    pre: |
+      int desc(const void *a, const void *b) {
+          int x = *(const int *)a, y = *(const int *)b;
+          return (y > x) - (y < x);
+      }
+    body: |
+      int v[] = {3, 9, 1};
+      qsort(v, 3, sizeof v[0], desc);
+      printf("%d %d %d\n", v[0], v[1], v[2]);
+    why: The comparator puts larger values first.
+  - type: bug
+    pre: |
+      int by_value(const void *a, const void *b) {
+          return *(const int *)a - *(const int *)b; // BUG
+      }
+    body: |
+      int v[] = {INT_MIN, 5, INT_MAX};
+      qsort(v, 3, sizeof v[0], by_value);
+      printf("%d\n", v[0] == INT_MIN);
+    fix: "int x = *(const int *)a, y = *(const int *)b; return (x > y) - (x < y);"
+    ub: true
+    why: Subtracting can overflow for extreme values (undefined behavior) and give the wrong sign. Compare instead.
+  - type: compiles
+    pre: |
+      int twice(int x) { return 2 * x; }
+    body: |
+      void (*p)(void) = twice;
+      p();
+      printf("ok\n");
+    why: "twice takes an int and returns an int, so its address doesn't fit a pointer to `void (void)`. The types must match."
+  - type: predict
+    pre: |
+      void each(const int *a, int n, void (*fn)(int, void *), void *ctx) {
+          for (int i = 0; i < n; i++) fn(a[i], ctx);
+      }
+      void keep_max(int x, void *ctx) {
+          int *best = ctx;
+          if (x > *best) *best = x;
+      }
+    body: |
+      int v[] = {4, 11, 7};
+      int best = 0;
+      each(v, 3, keep_max, &best);
+      printf("%d\n", best);
+    why: The ctx pointer lets the callback update the caller's variable.
+  - type: boss
+    why: A function pointer parameter lets the caller choose the behavior.
+    prompt: |
+      Write `void apply(int *a, int n, int (*f)(int))` that replaces every element with `f(element)`, and `int count_if(const int *a, int n, int (*pred)(int))` that counts elements where `pred` returns nonzero.
+    seed: |
+      void apply(int *a, int n, int (*f)(int)) {
+
+      }
+
+      int count_if(const int *a, int n, int (*pred)(int)) {
+
+      }
+    solution: |
+      void apply(int *a, int n, int (*f)(int)) {
+          for (int i = 0; i < n; i++) a[i] = f(a[i]);
+      }
+
+      int count_if(const int *a, int n, int (*pred)(int)) {
+          int c = 0;
+          for (int i = 0; i < n; i++)
+              if (pred(a[i])) c++;
+          return c;
+      }
+    harness: |
+      static int dbl(int x) { return 2 * x; }
+      static int is_big(int x) { return x > 10; }
+      int main(void) {
+          int a[] = {3, 6, 9};
+          apply(a, 3, dbl);
+          CHECK("doubled", a[0] == 6 && a[1] == 12 && a[2] == 18);
+          CHECK_INT("count big", count_if(a, 3, is_big), 2);
+          CHECK_INT("empty", count_if(a, 0, is_big), 0);
+          return 0;
+      }
+    hints:
+      - "Call through the pointer like a normal function: `a[i] = f(a[i]);`"
