@@ -4,6 +4,7 @@ import { moduleById, drillsByTopic } from "../content";
 import { getState, patchStep, useStore } from "../state/store";
 import Markdown from "../components/Markdown";
 import Workbench from "../components/Workbench";
+import { useTitle } from "../lib/title";
 
 export default function StepPage() {
   const { moduleId = "", stepNo = "1" } = useParams();
@@ -13,6 +14,7 @@ export default function StepPage() {
   const step = m?.steps[idx];
   const progress = useStore((s) => (step ? s.steps[step.id] : undefined));
   const [justPassed, setJustPassed] = useState<string | null>(null);
+  useTitle(m && step ? `${step.title} · ${m.title}` : "Step not found");
   useEffect(() => setJustPassed(null), [step?.id]);
 
   const onPass = useCallback(

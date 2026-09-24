@@ -33,7 +33,7 @@ export function DiagnosticList({ diagnostics, raw }: { diagnostics: Diagnostic[]
           {showRaw ? "Hide" : "Show"} full compiler output
         </button>
       )}
-      {showRaw && <pre className="console small">{raw}</pre>}
+      {showRaw && <pre tabIndex={0} className="console small">{raw}</pre>}
     </div>
   );
 }
@@ -83,34 +83,34 @@ export default function Results({ result, attempt }: { result: GradeResult; atte
                     {t.args && t.args.length > 0 ? (
                       <div>
                         <span className="lbl">command-line arguments</span>
-                        <pre className="console tiny">{t.args.map((a) => (/\s/.test(a) ? JSON.stringify(a) : a)).join(" ")}</pre>
+                        <pre tabIndex={0} className="console tiny">{t.args.map((a) => (/\s/.test(a) ? JSON.stringify(a) : a)).join(" ")}</pre>
                       </div>
                     ) : null}
                     {t.files
                       ? Object.entries(t.files).map(([name, text]) => (
                           <div key={name}>
                             <span className="lbl">file {name}</span>
-                            <pre className="console tiny">{text.replace(/\n$/, "")}</pre>
+                            <pre tabIndex={0} className="console tiny">{text.replace(/\n$/, "")}</pre>
                           </div>
                         ))
                       : null}
                     {t.stdin ? (
                       <div>
                         <span className="lbl">input</span>
-                        <pre className="console tiny">{t.stdin.replace(/\n$/, "")}</pre>
+                        <pre tabIndex={0} className="console tiny">{t.stdin.replace(/\n$/, "")}</pre>
                       </div>
                     ) : null}
                     {t.expected !== undefined && (
                       <div className="t-cmp">
                         <div>
                           <span className="lbl">expected</span>
-                          <pre className="console tiny">
+                          <pre tabIndex={0} className="console tiny">
                             <Visible s={t.expected} />
                           </pre>
                         </div>
                         <div>
                           <span className="lbl">you printed / returned</span>
-                          <pre className="console tiny">
+                          <pre tabIndex={0} className="console tiny">
                             <Visible s={t.got ?? ""} />
                           </pre>
                         </div>
@@ -135,7 +135,7 @@ export default function Results({ result, attempt }: { result: GradeResult; atte
       {result.output && result.status !== "compile-error" && (
         <div>
           <span className="lbl">program output</span>
-          <pre className="console">{result.output}</pre>
+          <pre tabIndex={0} className="console">{result.output}</pre>
         </div>
       )}
       <div className="muted small">compiled in {(result.compileMs / 1000).toFixed(2)}s</div>

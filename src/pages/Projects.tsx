@@ -1,8 +1,10 @@
 import { Link } from "react-router-dom";
 import { projects, moduleById } from "../content";
 import { useStore } from "../state/store";
+import { useTitle } from "../lib/title";
 
 export default function Projects() {
+  useTitle("Projects");
   const s = useStore((x) => x);
   const levels = ["Beginner", "Intermediate", "Advanced"];
   return (
@@ -32,7 +34,7 @@ export default function Projects() {
                     <h3>{p.title}</h3>
                     <p>{p.summary}</p>
                     {p.after && <div className="muted small">Best after: {moduleById.get(p.after)?.title}</div>}
-                    <div className="bar">
+                    <div className="bar" aria-hidden="true">
                       <div style={{ width: `${(done / total) * 100}%` }} />
                     </div>
                   </Link>

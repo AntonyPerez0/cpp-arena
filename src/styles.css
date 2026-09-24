@@ -131,8 +131,10 @@ button.pill { cursor: pointer; }
 .step-text h1 { font-size: 1.5rem; }
 .step-count { color: var(--muted); font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.35rem; display: flex; gap: 0.6rem; align-items: center; }
 .done-chip { color: var(--good); text-transform: none; letter-spacing: 0; }
-.step-dots { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 1rem; }
-.dot { width: 12px; height: 12px; border-radius: 50%; background: #ffffff14; border: 1px solid var(--line); }
+.step-dots { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 1rem; }
+.dot { width: 14px; height: 14px; border-radius: 50%; background: #ffffff14; border: 1px solid var(--line); position: relative; }
+/* Invisible 24px tap area around each small dot (WCAG 2.5.8 target size). */
+.dot::after { content: ""; position: absolute; inset: -5px; }
 .dot-done { background: var(--good); border-color: var(--good); }
 .dot-cur { outline: 2px solid var(--accent); outline-offset: 1px; }
 .step-work { min-width: 0; }
@@ -162,7 +164,7 @@ button.pill { cursor: pointer; }
 .tk-type { color: #ffcb6b; }
 .tk-str { color: #c3e88d; }
 .tk-num { color: #f78c6c; }
-.tk-com { color: #697386; font-style: italic; }
+.tk-com { color: #8a94a8; font-style: italic; }
 .tk-pre { color: #89ddff; }
 .tk-fn { color: #82aaff; }
 .freerun { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.8rem; margin-bottom: 0.8rem; }
@@ -269,18 +271,18 @@ button.pill { cursor: pointer; }
 .type-bug { color: #ff8a96; }
 .type-compiles { color: #ffcb6b; }
 .type-boss { color: #fff; background: #7a1d2b; }
-.rep-topic { color: var(--muted); font-size: 0.85rem; }
+.rep-topic { color: #a7afbd; font-size: 0.85rem; }
 .rep-prompt { font-size: 1.05rem; margin: 0.2rem 0 0.8rem; }
 .rep-answer { display: flex; gap: 0.6rem; margin-top: 0.8rem; }
 .answer-input { flex: 1; font-family: var(--mono); font-size: 1rem; background: #0b0d11; color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 0.6rem 0.8rem; outline: none; }
 .answer-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px #ff9f1c22; }
 .rep-output { margin-top: 0.6rem; }
-.buglines { background: #0b0d11; border: 1px solid var(--line); border-radius: var(--radius); padding: 0.5rem 0; font-family: var(--mono); font-size: 14.5px; }
+.buglines { background: #0b0d11; border: 1px solid var(--line); border-radius: var(--radius); padding: 0.5rem 0; font-family: var(--mono); font-size: 0.9rem; }
 .bugline { display: flex; gap: 0.8rem; width: 100%; text-align: left; background: none; border: 0; color: #d5dae3; font: inherit; padding: 0.15rem 0.8rem; cursor: pointer; white-space: pre; }
 .bugline code { background: none; padding: 0; font-size: inherit; }
 button.bugline:hover { background: #ff4d5e1f; outline: 1px solid #ff4d5e55; }
-.bugline-off { cursor: default; opacity: 0.65; }
-.bugline .ln { color: #4d5566; width: 1.6rem; text-align: right; flex: none; user-select: none; }
+.bugline-off { cursor: default; }
+.bugline .ln { color: #7f8a9e; width: 1.6rem; text-align: right; flex: none; user-select: none; }
 .buglines .muted { padding: 0.5rem 0.8rem 0.2rem; font-family: var(--sans); }
 .yn { display: flex; gap: 0.8rem; margin-top: 0.9rem; flex-wrap: wrap; }
 .boss-banner { background: linear-gradient(90deg, #7a1d2b, #2a1216); color: #fff; font-weight: 900; letter-spacing: 0.08em; padding: 0.4rem 0.8rem; border-radius: 7px; margin-bottom: 0.6rem; }
@@ -354,3 +356,22 @@ button.bugline:hover { background: #ff4d5e1f; outline: 1px solid #ff4d5e55; }
 @media (min-width: 1700px) {
   html { font-size: 18px; }
 }
+
+/* ---------- accessibility */
+h2.h3 { font-size: 1.1rem; }
+.skip-link { position: absolute; left: 0.75rem; top: -3rem; z-index: 100; background: var(--accent); color: #111; font-weight: 700; padding: 0.55rem 0.9rem; border-radius: 8px; }
+.skip-link:focus { top: 0.6rem; text-decoration: none; }
+/* A clear focus ring for keyboard users on everything focusable. */
+:focus-visible { outline: 3px solid var(--accent2); outline-offset: 2px; }
+.blank:focus-visible, .answer-input:focus-visible { outline: 3px solid var(--accent2); outline-offset: 1px; }
+/* Headings focused by code after navigation don't need a ring. */
+[tabindex="-1"]:focus { outline: none; }
+/* Links inside running text are underlined so they don't rely on color alone. */
+.md a, p a, li a, .muted a { text-decoration: underline; text-underline-offset: 2px; }
+.visually-hidden { position: absolute !important; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}
+/* Pre-rendered pages (what search engines see) before the app starts. */
+.prerendered h1 { margin-top: 0; }
+kbd { font: inherit; font-size: 0.85em; opacity: 0.8; }

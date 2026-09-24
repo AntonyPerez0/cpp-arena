@@ -20,7 +20,7 @@ export type State = {
     bossKills: number;
     days: Record<string, number>;
   };
-  settings: { sound: boolean; unlockAll: boolean; topics: string[] | null; boss: boolean };
+  settings: { sound: boolean; unlockAll: boolean; topics: string[] | null; boss: boolean; /** single-letter and number shortcuts in Deathmatch */ keys: boolean };
   /** Pro Track projects the learner marked as passing on GitHub. */
   pro: Record<string, boolean>;
 };
@@ -33,7 +33,7 @@ const fresh = (): State => ({
   projects: {},
   drills: {},
   dm: { best: { deathmatch: 0, casual: 0, warmup: 0 }, runs: [], reps: 0, kills: 0, bossKills: 0, days: {} },
-  settings: { sound: true, unlockAll: false, topics: null, boss: true },
+  settings: { sound: true, unlockAll: false, topics: null, boss: true, keys: true },
   pro: {},
 });
 

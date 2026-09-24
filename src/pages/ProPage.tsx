@@ -2,11 +2,13 @@ import { Link, useParams } from "react-router-dom";
 import Markdown from "../components/Markdown";
 import { pro, proById } from "../content";
 import { setProDone, useStore } from "../state/store";
+import { useTitle } from "../lib/title";
 
 export default function ProPage() {
   const { projectId = "" } = useParams();
   const p = proById.get(projectId);
   const done = useStore((s) => !!s.pro[projectId]);
+  useTitle(p ? `${p.title} (Pro Track)` : "Project not found");
   if (!p) {
     return (
       <div className="page-head">

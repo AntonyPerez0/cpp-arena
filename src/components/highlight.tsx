@@ -33,5 +33,5 @@ export function highlight(code: string, keyPrefix = ""): ReactNode[] {
 }
 
 export function CodeView({ code, className = "" }: { code: string; className?: string }) {
-  return <pre className={"codeview " + className}>{highlight(code)}</pre>;
+  return <pre tabIndex={0} className={"codeview " + className}>{highlight(code)}</pre>;
 }

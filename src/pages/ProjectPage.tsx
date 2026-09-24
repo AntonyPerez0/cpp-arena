@@ -4,10 +4,12 @@ import { projectById, moduleById } from "../content";
 import { getState, patchProject, useStore } from "../state/store";
 import Markdown from "../components/Markdown";
 import Workbench from "../components/Workbench";
+import { useTitle } from "../lib/title";
 
 export default function ProjectPage() {
   const { projectId = "" } = useParams();
   const p = projectById.get(projectId);
+  useTitle(p ? `${p.title} (project)` : "Project not found");
   const prog = useStore((s) => s.projects[projectId]);
   const completed = prog?.completed ?? [];
   const firstOpen = p ? Math.min(completed.length, p.milestones.length - 1) : 0;

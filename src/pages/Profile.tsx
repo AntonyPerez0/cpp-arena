@@ -4,8 +4,10 @@ import { exportProgress, importProgress, resetProgress, useStore } from "../stat
 import { RANKS, dailyStreak, moduleProgress, rankFor, topicStats, totals } from "../state/derived";
 import { clearCompilerCache } from "../compiler/client";
 import CompilerBadge from "../components/CompilerBadge";
+import { useTitle } from "../lib/title";
 
 export default function Profile() {
+  useTitle("Your progress");
   const s = useStore((x) => x);
   const r = rankFor(s.dm.best.deathmatch);
   const t = totals(s);
@@ -36,7 +38,7 @@ export default function Profile() {
       <div className="cards3">
         <div className="card">
           <div className="card-kicker">Rank</div>
-          <h3>{r.rank.name}</h3>
+          <h2 className="h3">{r.rank.name}</h2>
           <p className="muted small">
             Based on your best Deathmatch (1 life) streak: {s.dm.best.deathmatch}.
             {r.next && ` Reach ${r.next.at} for ${r.next.name}.`}
@@ -49,14 +51,14 @@ export default function Profile() {
         </div>
         <div className="card">
           <div className="card-kicker">Lessons</div>
-          <h3>
+          <h2 className="h3">
             {t.done} / {t.total} steps
-          </h3>
+          </h2>
           <p className="muted small">{clean} solved clean (no hints, no solution peek).</p>
         </div>
         <div className="card">
           <div className="card-kicker">Deathmatch</div>
-          <h3>{s.dm.kills} kills</h3>
+          <h2 className="h3">{s.dm.kills} kills</h2>
           <p className="muted small">
             {s.dm.reps} reps · {s.dm.reps ? Math.round((s.dm.kills / s.dm.reps) * 100) : 0}% accuracy · {s.dm.bossKills} bosses · daily streak {dailyStreak(s.dm.days)}
           </p>
@@ -64,7 +66,7 @@ export default function Profile() {
       </div>
 
       <section className="card">
-        <h3>Topics</h3>
+        <h2 className="h3">Topics</h2>
         {weakest.length > 0 && (
           <p>
             Weakest weapon right now: <b>{modules.find((m) => m.id === weakest[0].id)?.title}</b> ({Math.round(weakest[0].acc * 100)}% over {weakest[0].n} reps). Warm-up mode
@@ -100,7 +102,7 @@ export default function Profile() {
       </section>
 
       <section className="card">
-        <h3>Your data</h3>
+        <h2 className="h3">Your data</h2>
         <p className="muted small">
           Progress is saved in this browser only. Export it to move to another device or keep a backup.
         </p>
@@ -143,7 +145,7 @@ export default function Profile() {
       </section>
 
       <section className="card">
-        <h3>Compiler</h3>
+        <h2 className="h3">Compiler</h2>
         <p className="muted small">
           Clang 20 + LLD compiled to WebAssembly (the browsercc project). C compiles with <code>-std=c17</code>, C++ with <code>-std=c++20 -O2 -fno-exceptions</code>
           and a precompiled standard-library header for speed. Programs run on a WASI runtime in a background thread with a 3 second time limit, each with

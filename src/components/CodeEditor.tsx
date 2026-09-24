@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useId, useMemo } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { cpp } from "@codemirror/lang-cpp";
 import { oneDark } from "@codemirror/theme-one-dark";
@@ -14,14 +14,18 @@ type Props = {
   diagnostics?: Diagnostic[];
   minHeight?: string;
   readOnly?: boolean;
+  /** Accessible name for the editor. */
+  label?: string;
 };
 
-export default function CodeEditor({ value, onChange, onRun, diagnostics = [], minHeight = "260px", readOnly }: Props) {
+export default function CodeEditor({ value, onChange, onRun, diagnostics = [], minHeight = "260px", readOnly, label = "Code editor" }: Props) {
+  const helpId = useId();
   const extensions = useMemo(() => {
     const diagSource = diagnostics.filter((d) => d.line > 0 && !d.inTests && d.severity !== "note");
     return [
       cpp(),
       EditorView.lineWrapping,
+      EditorView.contentAttributes.of({ "aria-label": label, "aria-describedby": helpId }),
       lintGutter(),
       linter(
         (view): CmDiagnostic[] =>
@@ -46,10 +50,13 @@ export default function CodeEditor({ value, onChange, onRun, diagnostics = [], m
         ]),
       ),
     ];
-  }, [diagnostics, onRun]);
+  }, [diagnostics, onRun, label, helpId]);
 
   return (
     <div className="editor">
+      <p id={helpId} className="visually-hidden">
+        Tab inserts indentation. To leave the editor with the keyboard, press Escape, then Tab. Control or Command plus Enter runs the checks.
+      </p>
       <CodeMirror
         value={value}
         onChange={onChange}

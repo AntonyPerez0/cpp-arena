@@ -1,5 +1,5 @@
-import { HashRouter, NavLink, Route, Routes, Link, useLocation } from "react-router-dom";
-import { useEffect } from "react";
+import { BrowserRouter, NavLink, Route, Routes, Link, useLocation } from "react-router-dom";
+import { useEffect, useRef } from "react";
 import CompilerBadge from "./components/CompilerBadge";
 import Home from "./pages/Home";
 import Learn from "./pages/Learn";
@@ -10,10 +10,24 @@ import ProjectPage from "./pages/ProjectPage";
 import Profile from "./pages/Profile";
 import Pro from "./pages/Pro";
 import ProPage from "./pages/ProPage";
+import NotFound from "./pages/NotFound";
 
-function ScrollTop() {
+/** On navigation: scroll to the top and move keyboard/screen-reader focus to the new page's content. */
+function RouteChange() {
   const { pathname } = useLocation();
-  useEffect(() => window.scrollTo(0, 0), [pathname]);
+  const first = useRef(true);
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    const main = document.getElementById("main");
+    const heading = main?.querySelector("h1");
+    const target = heading instanceof HTMLElement ? heading : main;
+    if (target && !target.hasAttribute("tabindex")) target.setAttribute("tabindex", "-1");
+    target?.focus({ preventScroll: true });
+  }, [pathname]);
   return null;
 }
 
@@ -29,16 +43,19 @@ function Crosshair() {
 
 export default function App() {
   return (
-    <HashRouter>
-      <ScrollTop />
+    <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+      <RouteChange />
+      <a className="skip-link" href="#main">
+        Skip to content
+      </a>
       <header className="topbar">
-        <Link to="/" className="brand">
+        <Link to="/" className="brand" aria-label="C/C++ Arena home">
           <Crosshair />
           <span>
             C/C++ <b>Arena</b>
           </span>
         </Link>
-        <nav className="nav">
+        <nav className="nav" aria-label="Main">
           <NavLink to="/learn">Learn</NavLink>
           <NavLink to="/deathmatch">Deathmatch</NavLink>
           <NavLink to="/projects">Projects</NavLink>
@@ -49,7 +66,7 @@ export default function App() {
           <CompilerBadge compact />
         </div>
       </header>
-      <main className="main">
+      <main className="main" id="main" tabIndex={-1}>
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/learn" element={<Learn />} />
@@ -60,9 +77,9 @@ export default function App() {
           <Route path="/pro" element={<Pro />} />
           <Route path="/pro/:projectId" element={<ProPage />} />
           <Route path="/profile" element={<Profile />} />
-          <Route path="*" element={<Home />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
-    </HashRouter>
+    </BrowserRouter>
   );
 }

@@ -25,13 +25,13 @@ Everything you submit is compiled by Clang 20 running as WebAssembly in a Web Wo
 
 3. On GitHub, open **Settings > Pages** and set **Source** to **GitHub Actions**.
 
-The workflow in `.github/workflows/deploy.yml` then runs on every push to `main`. It installs dependencies, compiles and runs every lesson solution, drill and project milestone with GCC (the build fails if any expected output is wrong), builds the site and publishes it at `https://<you>.github.io/<repo>/`. The site uses relative URLs and hash routing, so any repository name works.
+The workflow in `.github/workflows/deploy.yml` then runs on every push to `main`. It installs dependencies, compiles and runs every lesson solution, drill and project milestone with GCC (the build fails if any expected output is wrong), builds the site, runs the browser tests (including the accessibility checks), and publishes it at `https://<you>.github.io/<repo>/`. The workflow passes the repository name to the build, so any repository name works.
 
 ## Run locally
 
 ```bash
 npm install        # also copies the Clang toolchain into public/toolchain
-npm run dev        # http://localhost:5173
+npm run dev        # http://localhost:5173/cpp-arena/
 ```
 
 Other scripts:
@@ -41,7 +41,7 @@ Other scripts:
 | `npm run content` | Rebuilds `src/generated/content.json` from `content/**/*.yaml`, compiling and running everything with GCC/G++ |
 | `npm run verify:wasm` | Cross-checks all content against the exact browser toolchain (browsercc Clang in Node) |
 | `npm run build` | Type-checks and builds `dist/` |
-| `npm run test:e2e` | Serves `dist/` and drives the real UI in headless Chromium |
+| `npm run test:e2e` | Serves `dist/` and drives the real UI in headless Chromium, including axe accessibility scans (WCAG 2.2 AA) of every page type and SEO checks |
 | `npm run check:pro` | Checks every Pro Track grader: the starter must fail and the reference solution must pass (needs the tools from `pro-track/starter/tools/setup.sh`) |
 
 ## How it works
@@ -51,6 +51,11 @@ Other scripts:
 - **Running**: each run happens in a short-lived worker with `@bjorn3/browser_wasi_shim`. stdin is supplied up front, output is capped at 64 KB, and the worker is killed after 3 seconds.
 - **Grading**: stdout steps compare normalized output against test cases (some hidden, so hard-coding answers fails). Function steps append a hidden `main()` that calls your code and reports `@@PASS`/`@@FAIL` lines. Steps can also require or forbid patterns (for example "use a for loop").
 - **Progress**: stored in your browser's localStorage. Export and import it from the Profile page.
+
+## Accessibility and SEO
+
+- **Accessibility** targets WCAG 2.2 AA: a skip link, focus moved to each new page's heading, visible focus rings, labeled editor and blanks, results announced to screen readers, keyboard access to every drill, an option to turn off single-key shortcuts, 24px tap targets, sufficient contrast (including syntax colors), and reduced motion support. `npm run test:e2e` runs axe-core on every page type and on interactive states (results, drills, the death screen), and CI fails on any violation.
+- **SEO**: every page has a real URL (`/<repo>/learn/c-hello/1`); old `#/` links redirect. `scripts/prerender.mjs` writes a static HTML file per route with its own title, description, canonical link, Open Graph tags, structured data (`Course`, `LearningResource`) and the lesson text, plus `sitemap.xml`, `robots.txt` and `404.html`. Set `BASE_PATH` and `SITE_URL` when building for another address.
 
 ## Known limits
 
