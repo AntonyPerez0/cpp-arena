@@ -252,6 +252,53 @@ await test("project milestone passes", async () => {
   await shot("project");
 });
 
+await test("a step that reads files from the working folder passes (c-files 2)", async () => {
+  await go("/learn/c-files/2");
+  const step = content.modules.find((m) => m.id === "c-files").steps[1];
+  await setEditor(step.solution);
+  await check();
+  await page.getByText("All tests passed").waitFor({ timeout: 5000 });
+});
+
+await test("command-line arguments and exit codes are graded (c-program 6)", async () => {
+  await go("/learn/c-program/6");
+  const step = content.modules.find((m) => m.id === "c-program").steps[5];
+  await setEditor(step.solution.replace("return status;", "return 0;"));
+  await check();
+  await page.getByText(/expects exit code 1/).first().waitFor({ timeout: 5000 });
+  await setEditor(step.solution);
+  await check();
+  await page.getByText("All tests passed").waitFor({ timeout: 5000 });
+});
+
+await test("pro track pages render, and the starter pack downloads", async () => {
+  await go("/pro");
+  await page.getByText("Set up once").waitFor();
+  const cmd = await page.locator(".copybox pre").innerText();
+  if (!/curl -fsSL .*pro\/cpp-arena-pro\.tar\.gz \| tar -xz/.test(cmd)) throw new Error("unexpected import command: " + cmd);
+  const res = await page.request.get(BASE + "pro/cpp-arena-pro.tar.gz");
+  if (res.status() !== 200 || (await res.body()).length < 10000) throw new Error("starter pack missing: HTTP " + res.status());
+  await page.locator(".project-card").first().click();
+  await page.getByRole("heading", { name: "Compilers, linking and CMake" }).waitFor();
+  await page.getByText("From source to program").waitFor();
+  await page.locator(".pro-done input").check();
+  await page.waitForTimeout(500); // progress is saved to localStorage after a short debounce
+  await go("/pro");
+  await page.getByText("1/12 projects passing").waitFor();
+  await shot("pro");
+});
+
+await test("pro pages fit a phone screen (no sideways scrolling)", async () => {
+  const phone = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  for (const hash of ["/pro", "/pro/toolchain", "/pro/performance", "/learn/c-types/1"]) {
+    await phone.goto(BASE + "#" + hash);
+    await phone.waitForSelector(".page-head, .step-grid", { timeout: 10000 });
+    const overflow = await phone.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    if (overflow > 1) throw new Error(`${hash} is ${overflow}px wider than the screen`);
+  }
+  await phone.close();
+});
+
 await test("mobile layout renders the step page", async () => {
   await page.setViewportSize({ width: 390, height: 844 });
   await go("/learn/c-hello/3");

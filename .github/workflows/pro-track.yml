@@ -1,0 +1,25 @@
+name: Verify the Pro Track
+
+# For every Pro Track project: the untouched starter must NOT pass its grader,
+# and the starter plus the reference solution MUST pass, using the same tools
+# (GCC, Clang, CMake, sanitizers, Valgrind, clang-tidy) learners get.
+on:
+  push:
+    branches: [main]
+    paths: ["pro-track/**", ".github/workflows/pro-track.yml"]
+  pull_request:
+    paths: ["pro-track/**", ".github/workflows/pro-track.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the Pro Track tools
+        run: bash pro-track/starter/tools/setup.sh
+      - name: Check every project
+        run: bash pro-track/check.sh

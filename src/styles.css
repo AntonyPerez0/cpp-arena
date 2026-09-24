@@ -87,7 +87,7 @@ button.pill { cursor: pointer; }
 .rank-chip { display: inline-block; font-size: 0.78rem; font-weight: 700; color: var(--accent2); background: #ff9f1c1a; border: 1px solid #ff9f1c44; padding: 0.1rem 0.5rem; border-radius: 6px; }
 .bar { height: 6px; background: #ffffff10; border-radius: 99px; overflow: hidden; }
 .bar > div, .bar > span { display: block; height: 100%; background: var(--accent); border-radius: 99px; transition: width 0.3s; }
-.cards3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin: 1rem 0; }
+.cards3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 1rem; margin: 1rem 0; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.1rem 1.2rem; margin-bottom: 1rem; }
 .cards3 .card { margin-bottom: 0; }
 .card p { margin: 0.4rem 0; color: #c3c9d4; }
@@ -328,3 +328,17 @@ button.bugline:hover { background: #ff4d5e1f; outline: 1px solid #ff4d5e55; }
   .hud { gap: 0.75rem; }
   .hud-quit { padding: 0.4rem 0.6rem; }
 }
+
+/* ---- Pro Track ---- */
+.pro-setup { margin: 1rem 0 1.5rem; }
+.pro-setup h2 { margin-top: 0; }
+.pro-steps { padding-left: 1.3rem; }
+.pro-steps li { margin: 0.6rem 0; }
+.copybox { display: flex; gap: 0.5rem; align-items: flex-start; margin-top: 0.5rem; }
+.copybox pre { flex: 1; min-width: 0; margin: 0; white-space: pre-wrap; word-break: break-all; }
+.pro-done { display: inline-flex; gap: 0.5rem; align-items: center; margin-top: 0.4rem; cursor: pointer; }
+.pro-done input { width: 1.1rem; height: 1.1rem; }
+.pro-readme { max-width: 820px; }
+.pro-nav { margin: 2rem 0 1rem; max-width: 820px; }
+/* Wide tables and code scroll inside themselves instead of widening the page on phones. */
+.md table { display: block; max-width: 100%; overflow-x: auto; }

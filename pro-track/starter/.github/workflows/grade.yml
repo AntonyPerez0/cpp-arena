@@ -1,0 +1,54 @@
+# Grades your Pro Track projects on every push.
+# Only projects you have changed since importing the starter are graded, so each
+# one shows up as its own check once you start it. To grade everything, open
+# Actions > Grade > Run workflow and set "all" to true.
+name: Grade
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      all:
+        description: Grade every project, even ones you haven't started
+        type: boolean
+        default: false
+
+concurrency:
+  group: grade-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    outputs:
+      projects: ${{ steps.list.outputs.projects }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: list
+        run: |
+          if [ "${{ inputs.all }}" = "true" ]; then
+            echo "projects=$(bash tools/started.sh all)" >> "$GITHUB_OUTPUT"
+          else
+            echo "projects=$(bash tools/started.sh)" >> "$GITHUB_OUTPUT"
+          fi
+
+  grade:
+    needs: plan
+    if: needs.plan.outputs.projects != '[]'
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        project: ${{ fromJSON(needs.plan.outputs.projects) }}
+    name: ${{ matrix.project }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install tools
+        run: bash tools/setup.sh
+      - name: Grade
+        run: bash tools/grade.sh ${{ matrix.project }}

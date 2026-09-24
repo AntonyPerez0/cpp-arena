@@ -57,9 +57,21 @@ export type Drill = {
   exercise?: Exercise;
 };
 
+export type ProProject = {
+  id: string;
+  dir: string;
+  number: number;
+  title: string;
+  summary: string;
+  hours: number;
+  skills: string[];
+  readme: string;
+};
+
 export type Content = {
   generatedAt: string;
   modules: Module[];
   projects: Project[];
   drills: Drill[];
+  pro: ProProject[];
 };

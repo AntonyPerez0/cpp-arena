@@ -146,8 +146,9 @@ export default function Profile() {
         <h3>Compiler</h3>
         <p className="muted small">
           Clang 20 + LLD compiled to WebAssembly (the browsercc project). C compiles with <code>-std=c17</code>, C++ with <code>-std=c++20 -O2 -fno-exceptions</code>
-          and a precompiled standard-library header for speed. Programs run on a WASI runtime in a background thread with a 3 second time limit. Known limits:
-          no exceptions, no threads, and stdin is supplied up front rather than typed live.
+          and a precompiled standard-library header for speed. Programs run on a WASI runtime in a background thread with a 3 second time limit, each with
+          its own private folder for files. Known limits: no exceptions and no threads (the Pro Track covers both on a real machine), and stdin is
+          supplied up front rather than typed live.
         </p>
         <div className="actions">
           <CompilerBadge />

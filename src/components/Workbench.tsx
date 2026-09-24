@@ -134,7 +134,7 @@ export default function Workbench({ ex, initialCode, initialBlanks, hintsUsed, o
             stdin (what the program reads)
           </label>
           <textarea id="stdin" className="stdin" rows={3} value={stdin} onChange={(e) => setStdin(e.target.value)} spellCheck={false} />
-          {(ex.tests[0]?.files || ex.tests[0]?.args?.length) && (
+          {(!!ex.tests[0]?.files || !!ex.tests[0]?.args?.length) && (
             <p className="muted small">
               {ex.tests[0]?.files && <>Files in the working folder: {Object.keys(ex.tests[0].files).join(", ")}. </>}
               {ex.tests[0]?.args?.length ? <>Command-line arguments: {ex.tests[0].args.join(" ")}</> : null}

@@ -1,0 +1,64 @@
+# Pro Track: projects done on a real machine (GitHub Codespaces or Linux/macOS),
+# graded by GitHub Actions. Each project's lesson is its README in
+# pro-track/starter/projects/<dir>/README.md, which the site shows as-is.
+projects:
+  - dir: 01-toolchain
+    title: Compilers, linking and CMake
+    hours: 3
+    skills: [build stages, object files, static libraries, CMake targets]
+    summary: See every stage between source code and a program, then describe a multi-file C project with CMake.
+  - dir: 02-git
+    title: Git and pull requests
+    hours: 2
+    skills: [branches, pull requests, merge conflicts, revert, tags]
+    summary: Work the way teams do. Feature branches, pull requests, a real merge conflict, undoing mistakes and tagging a release.
+  - dir: 03-debugging
+    title: Debugging with gdb and sanitizers
+    hours: 3
+    skills: [gdb, AddressSanitizer, UndefinedBehaviorSanitizer, stack traces]
+    summary: Hunt down four real bugs (null dereference, use-after-free, buffer overflow, integer overflow) with a debugger and sanitizers.
+  - dir: 04-testing
+    title: Unit testing with GoogleTest
+    hours: 3
+    skills: [GoogleTest, edge cases, test design, mutation testing]
+    summary: Write the test suite yourself. Graded by mutation testing, so every one of seven hidden bugs must make a test fail.
+  - dir: 05-exceptions
+    title: Exceptions and exception safety
+    hours: 3
+    skills: [custom exceptions, strong guarantee, copy-and-swap, error boundaries]
+    summary: Everything the browser couldn't run. Throwing, catching, designing error types and writing code that stays correct when things throw.
+  - dir: 06-concurrency
+    title: Concurrency and ThreadSanitizer
+    hours: 5
+    skills: [threads, mutexes, condition variables, futures, ThreadSanitizer]
+    summary: Build a blocking queue, a thread pool and a parallel algorithm, and prove them free of data races.
+  - dir: 07-quality
+    title: Code quality with clang-tidy and clang-format
+    hours: 2
+    skills: [clang-tidy, clang-format, Core Guidelines, safe refactoring]
+    summary: Clean up working legacy code until it passes a team's automated quality gates, and find the leak the linters miss.
+  - dir: 08-performance
+    title: Profiling and performance
+    hours: 4
+    skills: [Release builds, profilers, complexity, avoiding copies]
+    summary: Take correct but hopelessly slow code from hours to milliseconds by measuring first and fixing what matters.
+  - dir: 09-libraries
+    title: Third-party libraries
+    hours: 2
+    skills: [find_package, FetchContent, vcpkg, JSON, input validation]
+    summary: Add a real library to a CMake project with a download fallback, and use it to load and validate settings.
+  - dir: 10-posix
+    title: POSIX systems programming
+    hours: 5
+    skills: [file descriptors, fork and exec, pipes, TCP sockets]
+    summary: Go below the standard library. Raw file I/O, running programs with pipes, and a TCP server and client.
+  - dir: 11-kvstore
+    title: "Capstone A: a key-value server"
+    hours: 10
+    skills: [system design, reader/writer locks, networking, persistence]
+    summary: A small networked database. Concurrent clients, a text protocol, crash-safe persistence and a written design.
+  - dir: 12-clib
+    title: "Capstone B: a C library with a clean API"
+    hours: 8
+    skills: [API design, out-of-memory safety, Valgrind, symbol hygiene]
+    summary: A hash map library held to release standards, from ownership rules to surviving every failed allocation.

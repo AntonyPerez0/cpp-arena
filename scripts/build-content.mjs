@@ -366,11 +366,39 @@ async function buildDrill(where, id, topic, lang, d) {
   }
 }
 
+// ---------------------------------------------------------------- pro track
+function buildPro() {
+  const file = path.join(ROOT, "content", "pro.yaml");
+  if (!fs.existsSync(file)) return [];
+  const data = YAML.parse(fs.readFileSync(file, "utf8"));
+  const dirs = fs.readdirSync(path.join(ROOT, "pro-track", "starter", "projects")).sort();
+  const listed = data.projects.map((p) => p.dir);
+  for (const d of dirs) if (!listed.includes(d)) errors.push(`content/pro.yaml: project folder ${d} is not listed`);
+  return data.projects.map((p) => {
+    const readme = path.join(ROOT, "pro-track", "starter", "projects", p.dir, "README.md");
+    if (!fs.existsSync(readme)) {
+      errors.push(`content/pro.yaml: ${p.dir} has no README.md`);
+      return null;
+    }
+    return {
+      id: p.dir.replace(/^\d+-/, ""),
+      dir: p.dir,
+      number: parseInt(p.dir, 10),
+      title: p.title,
+      summary: p.summary,
+      hours: p.hours,
+      skills: p.skills ?? [],
+      readme: fs.readFileSync(readme, "utf8"),
+    };
+  }).filter(Boolean);
+}
+
 // ---------------------------------------------------------------- main
 const t0 = Date.now();
 const modules = await buildLessons();
 const projects = await buildProjects();
 const drills = await buildDrills(new Set(modules.map((m) => m.id)));
+const pro = buildPro();
 {
   const seenSteps = new Set();
   for (const m of modules) for (const st of m.steps) {
@@ -390,9 +418,9 @@ if (errors.length) {
   console.error(`\n${errors.length} content error(s).`);
   process.exit(1);
 }
-const content = { generatedAt: new Date().toISOString(), modules, projects, drills };
+const content = { generatedAt: new Date().toISOString(), modules, projects, drills, pro };
 fs.mkdirSync(path.join(ROOT, "src/generated"), { recursive: true });
 fs.writeFileSync(path.join(ROOT, "src/generated/content.json"), JSON.stringify(content));
 const steps = modules.reduce((a, m) => a + m.steps.length, 0);
 const ms = projects.reduce((a, p) => a + p.milestones.length, 0);
-console.log(`content ok: ${modules.length} modules, ${steps} steps, ${drills.length} drills, ${projects.length} projects (${ms} milestones) in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+console.log(`content ok: ${modules.length} modules, ${steps} steps, ${drills.length} drills, ${projects.length} projects (${ms} milestones), ${pro.length} pro projects in ${((Date.now() - t0) / 1000).toFixed(1)}s`);

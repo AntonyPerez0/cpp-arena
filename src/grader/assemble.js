@@ -149,5 +149,5 @@ export function runInput(t) {
   const hasFiles = t.files && Object.keys(t.files).length > 0;
   const hasArgs = t.args && t.args.length > 0;
   if (!hasFiles && !hasArgs) return t.stdin ?? "";
-  return { stdin: t.stdin ?? "", files: t.files ?? {}, args: t.args ?? [] };
+  return { stdin: t.stdin ?? "", files: t.files ?? {}, args: (t.args ?? []).map(String) };
 }
