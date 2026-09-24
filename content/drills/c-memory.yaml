@@ -119,3 +119,62 @@ drills:
     hints:
       - malloc n ints, fill them, return the pointer.
     why: Heap memory outlives the function, so it can be returned.
+
+  - type: predict
+    body: |
+      int **g = malloc(2 * sizeof *g);
+      g[0] = calloc(3, sizeof *g[0]);
+      g[1] = calloc(3, sizeof *g[1]);
+      g[1][2] = 7;
+      printf("%d %d\n", g[0][2], g[1][2]);
+      free(g[0]); free(g[1]); free(g);
+    why: calloc zeroes each row, and only g[1][2] was set.
+  - type: bug
+    pre: |
+      void free_grid(int **g, int rows) {
+          for (int r = 0; r < rows; r++) free(g[r]);
+          free(g[0]); // BUG
+      }
+    body: |
+      int **g = malloc(2 * sizeof *g);
+      g[0] = malloc(sizeof(int));
+      g[1] = malloc(sizeof(int));
+      free_grid(g, 2);
+      printf("freed\n");
+    fix: "free(g);"
+    ub: true
+    why: The rows are already freed, so free(g[0]) is a double free, and the pointer array g itself leaks.
+  - type: fill
+    prompt: Allocate the array of row pointers so it stays correct if the type changes.
+    body: |
+      int **g = malloc(4 * sizeof [[*g‖(*g)‖(int *)‖(int*)]]);
+      printf("%d\n", (int)(sizeof *g == sizeof(int *)));
+      free(g);
+    why: "`sizeof *g` is the size of what g points at (an `int *`), whatever that type becomes."
+  - type: predict
+    body: |
+      char *a = malloc(4);
+      strcpy(a, "abc");
+      char *b = a;
+      free(a);
+      a = NULL;
+      printf("%d %d\n", a == NULL, b == NULL);
+    why: Nulling a doesn't touch b. b is now a dangling pointer, which is why ownership must be clear.
+  - type: bug
+    body: |
+      int *a = malloc(2 * sizeof(int));
+      a[0] = 1; a[1] = 2;
+      a = realloc(a, 4 * sizeof(int)); // BUG
+      a[2] = 3;
+      printf("%d\n", a[0] + a[2]);
+      free(a);
+    fix: "int *tmp = realloc(a, 4 * sizeof(int)); if (tmp == NULL) { free(a); return 1; } a = tmp;"
+    ub: true
+    why: If realloc fails it returns NULL and the old block leaks, because a was overwritten. Always realloc into a temporary.
+  - type: compiles
+    body: |
+      char *s = malloc(8);
+      const char *view = s;
+      view[0] = 'x';
+      free(s);
+    why: Writing through a `const char *` is rejected, even though the memory itself is writable.

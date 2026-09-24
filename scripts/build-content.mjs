@@ -174,7 +174,8 @@ async function buildExercise(where, lang, raw, prevSolution) {
     out.tests = testsRaw.map((t, i) => {
       const r = res.runs[i];
       if (r.timedOut) errors.push(`${where}: test ${i + 1} timed out`);
-      if (r.code !== 0) errors.push(`${where}: test ${i + 1} exited with ${r.code ?? r.signal}`);
+      const wantExit = t.exit ?? 0;
+      if (r.code !== wantExit) errors.push(`${where}: test ${i + 1} exited with ${r.code ?? r.signal}, expected ${wantExit}`);
       const actual = normalizeOutput(r.stdout);
       if (t.expect != null && normalizeOutput(String(t.expect)) !== actual) {
         errors.push(`${where}: test ${i + 1} expected\n${t.expect}\nbut solution printed\n${actual}`);
@@ -183,6 +184,7 @@ async function buildExercise(where, lang, raw, prevSolution) {
       const test = { name: t.name ?? (testsRaw.length > 1 ? `Test ${i + 1}` : "Output"), stdin: t.stdin ?? "", expect: actual, hidden: !!t.hidden };
       if (t.files) test.files = t.files;
       if (t.args) test.args = t.args.map(String);
+      if (t.exit != null) test.exit = t.exit;
       return test;
     });
   }
@@ -196,7 +198,7 @@ async function buildExercise(where, lang, raw, prevSolution) {
         const { checks } = parseChecks(sr.runs[0].stdout);
         passes = checks.length === out.checks && checks.every((c) => c.pass);
       } else {
-        passes = out.tests.every((t, i) => normalizeOutput(sr.runs[i].stdout) === t.expect);
+        passes = out.tests.every((t, i) => normalizeOutput(sr.runs[i].stdout) === t.expect && (t.exit == null || sr.runs[i].code === t.exit));
       }
       if (passes && checkRules(seed, require, forbid).length === 0) errors.push(`${where}: the starter code already passes`);
     }

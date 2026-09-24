@@ -268,3 +268,155 @@ steps:
     hints:
       - "`*s` is the caller's pointer, and `**s` is the character it points at."
       - "While `**s == ' '`, move the caller's pointer: `(*s)++;` (parentheses matter)."
+
+  - title: const and pointers
+    id: c-pointers-8
+    text: |
+      `const` can protect two different things, depending on where you put it:
+
+      | Declaration | Can change `*p`? | Can re-point `p`? |
+      |---|---|---|
+      | `const int *p` | no | yes |
+      | `int *const p` | yes | no |
+      | `const int *const p` | no | no |
+
+      Read it right to left: `const int *p` is "p is a pointer to an int that is const".
+
+      Professional C code marks every pointer parameter it only reads as `const int *`. It documents the promise ("I won't change your data") and the compiler enforces it.
+
+      A function can also **return** a pointer into the caller's array. If the array was `const`, the returned pointer must be `const` too.
+
+      **Your turn:** write `const int *find(const int *a, int n, int target)` that returns a pointer to the first element equal to `target`, or `NULL` if there is none.
+    seed: |
+      #include <stddef.h>
+
+      const int *find(const int *a, int n, int target) {
+
+      }
+    solution: |
+      #include <stddef.h>
+
+      const int *find(const int *a, int n, int target) {
+          for (const int *p = a; p < a + n; p++) {
+              if (*p == target) return p;
+          }
+          return NULL;
+      }
+    harness: |
+      int main(void) {
+          const int scores[] = {7, 3, 9, 3};
+          CHECK("finds 9 at index 2", find(scores, 4, 9) == &scores[2]);
+          CHECK("first 3 is at index 1", find(scores, 4, 3) == &scores[1]);
+          CHECK("missing value gives NULL", find(scores, 4, 42) == NULL);
+          CHECK("empty range gives NULL", find(scores, 0, 7) == NULL);
+          CHECK("searching a sub-range", find(scores + 2, 2, 3) == &scores[3]);
+          return 0;
+      }
+    hints:
+      - Loop over the n elements. When one equals target, return its address.
+      - "`return &a[i];` or, walking a pointer, `return p;`. After the loop, `return NULL;`."
+
+  - title: Two pointers from both ends
+    id: c-pointers-9
+    text: |
+      A very common pattern: one pointer starts at the front, one at the back, and they walk toward each other until they meet.
+
+      ```c
+      int *lo = a, *hi = a + n - 1;
+      while (lo < hi) {
+          /* work with *lo and *hi */
+          lo++;
+          hi--;
+      }
+      ```
+
+      Comparing two pointers with `<` is fine when both point into the same array.
+
+      **Your turn:** write `void reverse(int *a, int n)` that reverses the array **in place** using two pointers (no `[ ]`).
+    seed: |
+      void reverse(int *a, int n) {
+
+      }
+    solution: |
+      void reverse(int *a, int n) {
+          if (n < 2) return;
+          int *lo = a, *hi = a + n - 1;
+          while (lo < hi) {
+              int tmp = *lo;
+              *lo = *hi;
+              *hi = tmp;
+              lo++;
+              hi--;
+          }
+      }
+    forbid:
+      - pattern: "\\["
+        message: Use two pointers (`*lo`, `*hi`) instead of `[ ]` on this step.
+    harness: |
+      int main(void) {
+          int a[] = {1, 2, 3, 4, 5};
+          reverse(a, 5);
+          CHECK("odd length", a[0] == 5 && a[1] == 4 && a[2] == 3 && a[3] == 2 && a[4] == 1);
+          int b[] = {10, 20, 30, 40};
+          reverse(b, 4);
+          CHECK("even length", b[0] == 40 && b[1] == 30 && b[2] == 20 && b[3] == 10);
+          int c[] = {8};
+          reverse(c, 1);
+          CHECK_INT("one element", c[0], 8);
+          reverse(c, 0);
+          CHECK_INT("zero elements does nothing", c[0], 8);
+          return 0;
+      }
+    hints:
+      - "Start with `int *lo = a, *hi = a + n - 1;`."
+      - "While `lo < hi`: swap `*lo` and `*hi` with a temp, then `lo++; hi--;`."
+      - "Guard `n < 2` first, so you never compute `a - 1` for an empty array."
+
+  - title: "Challenge: squeeze out spaces"
+    id: c-pointers-10
+    text: |
+      Another two-pointer classic: a **read** pointer scans every character, while a **write** pointer only advances when a character is kept. Everything happens in the same buffer, no extra memory.
+
+      ```
+      "a b  c"      read ->  a _ b _ _ c
+      "abc"         write -> a b c \0
+      ```
+
+      Don't forget to write the `'\0'` terminator at the final write position.
+
+      **Your turn:** write `void squeeze(char *s)` that removes every space from `s` in place.
+    seed: |
+      void squeeze(char *s) {
+
+      }
+    solution: |
+      void squeeze(char *s) {
+          char *w = s;
+          for (const char *r = s; *r != '\0'; r++) {
+              if (*r != ' ') {
+                  *w = *r;
+                  w++;
+              }
+          }
+          *w = '\0';
+      }
+    harness: |
+      int main(void) {
+          char a[] = "a b  c";
+          squeeze(a);
+          CHECK_STR("\"a b  c\"", a, "abc");
+          char b[] = "   rush b   ";
+          squeeze(b);
+          CHECK_STR("leading and trailing", b, "rushb");
+          char c[] = "nospace";
+          squeeze(c);
+          CHECK_STR("no spaces", c, "nospace");
+          char d[] = "    ";
+          squeeze(d);
+          CHECK_STR("only spaces", d, "");
+          return 0;
+      }
+    hints:
+      - "Use two pointers into the same string: `char *w = s;` for writing and another for reading."
+      - "For every character that isn't a space, copy it with `*w = *r;` and move `w` forward."
+      - "After the loop, end the string: `*w = '\\0';`"

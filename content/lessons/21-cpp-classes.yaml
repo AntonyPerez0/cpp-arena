@@ -322,3 +322,211 @@ steps:
       - Store the seconds left in a private int.
       - "Minutes are `left_ / 60`, seconds `left_ % 60`. Add a leading \"0\" when seconds < 10."
       - "`std::to_string(m) + \":\" + ...` builds the text."
+
+  - title: Member initializer lists
+    id: cpp-classes-7
+    text: |
+      A constructor's **initializer list** (after the `:`) builds each member directly. Assigning inside the body instead first default-constructs the member and then overwrites it.
+
+      ```cpp
+      Player(std::string name, int hp) : name_(std::move(name)), hp_(hp) {}
+      ```
+
+      Some members *must* be set in the initializer list, because they can't be assigned later:
+
+      - `const` members
+      - reference members
+      - members whose type has no default constructor
+
+      Members are always initialized in the order they are **declared in the class**, not the order you list them. `-Wall` warns when the two orders differ (`-Wreorder`), because reading a member that isn't built yet is a real bug.
+
+      **Your turn:** give `Player` a constructor `Player(const std::string& name, int max_hp)` that sets the const `name_`, sets `max_hp_`, and starts `hp_` at `max_hp_`. Use the initializer list for all three.
+    seed: |
+      #include <string>
+
+      class Player {
+      public:
+          // constructor here
+
+          const std::string& name() const { return name_; }
+          int hp() const { return hp_; }
+          int max_hp() const { return max_hp_; }
+
+      private:
+          const std::string name_;
+          int max_hp_;
+          int hp_;
+      };
+    solution: |
+      #include <string>
+
+      class Player {
+      public:
+          // constructor here
+          Player(const std::string& name, int max_hp) : name_(name), max_hp_(max_hp), hp_(max_hp_) {}
+          const std::string& name() const { return name_; }
+          int hp() const { return hp_; }
+          int max_hp() const { return max_hp_; }
+
+      private:
+          const std::string name_;
+          int max_hp_;
+          int hp_;
+      };
+    require:
+      - pattern: "\\)\\s*:\\s*name_\\s*[({]"
+        message: "Initialize the members in the initializer list, starting with `: name_(name), ...` in declaration order."
+    harness: |
+      int main() {
+          Player p("s1mple", 100);
+          CHECK_EQ("name", p.name(), std::string("s1mple"));
+          CHECK_EQ("max hp", p.max_hp(), 100);
+          CHECK_EQ("starts at full hp", p.hp(), 100);
+          Player q("ropz", 85);
+          CHECK_EQ("other player's hp", q.hp(), 85);
+      }
+    hints:
+      - "The shape is `Player(const std::string& name, int max_hp) : name_(...), max_hp_(...), hp_(...) {}`."
+      - "List members in the same order they are declared: name_, max_hp_, hp_. Then `hp_(max_hp_)` is safe because max_hp_ is already built."
+
+  - title: Keeping invariants
+    id: cpp-classes-8
+    text: |
+      An **invariant** is a rule that must be true for every object, at all times, from the outside. For a health bar: `0 <= hp <= max`.
+
+      This is the real reason for `private`: if only member functions can touch the data, only they can break the rule, and you check it in one place. Every constructor must *establish* the invariant and every member function must *preserve* it.
+
+      ```cpp
+      void damage(int amount) {
+          hp_ = std::max(0, hp_ - amount);   // never below 0
+      }
+      ```
+
+      **Your turn:** write class `Health`:
+
+      - `Health(int max)`: max below 1 becomes 1; starts full
+      - `void damage(int n)` and `void heal(int n)`: negative amounts are ignored; hp stays within `0..max`
+      - `int hp() const`, `int max() const`, `bool alive() const`
+    seed: |
+      #include <algorithm>
+
+      class Health {
+      public:
+
+      private:
+          int max_;
+          int hp_;
+      };
+    solution: |
+      #include <algorithm>
+
+      class Health {
+      public:
+          explicit Health(int max) : max_(std::max(1, max)), hp_(max_) {}
+          void damage(int n) {
+              if (n > 0) hp_ = std::max(0, hp_ - n);
+          }
+          void heal(int n) {
+              if (n > 0) hp_ = std::min(max_, hp_ + n);
+          }
+          int hp() const { return hp_; }
+          int max() const { return max_; }
+          bool alive() const { return hp_ > 0; }
+
+      private:
+          int max_;
+          int hp_;
+      };
+    harness: |
+      int main() {
+          Health h(100);
+          CHECK_EQ("starts full", h.hp(), 100);
+          h.damage(30);
+          CHECK_EQ("after 30 damage", h.hp(), 70);
+          h.heal(50);
+          CHECK_EQ("heal is capped at max", h.hp(), 100);
+          h.damage(-20);
+          CHECK_EQ("negative damage is ignored", h.hp(), 100);
+          h.heal(-5);
+          CHECK_EQ("negative heal is ignored", h.hp(), 100);
+          h.damage(250);
+          CHECK_EQ("damage stops at 0", h.hp(), 0);
+          CHECK_EQ("dead at 0", h.alive(), false);
+          Health tiny(-4);
+          CHECK_EQ("max below 1 becomes 1", tiny.max(), 1);
+          CHECK_EQ("tiny is alive", tiny.alive(), true);
+      }
+    hints:
+      - "Constructor: `explicit Health(int max) : max_(std::max(1, max)), hp_(max_) {}`"
+      - "`damage`: if n > 0, `hp_ = std::max(0, hp_ - n);`. `heal` is the mirror image with `std::min(max_, ...)`."
+
+  - title: "Challenge: a Fraction class"
+    id: cpp-classes-9
+    text: |
+      A value type that always keeps itself in a clean form is a great exercise in invariants. **Your turn:** write class `Fraction` whose invariant is: **always fully reduced, denominator always positive**.
+
+      - `Fraction(int num, int den = 1)`: `Fraction(2, -4)` becomes `-1/2`. You can assume `den != 0`.
+      - `int num() const`, `int den() const`
+      - `Fraction plus(const Fraction& o) const` and `Fraction times(const Fraction& o) const`
+      - `std::string str() const`: `"3/4"`, or just `"2"` when the denominator is 1
+
+      `std::gcd(a, b)` from `<numeric>` gives the greatest common divisor (it handles negative numbers).
+    seed: |
+      #include <numeric>
+      #include <string>
+
+      class Fraction {
+      public:
+
+      private:
+          int num_;
+          int den_;
+      };
+    solution: |
+      #include <numeric>
+      #include <string>
+
+      class Fraction {
+      public:
+          Fraction(int num, int den = 1) : num_(num), den_(den) {
+              if (den_ < 0) {
+                  num_ = -num_;
+                  den_ = -den_;
+              }
+              int g = std::gcd(num_, den_);
+              if (g > 1) {
+                  num_ /= g;
+                  den_ /= g;
+              }
+          }
+          int num() const { return num_; }
+          int den() const { return den_; }
+          Fraction plus(const Fraction& o) const { return Fraction(num_ * o.den_ + o.num_ * den_, den_ * o.den_); }
+          Fraction times(const Fraction& o) const { return Fraction(num_ * o.num_, den_ * o.den_); }
+          std::string str() const {
+              if (den_ == 1) return std::to_string(num_);
+              return std::to_string(num_) + "/" + std::to_string(den_);
+          }
+
+      private:
+          int num_;
+          int den_;
+      };
+    harness: |
+      int main() {
+          CHECK_EQ("6/8 reduces", Fraction(6, 8).str(), std::string("3/4"));
+          CHECK_EQ("2/-4 moves the sign", Fraction(2, -4).str(), std::string("-1/2"));
+          CHECK_EQ("-3/-9", Fraction(-3, -9).str(), std::string("1/3"));
+          CHECK_EQ("4/2 prints as 2", Fraction(4, 2).str(), std::string("2"));
+          CHECK_EQ("0/5 is 0", Fraction(0, 5).str(), std::string("0"));
+          CHECK_EQ("whole number", Fraction(7).str(), std::string("7"));
+          CHECK_EQ("1/2 + 1/3", Fraction(1, 2).plus(Fraction(1, 3)).str(), std::string("5/6"));
+          CHECK_EQ("1/2 + 1/2", Fraction(1, 2).plus(Fraction(1, 2)).str(), std::string("1"));
+          CHECK_EQ("2/3 * 3/4", Fraction(2, 3).times(Fraction(3, 4)).str(), std::string("1/2"));
+          Fraction f(10, -20);
+          CHECK("num and den after reducing", f.num() == -1 && f.den() == 2);
+      }
+    hints:
+      - "In the constructor, first flip both signs if the denominator is negative, then divide both by `std::gcd(num_, den_)`."
+      - "`gcd(0, d)` is `d`, so 0/5 becomes 0/1 automatically."
+      - "`plus` and `times` just build a new Fraction and let the constructor reduce it: a/b + c/d = (ad + cb) / bd."

@@ -76,10 +76,13 @@ export async function grade(ex: Exercise, code: string): Promise<GradeResult> {
       const r = res.runs[i];
       const got = r ? normalizeOutput(r.stdout) : "";
       const note = describeRun(r);
-      const pass = !!r && !r.timedOut && !r.crash && got === t.expect;
-      return { name: t.name, pass, hidden: t.hidden, stdin: t.stdin, files: t.files, args: t.args, expected: t.expect, got, note: pass ? undefined : note };
+      const exitOk = t.exit == null || (r?.exitCode ?? 0) === t.exit;
+      const pass = !!r && !r.timedOut && !r.crash && got === t.expect && exitOk;
+      const exitNote = r && !exitOk ? `The program exited with code ${r.exitCode ?? 0}, but this test expects exit code ${t.exit}.` : undefined;
+      return { name: t.name, pass, hidden: t.hidden, stdin: t.stdin, files: t.files, args: t.args, expected: t.expect, got, note: pass ? undefined : exitNote ?? note };
     });
-    runNote = describeRun(res.runs[0]);
+    const first = res.runs[0];
+    runNote = first && ex.tests[0]?.exit != null && (first.exitCode ?? 0) === ex.tests[0].exit && !first.crash && !first.timedOut ? undefined : describeRun(first);
   }
   const allPass = tests.length > 0 && tests.every((t) => t.pass) && ruleProblems.length === 0;
   return { status: allPass ? "pass" : "fail", diagnostics, rawDiagnostics: res.diagnostics, tests, ruleProblems, output, compileMs: res.compileMs, runNote };

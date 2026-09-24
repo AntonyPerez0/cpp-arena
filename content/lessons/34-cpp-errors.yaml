@@ -188,3 +188,157 @@ steps:
       - "Return a Result with braces: `return {std::nullopt, \"missing $\"};` or `return {value, \"\"};`."
       - Check the `$` first, then that there is at least one character after it, then parse digits.
       - Stop growing the number once it passes 16000, otherwise very long inputs overflow an int.
+
+  - title: Passing errors up
+    id: cpp-errors-5
+    text: |
+      Real programs are layers: `main` calls `load_config`, which calls `parse_line`, which calls `parse_int`. When the bottom layer fails, each layer above has two honest choices:
+
+      1. **Handle it** (use a default, retry, skip the item), or
+      2. **Pass it up** unchanged, usually with an early `return`.
+
+      The one dishonest choice is swallowing it: returning a made-up value as if nothing went wrong. That's how bugs travel far from where they started.
+
+      ```cpp
+      auto n = parse_int(part);
+      if (!n) return std::nullopt;   // pass it up
+      total += *n;
+      ```
+
+      **Your turn:** `parse_int` is written for you. Write `std::optional<int> sum_csv(std::string_view s)` that sums comma-separated integers like `"3,4,-2"`. If **any** part fails to parse, the whole sum fails.
+    seed: |
+      #include <optional>
+      #include <string_view>
+
+      std::optional<int> parse_int(std::string_view s) {
+          if (s.empty()) return std::nullopt;
+          bool neg = s[0] == '-';
+          if (neg) s.remove_prefix(1);
+          if (s.empty() || s.size() > 9) return std::nullopt;
+          int v = 0;
+          for (char c : s) {
+              if (c < '0' || c > '9') return std::nullopt;
+              v = v * 10 + (c - '0');
+          }
+          return neg ? -v : v;
+      }
+
+      std::optional<int> sum_csv(std::string_view s) {
+
+      }
+    solution: |
+      #include <optional>
+      #include <string_view>
+
+      std::optional<int> parse_int(std::string_view s) {
+          if (s.empty()) return std::nullopt;
+          bool neg = s[0] == '-';
+          if (neg) s.remove_prefix(1);
+          if (s.empty() || s.size() > 9) return std::nullopt;
+          int v = 0;
+          for (char c : s) {
+              if (c < '0' || c > '9') return std::nullopt;
+              v = v * 10 + (c - '0');
+          }
+          return neg ? -v : v;
+      }
+
+      std::optional<int> sum_csv(std::string_view s) {
+          int total = 0;
+          while (true) {
+              std::size_t comma = s.find(',');
+              auto n = parse_int(s.substr(0, comma));
+              if (!n) return std::nullopt;
+              total += *n;
+              if (comma == std::string_view::npos) break;
+              s.remove_prefix(comma + 1);
+          }
+          return total;
+      }
+    harness: |
+      int main() {
+          CHECK_EQ("3,4,-2", sum_csv("3,4,-2").value_or(-999), 5);
+          CHECK_EQ("single number", sum_csv("42").value_or(-999), 42);
+          CHECK("bad part fails the whole sum", !sum_csv("1,x,3"));
+          CHECK("empty part fails", !sum_csv("1,,3"));
+          CHECK("trailing comma fails", !sum_csv("1,2,"));
+          CHECK("empty string fails", !sum_csv(""));
+      }
+    hints:
+      - "Loop: find the next comma with `s.find(',')`, parse `s.substr(0, comma)`, then `s.remove_prefix(comma + 1)`."
+      - "If `parse_int` returns nullopt, immediately `return std::nullopt;`."
+      - "When `find` returns `std::string_view::npos`, that was the last part."
+
+  - title: "Challenge: load a config"
+    id: cpp-errors-6
+    text: |
+      Put the pieces together in the kind of code every service has: a config loader that reports **precise** errors, because "invalid config" with no line number wastes everyone's time.
+
+      **Your turn:** write `ConfigResult load_config(const std::string& text)`. The text has one `key=value` per line:
+
+      - blank lines and lines starting with `#` are skipped
+      - a line with no `=` fails with `"line N: missing ="`
+      - an empty key fails with `"line N: empty key"`
+      - a key seen twice fails with `"line N: duplicate key KEY"`
+      - otherwise every pair goes into `values`
+
+      Lines are numbered from 1. Stop at the first error.
+    seed: |
+      #include <map>
+      #include <sstream>
+      #include <string>
+
+      struct ConfigResult {
+          std::map<std::string, std::string> values;
+          std::string error;   // empty means success
+      };
+
+      ConfigResult load_config(const std::string& text) {
+
+      }
+    solution: |
+      #include <map>
+      #include <sstream>
+      #include <string>
+
+      struct ConfigResult {
+          std::map<std::string, std::string> values;
+          std::string error;   // empty means success
+      };
+
+      ConfigResult load_config(const std::string& text) {
+          ConfigResult r;
+          std::istringstream in(text);
+          std::string line;
+          int n = 0;
+          while (std::getline(in, line)) {
+              n++;
+              if (line.empty() || line[0] == '#') continue;
+              std::size_t eq = line.find('=');
+              std::string where = "line " + std::to_string(n) + ": ";
+              if (eq == std::string::npos) return {{}, where + "missing ="};
+              std::string key = line.substr(0, eq);
+              if (key.empty()) return {{}, where + "empty key"};
+              if (r.values.count(key)) return {{}, where + "duplicate key " + key};
+              r.values[key] = line.substr(eq + 1);
+          }
+          return r;
+      }
+    harness: |
+      int main() {
+          auto ok = load_config("# server\nport=8080\n\nhost=arena.local\nmotd=gl hf\n");
+          CHECK_EQ("no error", ok.error, std::string(""));
+          CHECK_EQ("three values", ok.values.size(), 3u);
+          CHECK_EQ("port", ok.values["port"], std::string("8080"));
+          CHECK_EQ("value with a space", ok.values["motd"], std::string("gl hf"));
+          CHECK_EQ("missing =", load_config("a=1\nbroken\n").error, std::string("line 2: missing ="));
+          CHECK_EQ("empty key", load_config("\n=5\n").error, std::string("line 2: empty key"));
+          CHECK_EQ("duplicate", load_config("a=1\nb=2\na=3\n").error, std::string("line 3: duplicate key a"));
+          CHECK_EQ("empty value is allowed", load_config("x=\n").values["x"], std::string(""));
+          CHECK_EQ("empty text is fine", load_config("").error, std::string(""));
+      }
+    hints:
+      - "Read lines with `std::istringstream in(text);` and `while (std::getline(in, line))`, counting as you go."
+      - "Skip empty lines and lines where `line[0] == '#'`."
+      - "`line.find('=')` gives the split point; key is `substr(0, eq)`, value is `substr(eq + 1)`."
+      - "Return `{{}, \"line \" + std::to_string(n) + \": missing =\"}` style results on errors."

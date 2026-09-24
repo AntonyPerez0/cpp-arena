@@ -160,3 +160,76 @@ drills:
     hints:
       - Two private ints. Update the max inside add().
     why: The class keeps its own invariant (max never decreases) behind private members.
+
+  - type: compiles
+    pre: |
+      class Tag {
+      public:
+          explicit Tag(const std::string& s) { name_ = s; }
+      private:
+          const std::string name_;
+      };
+    body: |
+      Tag t("ace");
+      std::cout << "ok\n";
+    why: "A const member can't be assigned in the body. It must be initialized in the initializer list: `: name_(s)`."
+  - type: fill
+    prompt: Initialize the members directly instead of assigning in the body.
+    pre: |
+      class Wallet {
+      public:
+          explicit Wallet(int money) [[:]] money_(money) {}
+          int money() const { return money_; }
+      private:
+          int money_;
+      };
+    body: |
+      Wallet w(800);
+      std::cout << w.money() << "\n";
+    why: The initializer list starts with a colon after the constructor's parameter list.
+  - type: predict
+    pre: |
+      class Health {
+      public:
+          explicit Health(int max) : max_(max), hp_(max) {}
+          void damage(int n) { if (n > 0) hp_ = std::max(0, hp_ - n); }
+          int hp() const { return hp_; }
+      private:
+          int max_;
+          int hp_;
+      };
+    body: |
+      Health h(100);
+      h.damage(-30);
+      h.damage(130);
+      std::cout << h.hp() << "\n";
+    why: Negative damage is ignored and the result is clamped at 0, so the invariant 0 <= hp holds.
+  - type: bug
+    pre: |
+      class Fraction {
+      public:
+          Fraction(int n, int d) : n_(n), d_(d) {
+              int g = std::gcd(n_, d_);
+              n_ /= g;
+              d_ = g; // BUG
+          }
+          std::string str() const { return std::to_string(n_) + "/" + std::to_string(d_); }
+      private:
+          int n_, d_;
+      };
+    body: |
+      std::cout << Fraction(6, 8).str() << "\n";
+    fix: "d_ /= g;"
+    why: Both parts must be divided by the gcd; this sets the denominator to the gcd itself.
+  - type: compiles
+    pre: |
+      class Counter {
+      public:
+          int get() const { return n_++; }
+      private:
+          int n_ = 0;
+      };
+    body: |
+      Counter c;
+      std::cout << c.get() << "\n";
+    why: "A `const` member function can't modify members, and `n_++` does."

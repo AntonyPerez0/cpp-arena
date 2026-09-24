@@ -146,3 +146,100 @@ drills:
     hints:
       - Constructor prints open, destructor prints close with the count.
     why: The destructor runs automatically at the end of the block.
+
+  - type: predict
+    pre: |
+      struct Guard {
+          std::string msg;
+          ~Guard() { std::cout << msg << "\n"; }
+      };
+      int f() {
+          Guard g{"cleanup"};
+          std::cout << "work\n";
+          return 1;
+      }
+    body: |
+      int r = f();
+      std::cout << r << "\n";
+    why: The destructor runs when f returns, after "work" and before main prints the result.
+  - type: fill
+    prompt: Copy-and-swap takes the right-hand side by value.
+    pre: |
+      class Box {
+      public:
+          explicit Box(int v) : p_(new int(v)) {}
+          Box(const Box& o) : p_(new int(*o.p_)) {}
+          ~Box() { delete p_; }
+          Box& operator=([[Box]] other) { std::swap(p_, other.p_); return *this; }
+          int get() const { return *p_; }
+      private:
+          int* p_;
+      };
+    body: |
+      Box a(1), b(2);
+      a = b;
+      std::cout << a.get() << "\n";
+    why: Taking `Box other` by value makes the copy; swapping then steals it and the old value dies with `other`.
+  - type: bug
+    pre: |
+      class Buf {
+      public:
+          explicit Buf(int n) : p_(new int[n]()), n_(n) {}
+          ~Buf() { delete[] p_; }
+          Buf(const Buf& o) : p_(o.p_), n_(o.n_) {} // BUG
+          int size() const { return n_; }
+      private:
+          int* p_;
+          int n_;
+      };
+    body: |
+      {
+          Buf a(4);
+          Buf b = a;
+          std::cout << b.size() << "\n";
+      }
+    fix: "Buf(const Buf& o) : p_(new int[o.n_]()), n_(o.n_) { for (int i = 0; i < n_; i++) p_[i] = o.p_[i]; }"
+    ub: true
+    why: A shallow copy shares one array, so both destructors delete it (double free). Allocate and copy.
+  - type: compiles
+    pre: |
+      class Handle {
+      public:
+          Handle() = default;
+          Handle(const Handle&) = delete;
+      };
+      void use(Handle h) { (void)h; }
+    body: |
+      Handle h;
+      use(h);
+    why: Passing by value needs a copy, and the copy constructor is deleted.
+  - type: predict
+    pre: |
+      struct Loud {
+          int id;
+          ~Loud() { std::cout << id; }
+      };
+    body: |
+      {
+          Loud a{1};
+          Loud b{2};
+          Loud c{3};
+      }
+      std::cout << "\n";
+    why: Locals are destroyed in reverse order of construction.
+  - type: compiles
+    pre: |
+      class Inventory {
+      public:
+          void add(std::string s) { items_.push_back(std::move(s)); }
+          int count() const { return (int)items_.size(); }
+      private:
+          std::vector<std::string> items_;
+      };
+    body: |
+      Inventory a;
+      a.add("awp");
+      Inventory b = a;
+      b = a;
+      std::cout << b.count() << "\n";
+    why: Rule of zero. The compiler-generated copy operations copy the vector correctly.

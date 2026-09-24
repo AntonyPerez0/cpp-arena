@@ -36,6 +36,7 @@ async function checkExercise(where, ex) {
   } else {
     ex.tests.forEach((t, i) => {
       const got = normalizeOutput(r.runs[i].stdout);
+      if (t.exit != null && (r.runs[i].exitCode ?? 0) !== t.exit) problems.push(`${where} test ${i + 1}: wasm exit code ${r.runs[i].exitCode}, expected ${t.exit}`);
       if (got !== t.expect || r.runs[i].crash) problems.push(`${where} test ${i + 1}: wasm printed\n${got}\nexpected\n${t.expect}\ncrash=${r.runs[i].crash}`);
     });
   }
