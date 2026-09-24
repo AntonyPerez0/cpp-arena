@@ -5,6 +5,7 @@ phase: "C: Foundations"
 summary: Your first programs. What main() is, how printf prints text, and how to read the compiler's complaints.
 steps:
   - title: Your first program
+    id: c-hello-1
     text: |
       Every C program starts running at a function called `main`. Inside it, `printf` prints text to the screen.
 
@@ -35,6 +36,7 @@ steps:
       - expect: "Hello, World!"
 
   - title: Printing your own text
+    id: c-hello-2
     text: |
       Whatever is between the double quotes is printed exactly. The quotes themselves are not printed.
 
@@ -58,6 +60,7 @@ steps:
       - expect: "I am learning C"
 
   - title: Several lines
+    id: c-hello-3
     text: |
       Each `printf` call continues where the last one stopped. Only `\n` moves to a new line, so these two calls:
 
@@ -100,6 +103,7 @@ steps:
       - expect: "Counter-Strike\nis a game\nabout aim"
 
   - title: Escape sequences
+    id: c-hello-4
     text: |
       Some characters can't be typed directly inside a string, so C uses **escape sequences** that start with a backslash:
 
@@ -128,6 +132,7 @@ steps:
       - expect: 'She said "gg" and left'
 
   - title: Comments and reading errors
+    id: c-hello-5
     text: |
       Comments are notes for humans. The compiler ignores them.
 

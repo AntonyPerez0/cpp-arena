@@ -5,6 +5,7 @@ phase: "C++: Standard Library"
 summary: Stop writing loops by hand. sort, find_if, count_if, accumulate and transform, powered by lambdas.
 steps:
   - title: sort and reverse
+    id: cpp-algorithms-1
     text: |
       `<algorithm>` works on **ranges** given as a pair of iterators, usually `v.begin(), v.end()`:
 
@@ -33,6 +34,7 @@ steps:
       - expect: "30 22 16 13 9"
 
   - title: Lambdas
+    id: cpp-algorithms-2
     text: |
       A **lambda** is an unnamed function you write inline:
 
@@ -69,6 +71,7 @@ steps:
       - expect: "nuke dust2 inferno overpass"
 
   - title: find_if, count_if, any_of
+    id: cpp-algorithms-3
     text: |
       Algorithms that take a **predicate** (a function returning bool):
 
@@ -113,6 +116,7 @@ steps:
       - "`k.ends_with(\"_hs\")` works in C++20. Or check the size and use `substr`."
 
   - title: accumulate and transform
+    id: cpp-algorithms-4
     text: |
       From `<numeric>`, `std::accumulate` folds a range into one value:
 
@@ -173,6 +177,7 @@ steps:
       - "For transform, create `std::vector<int> out(hits.size());` first so there's room to write into."
 
   - title: Captures
+    id: cpp-algorithms-5
     text: |
       A lambda can use variables from the surrounding scope if it **captures** them:
 
@@ -223,6 +228,7 @@ steps:
       - "`std::copy_if(v.begin(), v.end(), std::back_inserter(out), [threshold](int x) { return x > threshold; });`"
 
   - title: Erase with a condition
+    id: cpp-algorithms-6
     text: |
       Removing elements that match a condition used to need the "erase-remove idiom". C++20 made it one call:
 

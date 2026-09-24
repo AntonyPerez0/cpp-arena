@@ -5,6 +5,7 @@ phase: "C++: A Better C"
 summary: Teach your own types to work with +, ==, <<, [] and <, so they read like built-in types.
 steps:
   - title: operator+
+    id: cpp-operators-1
     text: |
       You can define what operators mean for your types. An operator is just a function with a special name:
 
@@ -37,6 +38,7 @@ steps:
       - expect: "6 8"
 
   - title: operator== and !=
+    id: cpp-operators-2
     text: |
       For comparisons, define `operator==`. Since C++20 the compiler automatically gives you `!=` from it. You can even ask it to generate `==` for you, comparing every member:
 
@@ -83,6 +85,7 @@ steps:
       - Compare only `t` and `ct`.
 
   - title: Printing with operator<<
+    id: cpp-operators-3
     text: |
       To make `std::cout << obj` work, overload `<<` for `std::ostream`. It must return the stream so calls can chain:
 
@@ -129,6 +132,7 @@ steps:
       - "`return os << \"T \" << s.t << \" - \" << s.ct << \" CT\";`"
 
   - title: operator[]
+    id: cpp-operators-4
     text: |
       `operator[]` must be a **member** function. Returning a reference lets callers assign through it. Usually you provide a const and a non-const version:
 
@@ -173,6 +177,7 @@ steps:
       - Write both `std::string& operator[](int)` and a `const` version returning `const std::string&`.
 
   - title: operator< and sorting
+    id: cpp-operators-5
     text: |
       `std::sort` (from `<algorithm>`) orders anything that has a `<`. Define `operator<` and your own type becomes sortable:
 

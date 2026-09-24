@@ -5,6 +5,7 @@ phase: "C++: A Better C"
 summary: Bundle data with the functions that work on it. Member functions, public vs private, constructors, const methods and static members.
 steps:
   - title: Member functions
+    id: cpp-classes-1
     text: |
       In C++ a struct can contain **functions** as well as data. Inside a member function, members can be used directly:
 
@@ -45,6 +46,7 @@ steps:
       - expect: "28 30"
 
   - title: public and private
+    id: cpp-classes-2
     text: |
       A `class` is a struct whose members are **private by default**. Private members can only be touched by the class's own member functions. That lets the class protect its rules (its *invariants*):
 
@@ -106,6 +108,7 @@ steps:
       - "In earn: add, then clamp with `if (money_ > 16000) money_ = 16000;`."
 
   - title: Constructors
+    id: cpp-classes-3
     text: |
       A **constructor** is a special member function that runs when an object is created. It has the class's name and no return type. Use a **member initializer list** (after `:`) to set members:
 
@@ -145,6 +148,7 @@ steps:
       - expect: "ak47 36"
 
   - title: const member functions
+    id: cpp-classes-4
     text: |
       A member function marked `const` promises not to modify the object. Only const functions can be called on a `const` object or through a `const&`, so mark every method that just reads.
 
@@ -211,6 +215,7 @@ steps:
       - expect: "s1mple has 73 hp"
 
   - title: static members
+    id: cpp-classes-5
     text: |
       A `static` data member belongs to the **class**, not to any one object. All objects share it. A `static` member function can be called without an object:
 
@@ -264,6 +269,7 @@ steps:
       - "The constructor can do `id_ = ++created_;` (or use `: id_(++created_)`)."
 
   - title: "Challenge: a Clock class"
+    id: cpp-classes-6
     text: |
       **Your turn:** write a class `Clock` representing a round timer in seconds:
 

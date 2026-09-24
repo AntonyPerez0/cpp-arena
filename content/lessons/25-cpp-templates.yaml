@@ -5,6 +5,7 @@ phase: "C++: Modern and Advanced"
 summary: Write code once for many types. Function and class templates, constexpr, and if constexpr.
 steps:
   - title: Function templates
+    id: cpp-templates-1
     text: |
       A **template** is a recipe the compiler uses to generate code for each type you use it with:
 
@@ -39,6 +40,7 @@ steps:
       - expect: "100 0"
 
   - title: Templates over containers
+    id: cpp-templates-2
     text: |
       Templates can take any parameter type, including containers of T:
 
@@ -76,6 +78,7 @@ steps:
       - Loop and compare each element with `==`.
 
   - title: Class templates
+    id: cpp-templates-3
     text: |
       Classes can be templates too. That's how `std::vector<T>` works:
 
@@ -141,6 +144,7 @@ steps:
       - "`pop` saves `items_.back()`, calls `items_.pop_back()`, and returns the saved value."
 
   - title: constexpr
+    id: cpp-templates-4
     text: |
       `constexpr` functions can run **at compile time** when given constant inputs. The result is baked into the program:
 
@@ -175,6 +179,7 @@ steps:
       - A simple loop multiplying `r` by `base`, `exp` times, works in constexpr functions.
 
   - title: if constexpr
+    id: cpp-templates-5
     text: |
       Inside a template, `if constexpr` picks a branch **at compile time**, and the other branch isn't even compiled for that type. Combine it with type traits from `<type_traits>`:
 

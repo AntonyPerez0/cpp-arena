@@ -5,6 +5,7 @@ phase: "C++: Modern and Advanced"
 summary: Derived classes, virtual functions and override, abstract interfaces, and polymorphic containers.
 steps:
   - title: Inheritance
+    id: cpp-oop-1
     text: |
       A class can **inherit** from another, getting all its members, then add or change behaviour:
 
@@ -56,6 +57,7 @@ steps:
       - expect: "awp 115 0"
 
   - title: virtual and override
+    id: cpp-oop-2
     text: |
       Through a base-class reference or pointer, which function runs? By default, the **base** version. Mark the base function `virtual` and the actual object's version runs instead. That's **polymorphism**.
 
@@ -130,6 +132,7 @@ steps:
       - "Same signature as the base, plus `override`: `std::string attack() const override { ... }`."
 
   - title: Abstract classes
+    id: cpp-oop-3
     text: |
       A **pure virtual** function (`= 0`) has no implementation in the base class. A class with one is **abstract**: you can't create it directly, only derive from it. It acts as an **interface**.
 
@@ -206,6 +209,7 @@ steps:
       - "Circle: `3.14159265358979 * r_ * r_`. Rect: `w_ * h_`."
 
   - title: Polymorphic containers
+    id: cpp-oop-4
     text: |
       To store different derived types in one container, store **pointers to the base**. With `std::unique_ptr` nothing leaks:
 
@@ -287,6 +291,7 @@ steps:
       - "Sum with `for (const auto& w : ws) t += w->damage(hits);`"
 
   - title: Virtual destructors
+    id: cpp-oop-5
     text: |
       Without a virtual destructor, deleting a derived object through a base pointer only runs the **base** destructor. The derived part never gets cleaned up.
 

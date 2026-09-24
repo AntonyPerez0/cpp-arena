@@ -5,6 +5,7 @@ phase: "C++: A Better C"
 summary: Everything you know from C still works, plus iostream, std::string, bool, auto and range-based for loops.
 steps:
   - title: Hello, C++
+    id: cpp-basics-1
     text: |
       C++ grew out of C, so almost all your C knowledge carries over. The first visible difference is output. Instead of `printf`, C++ uses **streams**:
 
@@ -35,6 +36,7 @@ steps:
       - expect: "Rounds won: 13"
 
   - title: Reading with cin
+    id: cpp-basics-2
     text: |
       `std::cin >>` reads from input, skipping whitespace, into variables of any type. No `&` needed.
 
@@ -67,6 +69,7 @@ steps:
         hidden: true
 
   - title: std::string is easy
+    id: cpp-basics-3
     text: |
       `std::string` does what C strings made painful:
 
@@ -109,6 +112,7 @@ steps:
         hidden: true
 
   - title: bool, auto and range-for
+    id: cpp-basics-4
     text: |
       A few small upgrades:
 
@@ -155,6 +159,7 @@ steps:
       - "Check `c == 'a' || c == 'e' || ...` and count."
 
   - title: Namespaces and using
+    id: cpp-basics-5
     text: |
       A **namespace** groups names so different libraries don't collide. The standard library lives in `std`. You can define your own:
 
@@ -189,6 +194,7 @@ steps:
       - expect: "faceit 128"
 
   - title: Whole lines with getline
+    id: cpp-basics-6
     text: |
       `cin >>` stops at whitespace. To read an entire line, spaces included, use `std::getline`:
 

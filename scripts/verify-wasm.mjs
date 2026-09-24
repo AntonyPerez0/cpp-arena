@@ -6,7 +6,7 @@
 import fs from "node:fs";
 import { loadNodeToolchain } from "./node-toolchain.mjs";
 import { runWasi } from "../src/compiler/core.js";
-import { harnessSource, parseChecks, normalizeOutput, drillProgram, looseOutput } from "../src/grader/assemble.js";
+import { harnessSource, parseChecks, normalizeOutput, drillProgram, looseOutput, runInput } from "../src/grader/assemble.js";
 
 const filter = process.argv[2] ?? "";
 const content = JSON.parse(fs.readFileSync(new URL("../src/generated/content.json", import.meta.url), "utf8"));
@@ -26,7 +26,7 @@ async function checkExercise(where, ex) {
   n++;
   const harness = ex.mode === "harness";
   const src = ex.harness ? harnessSource(ex.lang, ex.solution, ex.harness) : ex.solution;
-  const inputs = harness ? [ex.tests[0]?.stdin ?? ""] : ex.tests.map((t) => t.stdin);
+  const inputs = harness ? [runInput(ex.tests[0])] : ex.tests.map(runInput);
   const r = await exec(ex.lang, src, inputs);
   if (!r.ok) return problems.push(`${where}: clang/wasm compile failed\n${r.diagnostics}`);
   if (/warning:/.test(r.diagnostics)) problems.push(`${where}: clang warnings\n${r.diagnostics}`);
@@ -54,18 +54,18 @@ for (const d of content.drills) {
   n++;
   const prog = drillProgram(d.lang, d.src.pre, d.src.body);
   if (d.type === "predict") {
-    const r = await exec(d.lang, prog, [d.src.stdin ?? ""]);
+    const r = await exec(d.lang, prog, [runInput(d.src)]);
     if (!r.ok) {
       problems.push(`${where}: wasm compile failed\n${r.diagnostics}`);
       continue;
     }
     if (looseOutput(r.runs[0].stdout) !== looseOutput(d.answer)) problems.push(`${where}: wasm prints "${r.runs[0].stdout}" but answer is "${d.answer}"`);
   } else if (d.type === "fill") {
-    const r = await exec(d.lang, prog, [d.src.stdin ?? ""]);
+    const r = await exec(d.lang, prog, [runInput(d.src)]);
     if (!r.ok) problems.push(`${where}: wasm compile failed\n${r.diagnostics}`);
     else if (normalizeOutput(r.runs[0].stdout) !== d.output) problems.push(`${where}: wasm output differs`);
   } else if (d.type === "bug") {
-    const r = await exec(d.lang, prog, [d.src.stdin ?? ""]);
+    const r = await exec(d.lang, prog, [runInput(d.src)]);
     if (!r.ok) problems.push(`${where}: fixed version fails on wasm\n${r.diagnostics}`);
     else if (normalizeOutput(r.runs[0].stdout) !== d.output) problems.push(`${where}: fixed output differs on wasm`);
   } else if (d.type === "compiles") {

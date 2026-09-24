@@ -5,6 +5,7 @@ phase: "C++: Modern and Advanced"
 summary: unique_ptr and shared_ptr own heap objects for you, so delete disappears from your code. Plus weak_ptr for non-owning links.
 steps:
   - title: unique_ptr
+    id: cpp-smart-1
     text: |
       `std::unique_ptr<T>` (from `<memory>`) owns one heap object and deletes it automatically when the unique_ptr goes away. It's RAII for heap memory, and it costs nothing extra at runtime.
 
@@ -37,6 +38,7 @@ steps:
       - expect: "A 35"
 
   - title: Unique means unique
+    id: cpp-smart-2
     text: |
       A `unique_ptr` can't be **copied** (two owners would both delete). It can be **moved**, which transfers ownership and leaves the source empty (null):
 
@@ -116,6 +118,7 @@ steps:
       - "Loop with `for (const auto& it : items_) t += it->value;`"
 
   - title: Returning ownership
+    id: cpp-smart-3
     text: |
       Returning a `unique_ptr` from a function hands ownership to the caller. It's the modern replacement for "returns a pointer you must delete":
 
@@ -157,6 +160,7 @@ steps:
       - "`return std::make_unique<std::string>(\"bomb \" + site);`"
 
   - title: shared_ptr
+    id: cpp-smart-4
     text: |
       `std::shared_ptr<T>` allows **several owners**. It keeps a reference count and deletes the object when the last owner goes away. `use_count()` shows how many owners there are.
 
@@ -190,6 +194,7 @@ steps:
       - expect: "1 2 3 2"
 
   - title: weak_ptr
+    id: cpp-smart-5
     text: |
       A `std::weak_ptr` watches a shared object **without owning it**. It doesn't keep the object alive. To use it, call `lock()`, which returns a `shared_ptr` that's empty if the object is already gone.
 

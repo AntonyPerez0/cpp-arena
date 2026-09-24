@@ -5,6 +5,7 @@ phase: "C: Memory"
 summary: The stack vs the heap. malloc, free, calloc and realloc, growing arrays, and who owns what.
 steps:
   - title: Stack vs heap
+    id: c-memory-1
     text: |
       So far every variable lived on the **stack**: it's created when its block starts and destroyed automatically when the block ends. Stack arrays need a size known up front, and they die when the function returns.
 
@@ -42,6 +43,7 @@ steps:
       - expect: "0 40"
 
   - title: Size decided at runtime
+    id: c-memory-2
     text: |
       The real power of `malloc`: the size can come from input.
 
@@ -96,6 +98,7 @@ steps:
         hidden: true
 
   - title: Return heap memory from a function
+    id: c-memory-3
     text: |
       A stack array dies when its function returns, so returning its address is a bug (a **dangling pointer**):
 
@@ -141,6 +144,7 @@ steps:
       - Allocate with malloc, fill it in a loop, and return the pointer.
 
   - title: calloc and strdup-style copies
+    id: c-memory-4
     text: |
       - `calloc(count, size)` allocates **and zeroes** the memory.
       - To keep a copy of a string, allocate `strlen(s) + 1` bytes (the +1 is for `'\0'`) and copy it in.
@@ -183,6 +187,7 @@ steps:
       - Copy with `strcpy(c, s)` (or memcpy of n + 1 bytes) and return c.
 
   - title: Growing with realloc
+    id: c-memory-5
     text: |
       `realloc(p, new_size)` resizes a heap block, keeping the old contents. It may move the block, so always use the pointer it returns:
 
@@ -251,6 +256,7 @@ steps:
         hidden: true
 
   - title: Memory bugs to avoid
+    id: c-memory-6
     text: |
       The classic heap mistakes, which C won't catch for you:
 

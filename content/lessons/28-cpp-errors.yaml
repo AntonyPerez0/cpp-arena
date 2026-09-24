@@ -5,6 +5,7 @@ phase: "C++: Modern and Advanced"
 summary: How to report failure without crashing. assert for bugs, error codes and optional for expected failures, a Result type, and how exceptions fit in.
 steps:
   - title: Bugs vs expected failures
+    id: cpp-errors-1
     text: |
       Two very different things can go wrong:
 
@@ -42,6 +43,7 @@ steps:
       - expect: "ok"
 
   - title: Status codes
+    id: cpp-errors-2
     text: |
       The C-style approach: return a status (success or failure), and deliver the actual result through a reference parameter.
 
@@ -80,6 +82,7 @@ steps:
       - "Otherwise `out = a / b; return true;`. Put `[[nodiscard]]` before the return type."
 
   - title: optional for "maybe"
+    id: cpp-errors-3
     text: |
       When the only failure is "no result", `std::optional` says it clearly in the return type and forces the caller to check.
 
@@ -117,6 +120,7 @@ steps:
       - "After the loop, `return std::nullopt;`."
 
   - title: A Result type
+    id: cpp-errors-4
     text: |
       Sometimes the caller needs to know **why** it failed. A small `Result` type carries either a value or an error message. (C++23 standardizes this idea as `std::expected<T, E>`.)
 

@@ -2,9 +2,10 @@
 // Short-lived worker that runs a compiled program against each stdin case.
 // The main thread kills it if a case runs too long (infinite loops).
 import { runWasi } from "./core.js";
+import type { RunInput } from "./client";
 
 self.onmessage = async (e: MessageEvent) => {
-  const { wasm, inputs } = e.data as { wasm: Uint8Array; inputs: string[] };
+  const { wasm, inputs } = e.data as { wasm: Uint8Array; inputs: RunInput[] };
   let module: WebAssembly.Module;
   try {
     module = await WebAssembly.compile(wasm as Uint8Array<ArrayBuffer>);

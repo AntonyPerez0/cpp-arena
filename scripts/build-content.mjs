@@ -22,6 +22,7 @@ import {
   checkRules,
   drillProgram,
   drillDisplay,
+  runInput,
 } from "../src/grader/assemble.js";
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
@@ -38,9 +39,9 @@ const FLAGS = {
   cpp: ["-x", "c++", "-std=c++20", "-O2", "-fno-exceptions", "-Wall", "-Wextra", "-Wno-unused-result", "-U_FORTIFY_SOURCE", "-fdiagnostics-color=never"],
 };
 
-function run(cmd, args, { input = "", timeout = 10000 } = {}) {
+function run(cmd, args, { input = "", timeout = 10000, cwd } = {}) {
   return new Promise((resolve) => {
-    const p = spawn(cmd, args, { stdio: ["pipe", "pipe", "pipe"] });
+    const p = spawn(cmd, args, { stdio: ["pipe", "pipe", "pipe"], cwd });
     let out = "";
     let err = "";
     let timedOut = false;
@@ -91,7 +92,12 @@ async function execute(lang, source, inputs, { werror = false } = {}) {
     if (cr.code !== 0) return { compiled: false, diagnostics: cr.err.replaceAll(src, lang === "c" ? "main.c" : "main.cpp"), runs: [] };
     const runs = [];
     for (const input of inputs) {
-      const r = await run(exe, [], { input, timeout: 5000 });
+      // Like the browser: each run gets its own empty working folder holding only the test's files.
+      const { stdin = "", files = {}, args = [] } = typeof input === "string" ? { stdin: input } : input;
+      const cwd = fs.mkdtempSync(path.join(TMP, "run-"));
+      for (const [name, text] of Object.entries(files)) fs.writeFileSync(path.join(cwd, name), text);
+      const r = await run(exe, args, { input: stdin, timeout: 5000, cwd });
+      fs.rmSync(cwd, { recursive: true, force: true });
       runs.push({ stdout: r.out, code: r.code, signal: r.signal, timedOut: r.timedOut });
     }
     return { compiled: true, diagnostics: cr.err, runs };
@@ -144,7 +150,7 @@ async function buildExercise(where, lang, raw, prevSolution) {
   if (ruleProblems.length) errors.push(`${where}: solution breaks its own rules: ${ruleProblems.join("; ")}`);
 
   const testsRaw = raw.tests && raw.tests.length ? raw.tests : [{ stdin: "" }];
-  const inputs = testsRaw.map((t) => t.stdin ?? "");
+  const inputs = testsRaw.map(runInput);
   const source = harness ? harnessSource(lang, solution, harness) : solution;
   const res = await execute(lang, source, inputs, { werror: true });
   if (!res.compiled) {
@@ -161,7 +167,9 @@ async function buildExercise(where, lang, raw, prevSolution) {
     const failed = checks.filter((c) => !c.pass);
     if (failed.length) errors.push(`${where}: solution fails checks: ${failed.map((c) => `${c.name} (want ${c.expected}, got ${c.got})`).join(", ")}`);
     out.checks = checks.length;
-    out.tests = [{ name: "tests", stdin: inputs[0], expect: "" }];
+    out.tests = [{ name: "tests", stdin: testsRaw[0].stdin ?? "", expect: "" }];
+    if (testsRaw[0].files) out.tests[0].files = testsRaw[0].files;
+    if (testsRaw[0].args) out.tests[0].args = testsRaw[0].args.map(String);
   } else {
     out.tests = testsRaw.map((t, i) => {
       const r = res.runs[i];
@@ -172,7 +180,10 @@ async function buildExercise(where, lang, raw, prevSolution) {
         errors.push(`${where}: test ${i + 1} expected\n${t.expect}\nbut solution printed\n${actual}`);
       }
       if (!actual && !t.allowEmpty) warnings.push(`${where}: test ${i + 1} expects empty output`);
-      return { name: t.name ?? (testsRaw.length > 1 ? `Test ${i + 1}` : "Output"), stdin: t.stdin ?? "", expect: actual, hidden: !!t.hidden };
+      const test = { name: t.name ?? (testsRaw.length > 1 ? `Test ${i + 1}` : "Output"), stdin: t.stdin ?? "", expect: actual, hidden: !!t.hidden };
+      if (t.files) test.files = t.files;
+      if (t.args) test.args = t.args.map(String);
+      return test;
     });
   }
   // A code-kind seed should not already pass (otherwise the step is free).
@@ -209,6 +220,8 @@ async function buildLessons() {
     const steps = await Promise.all(
       m.steps.map(async (s, i) => {
         const where = `${file} step ${i + 1} (${s.title})`;
+        // Saved progress is keyed by step id, so ids must be explicit: a position-based id would shift when a step is inserted.
+        if (!s.id) errors.push(`${where}: step needs an explicit id (progress is saved by id)`);
         const ex = await buildExercise(where, s.lang ?? m.lang, s, null);
         if (!ex) return null;
         if (!s.text) errors.push(`${where}: missing text`);
@@ -271,7 +284,7 @@ async function buildDrill(where, id, topic, lang, d) {
   const body = d.body ? d.body.replace(/\s*$/, "") : "";
   switch (d.type) {
     case "predict": {
-      const res = await execute(lang, drillProgram(lang, pre, body), [d.stdin ?? ""]);
+      const res = await execute(lang, drillProgram(lang, pre, body), [runInput(d)]);
       if (!res.compiled) return void errors.push(`${where}: does not compile\n${res.diagnostics}`);
       const r = res.runs[0];
       if (r.code !== 0 || r.timedOut) return void errors.push(`${where}: program failed (exit ${r.code})`);
@@ -279,7 +292,7 @@ async function buildDrill(where, id, topic, lang, d) {
       if (!answer) errors.push(`${where}: prints nothing`);
       if (answer.split("\n").length > 4) warnings.push(`${where}: long output (${answer.split("\n").length} lines)`);
       if (d.answer != null && looseOutput(String(d.answer)) !== looseOutput(answer)) errors.push(`${where}: author answer "${d.answer}" but program prints "${answer}"`);
-      return { ...base, prompt: d.prompt ?? "What does this print?", display: drillDisplay(pre, body), answer, src: { pre, body, stdin: d.stdin ?? "" } };
+      return { ...base, prompt: d.prompt ?? "What does this print?", display: drillDisplay(pre, body), answer, src: { pre, body, stdin: d.stdin ?? "", ...(d.files ? { files: d.files } : {}), ...(d.args ? { args: d.args.map(String) } : {}) } };
     }
     case "fill": {
       const tmpl = drillDisplay(pre, body);
@@ -287,13 +300,13 @@ async function buildDrill(where, id, topic, lang, d) {
       if (blanks.length !== 1) return void errors.push(`${where}: fill drills need exactly one [[blank]]`);
       if (!blanks[0].answer.trim()) return void errors.push(`${where}: empty blank answer`);
       const program = drillProgram(lang, templateSolution(pre), templateSolution(body));
-      const res = await execute(lang, program, [d.stdin ?? ""]);
+      const res = await execute(lang, program, [runInput(d)]);
       if (!res.compiled) return void errors.push(`${where}: solution does not compile\n${res.diagnostics}`);
       const r = res.runs[0];
       if (r.code !== 0 || r.timedOut) return void errors.push(`${where}: solution run failed (exit ${r.code})`);
       const out = normalizeOutput(r.stdout);
       if (d.expect != null && normalizeOutput(String(d.expect)) !== out) errors.push(`${where}: expected "${d.expect}" but got "${out}"`);
-      return { ...base, prompt: d.prompt ?? "Fill the blank so the program prints the output shown.", display: tmpl, answer: blanks[0].answer, accept: blanks[0].accept, output: out, src: { pre: templateSolution(pre), body: templateSolution(body), stdin: d.stdin ?? "" } };
+      return { ...base, prompt: d.prompt ?? "Fill the blank so the program prints the output shown.", display: tmpl, answer: blanks[0].answer, accept: blanks[0].accept, output: out, src: { pre: templateSolution(pre), body: templateSolution(body), stdin: d.stdin ?? "", ...(d.files ? { files: d.files } : {}), ...(d.args ? { args: d.args.map(String) } : {}) } };
     }
     case "bug": {
       const fullDisplay = drillDisplay(pre, body);
@@ -307,8 +320,8 @@ async function buildDrill(where, id, topic, lang, d) {
           .split("\n")
           .map((l) => (/\/\/\s*BUG\s*$/.test(l) ? l.match(/^\s*/)[0] + d.fix.trim() : l))
           .join("\n");
-      const buggy = await execute(lang, drillProgram(lang, clean(pre), clean(body)), [d.stdin ?? ""]);
-      const fixed = await execute(lang, drillProgram(lang, fixLine(pre), fixLine(body)), [d.stdin ?? ""]);
+      const buggy = await execute(lang, drillProgram(lang, clean(pre), clean(body)), [runInput(d)]);
+      const fixed = await execute(lang, drillProgram(lang, fixLine(pre), fixLine(body)), [runInput(d)]);
       if (!fixed.compiled) return void errors.push(`${where}: fixed version does not compile\n${fixed.diagnostics}`);
       const fr = fixed.runs[0];
       if (fr.code !== 0 || fr.timedOut) return void errors.push(`${where}: fixed version fails at runtime`);
@@ -325,7 +338,7 @@ async function buildDrill(where, id, topic, lang, d) {
         answer: String(bugIdx + 1),
         fix: d.fix.trim(),
         output: fixedOut,
-        src: { pre: fixLine(pre), body: fixLine(body), stdin: d.stdin ?? "" },
+        src: { pre: fixLine(pre), body: fixLine(body), stdin: d.stdin ?? "", ...(d.files ? { files: d.files } : {}), ...(d.args ? { args: d.args.map(String) } : {}) },
       };
     }
     case "compiles": {
@@ -338,7 +351,7 @@ async function buildDrill(where, id, topic, lang, d) {
         if (first && !why) why = "Compiler: " + first.replace(/^.*?error:\s*/, "");
       }
       if (!why) warnings.push(`${where}: no explanation`);
-      return { ...base, why, prompt: d.prompt ?? "Does this compile?", display: drillDisplay(pre, body), answer, src: { pre, body, stdin: d.stdin ?? "" } };
+      return { ...base, why, prompt: d.prompt ?? "Does this compile?", display: drillDisplay(pre, body), answer, src: { pre, body, stdin: d.stdin ?? "", ...(d.files ? { files: d.files } : {}), ...(d.args ? { args: d.args.map(String) } : {}) } };
     }
     case "boss": {
       const ex = await buildExercise(where, lang, d, null);
@@ -356,6 +369,13 @@ const t0 = Date.now();
 const modules = await buildLessons();
 const projects = await buildProjects();
 const drills = await buildDrills(new Set(modules.map((m) => m.id)));
+{
+  const seenSteps = new Set();
+  for (const m of modules) for (const st of m.steps) {
+    if (seenSteps.has(st.id)) errors.push(`duplicate step id ${st.id}`);
+    seenSteps.add(st.id);
+  }
+}
 for (const p of projects) if (p.after && !modules.some((m) => m.id === p.after)) warnings.push(`project ${p.id}: unknown 'after' module ${p.after}`);
 
 fs.mkdirSync(path.dirname(CACHE_FILE), { recursive: true });

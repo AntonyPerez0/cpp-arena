@@ -5,6 +5,7 @@ phase: "C: Memory"
 summary: Addresses and the variables that hold them. & and *, changing a caller's variables, pointer arithmetic, arrays vs pointers, NULL and const.
 steps:
   - title: Addresses and pointers
+    id: c-pointers-1
     text: |
       Every variable lives at an **address** in memory. `&x` gives you that address. A **pointer** is a variable that stores an address.
 
@@ -38,6 +39,7 @@ steps:
       - expect: "armor 50"
 
   - title: Change the caller's variable
+    id: c-pointers-2
     text: |
       Remember that C passes arguments by value, so a function can't change your variables... unless you pass their **address**:
 
@@ -79,6 +81,7 @@ steps:
       - "Then `*a = *b;` and `*b = tmp;`"
 
   - title: Returning two results
+    id: c-pointers-3
     text: |
       A function can only `return` one value. Pointer parameters let it hand back more ("out parameters"):
 
@@ -111,6 +114,7 @@ steps:
       - "Write through the pointers: `*q = a / b;` and `*r = a % b;`"
 
   - title: Pointer arithmetic and arrays
+    id: c-pointers-4
     text: |
       An array's name turns into a pointer to its first element when you use it ("decays"). Adding 1 to a pointer moves it to the **next element** (not the next byte):
 
@@ -152,6 +156,7 @@ steps:
       - "One neat version: `for (const int *end = p + n; p < end; p++) s += *p;`"
 
   - title: NULL
+    id: c-pointers-5
     text: |
       `NULL` is a special pointer value meaning "points at nothing". Dereferencing NULL crashes the program (on a normal OS it's the famous *segmentation fault*).
 
@@ -189,6 +194,7 @@ steps:
       - "Check `if (p == NULL) return fallback;` before touching `*p`."
 
   - title: Strings through pointers
+    id: c-pointers-6
     text: |
       Since strings are char arrays, `char *` is the usual way to walk through one:
 
@@ -223,6 +229,7 @@ steps:
       - Walk the pointer until `*s == '\0'`, counting matches.
 
   - title: Pointers to pointers
+    id: c-pointers-7
     text: |
       A pointer is a variable too, so it has an address. `int **pp` is a pointer to a pointer to int. You need one when a function must change **which address** a pointer holds.
 

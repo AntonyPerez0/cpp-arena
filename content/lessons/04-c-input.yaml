@@ -5,6 +5,7 @@ phase: "C: Foundations"
 summary: Make programs interactive with scanf. Reading numbers, characters and words, and checking that the read worked.
 steps:
   - title: Read a number
+    id: c-input-1
     text: |
       `scanf` is the mirror image of `printf`: it reads values from input (stdin) into variables.
 
@@ -36,6 +37,7 @@ steps:
         hidden: true
 
   - title: Several values at once
+    id: c-input-2
     text: |
       One `scanf` can read several values. Whitespace (spaces, newlines) between them is skipped automatically for numbers.
 
@@ -76,6 +78,7 @@ steps:
         hidden: true
 
   - title: Reading doubles
+    id: c-input-3
     text: |
       Here's a quirk: `printf` uses `%f` for a double, but `scanf` needs **`%lf`** ("long float") to read into a `double`.
 
@@ -116,6 +119,7 @@ steps:
         hidden: true
 
   - title: Characters and words
+    id: c-input-4
     text: |
       - `%c` reads **one character**, and it does *not* skip whitespace. Write `" %c"` (with a leading space) to skip spaces and newlines first.
       - `%s` reads a **word** (up to the next space) into a char array. Arrays don't need `&`. You'll learn why in the pointers module.
@@ -147,6 +151,7 @@ steps:
         hidden: true
 
   - title: Did the read work?
+    id: c-input-5
     text: |
       `scanf` returns how many values it successfully read. If the input isn't a number, reading `%d` fails and returns 0. At the end of input it returns `EOF` (a negative number).
 

@@ -5,6 +5,7 @@ phase: "C++: Standard Library"
 summary: std::vector, the dynamic array you'll use every day, and the most useful std::string operations.
 steps:
   - title: std::vector basics
+    id: cpp-vector-1
     text: |
       `std::vector<T>` is a growable array that manages its own memory. It's everything you built by hand with `realloc`, done right.
 
@@ -36,6 +37,7 @@ steps:
       - expect: "4 4"
 
   - title: Loop over a vector
+    id: cpp-vector-2
     text: |
       Range-based for works on vectors. Use `const auto&` to avoid copying each element:
 
@@ -76,6 +78,7 @@ steps:
       - For each element, add it to the sum and `push_back` the sum.
 
   - title: Insert and erase
+    id: cpp-vector-3
     text: |
       Positions in a vector are expressed with **iterators**. `v.begin()` points at the first element, and `v.begin() + i` at element i.
 
@@ -118,6 +121,7 @@ steps:
       - "`v.erase(v.begin() + i);`"
 
   - title: 2D vectors
+    id: cpp-vector-4
     text: |
       A vector of vectors makes a grid whose size is decided at runtime:
 
@@ -159,6 +163,7 @@ steps:
       - "`t[c][r] = m[r][c];` in a nested loop."
 
   - title: string search and substrings
+    id: cpp-vector-5
     text: |
       Handy `std::string` members:
 
@@ -197,6 +202,7 @@ steps:
       - "`s.substr(pos + 1)` is everything after it."
 
   - title: "Challenge: split"
+    id: cpp-vector-6
     text: |
       **Your turn:** write `std::vector<std::string> split(const std::string& s, char sep)` that breaks a string at every `sep`.
 

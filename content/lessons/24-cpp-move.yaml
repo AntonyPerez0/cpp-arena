@@ -5,6 +5,7 @@ phase: "C++: Modern and Advanced"
 summary: Why C++ can pass big objects around cheaply. lvalues vs rvalues, std::move, move constructors and the rule of five.
 steps:
   - title: Copies are expensive
+    id: cpp-move-1
     text: |
       Copying a `std::vector` with a million elements copies a million elements. But often the source is about to disappear anyway (a temporary, or a variable you're done with). In that case you can **steal** its internals instead: that's a **move**.
 
@@ -33,6 +34,7 @@ steps:
       - expect: "1000000"
 
   - title: Write a move constructor
+    id: cpp-move-2
     text: |
       A class that owns a resource can implement moving itself. The **move constructor** takes an rvalue reference (`T&&`), steals the pointer, and leaves the source empty so its destructor does nothing harmful:
 
@@ -102,6 +104,7 @@ steps:
       - "Copy the pointer and size from other, then set `other.data_ = nullptr;` and `other.size_ = 0;`."
 
   - title: Move assignment and the rule of five
+    id: cpp-move-3
     text: |
       **Move assignment** (`a = std::move(b);`) must also release what `a` currently owns, and must survive self-assignment:
 
@@ -188,6 +191,7 @@ steps:
       - "End with `return *this;`."
 
   - title: Return by value is free
+    id: cpp-move-4
     text: |
       Returning a local object by value doesn't copy it. When you return a temporary (`return Widget(...);`), C++17 **guarantees** the object is built directly in the caller's variable: no copy, no move. Returning a named local is almost always optimized the same way, and otherwise it's moved.
 

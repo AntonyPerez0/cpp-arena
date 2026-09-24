@@ -142,3 +142,12 @@ export function drillDisplay(pre, body) {
   if (p && b) return p + "\n\n// inside main:\n" + b;
   return p || b;
 }
+
+/** What one test run gets: plain stdin text, or { stdin, files, args } when the test has files or arguments. */
+export function runInput(t) {
+  if (!t) return "";
+  const hasFiles = t.files && Object.keys(t.files).length > 0;
+  const hasArgs = t.args && t.args.length > 0;
+  if (!hasFiles && !hasArgs) return t.stdin ?? "";
+  return { stdin: t.stdin ?? "", files: t.files ?? {}, args: t.args ?? [] };
+}

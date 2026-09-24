@@ -5,6 +5,7 @@ phase: "C: Foundations"
 summary: Repeat work with while, for and do-while. break, continue, nested loops and loop-driven input.
 steps:
   - title: while loops
+    id: c-loops-1
     text: |
       A `while` loop repeats its block as long as the condition stays true.
 
@@ -42,6 +43,7 @@ steps:
         hidden: true
 
   - title: for loops
+    id: c-loops-2
     text: |
       A `for` loop puts the three parts of a counting loop on one line:
 
@@ -93,6 +95,7 @@ steps:
         hidden: true
 
   - title: Accumulating a total
+    id: c-loops-3
     text: |
       A very common loop pattern: start a variable at 0 and add to it every round.
 
@@ -158,6 +161,7 @@ steps:
         hidden: true
 
   - title: break and continue
+    id: c-loops-4
     text: |
       - `break` leaves the loop immediately.
       - `continue` skips the rest of this round and jumps to the next one.
@@ -215,6 +219,7 @@ steps:
         hidden: true
 
   - title: do-while
+    id: c-loops-5
     text: |
       A `do { } while (cond);` loop checks its condition at the **end**, so the body always runs at least once. It's perfect for "ask until valid" input and for menus.
 
@@ -264,6 +269,7 @@ steps:
         hidden: true
 
   - title: Nested loops
+    id: c-loops-6
     text: |
       A loop inside a loop runs the inner loop completely for every round of the outer one. That's how you walk a grid.
 

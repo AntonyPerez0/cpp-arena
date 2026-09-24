@@ -5,6 +5,7 @@ phase: "C++: A Better C"
 summary: Destructors, object lifetime and RAII, the idea that makes C++ memory-safe in practice. Plus copying and the rule of three.
 steps:
   - title: Destructors
+    id: cpp-raii-1
     text: |
       A **destructor** runs automatically when an object's lifetime ends, for example when a local variable goes out of scope. It's named `~ClassName()`:
 
@@ -39,6 +40,7 @@ steps:
       - expect: "round start\nplaying\nround end"
 
   - title: Order of destruction
+    id: cpp-raii-2
     text: |
       Objects are destroyed in the **reverse order** of construction (last in, first out), and a `{ }` block ends the lifetime of everything declared inside it.
 
@@ -96,6 +98,7 @@ steps:
       - expect: "+ A\n+ B\n- B\n+ C\n- C\n- A"
 
   - title: RAII
+    id: cpp-raii-3
     text: |
       **RAII** (Resource Acquisition Is Initialization) means: acquire a resource in a constructor, release it in the destructor. Since destructors always run, you can't forget to clean up, even on early `return`.
 
@@ -164,6 +167,7 @@ steps:
       - "`int& at(int i) { return data_[i]; }` returns a reference, so `a.at(0) = 10` works."
 
   - title: The copy problem
+    id: cpp-raii-4
     text: |
       By default, copying an object copies each member. For `IntArray` that copies the **pointer**, so two objects share one array. When both destructors run, the array is deleted twice (a crash, or worse).
 
@@ -244,6 +248,7 @@ steps:
       - "Allocate new memory of `other.n_` ints, then copy each element in a loop."
 
   - title: Non-copyable classes
+    id: cpp-raii-5
     text: |
       Sometimes copying makes no sense (a file handle, a network socket, a unique game session). Say so explicitly with `= delete`, and the compiler rejects any attempt to copy:
 

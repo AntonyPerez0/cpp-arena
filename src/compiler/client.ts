@@ -1,6 +1,9 @@
 // Main-thread API for compiling and running C/C++ code.
 export type Lang = "c" | "cpp";
 
+/** One run's input: stdin text, or stdin plus starter files and command-line arguments. */
+export type RunInput = string | { stdin: string; files?: Record<string, string>; args?: string[] };
+
 export type CompilerStatus =
   | { state: "idle" }
   | { state: "loading"; loaded: number; total: number; stage: string }
@@ -78,7 +81,7 @@ function compile(source: string, lang: Lang): Promise<{ ok: boolean; diagnostics
 }
 
 /** Run a compiled program on every input, killing any case that exceeds timeoutMs. */
-function runAll(wasm: Uint8Array, inputs: string[], timeoutMs: number): Promise<RunResult[]> {
+function runAll(wasm: Uint8Array, inputs: RunInput[], timeoutMs: number): Promise<RunResult[]> {
   return new Promise((resolve) => {
     const results: RunResult[] = [];
     const runner = new Worker(new URL("./runner.worker.ts", import.meta.url), { type: "module" });
@@ -120,7 +123,7 @@ function runAll(wasm: Uint8Array, inputs: string[], timeoutMs: number): Promise<
   });
 }
 
-export async function compileAndRun(source: string, lang: Lang, inputs: string[], timeoutMs = 3000): Promise<CompileRunResult> {
+export async function compileAndRun(source: string, lang: Lang, inputs: RunInput[], timeoutMs = 3000): Promise<CompileRunResult> {
   const c = await compile(source, lang);
   if (!c.ok || !c.wasm) {
     return { compiled: false, diagnostics: c.diagnostics, internalError: c.internal, compileMs: c.ms, runs: [] };

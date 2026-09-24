@@ -1,6 +1,6 @@
 import type { Lang } from "../compiler/client";
 
-export type TestCase = { name: string; stdin: string; expect: string; hidden?: boolean };
+export type TestCase = { name: string; stdin: string; expect: string; hidden?: boolean; files?: Record<string, string>; args?: string[] };
 export type Rule = { pattern: string; flags?: string; message: string };
 
 export type Exercise = {

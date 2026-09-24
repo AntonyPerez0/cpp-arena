@@ -5,6 +5,7 @@ phase: "C++: Modern and Advanced"
 summary: The features that make today's C++ pleasant. optional, variant, string_view, concepts, ranges and span.
 steps:
   - title: std::optional
+    id: cpp-modern-1
     text: |
       `std::optional<T>` holds either a `T` or nothing. It's the honest way to say "this might not have a result", instead of magic values like `-1` or `nullptr`:
 
@@ -61,6 +62,7 @@ steps:
       - "Build the number digit by digit: `v = v * 10 + (c - '0');`. Any non-digit means `return std::nullopt;`."
 
   - title: std::variant and std::visit
+    id: cpp-modern-2
     text: |
       `std::variant<A, B, C>` holds exactly **one** of several types, and knows which. It's a type-safe union.
 
@@ -115,6 +117,7 @@ steps:
       - "Careful: `\"bomb planted at \" + p->site` adds a char to a pointer. Wrap the literal in `std::string(...)` first."
 
   - title: std::string_view
+    id: cpp-modern-3
     text: |
       `std::string_view` is a lightweight, **non-owning** view of characters: a pointer plus a length. It accepts string literals, `std::string`s and substrings without copying anything, which makes it the modern choice for read-only string parameters.
 
@@ -157,6 +160,7 @@ steps:
       - Loop while the view isn't empty and its front (or back) is a space.
 
   - title: Concepts
+    id: cpp-modern-4
     text: |
       A plain template accepts any type and fails with a wall of errors deep inside if the type doesn't fit. **Concepts** (C++20) state the requirements up front:
 
@@ -208,6 +212,7 @@ steps:
       - "Loop: `T t = a % b; a = b; b = t;` until b is 0, then return a."
 
   - title: Ranges
+    id: cpp-modern-5
     text: |
       C++20 **ranges** let you pass a container directly to algorithms and build lazy pipelines with `|`:
 
@@ -265,6 +270,7 @@ steps:
       - The filter lambda captures `min_kills`; the transform lambda returns `p.first`. Then loop over the view and push_back.
 
   - title: std::span
+    id: cpp-modern-6
     text: |
       `std::span<T>` is to arrays what `string_view` is to strings: a non-owning view of contiguous elements. One function can then accept a C array, a `std::array` or a `std::vector`:
 

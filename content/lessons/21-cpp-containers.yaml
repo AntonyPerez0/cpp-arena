@@ -5,6 +5,7 @@ phase: "C++: Standard Library"
 summary: Associative containers (map, set, unordered_map), pairs, and the stack and queue adapters.
 steps:
   - title: std::map
+    id: cpp-containers-1
     text: |
       `std::map<Key, Value>` stores key/value pairs **sorted by key**. `m[key]` gets the value, creating it (as 0 or empty) if it doesn't exist yet, which makes counting easy:
 
@@ -58,6 +59,7 @@ steps:
         hidden: true
 
   - title: Look up without inserting
+    id: cpp-containers-2
     text: |
       `m[key]` inserts missing keys, which is not what you want for a pure lookup. Use `find` or `contains` (C++20):
 
@@ -99,6 +101,7 @@ steps:
       - "`it == prices.end()` means not found. Otherwise the value is `it->second`."
 
   - title: std::set
+    id: cpp-containers-3
     text: |
       `std::set<T>` holds **unique** values, **sorted**. Inserting a duplicate does nothing.
 
@@ -139,6 +142,7 @@ steps:
       - "Then build a vector from the set's range: `std::vector<std::string>(s.begin(), s.end())`."
 
   - title: unordered_map
+    id: cpp-containers-4
     text: |
       `std::unordered_map` is a hash table: no ordering, but lookups are usually **O(1)** instead of O(log n). Same interface as `map` for `[]`, `find`, `contains`.
 
@@ -183,6 +187,7 @@ steps:
       - "Before storing v[j], check `seen.find(target - v[j])`. If found, return `{that index, j}`."
 
   - title: pair and tuple
+    id: cpp-containers-5
     text: |
       `std::pair<A, B>` holds two values (`.first`, `.second`). `std::tuple` holds any number. Structured bindings unpack both:
 
@@ -217,6 +222,7 @@ steps:
       - expect: "4 9 awp 4750"
 
   - title: "Challenge: balanced brackets"
+    id: cpp-containers-6
     text: |
       `std::stack<T>` gives you `push`, `top`, `pop` and `empty`. It's the right tool for matching brackets: push each opener, and each closer must match the most recent opener.
 

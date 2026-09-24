@@ -1,7 +1,7 @@
 // Toolchain core shared by the browser worker and the Node verification script.
 // Wraps browsercc's Clang/LLD Emscripten builds so the big wasm modules are
 // compiled once and re-instantiated cheaply for every compile.
-import { WASI, File, OpenFile, ConsoleStdout, WASIProcExit } from "@bjorn3/browser_wasi_shim";
+import { WASI, File, OpenFile, ConsoleStdout, PreopenDirectory, WASIProcExit } from "@bjorn3/browser_wasi_shim";
 
 export const PCH_PATH = "/include/bits/stdc++.h.pch";
 
@@ -145,12 +145,17 @@ export const OUTPUT_LIMIT = 64 * 1024;
 class OutputLimit extends Error {}
 
 /**
- * Run a compiled WASI program synchronously with the given stdin.
+ * Run a compiled WASI program synchronously.
+ * `input` is either the stdin text or { stdin, files, args }. Every run gets
+ * its own empty in-memory working directory, pre-filled with `files`
+ * (name -> text), and `args` become argv[1..].
  * @param {WebAssembly.Module} module
- * @param {string} stdin
+ * @param {string | {stdin?: string, files?: Record<string,string>, args?: string[]}} input
  * @returns {{stdout:string, stderr:string, exitCode:number|null, crash:string|null, truncated:boolean}}
  */
-export function runWasi(module, stdin) {
+export function runWasi(module, input) {
+  const { stdin = "", files = {}, args = [] } = typeof input === "string" || input == null ? { stdin: input ?? "" } : input;
+  const enc = new TextEncoder();
   const dec = new TextDecoder();
   let stdout = "";
   let stderr = "";
@@ -167,11 +172,12 @@ export function runWasi(module, stdin) {
     }
   };
   const fds = [
-    new OpenFile(new File(new TextEncoder().encode(stdin || ""))),
+    new OpenFile(new File(enc.encode(stdin || ""))),
     new ConsoleStdout(sink(1)),
     new ConsoleStdout(sink(2)),
+    new PreopenDirectory(".", new Map(Object.entries(files).map(([name, text]) => [name, new File(enc.encode(text))]))),
   ];
-  const wasi = new WASI([], [], fds, { debug: false });
+  const wasi = new WASI(["main", ...args], [], fds, { debug: false });
   let exitCode = null;
   let crash = null;
   try {

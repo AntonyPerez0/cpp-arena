@@ -5,6 +5,7 @@ phase: "C++: A Better C"
 summary: References as safer aliases, const& for cheap read-only parameters, overloading and default arguments.
 steps:
   - title: References are aliases
+    id: cpp-refs-1
     text: |
       A **reference** is another name for an existing variable. Declare one with `&` after the type:
 
@@ -32,6 +33,7 @@ steps:
       - expect: "3950"
 
   - title: Pass by reference
+    id: cpp-refs-2
     text: |
       Reference parameters let a function modify the caller's variables with none of the pointer noise:
 
@@ -64,6 +66,7 @@ steps:
       - Same as the pointer version but without `*`. Use a temporary.
 
   - title: const references
+    id: cpp-refs-3
     text: |
       Passing a `std::string` or a big object by value **copies** it. Passing by reference avoids the copy, and adding `const` promises you won't modify it. This is the everyday C++ way to take read-only parameters:
 
@@ -106,6 +109,7 @@ steps:
       - Compare `s[i]` and `prefix[i]` for every i below `prefix.size()`.
 
   - title: Overloading
+    id: cpp-refs-4
     text: |
       In C++, several functions can share a name if their parameter lists differ. The compiler picks the one that matches the arguments:
 
@@ -142,6 +146,7 @@ steps:
       - "`\"int \" + std::to_string(n)`"
 
   - title: Default arguments
+    id: cpp-refs-5
     text: |
       Parameters can have default values, used when the caller leaves them out. Defaults go at the **end** of the parameter list:
 
