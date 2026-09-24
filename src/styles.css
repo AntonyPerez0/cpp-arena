@@ -20,7 +20,9 @@
 }
 
 * { box-sizing: border-box; }
-html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 16px; line-height: 1.55; }
+html { font-size: 16px; }
+html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.55; }
+body { font-size: 1rem; }
 a { color: var(--accent2); text-decoration: none; }
 a:hover { text-decoration: underline; }
 code { font-family: var(--mono); font-size: 0.92em; background: #ffffff10; padding: 0.08em 0.35em; border-radius: 4px; }
@@ -146,14 +148,14 @@ button.pill { cursor: pointer; }
 .md h3 { margin-top: 1rem; }
 
 /* ---------- workbench */
-.editor { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; font-size: 14.5px; }
+.editor { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; font-size: 0.9rem; }
 .editor .cm-editor { background: #0b0d11; }
 .editor .cm-gutters { background: #0b0d11; border-right: 1px solid var(--line); }
 .editor .cm-scroller { font-family: var(--mono); }
 .actions { display: flex; gap: 0.6rem; flex-wrap: wrap; margin: 0.8rem 0; align-items: center; }
-.codeview { background: #0b0d11; border: 1px solid var(--line); border-radius: var(--radius); padding: 0.9rem 1rem; margin: 0; overflow-x: auto; font-family: var(--mono); font-size: 14.5px; line-height: 1.6; white-space: pre; color: #d5dae3; }
+.codeview { background: #0b0d11; border: 1px solid var(--line); border-radius: var(--radius); padding: 0.9rem 1rem; margin: 0; overflow-x: auto; font-family: var(--mono); font-size: 0.9rem; line-height: 1.6; white-space: pre; color: #d5dae3; }
 .fillcode { line-height: 2.05; }
-.blank { font-family: var(--mono); font-size: 14px; background: #1f2633; color: #fff; border: 1px solid #ff9f1c88; border-bottom: 2px solid var(--accent); border-radius: 5px; padding: 0.05rem 0.35rem; outline: none; min-width: 3ch; }
+.blank { font-family: var(--mono); font-size: 0.875rem; background: #1f2633; color: #fff; border: 1px solid #ff9f1c88; border-bottom: 2px solid var(--accent); border-radius: 5px; padding: 0.05rem 0.35rem; outline: none; min-width: 3ch; }
 .blank:focus { border-color: var(--accent2); box-shadow: 0 0 0 3px #ff9f1c33; }
 .blank-wrong { border-color: var(--bad); border-bottom-color: var(--bad); background: #2a1216; }
 .tk-kw { color: #c792ea; }
@@ -164,10 +166,10 @@ button.pill { cursor: pointer; }
 .tk-pre { color: #89ddff; }
 .tk-fn { color: #82aaff; }
 .freerun { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.8rem; margin-bottom: 0.8rem; }
-.stdin { width: 100%; font-family: var(--mono); font-size: 14px; background: #0b0d11; color: var(--text); border: 1px solid var(--line); border-radius: 7px; padding: 0.5rem; margin: 0.3rem 0 0.5rem; resize: vertical; }
-.console { background: #07090c; border: 1px solid var(--line); border-radius: 8px; padding: 0.6rem 0.8rem; font-family: var(--mono); font-size: 13.5px; white-space: pre-wrap; word-break: break-word; margin: 0.25rem 0 0.5rem; max-height: 320px; overflow: auto; }
-.console.small { font-size: 12px; }
-.console.tiny { font-size: 12.5px; padding: 0.35rem 0.55rem; margin: 0.15rem 0; }
+.stdin { width: 100%; font-family: var(--mono); font-size: 0.875rem; background: #0b0d11; color: var(--text); border: 1px solid var(--line); border-radius: 7px; padding: 0.5rem; margin: 0.3rem 0 0.5rem; resize: vertical; }
+.console { background: #07090c; border: 1px solid var(--line); border-radius: 8px; padding: 0.6rem 0.8rem; font-family: var(--mono); font-size: 0.845rem; white-space: pre-wrap; word-break: break-word; margin: 0.25rem 0 0.5rem; max-height: 320px; overflow: auto; }
+.console.small { font-size: 0.75rem; }
+.console.tiny { font-size: 0.78rem; padding: 0.35rem 0.55rem; margin: 0.15rem 0; }
 .lbl { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; color: var(--muted); }
 .results { margin: 0.6rem 0; }
 .banner { border-radius: var(--radius); padding: 0.7rem 1rem; font-weight: 700; margin-bottom: 0.7rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
@@ -342,3 +344,13 @@ button.bugline:hover { background: #ff4d5e1f; outline: 1px solid #ff4d5e55; }
 .pro-nav { margin: 2rem 0 1rem; max-width: 820px; }
 /* Wide tables and code scroll inside themselves instead of widening the page on phones. */
 .md table { display: block; max-width: 100%; overflow-x: auto; }
+
+/* ---------- large screens: use more of the width and scale text up a little */
+@media (min-width: 1200px) {
+  html { font-size: 17px; }
+  .main { max-width: min(1680px, 94vw); padding-left: 2rem; padding-right: 2rem; }
+  .editor .cm-editor, .codeview { min-height: 16rem; }
+}
+@media (min-width: 1700px) {
+  html { font-size: 18px; }
+}
