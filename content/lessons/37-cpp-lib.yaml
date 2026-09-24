@@ -1,0 +1,329 @@
+id: cpp-lib
+title: Formatting, time and text
+lang: cpp
+phase: "C++: Professional C++"
+summary: The modern standard library for everyday service code. std::format and custom formatters, chrono durations, measuring time, strict number parsing with from_chars, and a log formatter.
+steps:
+  - title: std::format
+    id: cpp-lib-1
+    text: |
+      C++20's `std::format` combines printf's compactness with type safety: `{}` placeholders are filled in order, and the format is checked **at compile time** when it's a literal.
+
+      ```cpp
+      std::format("{} has {} kills", name, k);        // "ropz has 25 kills"
+      std::format("{:>8}", "ab");                     // right-align in 8: "      ab"
+      std::format("{:<8}|", "ab");                    // left-align: "ab      |"
+      std::format("{:^7}", "mid");                    // center: "  mid  "
+      std::format("{:.2f}", 3.14159);                 // "3.14"
+      std::format("{:05}", 42);                       // zero-pad: "00042"
+      std::format("{:x} {:b}", 255, 5);               // hex and binary: "ff 101"
+      ```
+
+      The spec after the colon is `[fill][align][width][.precision][type]`.
+
+      **Your turn:** write `std::string row(const std::string& name, int kills, double kd)` producing the name left-aligned in 10 characters, kills right-aligned in 4, and the K/D right-aligned in 6 with 2 decimals. Use a single `std::format` call.
+    seed: |
+      #include <format>
+      #include <string>
+
+      std::string row(const std::string& name, int kills, double kd) {
+
+      }
+    solution: |
+      #include <format>
+      #include <string>
+
+      std::string row(const std::string& name, int kills, double kd) {
+          return std::format("{:<10}{:>4}{:>6.2f}", name, kills, kd);
+      }
+    require:
+      - pattern: "std::format\\s*\\("
+        message: "Build the row with `std::format`."
+    harness: |
+      int main() {
+          CHECK_EQ("ropz", row("ropz", 25, 2.0833), std::string("ropz        25  2.08"));
+          CHECK_EQ("long kd", row("rain", 9, 0.45), std::string("rain         9  0.45"));
+          CHECK_EQ("big numbers", row("s1mple", 1234, 12.346), std::string("s1mple    1234 12.35"));
+      }
+    hints:
+      - "Three placeholders: `{:<10}`, `{:>4}` and `{:>6.2f}`."
+      - "`return std::format(\"{:<10}{:>4}{:>6.2f}\", name, kills, kd);`"
+
+  - title: Formatting your own types
+    id: cpp-lib-2
+    text: |
+      To make `std::format` understand your type, specialize `std::formatter` for it. The easiest way is to **reuse** an existing formatter: inherit from `std::formatter<std::string>` (which already parses width, alignment and fill), build your text, and hand it to the base class:
+
+      ```cpp
+      template <>
+      struct std::formatter<Point> : std::formatter<std::string> {
+          auto format(const Point& p, std::format_context& ctx) const {
+              return std::formatter<std::string>::format(std::format("({}, {})", p.x, p.y), ctx);
+          }
+      };
+      ```
+
+      Now `std::format("{:>12}", pt)` works, alignment included.
+
+      **Your turn:** write a formatter for `Money` (an amount in cents, never negative here) that shows it as dollars: `Money{1205}` is `$12.05`, `Money{7}` is `$0.07`.
+    seed: |
+      #include <format>
+      #include <string>
+
+      struct Money {
+          long cents;
+      };
+
+      // std::formatter<Money> here
+    solution: |
+      #include <format>
+      #include <string>
+
+      struct Money {
+          long cents;
+      };
+
+      // std::formatter<Money> here
+      template <>
+      struct std::formatter<Money> : std::formatter<std::string> {
+          auto format(const Money& m, std::format_context& ctx) const {
+              return std::formatter<std::string>::format(std::format("${}.{:02}", m.cents / 100, m.cents % 100), ctx);
+          }
+      };
+    harness: |
+      int main() {
+          CHECK_EQ("$12.05", std::format("{}", Money{1205}), std::string("$12.05"));
+          CHECK_EQ("$0.07", std::format("{}", Money{7}), std::string("$0.07"));
+          CHECK_EQ("$4750.00", std::format("{}", Money{475000}), std::string("$4750.00"));
+          CHECK_EQ("alignment still works", std::format("[{:>8}]", Money{300}), std::string("[   $3.00]"));
+          CHECK_EQ("in a sentence", std::format("AWP costs {}", Money{475000}), std::string("AWP costs $4750.00"));
+      }
+    hints:
+      - "`template <> struct std::formatter<Money> : std::formatter<std::string> { ... };`"
+      - "Inside `format`, build the text with `std::format(\"${}.{:02}\", m.cents / 100, m.cents % 100)`."
+      - "Pass it on: `return std::formatter<std::string>::format(text, ctx);`"
+
+  - title: chrono durations
+    id: cpp-lib-3
+    text: |
+      Passing time around as a bare `int` invites bugs: seconds or milliseconds? `<chrono>` puts the unit **in the type**:
+
+      ```cpp
+      using namespace std::chrono_literals;
+      std::chrono::milliseconds t = 1500ms;
+      std::chrono::seconds s = 2min;                              // exact conversions are implicit
+      auto whole = std::chrono::duration_cast<std::chrono::seconds>(t);   // lossy ones need a cast: 1s
+      t += 3s;                                                    // mixed units just work: 4500ms
+      ```
+
+      Converting to a coarser unit truncates (1500ms becomes 1s), so the language makes you say `duration_cast` explicitly. `.count()` gives the raw number when you really need it, for example to print.
+
+      **Your turn:** write `std::string mmss(std::chrono::milliseconds t)` that formats a round timer as `M:SS` (truncating the milliseconds), like `1:55` or `0:07`.
+    seed: |
+      #include <chrono>
+      #include <format>
+      #include <string>
+
+      std::string mmss(std::chrono::milliseconds t) {
+
+      }
+    solution: |
+      #include <chrono>
+      #include <format>
+      #include <string>
+
+      std::string mmss(std::chrono::milliseconds t) {
+          auto m = std::chrono::duration_cast<std::chrono::minutes>(t);
+          auto s = std::chrono::duration_cast<std::chrono::seconds>(t - m);
+          return std::format("{}:{:02}", m.count(), s.count());
+      }
+    require:
+      - pattern: "duration_cast"
+        message: "Convert units with `std::chrono::duration_cast` instead of dividing by 60000 by hand."
+    harness: |
+      int main() {
+          using namespace std::chrono_literals;
+          CHECK_EQ("1:55", mmss(115s), std::string("1:55"));
+          CHECK_EQ("0:07", mmss(7999ms), std::string("0:07"));
+          CHECK_EQ("minutes literal", mmss(2min + 5s), std::string("2:05"));
+          CHECK_EQ("zero", mmss(0ms), std::string("0:00"));
+          CHECK_EQ("over an hour", mmss(61min), std::string("61:00"));
+      }
+    hints:
+      - "`auto m = std::chrono::duration_cast<std::chrono::minutes>(t);`"
+      - "The leftover seconds: `duration_cast<std::chrono::seconds>(t - m)`."
+      - "`std::format(\"{}:{:02}\", m.count(), s.count())`."
+
+  - title: Measuring time
+    id: cpp-lib-4
+    text: |
+      `<chrono>` has several clocks, and picking the wrong one is a classic bug:
+
+      | Clock | Use it for |
+      |---|---|
+      | `std::chrono::steady_clock` | measuring elapsed time: it never jumps backwards |
+      | `std::chrono::system_clock` | wall-clock time ("now" as a date); can jump when the OS adjusts the time |
+
+      Timing code with `system_clock` can give **negative** durations if the clock is corrected mid-measurement. Always use `steady_clock` for intervals, timeouts and benchmarks:
+
+      ```cpp
+      auto start = std::chrono::steady_clock::now();
+      work();
+      auto elapsed = std::chrono::steady_clock::now() - start;   // a duration
+      ```
+
+      **Your turn:** write `template <typename F> std::chrono::microseconds time_it(F&& f)` that calls `f()` once and returns how long it took.
+    seed: |
+      #include <chrono>
+
+      template <typename F>
+      std::chrono::microseconds time_it(F&& f) {
+
+      }
+    solution: |
+      #include <chrono>
+
+      template <typename F>
+      std::chrono::microseconds time_it(F&& f) {
+          auto start = std::chrono::steady_clock::now();
+          f();
+          auto end = std::chrono::steady_clock::now();
+          return std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+      }
+    require:
+      - pattern: "steady_clock"
+        message: "Measure intervals with `std::chrono::steady_clock`."
+    harness: |
+      int main() {
+          int calls = 0;
+          auto t = time_it([&] { calls++; });
+          CHECK_EQ("f called exactly once", calls, 1);
+          CHECK("elapsed is never negative", t.count() >= 0);
+          volatile long sink = 0;
+          auto slow = time_it([&] { for (long i = 0; i < 3000000; i++) sink = sink + i; });
+          auto fast = time_it([] {});
+          CHECK("more work takes longer", slow >= fast);
+      }
+    hints:
+      - "Take `std::chrono::steady_clock::now()` before and after calling `f()`."
+      - "Subtracting two time points gives a duration; `duration_cast` it to microseconds."
+
+  - title: Strict number parsing with from_chars
+    id: cpp-lib-5
+    text: |
+      `std::stoi` throws exceptions and silently ignores trailing junk (`stoi("12abc")` is 12). `atoi` can't report errors at all. For parsing untrusted input, `<charconv>` has `std::from_chars`: no exceptions, no locale, no allocation, and precise error reporting:
+
+      ```cpp
+      int v;
+      auto [ptr, ec] = std::from_chars(s.data(), s.data() + s.size(), v);
+      if (ec == std::errc::invalid_argument)     { /* no number at all */ }
+      if (ec == std::errc::result_out_of_range)  { /* too big for int */ }
+      if (ptr != s.data() + s.size())            { /* junk after the number */ }
+      ```
+
+      It's also the fastest parser in the standard library, which matters when loading big files.
+
+      **Your turn:** write `std::optional<int> to_int(std::string_view s)` that accepts only a complete, in-range integer (optional leading `-`, no spaces, no junk).
+    seed: |
+      #include <charconv>
+      #include <optional>
+      #include <string_view>
+
+      std::optional<int> to_int(std::string_view s) {
+
+      }
+    solution: |
+      #include <charconv>
+      #include <optional>
+      #include <string_view>
+
+      std::optional<int> to_int(std::string_view s) {
+          int v = 0;
+          const char* end = s.data() + s.size();
+          auto [ptr, ec] = std::from_chars(s.data(), end, v);
+          if (ec != std::errc() || ptr != end) return std::nullopt;
+          return v;
+      }
+    require:
+      - pattern: "from_chars"
+        message: "Parse with `std::from_chars`."
+    harness: |
+      int main() {
+          CHECK_EQ("42", to_int("42").value_or(-1), 42);
+          CHECK_EQ("-17", to_int("-17").value_or(0), -17);
+          CHECK("trailing junk", !to_int("12abc"));
+          CHECK("leading space", !to_int(" 5"));
+          CHECK("empty", !to_int(""));
+          CHECK("just a minus", !to_int("-"));
+          CHECK("too big", !to_int("99999999999"));
+          CHECK_EQ("INT_MIN", to_int("-2147483648").value_or(0), -2147483647 - 1);
+      }
+    hints:
+      - "`auto [ptr, ec] = std::from_chars(s.data(), s.data() + s.size(), v);`"
+      - "Succeed only if `ec == std::errc()` **and** ptr reached the end of s."
+
+  - title: "Challenge: a log formatter"
+    id: cpp-lib-6
+    text: |
+      Every service writes logs, and consistent, sortable, greppable log lines matter when you're debugging production at 3 a.m.
+
+      **Your turn:** write `std::string log_line(Level level, std::chrono::milliseconds uptime, std::string_view msg)` producing:
+
+      ```
+      [HH:MM:SS.mmm] LEVEL message
+      ```
+
+      - the uptime as zero-padded hours, minutes, seconds and milliseconds (hours can exceed 24)
+      - the level name (`DEBUG`, `INFO`, `WARN`, `ERROR`) left-aligned in 5 characters
+      - one space, then the message
+
+      Example: `log_line(Level::Warn, 65250ms, "disk 91%")` is `[00:01:05.250] WARN  disk 91%`.
+    seed: |
+      #include <chrono>
+      #include <format>
+      #include <string>
+      #include <string_view>
+
+      enum class Level { Debug, Info, Warn, Error };
+
+      std::string log_line(Level level, std::chrono::milliseconds uptime, std::string_view msg) {
+
+      }
+    solution: |
+      #include <chrono>
+      #include <format>
+      #include <string>
+      #include <string_view>
+
+      enum class Level { Debug, Info, Warn, Error };
+
+      static std::string_view level_name(Level l) {
+          switch (l) {
+              case Level::Debug: return "DEBUG";
+              case Level::Info: return "INFO";
+              case Level::Warn: return "WARN";
+              case Level::Error: return "ERROR";
+          }
+          return "?";
+      }
+
+      std::string log_line(Level level, std::chrono::milliseconds uptime, std::string_view msg) {
+          using namespace std::chrono;
+          auto h = duration_cast<hours>(uptime);
+          auto m = duration_cast<minutes>(uptime - h);
+          auto s = duration_cast<seconds>(uptime - h - m);
+          auto ms = uptime - h - m - s;
+          return std::format("[{:02}:{:02}:{:02}.{:03}] {:<5} {}", h.count(), m.count(), s.count(), ms.count(), level_name(level), msg);
+      }
+    harness: |
+      int main() {
+          using namespace std::chrono_literals;
+          CHECK_EQ("warn", log_line(Level::Warn, 65250ms, "disk 91%"), std::string("[00:01:05.250] WARN  disk 91%"));
+          CHECK_EQ("start", log_line(Level::Info, 0ms, "boot"), std::string("[00:00:00.000] INFO  boot"));
+          CHECK_EQ("error fills 5", log_line(Level::Error, 1h + 2min + 3s + 4ms, "oom"), std::string("[01:02:03.004] ERROR oom"));
+          CHECK_EQ("over a day", log_line(Level::Debug, 30h, "x"), std::string("[30:00:00.000] DEBUG x"));
+      }
+    hints:
+      - "Peel off units with duration_cast: hours, then minutes from what's left, then seconds; the remainder is milliseconds."
+      - "A switch turns the enum into its name."
+      - "`std::format(\"[{:02}:{:02}:{:02}.{:03}] {:<5} {}\", ...)`"

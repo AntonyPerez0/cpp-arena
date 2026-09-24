@@ -1,0 +1,608 @@
+id: cpp-oop
+title: Inheritance and polymorphism
+lang: cpp
+phase: "C++: Modern and Advanced"
+summary: Derived classes, virtual functions and override, abstract interfaces, and polymorphic containers.
+steps:
+  - title: Inheritance
+    id: cpp-oop-1
+    text: |
+      A class can **inherit** from another, getting all its members, then add or change behaviour:
+
+      ```cpp
+      class Weapon {
+      public:
+          int damage = 10;
+          void describe() const { std::cout << damage << "\n"; }
+      };
+
+      class Rifle : public Weapon {    // a Rifle IS-A Weapon
+      public:
+          int magazine = 30;
+      };
+
+      Rifle r;
+      r.damage = 36;      // inherited
+      r.describe();       // inherited
+      ```
+
+      **Your turn:** make `Sniper` inherit from `Weapon` and set the base part through the base constructor.
+    fill: |
+      #include <iostream>
+      #include <string>
+
+      class Weapon {
+      public:
+          Weapon(std::string name, int damage) : name_(name), damage_(damage) {}
+          std::string info() const { return name_ + " " + std::to_string(damage_); }
+      private:
+          std::string name_;
+          int damage_;
+      };
+
+      class Sniper [[:]] [[public]] Weapon {
+      public:
+          Sniper() : [[Weapon]]("awp", 115) {}
+          bool scoped = false;
+      };
+
+      int main() {
+          Sniper s;
+          std::cout << s.info() << " " << s.scoped << "\n";
+      }
+    hints:
+      - "`class Sniper : public Weapon`"
+      - "The base class is initialized in the initializer list by name: `: Weapon(\"awp\", 115)`."
+    tests:
+      - expect: "awp 115 0"
+
+  - title: virtual and override
+    id: cpp-oop-2
+    text: |
+      Through a base-class reference or pointer, which function runs? By default, the **base** version. Mark the base function `virtual` and the actual object's version runs instead. That's **polymorphism**.
+
+      ```cpp
+      class Enemy {
+      public:
+          virtual std::string sound() const { return "..."; }
+          virtual ~Enemy() = default;
+      };
+      class Zombie : public Enemy {
+      public:
+          std::string sound() const override { return "brains"; }
+      };
+
+      const Enemy& e = Zombie{};
+      e.sound();   // "brains"
+      ```
+
+      Write `override` on the derived version: the compiler then checks that you really are overriding something (typos become errors).
+
+      **Your turn:** make `Knife` and `Grenade` override `attack`, returning `"slash"` and `"boom"`.
+    seed: |
+      #include <string>
+
+      class Weapon {
+      public:
+          virtual std::string attack() const { return "..."; }
+          virtual ~Weapon() = default;
+      };
+
+      class Knife : public Weapon {
+      public:
+
+      };
+
+      class Grenade : public Weapon {
+      public:
+
+      };
+    solution: |
+      #include <string>
+
+      class Weapon {
+      public:
+          virtual std::string attack() const { return "..."; }
+          virtual ~Weapon() = default;
+      };
+
+      class Knife : public Weapon {
+      public:
+          std::string attack() const override { return "slash"; }
+      };
+
+      class Grenade : public Weapon {
+      public:
+          std::string attack() const override { return "boom"; }
+      };
+    require:
+      - pattern: "override"
+        message: "Mark the derived functions with `override`."
+    harness: |
+      std::string use(const Weapon& w) { return w.attack(); }
+      int main() {
+          Knife k;
+          Grenade g;
+          Weapon plain;
+          CHECK_EQ("Knife through Weapon&", use(k), std::string("slash"));
+          CHECK_EQ("Grenade through Weapon&", use(g), std::string("boom"));
+          CHECK_EQ("plain Weapon", use(plain), std::string("..."));
+      }
+    hints:
+      - "Same signature as the base, plus `override`: `std::string attack() const override { ... }`."
+
+  - title: Abstract classes
+    id: cpp-oop-3
+    text: |
+      A **pure virtual** function (`= 0`) has no implementation in the base class. A class with one is **abstract**: you can't create it directly, only derive from it. It acts as an **interface**.
+
+      ```cpp
+      class Shape {
+      public:
+          virtual double area() const = 0;
+          virtual ~Shape() = default;
+      };
+      ```
+
+      **Your turn:** write `Circle` (radius) and `Rect` (width, height) implementing `area()`. Use `3.14159265358979` for pi.
+    seed: |
+      class Shape {
+      public:
+          virtual double area() const = 0;
+          virtual ~Shape() = default;
+      };
+
+      class Circle : public Shape {
+      public:
+          explicit Circle(double r) : r_(r) {}
+
+      private:
+          double r_;
+      };
+
+      class Rect : public Shape {
+      public:
+          Rect(double w, double h) : w_(w), h_(h) {}
+
+      private:
+          double w_, h_;
+      };
+    solution: |
+      class Shape {
+      public:
+          virtual double area() const = 0;
+          virtual ~Shape() = default;
+      };
+
+      class Circle : public Shape {
+      public:
+          explicit Circle(double r) : r_(r) {}
+          double area() const override { return 3.14159265358979 * r_ * r_; }
+
+      private:
+          double r_;
+      };
+
+      class Rect : public Shape {
+      public:
+          Rect(double w, double h) : w_(w), h_(h) {}
+          double area() const override { return w_ * h_; }
+
+      private:
+          double w_, h_;
+      };
+    harness: |
+      #include <cmath>
+      #include <type_traits>
+      bool near(double a, double b) { return std::fabs(a - b) < 1e-6; }
+      int main() {
+          CHECK("Shape is abstract", std::is_abstract_v<Shape>);
+          Circle c(2);
+          Rect r(3, 4.5);
+          const Shape& s1 = c;
+          const Shape& s2 = r;
+          CHECK("circle r=2 area ~12.566", near(s1.area(), 12.5663706143592));
+          CHECK("rect 3x4.5 area 13.5", near(s2.area(), 13.5));
+      }
+    hints:
+      - "Each class needs `double area() const override { ... }`."
+      - "Circle: `3.14159265358979 * r_ * r_`. Rect: `w_ * h_`."
+
+  - title: Polymorphic containers
+    id: cpp-oop-4
+    text: |
+      To store different derived types in one container, store **pointers to the base**. With `std::unique_ptr` nothing leaks:
+
+      ```cpp
+      std::vector<std::unique_ptr<Shape>> shapes;
+      shapes.push_back(std::make_unique<Circle>(1.0));
+      shapes.push_back(std::make_unique<Rect>(2, 3));
+      for (const auto& s : shapes) total += s->area();
+      ```
+
+      That's also why the base class needs a **virtual destructor**: deleting a `Circle` through a `Shape*` must run `Circle`'s destructor.
+
+      **Your turn:** write `int total_damage(const std::vector<std::unique_ptr<Weapon>>& ws, int hits)` that sums `damage(hits)` across all weapons, and implement `Pistol` (25 per hit) and `Shotgun` (80 on the first hit, 20 for each hit after).
+    seed: |
+      #include <memory>
+      #include <vector>
+
+      class Weapon {
+      public:
+          virtual int damage(int hits) const = 0;
+          virtual ~Weapon() = default;
+      };
+
+      class Pistol : public Weapon {
+      public:
+
+      };
+
+      class Shotgun : public Weapon {
+      public:
+
+      };
+
+      int total_damage(const std::vector<std::unique_ptr<Weapon>>& ws, int hits) {
+
+      }
+    solution: |
+      #include <memory>
+      #include <vector>
+
+      class Weapon {
+      public:
+          virtual int damage(int hits) const = 0;
+          virtual ~Weapon() = default;
+      };
+
+      class Pistol : public Weapon {
+      public:
+          int damage(int hits) const override { return 25 * hits; }
+      };
+
+      class Shotgun : public Weapon {
+      public:
+          int damage(int hits) const override {
+              if (hits <= 0) return 0;
+              return 80 + 20 * (hits - 1);
+          }
+      };
+
+      int total_damage(const std::vector<std::unique_ptr<Weapon>>& ws, int hits) {
+          int t = 0;
+          for (const auto& w : ws) t += w->damage(hits);
+          return t;
+      }
+    harness: |
+      int main() {
+          std::vector<std::unique_ptr<Weapon>> ws;
+          ws.push_back(std::make_unique<Pistol>());
+          ws.push_back(std::make_unique<Shotgun>());
+          ws.push_back(std::make_unique<Pistol>());
+          CHECK_EQ("1 hit", total_damage(ws, 1), 25 + 80 + 25);
+          CHECK_EQ("3 hits", total_damage(ws, 3), 75 + 120 + 75);
+          CHECK_EQ("0 hits", total_damage(ws, 0), 0);
+          CHECK_EQ("no weapons", total_damage({}, 5), 0);
+      }
+    hints:
+      - "Each derived class implements `int damage(int hits) const override`."
+      - "Shotgun: 0 for no hits, else `80 + 20 * (hits - 1)`."
+      - "Sum with `for (const auto& w : ws) t += w->damage(hits);`"
+
+  - title: Virtual destructors
+    id: cpp-oop-5
+    text: |
+      Without a virtual destructor, deleting a derived object through a base pointer only runs the **base** destructor. The derived part never gets cleaned up.
+
+      **Your turn:** the program should print:
+
+      ```
+      + base
+      + derived
+      - derived
+      - base
+      ```
+
+      but `- derived` is missing. Fix it with one keyword.
+    seed: |
+      #include <iostream>
+      #include <memory>
+
+      struct Base {
+          Base() { std::cout << "+ base\n"; }
+          ~Base() { std::cout << "- base\n"; }
+      };
+
+      struct Derived : Base {
+          Derived() { std::cout << "+ derived\n"; }
+          ~Derived() { std::cout << "- derived\n"; }
+      };
+
+      int main() {
+          std::unique_ptr<Base> p = std::make_unique<Derived>();
+      }
+    solution: |
+      #include <iostream>
+      #include <memory>
+
+      struct Base {
+          Base() { std::cout << "+ base\n"; }
+          virtual ~Base() { std::cout << "- base\n"; }
+      };
+
+      struct Derived : Base {
+          Derived() { std::cout << "+ derived\n"; }
+          ~Derived() { std::cout << "- derived\n"; }
+      };
+
+      int main() {
+          std::unique_ptr<Base> p = std::make_unique<Derived>();
+      }
+    hints:
+      - The base class destructor needs to be `virtual`.
+    tests:
+      - expect: "+ base\n+ derived\n- derived\n- base"
+
+  - title: Calling the base version, and protected
+    id: cpp-oop-6
+    text: |
+      An override often wants to **extend** the base behavior, not replace it. Call the base version by naming it:
+
+      ```cpp
+      std::string describe() const override {
+          return Unit::describe() + " [elite]";
+      }
+      ```
+
+      Access levels, one more time:
+
+      | Keyword | Who can use it |
+      |---|---|
+      | `public` | everyone |
+      | `protected` | the class **and classes derived from it** |
+      | `private` | only the class itself |
+
+      Use `protected` sparingly. Every protected member is part of the contract with all future subclasses, so it's as hard to change later as a public one.
+
+      **Your turn:** finish `Medic`. Its `describe()` returns the base description plus `" +heal"`, and `heal(Unit& u)` restores `u` by the protected `power_` amount (use `u.restore(...)`).
+    seed: |
+      #include <string>
+
+      class Unit {
+      public:
+          Unit(std::string name, int hp) : name_(std::move(name)), hp_(hp) {}
+          virtual ~Unit() = default;
+          virtual std::string describe() const { return name_ + " (" + std::to_string(hp_) + ")"; }
+          void restore(int amount) { hp_ += amount; }
+          int hp() const { return hp_; }
+
+      protected:
+          int power_ = 10;
+
+      private:
+          std::string name_;
+          int hp_;
+      };
+
+      class Medic : public Unit {
+      public:
+          Medic(std::string name, int hp) : Unit(std::move(name), hp) { power_ = 25; }
+
+      };
+    solution: |
+      #include <string>
+
+      class Unit {
+      public:
+          Unit(std::string name, int hp) : name_(std::move(name)), hp_(hp) {}
+          virtual ~Unit() = default;
+          virtual std::string describe() const { return name_ + " (" + std::to_string(hp_) + ")"; }
+          void restore(int amount) { hp_ += amount; }
+          int hp() const { return hp_; }
+
+      protected:
+          int power_ = 10;
+
+      private:
+          std::string name_;
+          int hp_;
+      };
+
+      class Medic : public Unit {
+      public:
+          Medic(std::string name, int hp) : Unit(std::move(name), hp) { power_ = 25; }
+          std::string describe() const override { return Unit::describe() + " +heal"; }
+          void heal(Unit& u) const { u.restore(power_); }
+      };
+    require:
+      - pattern: "Unit::describe\\s*\\(\\s*\\)"
+        message: "Reuse the base text by calling `Unit::describe()` instead of rebuilding it."
+    harness: |
+      int main() {
+          Medic m("doc", 80);
+          CHECK_EQ("medic describe", m.describe(), std::string("doc (80) +heal"));
+          const Unit& asUnit = m;
+          CHECK_EQ("virtual call through base", asUnit.describe(), std::string("doc (80) +heal"));
+          Unit grunt("grunt", 40);
+          m.heal(grunt);
+          CHECK_EQ("heal uses power_", grunt.hp(), 65);
+          m.heal(m);
+          CHECK_EQ("medic can heal itself", m.hp(), 105);
+      }
+    hints:
+      - "`std::string describe() const override { return Unit::describe() + \" +heal\"; }`"
+      - "`void heal(Unit& u) const { u.restore(power_); }`: Medic can read `power_` because it's protected."
+
+  - title: Composition over inheritance
+    id: cpp-oop-7
+    text: |
+      Inheritance means **is-a**: a `Pistol` *is a* `Weapon`. For **has-a** relationships, use a member instead. That's *composition*:
+
+      ```cpp
+      class Squad : public std::vector<Player> { };   // wrong: a squad isn't a vector
+      class Squad { std::vector<Player> members_; };   // right: a squad has members
+      ```
+
+      Why composition is the default in professional code:
+
+      - The class controls its own interface. Inheriting from `std::vector` would expose `erase`, `clear` and everything else, letting callers break your rules.
+      - You can swap the member's type later without touching callers.
+      - Standard containers have no virtual destructor, so they aren't meant to be base classes at all.
+
+      **Your turn:** write class `Squad` that *has* a `std::vector<std::string>` of names, with a maximum size of 5:
+
+      - `bool add(const std::string& name)`: false if full or already in the squad
+      - `bool remove(const std::string& name)`: false if not found
+      - `int size() const`, `std::string roster() const` (names joined with `", "`, in join order)
+    seed: |
+      #include <string>
+      #include <vector>
+
+      class Squad {
+      public:
+
+      private:
+          std::vector<std::string> members_;
+      };
+    solution: |
+      #include <algorithm>
+      #include <string>
+      #include <vector>
+
+      class Squad {
+      public:
+          bool add(const std::string& name) {
+              if (members_.size() >= 5) return false;
+              if (std::find(members_.begin(), members_.end(), name) != members_.end()) return false;
+              members_.push_back(name);
+              return true;
+          }
+          bool remove(const std::string& name) {
+              auto it = std::find(members_.begin(), members_.end(), name);
+              if (it == members_.end()) return false;
+              members_.erase(it);
+              return true;
+          }
+          int size() const { return static_cast<int>(members_.size()); }
+          std::string roster() const {
+              std::string out;
+              for (std::size_t i = 0; i < members_.size(); i++) {
+                  if (i) out += ", ";
+                  out += members_[i];
+              }
+              return out;
+          }
+
+      private:
+          std::vector<std::string> members_;
+      };
+    forbid:
+      - pattern: "class\\s+Squad\\s*:"
+        message: "Don't inherit here. A squad *has* members; keep them in the private vector."
+    harness: |
+      int main() {
+          Squad s;
+          CHECK_EQ("add karrigan", s.add("karrigan"), true);
+          s.add("rain");
+          CHECK_EQ("duplicate refused", s.add("rain"), false);
+          s.add("ropz");
+          s.add("broky");
+          s.add("frozen");
+          CHECK_EQ("sixth refused", s.add("jks"), false);
+          CHECK_EQ("size 5", s.size(), 5);
+          CHECK_EQ("remove rain", s.remove("rain"), true);
+          CHECK_EQ("remove missing", s.remove("rain"), false);
+          CHECK_EQ("roster keeps order", s.roster(), std::string("karrigan, ropz, broky, frozen"));
+          Squad empty;
+          CHECK_EQ("empty roster", empty.roster(), std::string(""));
+      }
+    hints:
+      - "Use `std::find` from `<algorithm>` to check for duplicates and to locate a name to erase."
+      - "For the roster, add `\", \"` before every name except the first."
+
+  - title: "Challenge: program to an interface"
+    id: cpp-oop-8
+    text: |
+      In enterprise code, the most valuable use of virtual functions isn't game units: it's **dependency injection**. A class depends on an abstract *interface* instead of a concrete service, and whoever creates it passes in the real thing.
+
+      ```cpp
+      class Clock { public: virtual ~Clock() = default; virtual long now() const = 0; };
+      class Session { public: explicit Session(const Clock& c); /* uses c.now() */ };
+      ```
+
+      Production code passes a clock that reads the system time. **Tests** pass a fake clock they control, so time-dependent logic can be tested instantly and reliably. The same idea covers databases, network clients and file systems.
+
+      **Your turn:** write `class RateLimiter` that takes a `const Clock&` and allows at most `limit` calls to `allow()` in any window of `window` seconds. `allow()` returns true and records the call if under the limit, otherwise false. A call at time `t` falls out of the window once `now() >= t + window`.
+    seed: |
+      #include <deque>
+
+      class Clock {
+      public:
+          virtual ~Clock() = default;
+          virtual long now() const = 0;
+      };
+
+      class RateLimiter {
+      public:
+          RateLimiter(const Clock& clock, int limit, long window);
+          bool allow();
+
+      private:
+
+      };
+    solution: |
+      #include <deque>
+
+      class Clock {
+      public:
+          virtual ~Clock() = default;
+          virtual long now() const = 0;
+      };
+
+      class RateLimiter {
+      public:
+          RateLimiter(const Clock& clock, int limit, long window) : clock_(clock), limit_(limit), window_(window) {}
+          bool allow() {
+              long t = clock_.now();
+              while (!calls_.empty() && t >= calls_.front() + window_) calls_.pop_front();
+              if (static_cast<int>(calls_.size()) >= limit_) return false;
+              calls_.push_back(t);
+              return true;
+          }
+
+      private:
+          const Clock& clock_;
+          int limit_;
+          long window_;
+          std::deque<long> calls_;
+      };
+    harness: |
+      class FakeClock : public Clock {
+      public:
+          long t = 0;
+          long now() const override { return t; }
+      };
+      int main() {
+          FakeClock clock;
+          RateLimiter rl(clock, 3, 10);
+          CHECK_EQ("call 1", rl.allow(), true);
+          CHECK_EQ("call 2", rl.allow(), true);
+          clock.t = 5;
+          CHECK_EQ("call 3", rl.allow(), true);
+          CHECK_EQ("call 4 is over the limit", rl.allow(), false);
+          clock.t = 9;
+          CHECK_EQ("still inside the window at t=9", rl.allow(), false);
+          clock.t = 10;
+          CHECK_EQ("first two calls expire at t=10", rl.allow(), true);
+          CHECK_EQ("one more fits", rl.allow(), true);
+          CHECK_EQ("then full again", rl.allow(), false);
+          clock.t = 100;
+          RateLimiter one(clock, 1, 1);
+          CHECK_EQ("limit 1 first", one.allow(), true);
+          CHECK_EQ("limit 1 second", one.allow(), false);
+      }
+    hints:
+      - "Store `const Clock& clock_` and a `std::deque<long>` of call times."
+      - "In `allow()`: read `t = clock_.now()`, pop calls from the front while `t >= front + window_`."
+      - "Then if the deque holds `limit_` calls, return false; otherwise push t and return true."

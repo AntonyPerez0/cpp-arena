@@ -1,0 +1,249 @@
+id: cpp-vector
+title: vector and string
+lang: cpp
+phase: "C++: Standard Library"
+summary: std::vector, the dynamic array you'll use every day, and the most useful std::string operations.
+steps:
+  - title: std::vector basics
+    id: cpp-vector-1
+    text: |
+      `std::vector<T>` is a growable array that manages its own memory. It's everything you built by hand with `realloc`, done right.
+
+      ```cpp
+      #include <vector>
+
+      std::vector<int> v = {3, 1, 4};
+      v.push_back(1);           // append: {3, 1, 4, 1}
+      v.size();                 // 4
+      v[0];                     // 3
+      v.back();                 // 1
+      v.pop_back();             // remove last
+      ```
+
+      **Your turn:** fill in the blanks.
+    fill: |
+      #include <iostream>
+      #include <vector>
+
+      int main() {
+          std::vector<int> kills = {2, 0, 3};
+          kills.[[push_back]](4);
+          std::cout << kills.[[size]]() << " " << kills[[[3]]] << "\n";
+      }
+    hints:
+      - Appending is `push_back`, the element count is `size()`.
+      - The fourth element has index 3.
+    tests:
+      - expect: "4 4"
+
+  - title: Loop over a vector
+    id: cpp-vector-2
+    text: |
+      Range-based for works on vectors. Use `const auto&` to avoid copying each element:
+
+      ```cpp
+      for (const auto& x : v) { ... }
+      for (auto& x : v) { x *= 2; }     // & to modify in place
+      ```
+
+      Pass vectors to functions by `const&` (read-only) or `&` (to modify). Passing by value copies the whole thing.
+
+      **Your turn:** write `std::vector<int> running_total(const std::vector<int>& v)` that returns the prefix sums. `{1, 2, 3, 4}` becomes `{1, 3, 6, 10}`.
+    seed: |
+      #include <vector>
+
+      std::vector<int> running_total(const std::vector<int>& v) {
+
+      }
+    solution: |
+      #include <vector>
+
+      std::vector<int> running_total(const std::vector<int>& v) {
+          std::vector<int> out;
+          int sum = 0;
+          for (int x : v) {
+              sum += x;
+              out.push_back(sum);
+          }
+          return out;
+      }
+    harness: |
+      int main() {
+          CHECK_EQ("{1,2,3,4}", running_total({1, 2, 3, 4}), std::vector<int>{1, 3, 6, 10});
+          CHECK_EQ("{}", running_total({}), std::vector<int>{});
+          CHECK_EQ("{5,-5,5}", running_total({5, -5, 5}), std::vector<int>{5, 0, 5});
+      }
+    hints:
+      - Start an empty result vector and a running sum.
+      - For each element, add it to the sum and `push_back` the sum.
+
+  - title: Insert and erase
+    id: cpp-vector-3
+    text: |
+      Positions in a vector are expressed with **iterators**. `v.begin()` points at the first element, and `v.begin() + i` at element i.
+
+      ```cpp
+      v.insert(v.begin() + 1, 99);   // insert before index 1
+      v.erase(v.begin() + 2);        // remove index 2
+      v.clear();                     // remove everything
+      ```
+
+      **Your turn:** write `void remove_at(std::vector<std::string>& v, int i)` that removes element `i` if it's a valid index and does nothing otherwise.
+    seed: |
+      #include <string>
+      #include <vector>
+
+      void remove_at(std::vector<std::string>& v, int i) {
+
+      }
+    solution: |
+      #include <string>
+      #include <vector>
+
+      void remove_at(std::vector<std::string>& v, int i) {
+          if (i < 0 || i >= (int)v.size()) return;
+          v.erase(v.begin() + i);
+      }
+    harness: |
+      int main() {
+          std::vector<std::string> v = {"a", "b", "c", "d"};
+          remove_at(v, 1);
+          CHECK_EQ("remove index 1", v, std::vector<std::string>{"a", "c", "d"});
+          remove_at(v, 2);
+          CHECK_EQ("remove last", v, std::vector<std::string>{"a", "c"});
+          remove_at(v, 5);
+          CHECK_EQ("index too big: unchanged", v, std::vector<std::string>{"a", "c"});
+          remove_at(v, -1);
+          CHECK_EQ("negative index: unchanged", v, std::vector<std::string>{"a", "c"});
+      }
+    hints:
+      - "Guard first: `if (i < 0 || i >= (int)v.size()) return;`"
+      - "`v.erase(v.begin() + i);`"
+
+  - title: 2D vectors
+    id: cpp-vector-4
+    text: |
+      A vector of vectors makes a grid whose size is decided at runtime:
+
+      ```cpp
+      std::vector<std::vector<int>> grid(rows, std::vector<int>(cols, 0));
+      grid[r][c] = 5;
+      ```
+
+      **Your turn:** write `std::vector<std::vector<int>> transpose(const std::vector<std::vector<int>>& m)` that swaps rows and columns. A 2x3 matrix becomes 3x2. You can assume every row has the same length and there's at least one row.
+    seed: |
+      #include <vector>
+
+      std::vector<std::vector<int>> transpose(const std::vector<std::vector<int>>& m) {
+
+      }
+    solution: |
+      #include <vector>
+
+      std::vector<std::vector<int>> transpose(const std::vector<std::vector<int>>& m) {
+          std::size_t rows = m.size(), cols = m[0].size();
+          std::vector<std::vector<int>> t(cols, std::vector<int>(rows));
+          for (std::size_t r = 0; r < rows; r++)
+              for (std::size_t c = 0; c < cols; c++)
+                  t[c][r] = m[r][c];
+          return t;
+      }
+    harness: |
+      int main() {
+          std::vector<std::vector<int>> m = {{1, 2, 3}, {4, 5, 6}};
+          auto t = transpose(m);
+          CHECK_EQ("rows", t.size(), 3);
+          CHECK_EQ("row 0", t[0], std::vector<int>{1, 4});
+          CHECK_EQ("row 2", t[2], std::vector<int>{3, 6});
+          auto one = transpose({{7}});
+          CHECK_EQ("1x1", one[0], std::vector<int>{7});
+      }
+    hints:
+      - "Make the result with `cols` rows of `rows` ints each."
+      - "`t[c][r] = m[r][c];` in a nested loop."
+
+  - title: string search and substrings
+    id: cpp-vector-5
+    text: |
+      Handy `std::string` members:
+
+      ```cpp
+      std::string s = "de_dust2";
+      s.find("dust");        // 3 (index of first match)
+      s.find("zz");          // std::string::npos (not found)
+      s.substr(3, 4);        // "dust" (start, length)
+      s.substr(3);           // "dust2" (to the end)
+      ```
+
+      **Your turn:** write `std::string map_name(const std::string& s)` that strips a prefix ending in the first `_`. `"de_dust2"` becomes `"dust2"`; a string without `_` is returned unchanged.
+    seed: |
+      #include <string>
+
+      std::string map_name(const std::string& s) {
+
+      }
+    solution: |
+      #include <string>
+
+      std::string map_name(const std::string& s) {
+          std::size_t pos = s.find('_');
+          if (pos == std::string::npos) return s;
+          return s.substr(pos + 1);
+      }
+    harness: |
+      int main() {
+          CHECK_EQ("de_dust2", map_name("de_dust2"), std::string("dust2"));
+          CHECK_EQ("cs_office", map_name("cs_office"), std::string("office"));
+          CHECK_EQ("no underscore", map_name("anubis"), std::string("anubis"));
+          CHECK_EQ("only first _", map_name("ar_baggage_v2"), std::string("baggage_v2"));
+      }
+    hints:
+      - "`s.find('_')` gives the index, or `std::string::npos`."
+      - "`s.substr(pos + 1)` is everything after it."
+
+  - title: "Challenge: split"
+    id: cpp-vector-6
+    text: |
+      **Your turn:** write `std::vector<std::string> split(const std::string& s, char sep)` that breaks a string at every `sep`.
+
+      - `split("a,b,c", ',')` gives `{"a", "b", "c"}`
+      - `split("a,,b", ',')` gives `{"a", "", "b"}` (empty pieces are kept)
+      - `split("", ',')` gives `{""}`
+    seed: |
+      #include <string>
+      #include <vector>
+
+      std::vector<std::string> split(const std::string& s, char sep) {
+
+      }
+    solution: |
+      #include <string>
+      #include <vector>
+
+      std::vector<std::string> split(const std::string& s, char sep) {
+          std::vector<std::string> parts;
+          std::string cur;
+          for (char c : s) {
+              if (c == sep) {
+                  parts.push_back(cur);
+                  cur.clear();
+              } else {
+                  cur += c;
+              }
+          }
+          parts.push_back(cur);
+          return parts;
+      }
+    harness: |
+      int main() {
+          using V = std::vector<std::string>;
+          CHECK_EQ("a,b,c", split("a,b,c", ','), V{"a", "b", "c"});
+          CHECK_EQ("a,,b", split("a,,b", ','), V{"a", "", "b"});
+          CHECK_EQ("empty", split("", ','), V{""});
+          CHECK_EQ("no separator", split("dust2", ','), V{"dust2"});
+          CHECK_EQ("spaces", split("rush b now", ' '), V{"rush", "b", "now"});
+          CHECK_EQ("trailing sep", split("x;", ';'), V{"x", ""});
+      }
+    hints:
+      - Build the current piece character by character.
+      - When you hit `sep`, push the current piece and clear it. After the loop, push the last piece.

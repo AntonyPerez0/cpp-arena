@@ -80,6 +80,20 @@ export default function Results({ result, attempt }: { result: GradeResult; atte
                 </div>
                 {!t.pass && !t.hidden && (
                   <div className="t-detail">
+                    {t.args && t.args.length > 0 ? (
+                      <div>
+                        <span className="lbl">command-line arguments</span>
+                        <pre className="console tiny">{t.args.map((a) => (/\s/.test(a) ? JSON.stringify(a) : a)).join(" ")}</pre>
+                      </div>
+                    ) : null}
+                    {t.files
+                      ? Object.entries(t.files).map(([name, text]) => (
+                          <div key={name}>
+                            <span className="lbl">file {name}</span>
+                            <pre className="console tiny">{text.replace(/\n$/, "")}</pre>
+                          </div>
+                        ))
+                      : null}
                     {t.stdin ? (
                       <div>
                         <span className="lbl">input</span>

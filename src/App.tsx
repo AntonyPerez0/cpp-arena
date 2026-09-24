@@ -8,6 +8,8 @@ import Deathmatch from "./pages/Deathmatch";
 import Projects from "./pages/Projects";
 import ProjectPage from "./pages/ProjectPage";
 import Profile from "./pages/Profile";
+import Pro from "./pages/Pro";
+import ProPage from "./pages/ProPage";
 
 function ScrollTop() {
   const { pathname } = useLocation();
@@ -40,6 +42,7 @@ export default function App() {
           <NavLink to="/learn">Learn</NavLink>
           <NavLink to="/deathmatch">Deathmatch</NavLink>
           <NavLink to="/projects">Projects</NavLink>
+          <NavLink to="/pro">Pro</NavLink>
           <NavLink to="/profile">Profile</NavLink>
         </nav>
         <div className="topbar-right">
@@ -54,6 +57,8 @@ export default function App() {
           <Route path="/deathmatch" element={<Deathmatch />} />
           <Route path="/projects" element={<Projects />} />
           <Route path="/projects/:projectId" element={<ProjectPage />} />
+          <Route path="/pro" element={<Pro />} />
+          <Route path="/pro/:projectId" element={<ProPage />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="*" element={<Home />} />
         </Routes>

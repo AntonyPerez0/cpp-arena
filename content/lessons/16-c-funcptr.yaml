@@ -1,0 +1,402 @@
+id: c-funcptr
+title: Function pointers and callbacks
+lang: c
+phase: "C: Real-World C"
+summary: Treat functions as values. Function pointer syntax, typedefs, dispatch tables, qsort comparators, generic code with void*, and callbacks that carry context.
+steps:
+  - title: Functions have addresses
+    id: c-funcptr-1
+    text: |
+      A function lives in memory like everything else, so you can store its address in a **function pointer** and call it later:
+
+      ```c
+      int add(int a, int b) { return a + b; }
+
+      int (*op)(int, int) = add;   // op points at add
+      printf("%d\n", op(2, 3));    // 5
+      ```
+
+      Read `int (*op)(int, int)` as: "op is a pointer to a function taking (int, int) and returning int". The parentheses around `*op` matter: without them, `int *op(int, int)` declares a *function* returning `int *`.
+
+      **Your turn:** point `op` at `sub` and call it.
+    fill: |
+      #include <stdio.h>
+
+      int add(int a, int b) { return a + b; }
+      int sub(int a, int b) { return a - b; }
+
+      int main(void) {
+          int (*op)(int, int) = add;
+          printf("%d\n", op(10, 4));
+          op = [[sub]];
+          printf("%d\n", [[op]](10, 4));
+          return 0;
+      }
+    hints:
+      - "A function's name used as a value is its address: `op = sub;`"
+      - "Call through the pointer exactly like a function: `op(10, 4)`."
+    tests:
+      - expect: "14\n6"
+
+  - title: typedef and passing callbacks
+    id: c-funcptr-2
+    text: |
+      Function pointer types get unreadable fast, so give them a name with `typedef`:
+
+      ```c
+      typedef int (*BinOp)(int, int);
+      ```
+
+      Now `BinOp` is a type, and you can pass behavior into a function. The function you pass is called a **callback**:
+
+      ```c
+      int fold(const int *a, int n, int init, BinOp f);
+      fold(a, n, 0, add);   // sum
+      fold(a, n, 1, mul);   // product
+      ```
+
+      **Your turn:** write `fold`. It starts with `init` and combines it with each element in order: `acc = f(acc, a[i])`.
+    seed: |
+      typedef int (*BinOp)(int, int);
+
+      int fold(const int *a, int n, int init, BinOp f) {
+
+      }
+    solution: |
+      typedef int (*BinOp)(int, int);
+
+      int fold(const int *a, int n, int init, BinOp f) {
+          int acc = init;
+          for (int i = 0; i < n; i++) acc = f(acc, a[i]);
+          return acc;
+      }
+    harness: |
+      static int add(int a, int b) { return a + b; }
+      static int mul(int a, int b) { return a * b; }
+      static int maxi(int a, int b) { return a > b ? a : b; }
+      static int minus(int a, int b) { return a - b; }
+      int main(void) {
+          int a[] = {3, 1, 4, 1, 5};
+          CHECK_INT("sum", fold(a, 5, 0, add), 14);
+          CHECK_INT("product", fold(a, 5, 1, mul), 60);
+          CHECK_INT("max", fold(a, 5, -1000, maxi), 5);
+          CHECK_INT("order matters: ((((10-3)-1)-4)-1)-5", fold(a, 5, 10, minus), -4);
+          CHECK_INT("empty array gives init", fold(a, 0, 7, add), 7);
+          return 0;
+      }
+    hints:
+      - "`int acc = init;` then for each element `acc = f(acc, a[i]);`"
+
+  - title: A dispatch table
+    id: c-funcptr-3
+    text: |
+      An array of structs pairing a **name** with a **function** replaces a long `if`/`else if` chain. Adding a command becomes one line in the table, and the lookup code never changes:
+
+      ```c
+      typedef struct {
+          const char *name;
+          int (*fn)(int, int);
+      } Command;
+
+      static const Command commands[] = {
+          {"add", add},
+          {"sub", sub},
+      };
+      ```
+
+      Interpreters, command-line tools, network protocol handlers and state machines are all built this way.
+
+      **Your turn:** the program reads lines like `add 2 3` until end of input. Look up the command in the table and print the result, or `unknown CMD` if it isn't there. Add a `mul` command to the table as well.
+    seed: |
+      #include <stdio.h>
+      #include <string.h>
+
+      static int add(int a, int b) { return a + b; }
+      static int sub(int a, int b) { return a - b; }
+
+      typedef struct {
+          const char *name;
+          int (*fn)(int, int);
+      } Command;
+
+      static const Command commands[] = {
+          {"add", add},
+          {"sub", sub},
+      };
+      static const int NCOMMANDS = sizeof commands / sizeof commands[0];
+
+      int main(void) {
+          char name[16];
+          int a, b;
+          while (scanf("%15s %d %d", name, &a, &b) == 3) {
+              // find the command and print its result, or "unknown NAME"
+
+          }
+          return 0;
+      }
+    solution: |
+      #include <stdio.h>
+      #include <string.h>
+
+      static int add(int a, int b) { return a + b; }
+      static int sub(int a, int b) { return a - b; }
+      static int mul(int a, int b) { return a * b; }
+
+      typedef struct {
+          const char *name;
+          int (*fn)(int, int);
+      } Command;
+
+      static const Command commands[] = {
+          {"add", add},
+          {"sub", sub},
+          {"mul", mul},
+      };
+      static const int NCOMMANDS = sizeof commands / sizeof commands[0];
+
+      int main(void) {
+          char name[16];
+          int a, b;
+          while (scanf("%15s %d %d", name, &a, &b) == 3) {
+              // find the command and print its result, or "unknown NAME"
+              const Command *found = NULL;
+              for (int i = 0; i < NCOMMANDS; i++) {
+                  if (strcmp(commands[i].name, name) == 0) found = &commands[i];
+              }
+              if (found) printf("%d\n", found->fn(a, b));
+              else printf("unknown %s\n", name);
+          }
+          return 0;
+      }
+    forbid:
+      - pattern: "strcmp\\s*\\(\\s*name\\s*,\\s*\"(add|sub|mul)\""
+        message: "Look commands up in the table instead of comparing against each name by hand."
+    hints:
+      - "Write `static int mul(int a, int b)` and add `{\"mul\", mul},` to the table."
+      - "Loop over the table; when `strcmp(commands[i].name, name) == 0`, call `commands[i].fn(a, b)`."
+      - "Remember whether you found a match, and print `unknown %s` if not."
+    tests:
+      - stdin: "add 2 3\nsub 10 4\nmul 6 7\n"
+      - stdin: "div 8 2\nadd -1 1\n"
+      - stdin: "mul 3 -3\npow 2 8\nsub 0 5\n"
+        hidden: true
+
+  - title: Sorting with qsort
+    id: c-funcptr-4
+    text: |
+      The standard library's `qsort` can sort *any* array, because you hand it a **comparator** callback:
+
+      ```c
+      void qsort(void *base, size_t count, size_t size,
+                 int (*cmp)(const void *, const void *));
+      ```
+
+      The comparator receives pointers to two elements (as `const void *`, which you convert back to the real type) and returns negative, zero or positive, like `strcmp`.
+
+      ```c
+      static int by_value(const void *pa, const void *pb) {
+          int a = *(const int *)pa, b = *(const int *)pb;
+          return (a > b) - (a < b);   // not a - b: that can overflow!
+      }
+      ```
+
+      **Your turn:** write a comparator `by_score_desc` for `Player` structs: higher score first, and for equal scores, alphabetical by name. Then `sort_players` calls `qsort` with it.
+    seed: |
+      #include <stdlib.h>
+      #include <string.h>
+
+      typedef struct {
+          char name[16];
+          int score;
+      } Player;
+
+      static int by_score_desc(const void *pa, const void *pb) {
+
+      }
+
+      void sort_players(Player *p, size_t n) {
+
+      }
+    solution: |
+      #include <stdlib.h>
+      #include <string.h>
+
+      typedef struct {
+          char name[16];
+          int score;
+      } Player;
+
+      static int by_score_desc(const void *pa, const void *pb) {
+          const Player *a = pa, *b = pb;
+          if (a->score != b->score) return (b->score > a->score) - (b->score < a->score);
+          return strcmp(a->name, b->name);
+      }
+
+      void sort_players(Player *p, size_t n) {
+          qsort(p, n, sizeof *p, by_score_desc);
+      }
+    require:
+      - pattern: "qsort\\s*\\("
+        message: "Sort with the standard `qsort` and your comparator."
+    harness: |
+      #include <limits.h>
+      int main(void) {
+          Player p[] = {{"rain", 12}, {"ropz", 25}, {"broky", 12}, {"frozen", 30}, {"karrigan", -3}};
+          sort_players(p, 5);
+          CHECK_STR("1st", p[0].name, "frozen");
+          CHECK_STR("2nd", p[1].name, "ropz");
+          CHECK_STR("tie broken by name: 3rd", p[2].name, "broky");
+          CHECK_STR("tie broken by name: 4th", p[3].name, "rain");
+          CHECK_STR("last", p[4].name, "karrigan");
+          Player q[] = {{"lo", INT_MIN}, {"hi", INT_MAX}};
+          sort_players(q, 2);
+          CHECK_STR("no overflow with extreme scores", q[0].name, "hi");
+          return 0;
+      }
+    hints:
+      - "Inside the comparator, convert: `const Player *a = pa, *b = pb;`"
+      - "Higher score first means comparing b to a: `(b->score > a->score) - (b->score < a->score)`."
+      - "If the scores are equal, `return strcmp(a->name, b->name);`"
+      - "`qsort(p, n, sizeof *p, by_score_desc);`"
+
+  - title: Generic code with void *
+    id: c-funcptr-5
+    text: |
+      `qsort` works on any type because it treats the array as raw bytes: a `void *` base pointer plus an element `size`. Element `i` starts at byte offset `i * size`:
+
+      ```c
+      const char *bytes = base;            // char * allows byte arithmetic
+      const void *elem = bytes + i * size;
+      ```
+
+      You can't do arithmetic on `void *` itself in standard C, which is why you go through `char *`.
+
+      **Your turn:** write `find_first`, which returns a pointer to the first element for which `pred` returns nonzero, or `NULL`.
+    seed: |
+      #include <stddef.h>
+
+      const void *find_first(const void *base, size_t n, size_t size, int (*pred)(const void *)) {
+
+      }
+    solution: |
+      #include <stddef.h>
+
+      const void *find_first(const void *base, size_t n, size_t size, int (*pred)(const void *)) {
+          const char *bytes = base;
+          for (size_t i = 0; i < n; i++) {
+              const void *elem = bytes + i * size;
+              if (pred(elem)) return elem;
+          }
+          return NULL;
+      }
+    harness: |
+      static int is_negative(const void *p) { return *(const int *)p < 0; }
+      typedef struct { char name[8]; double price; } Item;
+      static int pricey(const void *p) { return ((const Item *)p)->price > 1000.0; }
+      int main(void) {
+          int a[] = {4, 8, -15, 16, -23};
+          const int *hit = find_first(a, 5, sizeof a[0], is_negative);
+          CHECK("first negative int is a[2]", hit == &a[2]);
+          CHECK("none in the first two", find_first(a, 2, sizeof a[0], is_negative) == NULL);
+          Item items[] = {{"mp9", 1250}, {"awp", 4750}, {"p250", 300}};
+          const Item *it = find_first(items + 2, 1, sizeof items[0], pricey);
+          CHECK("p250 is cheap", it == NULL);
+          it = find_first(items, 3, sizeof items[0], pricey);
+          CHECK_STR("first pricey item", it ? it->name : "(none)", "mp9");
+          return 0;
+      }
+    hints:
+      - "Convert once: `const char *bytes = base;` Then element i is at `bytes + i * size`."
+      - "Call `pred(elem)` and return elem on the first nonzero result. After the loop, `return NULL;`"
+
+  - title: "Challenge: an event bus"
+    id: c-funcptr-6
+    text: |
+      A bare function pointer has no memory of its own. To let a callback update *your* data, C APIs pass a `void *ctx` ("context" or "user data") alongside it, and hand it back on every call:
+
+      ```c
+      typedef void (*Handler)(int event, void *ctx);
+      ```
+
+      That's how GUI toolkits, `pthread_create`, network libraries and game engines all do callbacks in C.
+
+      **Your turn:** build a tiny event bus that stores up to 8 handler/context pairs.
+
+      - `int bus_on(Bus *b, Handler h, void *ctx)`: register; returns 0, or -1 when full
+      - `void bus_emit(Bus *b, int event)`: calls every handler in registration order with the event and **its own** ctx
+    seed: |
+      #include <stddef.h>
+
+      typedef void (*Handler)(int event, void *ctx);
+
+      #define MAX_HANDLERS 8
+
+      typedef struct {
+          Handler handlers[MAX_HANDLERS];
+          void *contexts[MAX_HANDLERS];
+          int count;
+      } Bus;
+
+      int bus_on(Bus *b, Handler h, void *ctx) {
+
+      }
+
+      void bus_emit(Bus *b, int event) {
+
+      }
+    solution: |
+      #include <stddef.h>
+
+      typedef void (*Handler)(int event, void *ctx);
+
+      #define MAX_HANDLERS 8
+
+      typedef struct {
+          Handler handlers[MAX_HANDLERS];
+          void *contexts[MAX_HANDLERS];
+          int count;
+      } Bus;
+
+      int bus_on(Bus *b, Handler h, void *ctx) {
+          if (b->count >= MAX_HANDLERS) return -1;
+          b->handlers[b->count] = h;
+          b->contexts[b->count] = ctx;
+          b->count++;
+          return 0;
+      }
+
+      void bus_emit(Bus *b, int event) {
+          for (int i = 0; i < b->count; i++) b->handlers[i](event, b->contexts[i]);
+      }
+    harness: |
+      static void add_to(int event, void *ctx) { *(int *)ctx += event; }
+      typedef struct { int last; int calls; } Log;
+      static void remember(int event, void *ctx) {
+          Log *l = ctx;
+          l->last = event;
+          l->calls++;
+      }
+      int main(void) {
+          Bus b = {0};
+          int total_a = 0, total_b = 100;
+          Log log = {0, 0};
+          CHECK_INT("register first", bus_on(&b, add_to, &total_a), 0);
+          bus_on(&b, add_to, &total_b);
+          bus_on(&b, remember, &log);
+          bus_emit(&b, 5);
+          bus_emit(&b, 7);
+          CHECK_INT("handler 1 has its own total", total_a, 12);
+          CHECK_INT("handler 2 has its own total", total_b, 112);
+          CHECK_INT("log saw the last event", log.last, 7);
+          CHECK_INT("log counted two calls", log.calls, 2);
+          Bus full = {0};
+          int sink = 0;
+          for (int i = 0; i < 8; i++) bus_on(&full, add_to, &sink);
+          CHECK_INT("ninth registration fails", bus_on(&full, add_to, &sink), -1);
+          bus_emit(&full, 1);
+          CHECK_INT("all eight ran", sink, 8);
+          return 0;
+      }
+    hints:
+      - "bus_on: if `b->count >= MAX_HANDLERS` return -1. Otherwise store h and ctx at index count, then count++."
+      - "bus_emit: for each i, `b->handlers[i](event, b->contexts[i]);`"

@@ -5,6 +5,7 @@ phase: "C: Foundations"
 summary: if, else if and else. Comparison and logical operators, switch, and the ternary operator.
 steps:
   - title: if and else
+    id: c-if-1
     text: |
       `if` runs a block of code only when a condition is true. `else` runs when it's false.
 
@@ -44,6 +45,7 @@ steps:
         hidden: true
 
   - title: else if chains
+    id: c-if-2
     text: |
       Chain several conditions with `else if`. C checks them top to bottom and runs **only the first** one that's true.
 
@@ -103,6 +105,7 @@ steps:
         hidden: true
 
   - title: And, or, not
+    id: c-if-3
     text: |
       Combine conditions with logical operators:
 
@@ -149,6 +152,7 @@ steps:
         hidden: true
 
   - title: switch
+    id: c-if-4
     text: |
       When you compare one value against many constants, `switch` is tidier than a long `else if` chain:
 
@@ -195,6 +199,7 @@ steps:
         hidden: true
 
   - title: The ternary operator
+    id: c-if-5
     text: |
       `condition ? a : b` is an *expression* that evaluates to `a` if the condition is true and `b` otherwise. It's handy for small choices:
 
@@ -222,6 +227,7 @@ steps:
         hidden: true
 
   - title: "Challenge: leap years"
+    id: c-if-6
     text: |
       A year is a leap year if:
 

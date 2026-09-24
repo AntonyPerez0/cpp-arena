@@ -1,0 +1,62 @@
+topic: cpp-patterns
+lang: cpp
+drills:
+  - type: predict
+    pre: |
+      std::function<int(int)> adder(int n) { return [n](int x) { return x + n; }; }
+    body: |
+      auto add5 = adder(5), add10 = adder(10);
+      std::cout << add5(1) + add10(1) << "\n";
+    why: Each returned lambda captured its own n.
+  - type: predict
+    pre: |
+      struct L { virtual ~L() = default; virtual void hit() = 0; };
+      struct C : L { int n = 0; void hit() override { n++; } };
+    body: |
+      auto c = std::make_shared<C>();
+      std::weak_ptr<L> w = c;
+      if (auto s = w.lock()) s->hit();
+      c.reset();
+      std::cout << (w.lock() ? "alive" : "gone") << "\n";
+    why: weak_ptr doesn't keep the object alive; after reset, lock() returns null.
+  - type: predict
+    body: |
+      std::map<std::string, std::function<int()>> reg;
+      reg["one"] = [] { return 1; };
+      reg["two"] = [] { return 2; };
+      std::cout << reg.count("three") << reg["two"]() << "\n";
+    why: A registry maps names to creator functions; unknown names aren't there.
+  - type: compiles
+    pre: |
+      struct Closer { void operator()(std::FILE* f) const { if (f) std::fclose(f); } };
+    body: |
+      std::unique_ptr<std::FILE, Closer> a(std::fopen("x.txt", "w"));
+      std::unique_ptr<std::FILE, Closer> b = a;
+    why: A unique_ptr handle can be moved but not copied, so the file can only have one owner.
+  - type: bug
+    pre: |
+      struct Subject {
+          std::vector<std::shared_ptr<int>> listeners; // BUG
+      };
+    body: |
+      Subject s;
+      auto listener = std::make_shared<int>(1);
+      s.listeners.push_back(listener);
+      listener.reset();
+      std::cout << s.listeners[0].use_count() << "\n";
+    fix: "std::vector<std::weak_ptr<int>> listeners;"
+    why: Holding shared_ptr keeps every listener alive forever (a leak, and notifications to objects that should be gone). Observers belong in weak_ptr.
+  - type: predict
+    pre: |
+      enum class S { Off, On };
+      std::optional<S> flip(S s, char e) {
+          if (s == S::Off && e == 'p') return S::On;
+          if (s == S::On && e == 'p') return S::Off;
+          return std::nullopt;
+      }
+    body: |
+      S s = S::Off;
+      int accepted = 0;
+      for (char e : std::string("ppxp")) if (auto n = flip(s, e)) { s = *n; accepted++; }
+      std::cout << accepted << (s == S::On) << "\n";
+    why: Three p events are accepted (Off, On, Off, On); the x is rejected.

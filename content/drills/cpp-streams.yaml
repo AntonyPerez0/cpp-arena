@@ -1,0 +1,95 @@
+topic: cpp-streams
+lang: cpp
+drills:
+  - type: predict
+    body: |
+      std::istringstream in("4 8 x 15");
+      int n, sum = 0;
+      while (in >> n) sum += n;
+      std::cout << sum << "\n";
+    why: Reading stops at "x", the first thing that isn't an int.
+  - type: predict
+    body: |
+      std::cout << "[" << std::setw(5) << 42 << "]" << "[" << 7 << "]\n";
+    why: setw only applies to the next item, so 7 isn't padded.
+  - type: predict
+    body: |
+      std::cout << std::left << std::setw(4) << "ab" << "|\n";
+    why: left-aligned in a width of 4 means two trailing spaces.
+  - type: predict
+    body: |
+      std::cout << std::fixed << std::setprecision(2) << 3.14159 << " " << 2.0 << "\n";
+    why: fixed and setprecision are sticky, so both numbers get two decimals.
+  - type: predict
+    body: |
+      std::cout << std::setfill('0') << std::setw(3) << 7 << "\n";
+    why: setfill changes the padding character.
+  - type: fill
+    prompt: Build a string with stream syntax.
+    body: |
+      std::[[ostringstream]] out;
+      out << "round " << 12;
+      std::cout << out.str() << "\n";
+    why: ostringstream collects output; str() returns it.
+  - type: predict
+    body: |
+      std::ifstream in("missing.txt");
+      std::cout << (in ? "open" : "closed") << "\n";
+    why: A stream that failed to open converts to false.
+  - type: bug
+    body: |
+      std::istringstream in("ropz 25\nrain 9");
+      std::string name;
+      int score;
+      int total = 0;
+      while (true) {
+          in >> name >> score;
+          if (in.eof()) break; // BUG
+          total += score;
+      }
+      std::cout << total << "\n";
+    fix: "if (!in) break;"
+    why: eof() can be true even though the last read succeeded (the text has no final newline), so rain's score is dropped. Test whether the read failed instead.
+  - type: compiles
+    pre: |
+      struct P { int x; };
+    body: |
+      P p{3};
+      std::cout << p << "\n";
+    why: There's no operator<< for P until you write one.
+  - type: boss
+    why: operator>> on a string reads one whitespace-separated word at a time.
+    prompt: |
+      Write `std::map<std::string, int> word_counts(std::istream& in)` that counts how many times each whitespace-separated word appears in the stream.
+    seed: |
+      #include <istream>
+      #include <map>
+      #include <string>
+
+      std::map<std::string, int> word_counts(std::istream& in) {
+
+      }
+    solution: |
+      #include <istream>
+      #include <map>
+      #include <string>
+
+      std::map<std::string, int> word_counts(std::istream& in) {
+          std::map<std::string, int> counts;
+          std::string w;
+          while (in >> w) counts[w]++;
+          return counts;
+      }
+    harness: |
+      #include <sstream>
+      int main() {
+          std::istringstream in("gg wp gg\nez gg");
+          auto c = word_counts(in);
+          CHECK_EQ("gg", c["gg"], 3);
+          CHECK_EQ("wp", c["wp"], 1);
+          CHECK_EQ("distinct words", c.size(), 3u);
+          std::istringstream empty("");
+          CHECK("empty stream", word_counts(empty).empty());
+      }
+    hints:
+      - "`while (in >> w) counts[w]++;`"

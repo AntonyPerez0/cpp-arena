@@ -5,6 +5,7 @@ phase: "C: Memory"
 summary: Store many values of one type side by side. Indexing, looping, passing arrays to functions and 2D grids.
 steps:
   - title: Declare and index
+    id: c-arrays-1
     text: |
       An **array** is a fixed-size row of values of the same type, stored next to each other in memory.
 
@@ -32,6 +33,7 @@ steps:
       - expect: "first 16\nlast 30"
 
   - title: Loop over an array
+    id: c-arrays-2
     text: |
       Loops and arrays are best friends. The idiom:
 
@@ -79,6 +81,7 @@ steps:
       - expect: "avg 18.00"
 
   - title: Read into an array
+    id: c-arrays-3
     text: |
       You can `scanf` directly into an element: `scanf("%d", &a[i]);`
 
@@ -122,6 +125,7 @@ steps:
         hidden: true
 
   - title: Arrays as parameters
+    id: c-arrays-4
     text: |
       When you pass an array to a function, the function **doesn't know its length**. Always pass the length too:
 
@@ -162,6 +166,7 @@ steps:
       - If the loop finishes without finding it, return -1.
 
   - title: Modify an array in a function
+    id: c-arrays-5
     text: |
       **Your turn:** write `void reverse(int a[], int n)` that reverses the array **in place** (no second array).
 
@@ -210,6 +215,7 @@ steps:
       - Swap `a[i]` and `a[j]` with a temporary variable, then move i forward and j backward.
 
   - title: 2D arrays
+    id: c-arrays-6
     text: |
       A 2D array is an array of rows:
 

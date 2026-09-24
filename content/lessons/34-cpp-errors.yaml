@@ -1,0 +1,344 @@
+id: cpp-errors
+title: Handling errors
+lang: cpp
+phase: "C++: Modern and Advanced"
+summary: How to report failure without crashing. assert for bugs, error codes and optional for expected failures, a Result type, and how exceptions fit in.
+steps:
+  - title: Bugs vs expected failures
+    id: cpp-errors-1
+    text: |
+      Two very different things can go wrong:
+
+      1. **Bugs** (a broken assumption in *your* code, like a negative array size). Use `assert(condition)` from `<cassert>`. If the condition is false, the program stops immediately and tells you where. It's a tripwire for programmers.
+      2. **Expected failures** (bad user input, a missing file, a player not found). These aren't bugs, so the code must handle them and keep going.
+
+      **Exceptions** (`throw`/`try`/`catch`) are standard C++'s general tool for failure: a `throw` unwinds the stack to the nearest matching `catch`, running destructors on the way (RAII again!).
+
+      ```cpp
+      try {
+          int x = std::stoi("abc");   // throws std::invalid_argument
+      } catch (const std::exception& e) {
+          std::cout << e.what();
+      }
+      ```
+
+      **This site's compiler targets WebAssembly without exception support**, so `throw` won't compile here. That's a real-world situation too: games, embedded systems and many large codebases (Google's, for example) build with exceptions turned off. The rest of this module covers the exception-free patterns they use.
+
+      **Your turn:** add an `assert` that `n` is positive. With a valid call the program prints `ok`.
+    fill: |
+      #include <[[cassert]]>
+      #include <iostream>
+
+      int average(int total, int n) {
+          [[assert]](n > 0);
+          return total / n;
+      }
+
+      int main() {
+          std::cout << (average(90, 3) == 30 ? "ok" : "bad") << "\n";
+      }
+    hints:
+      - "The header is `<cassert>` and the macro is `assert`."
+    tests:
+      - expect: "ok"
+
+  - title: Status codes
+    id: cpp-errors-2
+    text: |
+      The C-style approach: return a status (success or failure), and deliver the actual result through a reference parameter.
+
+      ```cpp
+      bool try_buy(int& money, int price) {
+          if (price > money) return false;
+          money -= price;
+          return true;
+      }
+      ```
+
+      Simple and fast, but it's easy for callers to ignore the returned status. `[[nodiscard]]` makes the compiler warn when they do.
+
+      **Your turn:** write `[[nodiscard]] bool divide(int a, int b, int& out)` that returns false for division by zero and otherwise stores `a / b` in `out`.
+    seed: |
+      bool divide(int a, int b, int& out) {
+
+      }
+    solution: |
+      [[nodiscard]] bool divide(int a, int b, int& out) {
+          if (b == 0) return false;
+          out = a / b;
+          return true;
+      }
+    harness: |
+      int main() {
+          int r = -1;
+          CHECK("10 / 2 succeeds", divide(10, 2, r));
+          CHECK_EQ("result", r, 5);
+          r = 99;
+          CHECK("5 / 0 fails", !divide(5, 0, r));
+          CHECK_EQ("out unchanged on failure", r, 99);
+      }
+    hints:
+      - "Return `false` first if `b == 0`."
+      - "Otherwise `out = a / b; return true;`. Put `[[nodiscard]]` before the return type."
+
+  - title: optional for "maybe"
+    id: cpp-errors-3
+    text: |
+      When the only failure is "no result", `std::optional` says it clearly in the return type and forces the caller to check.
+
+      **Your turn:** write `std::optional<std::size_t> find_player(const std::vector<std::string>& team, const std::string& name)` returning the index or `std::nullopt`.
+    seed: |
+      #include <optional>
+      #include <string>
+      #include <vector>
+
+      std::optional<std::size_t> find_player(const std::vector<std::string>& team, const std::string& name) {
+
+      }
+    solution: |
+      #include <optional>
+      #include <string>
+      #include <vector>
+
+      std::optional<std::size_t> find_player(const std::vector<std::string>& team, const std::string& name) {
+          for (std::size_t i = 0; i < team.size(); i++) {
+              if (team[i] == name) return i;
+          }
+          return std::nullopt;
+      }
+    harness: |
+      int main() {
+          std::vector<std::string> t = {"karrigan", "rain", "ropz", "broky", "frozen"};
+          auto a = find_player(t, "ropz");
+          CHECK("ropz found", a.has_value());
+          CHECK_EQ("ropz index", *a, 2);
+          CHECK("missing -> nullopt", !find_player(t, "s1mple"));
+          CHECK("empty team", !find_player({}, "x"));
+      }
+    hints:
+      - "Loop over the indexes and `return i;` on a match (it converts to optional)."
+      - "After the loop, `return std::nullopt;`."
+
+  - title: A Result type
+    id: cpp-errors-4
+    text: |
+      Sometimes the caller needs to know **why** it failed. A small `Result` type carries either a value or an error message. (C++23 standardizes this idea as `std::expected<T, E>`.)
+
+      ```cpp
+      struct Result {
+          std::optional<int> value;
+          std::string error;
+          bool ok() const { return value.has_value(); }
+      };
+      ```
+
+      **Your turn:** write `Result parse_money(const std::string& s)` for amounts like `"$2700"`:
+
+      - no leading `$` gives error `"missing $"`
+      - nothing after the `$`, or a non-digit character, gives `"not a number"`
+      - more than 16000 gives `"over the cap"`
+      - otherwise the value
+    seed: |
+      #include <optional>
+      #include <string>
+
+      struct Result {
+          std::optional<int> value;
+          std::string error;
+          bool ok() const { return value.has_value(); }
+      };
+
+      Result parse_money(const std::string& s) {
+
+      }
+    solution: |
+      #include <optional>
+      #include <string>
+
+      struct Result {
+          std::optional<int> value;
+          std::string error;
+          bool ok() const { return value.has_value(); }
+      };
+
+      Result parse_money(const std::string& s) {
+          if (s.empty() || s[0] != '$') return {std::nullopt, "missing $"};
+          if (s.size() == 1) return {std::nullopt, "not a number"};
+          long long v = 0;
+          for (std::size_t i = 1; i < s.size(); i++) {
+              if (s[i] < '0' || s[i] > '9') return {std::nullopt, "not a number"};
+              if (v <= 16000) v = v * 10 + (s[i] - '0');
+          }
+          if (v > 16000) return {std::nullopt, "over the cap"};
+          return {static_cast<int>(v), ""};
+      }
+    harness: |
+      int main() {
+          auto a = parse_money("$2700");
+          CHECK("$2700 ok", a.ok() && *a.value == 2700);
+          CHECK_EQ("2700 without $", parse_money("2700").error, std::string("missing $"));
+          CHECK_EQ("$", parse_money("$").error, std::string("not a number"));
+          CHECK_EQ("$12a", parse_money("$12a").error, std::string("not a number"));
+          CHECK_EQ("$20000", parse_money("$20000").error, std::string("over the cap"));
+          CHECK_EQ("$99999999999", parse_money("$99999999999").error, std::string("over the cap"));
+          CHECK("$16000 ok", parse_money("$16000").ok());
+          CHECK_EQ("empty", parse_money("").error, std::string("missing $"));
+      }
+    hints:
+      - "Return a Result with braces: `return {std::nullopt, \"missing $\"};` or `return {value, \"\"};`."
+      - Check the `$` first, then that there is at least one character after it, then parse digits.
+      - Stop growing the number once it passes 16000, otherwise very long inputs overflow an int.
+
+  - title: Passing errors up
+    id: cpp-errors-5
+    text: |
+      Real programs are layers: `main` calls `load_config`, which calls `parse_line`, which calls `parse_int`. When the bottom layer fails, each layer above has two honest choices:
+
+      1. **Handle it** (use a default, retry, skip the item), or
+      2. **Pass it up** unchanged, usually with an early `return`.
+
+      The one dishonest choice is swallowing it: returning a made-up value as if nothing went wrong. That's how bugs travel far from where they started.
+
+      ```cpp
+      auto n = parse_int(part);
+      if (!n) return std::nullopt;   // pass it up
+      total += *n;
+      ```
+
+      **Your turn:** `parse_int` is written for you. Write `std::optional<int> sum_csv(std::string_view s)` that sums comma-separated integers like `"3,4,-2"`. If **any** part fails to parse, the whole sum fails.
+    seed: |
+      #include <optional>
+      #include <string_view>
+
+      std::optional<int> parse_int(std::string_view s) {
+          if (s.empty()) return std::nullopt;
+          bool neg = s[0] == '-';
+          if (neg) s.remove_prefix(1);
+          if (s.empty() || s.size() > 9) return std::nullopt;
+          int v = 0;
+          for (char c : s) {
+              if (c < '0' || c > '9') return std::nullopt;
+              v = v * 10 + (c - '0');
+          }
+          return neg ? -v : v;
+      }
+
+      std::optional<int> sum_csv(std::string_view s) {
+
+      }
+    solution: |
+      #include <optional>
+      #include <string_view>
+
+      std::optional<int> parse_int(std::string_view s) {
+          if (s.empty()) return std::nullopt;
+          bool neg = s[0] == '-';
+          if (neg) s.remove_prefix(1);
+          if (s.empty() || s.size() > 9) return std::nullopt;
+          int v = 0;
+          for (char c : s) {
+              if (c < '0' || c > '9') return std::nullopt;
+              v = v * 10 + (c - '0');
+          }
+          return neg ? -v : v;
+      }
+
+      std::optional<int> sum_csv(std::string_view s) {
+          int total = 0;
+          while (true) {
+              std::size_t comma = s.find(',');
+              auto n = parse_int(s.substr(0, comma));
+              if (!n) return std::nullopt;
+              total += *n;
+              if (comma == std::string_view::npos) break;
+              s.remove_prefix(comma + 1);
+          }
+          return total;
+      }
+    harness: |
+      int main() {
+          CHECK_EQ("3,4,-2", sum_csv("3,4,-2").value_or(-999), 5);
+          CHECK_EQ("single number", sum_csv("42").value_or(-999), 42);
+          CHECK("bad part fails the whole sum", !sum_csv("1,x,3"));
+          CHECK("empty part fails", !sum_csv("1,,3"));
+          CHECK("trailing comma fails", !sum_csv("1,2,"));
+          CHECK("empty string fails", !sum_csv(""));
+      }
+    hints:
+      - "Loop: find the next comma with `s.find(',')`, parse `s.substr(0, comma)`, then `s.remove_prefix(comma + 1)`."
+      - "If `parse_int` returns nullopt, immediately `return std::nullopt;`."
+      - "When `find` returns `std::string_view::npos`, that was the last part."
+
+  - title: "Challenge: load a config"
+    id: cpp-errors-6
+    text: |
+      Put the pieces together in the kind of code every service has: a config loader that reports **precise** errors, because "invalid config" with no line number wastes everyone's time.
+
+      **Your turn:** write `ConfigResult load_config(const std::string& text)`. The text has one `key=value` per line:
+
+      - blank lines and lines starting with `#` are skipped
+      - a line with no `=` fails with `"line N: missing ="`
+      - an empty key fails with `"line N: empty key"`
+      - a key seen twice fails with `"line N: duplicate key KEY"`
+      - otherwise every pair goes into `values`
+
+      Lines are numbered from 1. Stop at the first error.
+    seed: |
+      #include <map>
+      #include <sstream>
+      #include <string>
+
+      struct ConfigResult {
+          std::map<std::string, std::string> values;
+          std::string error;   // empty means success
+      };
+
+      ConfigResult load_config(const std::string& text) {
+
+      }
+    solution: |
+      #include <map>
+      #include <sstream>
+      #include <string>
+
+      struct ConfigResult {
+          std::map<std::string, std::string> values;
+          std::string error;   // empty means success
+      };
+
+      ConfigResult load_config(const std::string& text) {
+          ConfigResult r;
+          std::istringstream in(text);
+          std::string line;
+          int n = 0;
+          while (std::getline(in, line)) {
+              n++;
+              if (line.empty() || line[0] == '#') continue;
+              std::size_t eq = line.find('=');
+              std::string where = "line " + std::to_string(n) + ": ";
+              if (eq == std::string::npos) return {{}, where + "missing ="};
+              std::string key = line.substr(0, eq);
+              if (key.empty()) return {{}, where + "empty key"};
+              if (r.values.count(key)) return {{}, where + "duplicate key " + key};
+              r.values[key] = line.substr(eq + 1);
+          }
+          return r;
+      }
+    harness: |
+      int main() {
+          auto ok = load_config("# server\nport=8080\n\nhost=arena.local\nmotd=gl hf\n");
+          CHECK_EQ("no error", ok.error, std::string(""));
+          CHECK_EQ("three values", ok.values.size(), 3u);
+          CHECK_EQ("port", ok.values["port"], std::string("8080"));
+          CHECK_EQ("value with a space", ok.values["motd"], std::string("gl hf"));
+          CHECK_EQ("missing =", load_config("a=1\nbroken\n").error, std::string("line 2: missing ="));
+          CHECK_EQ("empty key", load_config("\n=5\n").error, std::string("line 2: empty key"));
+          CHECK_EQ("duplicate", load_config("a=1\nb=2\na=3\n").error, std::string("line 3: duplicate key a"));
+          CHECK_EQ("empty value is allowed", load_config("x=\n").values["x"], std::string(""));
+          CHECK_EQ("empty text is fine", load_config("").error, std::string(""));
+      }
+    hints:
+      - "Read lines with `std::istringstream in(text);` and `while (std::getline(in, line))`, counting as you go."
+      - "Skip empty lines and lines where `line[0] == '#'`."
+      - "`line.find('=')` gives the split point; key is `substr(0, eq)`, value is `substr(eq + 1)`."
+      - "Return `{{}, \"line \" + std::to_string(n) + \": missing =\"}` style results on errors."

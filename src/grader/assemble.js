@@ -120,9 +120,9 @@ export function checkRules(src, require = [], forbid = []) {
   return problems;
 }
 
-const C_DRILL_HEAD = "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <stdbool.h>\n";
+const C_DRILL_HEAD = "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <stdbool.h>\n#include <stdint.h>\n#include <limits.h>\n";
 const CPP_DRILL_HEAD =
-  "#include <iostream>\n#include <string>\n#include <vector>\n#include <map>\n#include <set>\n#include <unordered_map>\n#include <algorithm>\n#include <numeric>\n#include <memory>\n#include <optional>\n#include <utility>\n#include <array>\n#include <functional>\n#include <string_view>\n#include <tuple>\n#include <variant>\n#include <ranges>\n#include <concepts>\n#include <span>\n#include <stack>\n#include <queue>\n#include <unordered_set>\n#include <type_traits>\n#include <sstream>\n";
+  "#include <iostream>\n#include <string>\n#include <vector>\n#include <map>\n#include <set>\n#include <unordered_map>\n#include <algorithm>\n#include <numeric>\n#include <memory>\n#include <optional>\n#include <utility>\n#include <array>\n#include <functional>\n#include <string_view>\n#include <tuple>\n#include <variant>\n#include <ranges>\n#include <concepts>\n#include <span>\n#include <stack>\n#include <queue>\n#include <unordered_set>\n#include <type_traits>\n#include <sstream>\n#include <deque>\n#include <list>\n#include <iomanip>\n#include <fstream>\n#include <iterator>\n#include <cstdint>\n#include <climits>\n";
 
 /**
  * Drills show only `display` (pre + body). The full program wraps it with
@@ -141,4 +141,13 @@ export function drillDisplay(pre, body) {
   const b = body ? body.replace(/\s*$/, "") : "";
   if (p && b) return p + "\n\n// inside main:\n" + b;
   return p || b;
+}
+
+/** What one test run gets: plain stdin text, or { stdin, files, args } when the test has files or arguments. */
+export function runInput(t) {
+  if (!t) return "";
+  const hasFiles = t.files && Object.keys(t.files).length > 0;
+  const hasArgs = t.args && t.args.length > 0;
+  if (!hasFiles && !hasArgs) return t.stdin ?? "";
+  return { stdin: t.stdin ?? "", files: t.files ?? {}, args: (t.args ?? []).map(String) };
 }

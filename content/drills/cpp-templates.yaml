@@ -103,3 +103,50 @@ drills:
     hints:
       - "`template <typename T>` then track the best."
     why: Using only `<` means it works for any comparable type.
+
+  - type: predict
+    pre: |
+      template <typename T, std::size_t N>
+      std::size_t count_of(const T (&)[N]) { return N; }
+    body: |
+      int a[7] = {};
+      std::cout << count_of(a) << "\n";
+    why: N is deduced from the array type at compile time.
+  - type: compiles
+    pre: |
+      template <int N>
+      struct Fixed { int data[N]; };
+    body: |
+      int n = 4;
+      Fixed<n> f;
+      std::cout << sizeof(f) << "\n";
+    why: A non-type template argument must be a compile-time constant, and n is a runtime variable.
+  - type: predict
+    pre: |
+      template <typename T> struct Name { static const char* get() { return "?"; } };
+      template <> struct Name<int> { static const char* get() { return "int"; } };
+    body: |
+      std::cout << Name<int>::get() << Name<long>::get() << "\n";
+    why: The specialization matches int exactly; long falls back to the primary template.
+  - type: fill
+    prompt: Start a full specialization.
+    pre: |
+      template <typename T> struct Zero { static T get() { return T{}; } };
+      [[template <>]]
+      struct Zero<std::string> { static std::string get() { return "empty"; } };
+    body: |
+      std::cout << Zero<int>::get() << " " << Zero<std::string>::get() << "\n";
+    why: "`template <>` with empty brackets introduces a full specialization."
+  - type: predict
+    body: |
+      std::array<int, 3> a = {3, 1, 2};
+      std::sort(a.begin(), a.end());
+      std::cout << a.size() << a[0] << a[2] << "\n";
+    why: std::array's size is a template parameter; sorting gives 1 2 3.
+  - type: compiles
+    pre: |
+      template <typename T>
+      T biggest(T a, T b) { return a > b ? a : b; }
+    body: |
+      std::cout << biggest(3, 4.5) << "\n";
+    why: T is deduced as int from 3 and as double from 4.5, a conflict. Use biggest<double>(3, 4.5).

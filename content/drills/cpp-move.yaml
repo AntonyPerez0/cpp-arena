@@ -145,3 +145,60 @@ drills:
       - "Delete the two copy operations; write the move constructor and move assignment."
       - "In both moves, clear the source's string afterwards."
     why: Rule of five in miniature. Moves transfer, copies are forbidden.
+
+  - type: predict
+    body: |
+      std::vector<int> a = {1, 2, 3};
+      std::vector<int> b = std::move(a);
+      a.clear();
+      a.push_back(9);
+      std::cout << a.size() << " " << b.size() << "\n";
+    why: After clear(), a moved-from vector is in a known state and can be reused.
+  - type: predict
+    body: |
+      std::string s = "ace";
+      std::string old = std::exchange(s, "clutch");
+      std::cout << old << " " << s << "\n";
+    why: std::exchange stores the new value and returns the old one.
+  - type: fill
+    prompt: Build the element in place inside the vector.
+    pre: |
+      struct P {
+          std::string name;
+          int kills;
+          P(std::string n, int k) : name(std::move(n)), kills(k) {}
+      };
+    body: |
+      std::vector<P> v;
+      v.[[emplace_back]]("jks", 21);
+      std::cout << v[0].name << " " << v[0].kills << "\n";
+    why: emplace_back forwards its arguments to P's constructor. push_back("jks", 21) wouldn't compile.
+  - type: compiles
+    body: |
+      std::unique_ptr<int> a = std::make_unique<int>(5);
+      std::vector<std::unique_ptr<int>> v;
+      v.push_back(a);
+    why: unique_ptr can't be copied; push_back(std::move(a)) is required.
+  - type: bug
+    pre: |
+      class Name {
+      public:
+          explicit Name(std::string s) : s_(s) {} // BUG
+          const std::string& get() const { return s_; }
+      private:
+          std::string s_;
+      };
+    body: |
+      std::string big(64, 'z');
+      const char* before = big.data();
+      Name n(std::move(big));
+      std::cout << (n.get().data() == before ? "moved" : "copied") << "\n";
+    fix: "explicit Name(std::string s) : s_(std::move(s)) {}"
+    why: The sink parameter s is a named variable, so `s_(s)` copies. Move it into the member.
+  - type: predict
+    body: |
+      std::string a = "x";
+      std::string b = a;
+      std::string c = std::move(b);
+      std::cout << a << c << "\n";
+    why: a was copied, so it's untouched. c took b's value.

@@ -21,6 +21,8 @@ export type State = {
     days: Record<string, number>;
   };
   settings: { sound: boolean; unlockAll: boolean; topics: string[] | null; boss: boolean };
+  /** Pro Track projects the learner marked as passing on GitHub. */
+  pro: Record<string, boolean>;
 };
 
 const KEY = "cpp-arena-v1";
@@ -32,6 +34,7 @@ const fresh = (): State => ({
   drills: {},
   dm: { best: { deathmatch: 0, casual: 0, warmup: 0 }, runs: [], reps: 0, kills: 0, bossKills: 0, days: {} },
   settings: { sound: true, unlockAll: false, topics: null, boss: true },
+  pro: {},
 });
 
 function load(): State {
@@ -101,6 +104,10 @@ export function patchStep(id: string, patch: Partial<StepProgress>) {
 
 export function patchProject(id: string, patch: Partial<ProjectProgress>) {
   update((s) => ({ ...s, projects: { ...s.projects, [id]: { ...{ milestone: 0, code: "", completed: [] as number[] }, ...s.projects[id], ...patch } } }));
+}
+
+export function setProDone(id: string, done: boolean) {
+  update((s) => ({ ...s, pro: { ...s.pro, [id]: done } }));
 }
 
 export function patchSettings(patch: Partial<State["settings"]>) {

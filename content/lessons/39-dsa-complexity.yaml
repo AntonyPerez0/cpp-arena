@@ -1,0 +1,326 @@
+id: dsa-complexity
+title: Complexity and searching
+lang: cpp
+phase: "Data Structures and Algorithms"
+summary: Big-O in practice. Trading memory for speed with hash sets, binary search and lower_bound, two pointers, prefix sums and sliding windows, with tests big enough that slow solutions time out.
+steps:
+  - title: Big-O in practice
+    id: dsa-complexity-1
+    text: |
+      **Big-O** describes how running time grows with the input size n, ignoring constant factors:
+
+      | Complexity | n = 1,000 | n = 1,000,000 | Typical example |
+      |---|---|---|---|
+      | O(1) | 1 | 1 | array index, hash lookup |
+      | O(log n) | 10 | 20 | binary search |
+      | O(n) | 1,000 | 1,000,000 | one pass over the data |
+      | O(n log n) | 10,000 | 20,000,000 | good sorting |
+      | O(n²) | 1,000,000 | 1,000,000,000,000 | comparing every pair |
+
+      A computer does roughly 10⁸ to 10⁹ simple operations per second. So at a million items, O(n²) takes **hours** while O(n log n) takes milliseconds. Interviews test this, and so does production traffic.
+
+      The most common fix for O(n²) is trading memory for time: remember what you've seen in a hash set, which has O(1) average lookup.
+
+      **Your turn:** write `bool has_duplicate(const std::vector<int>& v)` in O(n). The hidden test uses 200,000 numbers, so comparing every pair will run out of time.
+    seed: |
+      #include <vector>
+
+      bool has_duplicate(const std::vector<int>& v) {
+          for (std::size_t i = 0; i < v.size(); i++)
+              for (std::size_t j = i + 1; j < v.size(); j++)
+                  if (v[i] == v[j]) return true;
+          return false;
+      }
+    solution: |
+      #include <unordered_set>
+      #include <vector>
+
+      bool has_duplicate(const std::vector<int>& v) {
+          std::unordered_set<int> seen;
+          seen.reserve(v.size());
+          for (int x : v) {
+              if (!seen.insert(x).second) return true;
+          }
+          return false;
+      }
+    seedMayPass: true
+    harness: |
+      int main() {
+          CHECK_EQ("small with duplicate", has_duplicate({3, 1, 4, 1, 5}), true);
+          CHECK_EQ("small without", has_duplicate({3, 1, 4, 5}), false);
+          CHECK_EQ("empty", has_duplicate({}), false);
+          std::vector<int> big(200000);
+          for (int i = 0; i < 200000; i++) big[i] = i * 7;
+          CHECK_EQ("200,000 distinct values", has_duplicate(big), false);
+          big.push_back(7 * 199999);
+          CHECK_EQ("duplicate at the very end", has_duplicate(big), true);
+      }
+    hints:
+      - "Keep a `std::unordered_set<int> seen;`."
+      - "`seen.insert(x).second` is false when x was already there. That's your duplicate."
+
+  - title: Binary search
+    id: dsa-complexity-2
+    text: |
+      In a **sorted** array, binary search finds a value in O(log n) by halving the search range each step. A million elements takes at most 20 steps.
+
+      ```
+      lo = 0, hi = n - 1
+      while lo <= hi:
+          mid = lo + (hi - lo) / 2      (not (lo + hi) / 2: that can overflow!)
+          if v[mid] == target: found
+          if v[mid] < target: lo = mid + 1
+          else: hi = mid - 1
+      ```
+
+      Binary search is famously easy to get subtly wrong. Off-by-one errors in `lo`/`hi` cause infinite loops or missed elements. Write it carefully once and understand every `+ 1` and `- 1`.
+
+      **Your turn:** write `int find_index(const std::vector<int>& v, int target)` returning the index of `target` in the sorted vector `v`, or -1. Don't use the standard library's search functions.
+    seed: |
+      #include <vector>
+
+      int find_index(const std::vector<int>& v, int target) {
+
+      }
+    solution: |
+      #include <vector>
+
+      int find_index(const std::vector<int>& v, int target) {
+          int lo = 0, hi = static_cast<int>(v.size()) - 1;
+          while (lo <= hi) {
+              int mid = lo + (hi - lo) / 2;
+              if (v[mid] == target) return mid;
+              if (v[mid] < target) lo = mid + 1;
+              else hi = mid - 1;
+          }
+          return -1;
+      }
+    forbid:
+      - pattern: "lower_bound|upper_bound|binary_search|std::find|equal_range"
+        message: Write the halving loop yourself on this step.
+    harness: |
+      int main() {
+          std::vector<int> v = {2, 5, 8, 12, 16, 23, 38, 56, 72, 91};
+          CHECK_EQ("middle", find_index(v, 16), 4);
+          CHECK_EQ("first", find_index(v, 2), 0);
+          CHECK_EQ("last", find_index(v, 91), 9);
+          CHECK_EQ("missing", find_index(v, 17), -1);
+          CHECK_EQ("below range", find_index(v, -5), -1);
+          CHECK_EQ("empty", find_index({}, 3), -1);
+          std::vector<int> big(1000000);
+          for (int i = 0; i < 1000000; i++) big[i] = 2 * i;
+          long long found = 0;
+          for (int q = 0; q < 200000; q++) found += find_index(big, 5 * q) >= 0;
+          CHECK_EQ("200,000 searches in a million elements", found, 100000LL);
+      }
+    hints:
+      - "Track an inclusive range `lo..hi`, starting at 0 and size - 1."
+      - "`int mid = lo + (hi - lo) / 2;` then move lo to `mid + 1` or hi to `mid - 1`."
+      - "The loop runs while `lo <= hi`; if it ends, the target isn't there."
+
+  - title: lower_bound and upper_bound
+    id: dsa-complexity-3
+    text: |
+      In real code, use the standard library's binary searches on sorted ranges:
+
+      - `std::lower_bound(b, e, x)`: first element **not less than** x (where x would be inserted)
+      - `std::upper_bound(b, e, x)`: first element **greater than** x
+      - `std::binary_search(b, e, x)`: just yes or no
+
+      So the elements equal to x are exactly `[lower_bound, upper_bound)`, and the count of values in a range `[lo, hi]` is `upper_bound(hi) - lower_bound(lo)`, in O(log n) no matter how many there are.
+
+      **Your turn:** write `long count_in_range(const std::vector<int>& sorted, int lo, int hi)` counting values `v` with `lo <= v <= hi`.
+    seed: |
+      #include <algorithm>
+      #include <vector>
+
+      long count_in_range(const std::vector<int>& sorted, int lo, int hi) {
+
+      }
+    solution: |
+      #include <algorithm>
+      #include <vector>
+
+      long count_in_range(const std::vector<int>& sorted, int lo, int hi) {
+          if (lo > hi) return 0;
+          auto first = std::lower_bound(sorted.begin(), sorted.end(), lo);
+          auto last = std::upper_bound(sorted.begin(), sorted.end(), hi);
+          return last - first;
+      }
+    require:
+      - pattern: "lower_bound"
+        message: "Use `std::lower_bound` and `std::upper_bound` so each query is O(log n)."
+    harness: |
+      int main() {
+          std::vector<int> v = {1, 3, 3, 3, 5, 8, 8, 13};
+          CHECK_EQ("3..8", count_in_range(v, 3, 8), 6L);
+          CHECK_EQ("exactly 3", count_in_range(v, 3, 3), 3L);
+          CHECK_EQ("between values", count_in_range(v, 9, 12), 0L);
+          CHECK_EQ("everything", count_in_range(v, -100, 100), 8L);
+          CHECK_EQ("lo > hi", count_in_range(v, 8, 3), 0L);
+          std::vector<int> big(1000000);
+          for (int i = 0; i < 1000000; i++) big[i] = i / 4;
+          long total = 0;
+          for (int q = 0; q < 100000; q++) total += count_in_range(big, q, q + 1);
+          CHECK_EQ("100,000 range queries", total, 800000L);
+      }
+    hints:
+      - "`auto first = std::lower_bound(sorted.begin(), sorted.end(), lo);`"
+      - "`auto last = std::upper_bound(sorted.begin(), sorted.end(), hi);` and return `last - first`."
+
+  - title: Two pointers
+    id: dsa-complexity-4
+    text: |
+      On sorted data, two indexes moving toward each other often replace a nested loop. To find a pair summing to a target:
+
+      - start with `i` at the smallest and `j` at the largest,
+      - if the sum is too small, the only way to grow it is `i++`,
+      - if it's too big, `j--`.
+
+      Each step discards one element for good, so it's O(n) instead of O(n²).
+
+      **Your turn:** write `bool pair_sum(const std::vector<int>& sorted, long target)` that says whether two **different positions** hold values summing to `target`.
+    seed: |
+      #include <vector>
+
+      bool pair_sum(const std::vector<int>& sorted, long target) {
+
+      }
+    solution: |
+      #include <vector>
+
+      bool pair_sum(const std::vector<int>& sorted, long target) {
+          if (sorted.size() < 2) return false;
+          std::size_t i = 0, j = sorted.size() - 1;
+          while (i < j) {
+              long s = static_cast<long>(sorted[i]) + sorted[j];
+              if (s == target) return true;
+              if (s < target) i++;
+              else j--;
+          }
+          return false;
+      }
+    harness: |
+      int main() {
+          std::vector<int> v = {1, 4, 6, 9, 13};
+          CHECK_EQ("4 + 9", pair_sum(v, 13), true);
+          CHECK_EQ("no pair makes 3", pair_sum(v, 3), false);
+          CHECK_EQ("can't use 6 twice", pair_sum(v, 12), false);
+          CHECK_EQ("duplicates at two positions", pair_sum({5, 5}, 10), true);
+          CHECK_EQ("single element", pair_sum({7}, 14), false);
+          std::vector<int> big(300000);
+          for (int i = 0; i < 300000; i++) big[i] = 3 * i;
+          CHECK_EQ("large: no pair sums to 1", pair_sum(big, 1), false);
+          CHECK_EQ("large: ends", pair_sum(big, 3L * 299999 + 3), true);
+      }
+    hints:
+      - "Start `i = 0` and `j = size - 1`, and loop while `i < j`."
+      - "Add as long to avoid overflow; move i up when the sum is too small, j down when too big."
+
+  - title: Prefix sums
+    id: dsa-complexity-5
+    text: |
+      If you'll ask "what's the sum of elements l..r?" many times, precompute **prefix sums** once: `pre[i]` is the sum of the first i elements. Then any range sum is one subtraction:
+
+      ```
+      sum(l..r) = pre[r + 1] - pre[l]
+      ```
+
+      O(n) setup, then O(1) per query, instead of O(n) per query. The same trick works for counts, 2D grids ("summed-area tables") and time series.
+
+      **Your turn:** write class `RangeSum` with a constructor taking the values and `long long sum(int l, int r) const` for the inclusive range. The test runs 200,000 queries on 200,000 values.
+    seed: |
+      #include <vector>
+
+      class RangeSum {
+      public:
+          explicit RangeSum(const std::vector<int>& v);
+          long long sum(int l, int r) const;
+
+      private:
+
+      };
+    solution: |
+      #include <vector>
+
+      class RangeSum {
+      public:
+          explicit RangeSum(const std::vector<int>& v);
+          long long sum(int l, int r) const;
+
+      private:
+          std::vector<long long> pre_;
+      };
+
+      RangeSum::RangeSum(const std::vector<int>& v) : pre_(v.size() + 1, 0) {
+          for (std::size_t i = 0; i < v.size(); i++) pre_[i + 1] = pre_[i] + v[i];
+      }
+
+      long long RangeSum::sum(int l, int r) const {
+          return pre_[r + 1] - pre_[l];
+      }
+    harness: |
+      int main() {
+          RangeSum rs({3, -1, 4, 1, 5, 9});
+          CHECK_EQ("whole", rs.sum(0, 5), 21LL);
+          CHECK_EQ("middle", rs.sum(1, 3), 4LL);
+          CHECK_EQ("single", rs.sum(4, 4), 5LL);
+          std::vector<int> big(200000);
+          for (int i = 0; i < 200000; i++) big[i] = i % 100;
+          RangeSum b(big);
+          long long total = 0;
+          for (int q = 0; q < 200000; q++) total += b.sum(q % 1000, 199999 - q % 1000);
+          CHECK("200,000 queries finish", total > 0);
+          CHECK_EQ("big sum", b.sum(0, 199999), 9900000LL);
+      }
+    hints:
+      - "Store `std::vector<long long> pre_` with one more slot than the input, starting at 0."
+      - "`pre_[i + 1] = pre_[i] + v[i];` then `sum(l, r)` is `pre_[r + 1] - pre_[l]`."
+
+  - title: "Challenge: sliding window"
+    id: dsa-complexity-6
+    text: |
+      A **sliding window** keeps a range `[left, right]` that only ever moves forward. Each element enters once and leaves once, so the whole scan is O(n), even though it looks at many ranges.
+
+      **Your turn:** write `int longest_unique(const std::string& s)`: the length of the longest substring with **no repeated characters**. For `"abcabcbb"` it's 3 (`"abc"`).
+
+      Idea: move `right` forward one character at a time. If that character already appears inside the window, jump `left` past its previous position. Remember each character's last position in an array of 256 ints.
+    seed: |
+      #include <string>
+
+      int longest_unique(const std::string& s) {
+
+      }
+    solution: |
+      #include <algorithm>
+      #include <array>
+      #include <string>
+
+      int longest_unique(const std::string& s) {
+          std::array<int, 256> last;
+          last.fill(-1);
+          int best = 0, left = 0;
+          for (int right = 0; right < static_cast<int>(s.size()); right++) {
+              unsigned char c = static_cast<unsigned char>(s[right]);
+              if (last[c] >= left) left = last[c] + 1;
+              last[c] = right;
+              best = std::max(best, right - left + 1);
+          }
+          return best;
+      }
+    harness: |
+      int main() {
+          CHECK_EQ("abcabcbb", longest_unique("abcabcbb"), 3);
+          CHECK_EQ("bbbbb", longest_unique("bbbbb"), 1);
+          CHECK_EQ("pwwkew", longest_unique("pwwkew"), 3);
+          CHECK_EQ("empty", longest_unique(""), 0);
+          CHECK_EQ("abba", longest_unique("abba"), 2);
+          CHECK_EQ("all different", longest_unique("dust2"), 5);
+          std::string big;
+          for (int i = 0; i < 400000; i++) big += static_cast<char>('a' + i % 26);
+          CHECK_EQ("400,000 characters", longest_unique(big), 26);
+      }
+    hints:
+      - "Keep `std::array<int, 256> last` filled with -1: the last index where each byte was seen."
+      - "For each right: if `last[c] >= left`, move `left = last[c] + 1`. Then record `last[c] = right`."
+      - "The window length is `right - left + 1`; keep the maximum."

@@ -1,0 +1,48 @@
+topic: cpp-lib
+lang: cpp
+drills:
+  - type: predict
+    pre: |
+      #include <format>
+    body: |
+      std::cout << std::format("[{:>5}][{:<3}]", 42, "a") << "\n";
+    why: "`>5` right-aligns in 5 characters; `<3` left-aligns in 3."
+  - type: predict
+    pre: |
+      #include <format>
+    body: |
+      std::cout << std::format("{:.1f} {:03} {:x}", 2.26, 7, 255) << "\n";
+    why: "`.1f` rounds to one decimal, `03` zero-pads to width 3, `x` prints hexadecimal."
+  - type: predict
+    pre: |
+      #include <chrono>
+    body: |
+      using namespace std::chrono;
+      auto t = 1min + 30s;
+      std::cout << duration_cast<minutes>(t).count() << " " << seconds(t).count() << "\n";
+    why: Casting to minutes truncates 90s to 1; converting to seconds is exact.
+  - type: compiles
+    pre: |
+      #include <chrono>
+    body: |
+      std::chrono::seconds s = std::chrono::milliseconds(1500);
+      std::cout << s.count() << "\n";
+    why: Converting milliseconds to seconds would lose precision, so chrono requires an explicit duration_cast.
+  - type: predict
+    pre: |
+      #include <charconv>
+    body: |
+      int v = 0;
+      std::string s = "123abc";
+      auto [p, ec] = std::from_chars(s.data(), s.data() + s.size(), v);
+      std::cout << v << " " << (ec == std::errc()) << " " << (p - s.data()) << "\n";
+    why: from_chars parses the leading number and reports where it stopped, so you can detect trailing junk.
+  - type: fill
+    prompt: Pick the clock that never jumps backwards.
+    pre: |
+      #include <chrono>
+    body: |
+      auto a = std::chrono::[[steady_clock]]::now();
+      auto b = std::chrono::steady_clock::now();
+      std::cout << (b >= a) << "\n";
+    why: steady_clock is monotonic, which is what you want for measuring durations.

@@ -1,0 +1,116 @@
+topic: cpp-stl
+lang: cpp
+drills:
+  - type: compiles
+    pre: |
+      enum class Side { T, CT };
+    body: |
+      int n = Side::CT;
+      std::cout << n << "\n";
+    why: Scoped enums don't convert to int implicitly. Use static_cast<int>(Side::CT).
+  - type: predict
+    pre: |
+      enum class Side { T, CT };
+    body: |
+      std::cout << static_cast<int>(Side::CT) << "\n";
+    why: Enumerators count from 0 unless given values.
+  - type: predict
+    body: |
+      std::deque<int> d = {2, 3};
+      d.push_front(1);
+      d.push_back(4);
+      d.pop_front();
+      std::cout << d.front() << d.back() << d.size() << "\n";
+    why: "1 is added then removed at the front, leaving 2 3 4."
+  - type: predict
+    body: |
+      std::priority_queue<int> pq;
+      for (int x : {5, 1, 8, 3}) pq.push(x);
+      pq.pop();
+      std::cout << pq.top() << "\n";
+    why: The default priority_queue is a max-heap; after popping 8, the top is 5.
+  - type: fill
+    prompt: Make top() return the smallest element.
+    body: |
+      std::priority_queue<int, std::vector<int>, std::[[greater]]<int>> pq;
+      for (int x : {5, 1, 8}) pq.push(x);
+      std::cout << pq.top() << "\n";
+    why: std::greater flips the ordering, giving a min-heap.
+  - type: predict
+    body: |
+      std::vector<int> v = {10, 20, 30, 40};
+      auto it = std::next(v.begin(), 2);
+      std::cout << *it << " " << std::distance(v.begin(), v.end()) << "\n";
+    why: next moves the iterator two places; distance counts elements between two iterators.
+  - type: predict
+    body: |
+      std::vector<int> v = {1, 2, 3};
+      for (auto it = v.rbegin(); it != v.rend(); ++it) std::cout << *it;
+      std::cout << "\n";
+    why: Reverse iterators walk from the back.
+  - type: bug
+    body: |
+      std::vector<int> v = {1, 2, 3, 4, 5, 6};
+      for (auto it = v.begin(); it != v.end();) {
+          if (*it % 2 == 0) v.erase(it); // BUG
+          else ++it;
+      }
+      std::cout << v.size() << "\n";
+    fix: "if (*it % 2 == 0) it = v.erase(it);"
+    ub: true
+    why: erase invalidates it. It may seem to work, but using it afterwards is undefined behavior. Continue from the iterator erase returns (or use std::erase_if).
+  - type: bug
+    body: |
+      std::vector<int> v = {1, 2, 3};
+      int& first = v[0]; // BUG
+      v.push_back(4);
+      std::cout << first << "\n";
+    fix: "int first = v[0];"
+    ub: true
+    why: push_back may reallocate, leaving the reference dangling. Copy the value (or take the reference after the vector stops growing).
+  - type: predict
+    body: |
+      std::function<int(int)> f = [](int x) { return x + 1; };
+      int base = 10;
+      std::function<int(int)> g = [base](int x) { return x + base; };
+      std::cout << f(1) + g(1) << "\n";
+    why: std::function can hold any lambda with the right signature, captures included.
+  - type: boss
+    why: Two iterators walking in step is the core of every merge.
+    prompt: |
+      Write `std::vector<std::string> merge_sorted(const std::vector<std::string>& a, const std::vector<std::string>& b)` that merges two sorted vectors into one sorted vector, walking both with iterators (don't call std::sort or std::merge).
+    seed: |
+      #include <string>
+      #include <vector>
+
+      std::vector<std::string> merge_sorted(const std::vector<std::string>& a, const std::vector<std::string>& b) {
+
+      }
+    solution: |
+      #include <string>
+      #include <vector>
+
+      std::vector<std::string> merge_sorted(const std::vector<std::string>& a, const std::vector<std::string>& b) {
+          std::vector<std::string> out;
+          out.reserve(a.size() + b.size());
+          auto i = a.begin(), j = b.begin();
+          while (i != a.end() && j != b.end()) {
+              if (*j < *i) out.push_back(*j++);
+              else out.push_back(*i++);
+          }
+          out.insert(out.end(), i, a.end());
+          out.insert(out.end(), j, b.end());
+          return out;
+      }
+    forbid:
+      - pattern: "std::sort|std::merge|std::ranges::"
+        message: Merge by walking both vectors yourself.
+    harness: |
+      int main() {
+          CHECK_EQ("merge", merge_sorted({"ancient", "nuke"}, {"dust2", "mirage", "vertigo"}), (std::vector<std::string>{"ancient", "dust2", "mirage", "nuke", "vertigo"}));
+          CHECK_EQ("one empty", merge_sorted({}, {"a"}), (std::vector<std::string>{"a"}));
+          CHECK_EQ("both empty", merge_sorted({}, {}).size(), 0u);
+      }
+    hints:
+      - "Keep one iterator into each vector; push the smaller element and advance that iterator."
+      - "When one side runs out, append the rest of the other with `out.insert(out.end(), it, end)`."

@@ -1,0 +1,242 @@
+id: cpp-smart
+title: Smart pointers
+lang: cpp
+phase: "C++: Modern and Advanced"
+summary: unique_ptr and shared_ptr own heap objects for you, so delete disappears from your code. Plus weak_ptr for non-owning links.
+steps:
+  - title: unique_ptr
+    id: cpp-smart-1
+    text: |
+      `std::unique_ptr<T>` (from `<memory>`) owns one heap object and deletes it automatically when the unique_ptr goes away. It's RAII for heap memory, and it costs nothing extra at runtime.
+
+      ```cpp
+      auto p = std::make_unique<Player>("ropz", 100);
+      p->take_damage(30);     // use it like a pointer
+      // no delete needed, ever
+      ```
+
+      **Your turn:** create the object with `make_unique` and access it through the pointer.
+    fill: |
+      #include <iostream>
+      #include <memory>
+      #include <string>
+
+      struct Bomb {
+          std::string site;
+          int timer;
+      };
+
+      int main() {
+          [[auto]] b = std::[[make_unique]]<Bomb>(Bomb{"A", 40});
+          b[[->]]timer -= 5;
+          std::cout << b->site << " " << b->timer << "\n";
+      }
+    hints:
+      - "`auto b = std::make_unique<Bomb>(...)`"
+      - Members are reached through a pointer with `->`.
+    tests:
+      - expect: "A 35"
+
+  - title: Unique means unique
+    id: cpp-smart-2
+    text: |
+      A `unique_ptr` can't be **copied** (two owners would both delete). It can be **moved**, which transfers ownership and leaves the source empty (null):
+
+      ```cpp
+      auto a = std::make_unique<int>(5);
+      // auto b = a;               // compile error: copying is deleted
+      auto b = std::move(a);       // ok: b owns it, a is now nullptr
+      ```
+
+      Functions that take ownership accept `std::unique_ptr<T>` by value; callers must `std::move` into them.
+
+      **Your turn:** complete `Inventory::add`, which takes ownership of an item and stores it in the vector. Then `count()` and `total_value()`.
+    seed: |
+      #include <memory>
+      #include <string>
+      #include <vector>
+
+      struct Item {
+          std::string name;
+          int value;
+      };
+
+      class Inventory {
+      public:
+          void add(std::unique_ptr<Item> item) {
+
+          }
+          int count() const {
+
+          }
+          int total_value() const {
+
+          }
+
+      private:
+          std::vector<std::unique_ptr<Item>> items_;
+      };
+    solution: |
+      #include <memory>
+      #include <string>
+      #include <vector>
+
+      struct Item {
+          std::string name;
+          int value;
+      };
+
+      class Inventory {
+      public:
+          void add(std::unique_ptr<Item> item) {
+              items_.push_back(std::move(item));
+          }
+          int count() const {
+              return (int)items_.size();
+          }
+          int total_value() const {
+              int t = 0;
+              for (const auto& it : items_) t += it->value;
+              return t;
+          }
+
+      private:
+          std::vector<std::unique_ptr<Item>> items_;
+      };
+    harness: |
+      int main() {
+          Inventory inv;
+          auto kit = std::make_unique<Item>(Item{"defuse kit", 400});
+          inv.add(std::move(kit));
+          CHECK("source is empty after the move", kit == nullptr);
+          inv.add(std::make_unique<Item>(Item{"helmet", 350}));
+          CHECK_EQ("count", inv.count(), 2);
+          CHECK_EQ("total value", inv.total_value(), 750);
+      }
+    hints:
+      - "A unique_ptr parameter can't be copied into the vector, so move it: `items_.push_back(std::move(item));`"
+      - "Loop with `for (const auto& it : items_) t += it->value;`"
+
+  - title: Returning ownership
+    id: cpp-smart-3
+    text: |
+      Returning a `unique_ptr` from a function hands ownership to the caller. It's the modern replacement for "returns a pointer you must delete":
+
+      ```cpp
+      std::unique_ptr<Enemy> spawn(int level) {
+          return std::make_unique<Enemy>(level * 100);
+      }
+      ```
+
+      It can also be empty: return `nullptr` to say "nothing".
+
+      **Your turn:** write `std::unique_ptr<std::string> make_callout(const std::string& site)` that returns a new string `"bomb " + site` for sites `A` and `B`, and `nullptr` for anything else.
+    seed: |
+      #include <memory>
+      #include <string>
+
+      std::unique_ptr<std::string> make_callout(const std::string& site) {
+
+      }
+    solution: |
+      #include <memory>
+      #include <string>
+
+      std::unique_ptr<std::string> make_callout(const std::string& site) {
+          if (site != "A" && site != "B") return nullptr;
+          return std::make_unique<std::string>("bomb " + site);
+      }
+    harness: |
+      int main() {
+          auto a = make_callout("A");
+          CHECK("A not null", a != nullptr);
+          CHECK_EQ("A text", *a, std::string("bomb A"));
+          auto b = make_callout("B");
+          CHECK_EQ("B text", *b, std::string("bomb B"));
+          CHECK("mid is null", make_callout("mid") == nullptr);
+      }
+    hints:
+      - "Return `nullptr` for invalid sites."
+      - "`return std::make_unique<std::string>(\"bomb \" + site);`"
+
+  - title: shared_ptr
+    id: cpp-smart-4
+    text: |
+      `std::shared_ptr<T>` allows **several owners**. It keeps a reference count and deletes the object when the last owner goes away. `use_count()` shows how many owners there are.
+
+      ```cpp
+      auto a = std::make_shared<int>(7);   // count 1
+      auto b = a;                          // copying is fine: count 2
+      ```
+
+      Prefer `unique_ptr` by default. Reach for `shared_ptr` only when ownership is genuinely shared.
+
+      **Your turn:** make the program print `1 2 3 2` by filling in the blanks.
+    fill: |
+      #include <iostream>
+      #include <memory>
+
+      int main() {
+          auto map = std::[[make_shared]]<int>(2);
+          std::cout << map.[[use_count]]() << " ";
+          auto p1 = map;
+          std::cout << map.use_count() << " ";
+          {
+              auto p2 = [[map]];
+              std::cout << map.use_count() << " ";
+          }
+          std::cout << map.use_count() << "\n";
+      }
+    hints:
+      - "`std::make_shared<int>(2)` creates it, `use_count()` reports the owners."
+      - p2 is a third owner (a copy of map) until its block ends.
+    tests:
+      - expect: "1 2 3 2"
+
+  - title: weak_ptr
+    id: cpp-smart-5
+    text: |
+      A `std::weak_ptr` watches a shared object **without owning it**. It doesn't keep the object alive. To use it, call `lock()`, which returns a `shared_ptr` that's empty if the object is already gone.
+
+      ```cpp
+      std::weak_ptr<Player> target = some_shared_player;
+      if (auto p = target.lock()) {
+          // p is a valid shared_ptr here
+      } else {
+          // the player was deleted
+      }
+      ```
+
+      This breaks **reference cycles** (two shared_ptrs pointing at each other would never be freed) and models "I'm tracking this, but I don't own it".
+
+      **Your turn:** write `std::string describe(const std::weak_ptr<std::string>& w)` returning `"tracking NAME"` if the object is alive and `"lost"` otherwise.
+    seed: |
+      #include <memory>
+      #include <string>
+
+      std::string describe(const std::weak_ptr<std::string>& w) {
+
+      }
+    solution: |
+      #include <memory>
+      #include <string>
+
+      std::string describe(const std::weak_ptr<std::string>& w) {
+          if (auto p = w.lock()) return "tracking " + *p;
+          return "lost";
+      }
+    harness: |
+      int main() {
+          std::weak_ptr<std::string> w;
+          CHECK_EQ("empty weak_ptr", describe(w), std::string("lost"));
+          {
+              auto target = std::make_shared<std::string>("bot Zed");
+              w = target;
+              CHECK_EQ("alive", describe(w), std::string("tracking bot Zed"));
+              CHECK_EQ("weak_ptr doesn't add an owner", target.use_count(), 1);
+          }
+          CHECK_EQ("after the owner is gone", describe(w), std::string("lost"));
+      }
+    hints:
+      - "`if (auto p = w.lock())` both locks and checks."
+      - "Inside, `*p` is the string."

@@ -175,3 +175,84 @@ drills:
       - Each shape overrides both functions.
       - Track a `const Shape*` to the best so far (`p.get()`).
     why: Virtual calls through unique_ptr<Shape> pick each concrete area().
+
+  - type: predict
+    pre: |
+      struct Base {
+          virtual ~Base() = default;
+          virtual std::string who() const { return "base"; }
+      };
+      struct Derived : Base {
+          std::string who() const override { return Base::who() + "+derived"; }
+      };
+    body: |
+      Derived d;
+      const Base& b = d;
+      std::cout << b.who() << "\n";
+    why: The virtual call reaches Derived::who, which extends the base version.
+  - type: compiles
+    pre: |
+      class A {
+      protected:
+          int secret = 7;
+      };
+      class B : public A {
+      public:
+          int peek() const { return secret; }
+      };
+    body: |
+      B b;
+      std::cout << b.peek() << "\n";
+    why: Derived classes can use protected members.
+  - type: compiles
+    pre: |
+      class A {
+      protected:
+          int secret = 7;
+      };
+    body: |
+      A a;
+      std::cout << a.secret << "\n";
+    why: Outside the class hierarchy, protected is as closed as private.
+  - type: bug
+    pre: |
+      struct Shape {
+          virtual ~Shape() = default;
+          virtual double area() const { return 0; }
+      };
+      struct Square : Shape {
+          double s = 2;
+          double area() { return s * s; } // BUG
+      };
+    body: |
+      Square sq;
+      const Shape& sh = sq;
+      std::cout << sh.area() << "\n";
+    fix: "double area() const override { return s * s; }"
+    why: Without const it's a different function that hides the base one instead of overriding it. `override` would have caught this.
+  - type: predict
+    pre: |
+      struct Clock {
+          virtual ~Clock() = default;
+          virtual long now() const = 0;
+      };
+      struct Fake : Clock {
+          long t = 42;
+          long now() const override { return t; }
+      };
+      long twice(const Clock& c) { return c.now() * 2; }
+    body: |
+      Fake f;
+      f.t = 10;
+      std::cout << twice(f) << "\n";
+    why: twice depends only on the Clock interface, so a test can hand it a fake with a chosen time.
+  - type: compiles
+    pre: |
+      struct Clock {
+          virtual ~Clock() = default;
+          virtual long now() const = 0;
+      };
+    body: |
+      Clock c;
+      std::cout << c.now() << "\n";
+    why: Clock is abstract (it has a pure virtual function), so it can't be instantiated.

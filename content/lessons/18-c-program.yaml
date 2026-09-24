@@ -1,0 +1,374 @@
+id: c-program
+title: Organizing programs
+lang: c
+phase: "C: Real-World C"
+summary: How real C programs are split into files. Headers and include guards, static and extern, const-correct APIs, command-line arguments, exit codes and stderr.
+steps:
+  - title: Headers and include guards
+    id: c-program-1
+    text: |
+      Real C programs are split into many files. Each module has two parts:
+
+      - a **header** (`score.h`) with *declarations*: types, function prototypes, constants. It's the module's public interface.
+      - a **source file** (`score.c`) with the *definitions*: the actual function bodies.
+
+      Other files `#include "score.h"` to use the module. The compiler builds each `.c` file separately, then the **linker** joins them.
+
+      ```c
+      /* score.h */
+      #ifndef SCORE_H
+      #define SCORE_H
+
+      typedef struct { int kills, deaths; } Score;
+      double kd_ratio(Score s);
+
+      #endif
+      ```
+
+      That `#ifndef` / `#define` / `#endif` wrapper is an **include guard**. Headers often get included twice (a.h includes b.h, and so does main.c), and defining the struct twice is an error. The guard makes the second copy vanish.
+
+      The editor here holds a single file, so this program pastes the "header" in **twice** to simulate a double include. **Your turn:** complete the guard so it compiles.
+    fill: |
+      #include <stdio.h>
+
+      /* ---- score.h (first include) ---- */
+      [[#ifndef]] SCORE_H
+      [[#define]] SCORE_H
+      typedef struct { int kills, deaths; } Score;
+      double kd_ratio(Score s);
+      [[#endif]]
+
+      /* ---- score.h (included again by another header) ---- */
+      #ifndef SCORE_H
+      #define SCORE_H
+      typedef struct { int kills, deaths; } Score;
+      double kd_ratio(Score s);
+      #endif
+
+      /* ---- score.c ---- */
+      double kd_ratio(Score s) {
+          return s.deaths == 0 ? s.kills : (double)s.kills / s.deaths;
+      }
+
+      /* ---- main.c ---- */
+      int main(void) {
+          Score s = {30, 12};
+          printf("%.2f\n", kd_ratio(s));
+          return 0;
+      }
+    hints:
+      - "The guard is `#ifndef NAME`, then `#define NAME`, then the contents, then `#endif`."
+    tests:
+      - expect: "2.50"
+
+  - title: static functions and variables
+    id: c-program-2
+    text: |
+      `static` has two jobs in C, and both are about **hiding**:
+
+      1. On a function or global variable, it means **internal linkage**: the name is private to its `.c` file. Other files can't call it, and two files can each have their own `static int helper(void)` without clashing. Mark every helper that isn't part of the header `static`.
+      2. On a local variable, it means the variable **keeps its value between calls**. It's created once, not every time the function runs.
+
+      ```c
+      static int clamp(int v) { ... }   /* private helper */
+
+      int next_id(void) {
+          static int last = 0;          /* initialized once */
+          return ++last;
+      }
+      ```
+
+      **Your turn:** write `int next_ticket(void)` that returns 1, 2, 3, ... on successive calls, using a static local. Also write a private `static` helper `pad3(int n)` returning `n % 1000`, and use it so tickets wrap back to 0 after 999.
+    seed: |
+      int next_ticket(void) {
+
+      }
+    solution: |
+      static int pad3(int n) {
+          return n % 1000;
+      }
+
+      int next_ticket(void) {
+          static int last = 0;
+          last = pad3(last + 1);
+          return last;
+      }
+    require:
+      - pattern: "static\\s+int\\s+pad3\\s*\\("
+        message: "Define the helper as `static int pad3(int n)` so it's private to this file."
+      - pattern: "static\\s+int\\s+\\w+\\s*=\\s*0\\s*;"
+        message: "Keep the counter in a `static` local variable inside next_ticket."
+    harness: |
+      int main(void) {
+          CHECK_INT("first call", next_ticket(), 1);
+          CHECK_INT("second call", next_ticket(), 2);
+          CHECK_INT("third call", next_ticket(), 3);
+          for (int i = 4; i <= 998; i++) next_ticket();
+          CHECK_INT("999th", next_ticket(), 999);
+          CHECK_INT("wraps to 0", next_ticket(), 0);
+          CHECK_INT("then 1 again", next_ticket(), 1);
+          return 0;
+      }
+    hints:
+      - "`static int pad3(int n) { return n % 1000; }` goes above next_ticket."
+      - "Inside next_ticket: `static int last = 0; last = pad3(last + 1); return last;`"
+
+  - title: extern and shared state
+    id: c-program-3
+    text: |
+      A global variable **defined** in one file can be used from another by **declaring** it with `extern`:
+
+      ```c
+      /* config.h */
+      extern int max_rounds;     /* declaration: "it exists somewhere" */
+
+      /* config.c */
+      int max_rounds = 30;       /* the one definition */
+      ```
+
+      The declaration goes in a header; the definition goes in exactly one `.c` file. Two definitions is a linker error, and zero is an "undefined reference" error.
+
+      That said, mutable globals are a common source of bugs in large codebases: any code anywhere can change them, and they make testing hard. Prefer passing a struct pointer around. Globals are best kept `const`.
+
+      **Your turn:** declare `max_rounds` with `extern` above `main` so it can be used before the definition that appears later in the file.
+    fill: |
+      #include <stdio.h>
+
+      [[extern]] int max_rounds;
+
+      int main(void) {
+          printf("first to %d\n", max_rounds / 2 + 1);
+          return 0;
+      }
+
+      /* ---- config.c ---- */
+      int max_rounds = 24;
+    hints:
+      - "A declaration without a definition uses the `extern` keyword."
+    tests:
+      - expect: "first to 13"
+
+  - title: const-correct interfaces
+    id: c-program-4
+    text: |
+      In a header, a function's signature is a **contract**. Mark every pointer parameter the function only reads as `const`:
+
+      ```c
+      size_t count_alive(const Player *team, size_t n);   /* reads only */
+      void heal_all(Player *team, size_t n, int amount);  /* modifies */
+      ```
+
+      Callers can then pass `const` data safely, and readers know at a glance which functions have side effects. Adding `const` later is painful because it ripples through every caller, so get it right from the start.
+
+      **Your turn:** fix the three signatures. The read-only ones need `const`; `heal_all` really does modify the team, so it must stay non-const.
+    seed: |
+      #include <stddef.h>
+      #include <string.h>
+
+      typedef struct {
+          char name[16];
+          int hp;
+      } Player;
+
+      size_t count_alive(Player *team, size_t n) {
+          size_t alive = 0;
+          for (size_t i = 0; i < n; i++)
+              if (team[i].hp > 0) alive++;
+          return alive;
+      }
+
+      int find_by_name(Player *team, size_t n, char *name) {
+          for (size_t i = 0; i < n; i++)
+              if (strcmp(team[i].name, name) == 0) return (int)i;
+          return -1;
+      }
+
+      void heal_all(Player *team, size_t n, int amount) {
+          for (size_t i = 0; i < n; i++)
+              if (team[i].hp > 0) team[i].hp += amount;
+      }
+    solution: |
+      #include <stddef.h>
+      #include <string.h>
+
+      typedef struct {
+          char name[16];
+          int hp;
+      } Player;
+
+      size_t count_alive(const Player *team, size_t n) {
+          size_t alive = 0;
+          for (size_t i = 0; i < n; i++)
+              if (team[i].hp > 0) alive++;
+          return alive;
+      }
+
+      int find_by_name(const Player *team, size_t n, const char *name) {
+          for (size_t i = 0; i < n; i++)
+              if (strcmp(team[i].name, name) == 0) return (int)i;
+          return -1;
+      }
+
+      void heal_all(Player *team, size_t n, int amount) {
+          for (size_t i = 0; i < n; i++)
+              if (team[i].hp > 0) team[i].hp += amount;
+      }
+    require:
+      - pattern: "count_alive\\s*\\(\\s*const\\s+Player\\s*\\*"
+        message: "count_alive only reads the team: make it `const Player *team`."
+      - pattern: "find_by_name\\s*\\(\\s*const\\s+Player\\s*\\*\\s*team\\s*,\\s*size_t\\s+n\\s*,\\s*const\\s+char\\s*\\*"
+        message: "find_by_name only reads both the team and the name: make them `const Player *team` and `const char *name`."
+    forbid:
+      - pattern: "heal_all\\s*\\(\\s*const"
+        message: "heal_all changes hp, so its team parameter can't be const."
+    harness: |
+      int main(void) {
+          const Player pros[] = {{"ropz", 100}, {"rain", 0}, {"broky", 40}};
+          CHECK_INT("count_alive works on const data", (int)count_alive(pros, 3), 2);
+          CHECK_INT("find_by_name", find_by_name(pros, 3, "broky"), 2);
+          CHECK_INT("missing name", find_by_name(pros, 3, "zywoo"), -1);
+          Player team[] = {{"a", 10}, {"b", 0}};
+          heal_all(team, 2, 5);
+          CHECK("heal_all heals the living only", team[0].hp == 15 && team[1].hp == 0);
+          return 0;
+      }
+    hints:
+      - "Add `const` before `Player *team` in the two functions that only read it."
+      - "find_by_name's `name` is also read-only: `const char *name`."
+
+  - title: Command-line arguments
+    id: c-program-5
+    text: |
+      `main` can receive the words typed after the program name:
+
+      ```c
+      int main(int argc, char **argv)
+      ```
+
+      - `argc` is the argument count, **including** the program name.
+      - `argv[0]` is the program name; `argv[1]` to `argv[argc - 1]` are the arguments, as strings.
+
+      So `./sum 4 5 6` has `argc == 4` and `argv[2]` is `"5"`. Convert numbers with `strtol`, which also tells you where parsing stopped, so you can detect junk like `"12abc"`:
+
+      ```c
+      char *end;
+      long v = strtol(argv[i], &end, 10);
+      if (*end != '\0' || end == argv[i]) { /* not a clean number */ }
+      ```
+
+      **Your turn:** print the sum of all arguments. If any argument isn't a clean integer, print `bad number: ARG` and stop. The tests run your program with different arguments.
+    seed: |
+      #include <stdio.h>
+      #include <stdlib.h>
+
+      int main(int argc, char **argv) {
+
+          return 0;
+      }
+    solution: |
+      #include <stdio.h>
+      #include <stdlib.h>
+
+      int main(int argc, char **argv) {
+          long total = 0;
+          for (int i = 1; i < argc; i++) {
+              char *end;
+              long v = strtol(argv[i], &end, 10);
+              if (end == argv[i] || *end != '\0') {
+                  printf("bad number: %s\n", argv[i]);
+                  return 0;
+              }
+              total += v;
+          }
+          printf("%ld\n", total);
+          return 0;
+      }
+    require:
+      - pattern: "argv"
+        message: Read the numbers from `argv`.
+    hints:
+      - "Loop from `i = 1` (argv[0] is the program name) to `i < argc`."
+      - "`long v = strtol(argv[i], &end, 10);` then check `end == argv[i] || *end != '\\0'` for junk."
+    tests:
+      - args: ["4", "5", "6"]
+      - args: []
+      - args: ["10", "-3", "x7"]
+      - args: ["100", "200"]
+        hidden: true
+
+  - title: "Challenge: a real command-line tool"
+    id: c-program-6
+    text: |
+      Command-line tools follow conventions that scripts and other programs rely on:
+
+      - Normal output goes to **stdout**; error messages go to **stderr** (`fprintf(stderr, ...)`), so they don't pollute output that's piped somewhere else.
+      - The **exit code** reports success: `0` means everything worked; nonzero means something failed. Scripts check it (`if ./tool; then ...`). `<stdlib.h>` names them `EXIT_SUCCESS` and `EXIT_FAILURE`.
+      - Keep going after one bad input when that's useful, but still report failure at the end.
+
+      **Your turn:** write `lines FILE...`, a tool that prints `COUNT NAME` for each file and a final `COUNT total` line. A file that can't be opened prints `lines: cannot open NAME` to **stderr**, is skipped, and makes the program exit with code **1** at the end (after the total). With no arguments at all, print `usage: lines FILE...` to stderr and exit with code **2**.
+    seed: |
+      #include <stdio.h>
+      #include <stdlib.h>
+
+      int main(int argc, char **argv) {
+
+          return EXIT_SUCCESS;
+      }
+    solution: |
+      #include <stdio.h>
+      #include <stdlib.h>
+
+      static long count_lines(FILE *f) {
+          long n = 0;
+          int c;
+          while ((c = fgetc(f)) != EOF)
+              if (c == '\n') n++;
+          return n;
+      }
+
+      int main(int argc, char **argv) {
+          if (argc < 2) {
+              fprintf(stderr, "usage: lines FILE...\n");
+              return 2;
+          }
+          int status = EXIT_SUCCESS;
+          long total = 0;
+          for (int i = 1; i < argc; i++) {
+              FILE *f = fopen(argv[i], "r");
+              if (f == NULL) {
+                  fprintf(stderr, "lines: cannot open %s\n", argv[i]);
+                  status = EXIT_FAILURE;
+                  continue;
+              }
+              long n = count_lines(f);
+              fclose(f);
+              printf("%ld %s\n", n, argv[i]);
+              total += n;
+          }
+          printf("%ld total\n", total);
+          return status;
+      }
+    require:
+      - pattern: "stderr"
+        message: "Error and usage messages go to stderr: `fprintf(stderr, ...)`."
+    hints:
+      - "No arguments: `fprintf(stderr, \"usage: lines FILE...\\n\"); return 2;`"
+      - "Keep an `int status = EXIT_SUCCESS;`. When a file fails, print to stderr, set status to EXIT_FAILURE and `continue`."
+      - "Print the total after the loop, then `return status;`"
+    tests:
+      - args: ["a.txt", "b.txt"]
+        files:
+          a.txt: "one\ntwo\n"
+          b.txt: "x\ny\nz\n"
+      - args: ["a.txt", "missing.txt", "b.txt"]
+        files:
+          a.txt: "one\n"
+          b.txt: "1\n2\n"
+        exit: 1
+      - args: []
+        exit: 2
+        allowEmpty: true
+      - args: ["empty.txt"]
+        files:
+          empty.txt: ""
+        hidden: true

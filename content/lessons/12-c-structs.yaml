@@ -5,6 +5,7 @@ phase: "C: Memory"
 summary: Group related data into your own types. Struct members, arrays of structs, pointers with ->, enums and typedef.
 steps:
   - title: Define a struct
+    id: c-structs-1
     text: |
       A `struct` bundles several variables into one new type:
 
@@ -40,6 +41,7 @@ steps:
       - expect: "deagle does 53"
 
   - title: Structs in functions
+    id: c-structs-2
     text: |
       Structs can be passed to and returned from functions like any value (the whole struct is copied).
 
@@ -80,6 +82,7 @@ steps:
       - "Cast to avoid integer division: `(double)p.kills / p.deaths`."
 
   - title: Pointers to structs and ->
+    id: c-structs-3
     text: |
       Passing a big struct copies all of it. Passing a **pointer** is cheaper and lets the function modify the original.
 
@@ -128,6 +131,7 @@ steps:
       - "`if (died) p->deaths++;`"
 
   - title: Arrays of structs
+    id: c-structs-4
     text: |
       An array of structs is like a table: one struct per row.
 
@@ -187,6 +191,7 @@ steps:
         hidden: true
 
   - title: enum
+    id: c-structs-5
     text: |
       An `enum` gives names to a set of integer constants, which makes code self-explanatory:
 
@@ -229,6 +234,7 @@ steps:
       - Return `"?"` after the switch for anything unmatched.
 
   - title: typedef
+    id: c-structs-6
     text: |
       Writing `struct Player` everywhere gets old. `typedef` creates an alias:
 

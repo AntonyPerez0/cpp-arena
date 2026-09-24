@@ -1,0 +1,132 @@
+topic: c-files
+lang: c
+drills:
+  - type: predict
+    body: |
+      FILE *f = fopen("a.txt", "w");
+      fprintf(f, "one\n");
+      fclose(f);
+      f = fopen("a.txt", "w");
+      fprintf(f, "two\n");
+      fclose(f);
+      char buf[16];
+      f = fopen("a.txt", "r");
+      fgets(buf, sizeof buf, f);
+      fclose(f);
+      printf("%s", buf);
+    why: Mode "w" empties the file each time it's opened, so only "two" is left.
+  - type: predict
+    body: |
+      FILE *f = fopen("a.txt", "w");
+      fprintf(f, "one\n");
+      fclose(f);
+      f = fopen("a.txt", "a");
+      fprintf(f, "two\n");
+      fclose(f);
+      int lines = 0, c;
+      f = fopen("a.txt", "r");
+      while ((c = fgetc(f)) != EOF) if (c == '\n') lines++;
+      fclose(f);
+      printf("%d\n", lines);
+    why: Mode "a" appends, so the file ends up with two lines.
+  - type: predict
+    body: |
+      FILE *f = fopen("does-not-exist.txt", "r");
+      printf("%s\n", f == NULL ? "null" : "opened");
+    why: Opening a missing file for reading fails and returns NULL.
+  - type: fill
+    prompt: Read at most one line, never overflowing buf.
+    body: |
+      FILE *f = fopen("t.txt", "w");
+      fprintf(f, "rush b\nno stop\n");
+      fclose(f);
+      f = fopen("t.txt", "r");
+      char buf[32];
+      [[fgets]](buf, sizeof buf, f);
+      fclose(f);
+      printf("%s", buf);
+    why: fgets reads up to and including the newline, limited by the buffer size.
+  - type: predict
+    body: |
+      char buf[8];
+      int n = snprintf(buf, sizeof buf, "%s", "headshot");
+      printf("%d %s\n", n, buf);
+    why: snprintf returns the full length (8) but only writes 7 characters plus the terminator.
+  - type: bug
+    body: |
+      FILE *f = fopen("n.txt", "w");
+      fprintf(f, "5 7 x\n");
+      fclose(f);
+      f = fopen("n.txt", "r");
+      int x, sum = 0;
+      while (fscanf(f, "%d", &x) != EOF) sum += x; // BUG
+      fclose(f);
+      printf("%d\n", sum);
+    fix: "while (fscanf(f, \"%d\", &x) == 1) sum += x;"
+    why: Compare with the number of fields you expect. If fscanf ever matches 0 fields (bad data), `!= EOF` loops forever or reuses a stale x.
+  - type: bug
+    pre: |
+      long size_of(const char *path) {
+          FILE *f = fopen(path, "r");
+          long n = 0;
+          while (fgetc(f) != EOF) n++; // BUG
+          fclose(f);
+          return n;
+      }
+    body: |
+      printf("%ld\n", size_of("missing.txt"));
+    fix: "if (f == NULL) return -1; while (fgetc(f) != EOF) n++;"
+    ub: true
+    why: fopen can fail. Using the NULL handle crashes; check it first.
+  - type: compiles
+    body: |
+      FILE f = fopen("x.txt", "w");
+      printf("opened\n");
+    why: fopen returns a FILE *, a pointer to a handle. Code never holds a FILE by value.
+  - type: boss
+    why: Check every fopen, and close whatever you opened on every path.
+    prompt: |
+      Write `int copy_upper(const char *src, const char *dst)` that copies the file `src` to `dst`, converting letters to uppercase (use `toupper` from `<ctype.h>`). Return 0 on success or -1 if either file can't be opened (close anything you opened).
+    seed: |
+      #include <ctype.h>
+      #include <stdio.h>
+
+      int copy_upper(const char *src, const char *dst) {
+
+      }
+    solution: |
+      #include <ctype.h>
+      #include <stdio.h>
+
+      int copy_upper(const char *src, const char *dst) {
+          FILE *in = fopen(src, "r");
+          if (in == NULL) return -1;
+          FILE *out = fopen(dst, "w");
+          if (out == NULL) {
+              fclose(in);
+              return -1;
+          }
+          int c;
+          while ((c = fgetc(in)) != EOF) fputc(toupper(c), out);
+          fclose(in);
+          fclose(out);
+          return 0;
+      }
+    harness: |
+      int main(void) {
+          CHECK_INT("copy works", copy_upper("in.txt", "out.txt"), 0);
+          FILE *f = fopen("out.txt", "r");
+          char buf[64] = "";
+          size_t n = fread(buf, 1, sizeof buf - 1, f);
+          buf[n] = '\0';
+          fclose(f);
+          CHECK_STR("uppercased", buf, "GG WP 2-0\nEZ\n");
+          CHECK_INT("missing source", copy_upper("nope.txt", "x.txt"), -1);
+          return 0;
+      }
+    tests:
+      - files:
+          in.txt: "gg wp 2-0\nez\n"
+    hints:
+      - "Open src with \"r\" and dst with \"w\". If the second open fails, close the first before returning -1."
+      - "Copy with `int c; while ((c = fgetc(in)) != EOF) fputc(toupper(c), out);`"

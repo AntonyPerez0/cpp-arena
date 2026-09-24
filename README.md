@@ -2,11 +2,12 @@
 
 Learn C and C++ from zero to advanced, freeCodeCamp style, with **real compilation in your browser**.
 
-- **Learn**: 28 modules, 157 steps. C first (printf to pointers, memory, structs, linked lists, bits), then C++ (classes, RAII, the STL, lambdas, smart pointers, move semantics, templates, polymorphism, C++20). Early steps are fill-in-the-blank; later steps have you write most of the code. Every step has hints you reveal one at a time and a "show solution" escape hatch.
-- **Deathmatch**: endless reps drawn from the topics you've unlocked. Predict the output, fill the token, spot the bug, will it compile. Instant checks keep the respawn fast, and every 8th rep is a compiled boss rep. One life (ranked), three lives (casual), or a spaced-review warm-up that feeds you what you missed. 338 drills, CS-style ranks from Silver I to The Global Elite.
+- **Learn**: 44 modules, 277 steps, from `printf` to professional C++. C first (basics, pointers, memory, structs, linked lists, bits, then real-world C: files, function pointers and callbacks, integer types and undefined behavior, organizing programs with headers, `static`/`extern`, `argv` and exit codes). Then C++ (classes, RAII, operators, the STL, streams, iterators, lambdas, smart pointers, move semantics, templates, polymorphism, C++20, error handling), professional C++ (writing iterators and containers, variadic templates and type traits, `std::format` and `chrono`, design patterns), data structures and algorithms (complexity, searching, sorting, hash tables, trees and heaps, graphs), and a code-review capstone. Early steps are fill-in-the-blank; later steps have you write most of the code. Every step has hints you reveal one at a time and a "show solution" escape hatch.
+- **Deathmatch**: endless reps drawn from the topics you've unlocked. Predict the output, fill the token, spot the bug, will it compile. Instant checks keep the respawn fast, and every 8th rep is a compiled boss rep. One life (ranked), three lives (casual), or a spaced-review warm-up that feeds you what you missed. 503 drills, CS-style ranks from Silver I to The Global Elite.
 - **Projects**: 11 multi-milestone builds, from a calculator and a text adventure to a dynamic array, a memory allocator, a matrix library, your own `vector<T>`, an expression interpreter and a buy-menu economy.
+- **Pro Track**: 12 projects done on a real machine (GitHub Codespaces or Linux/macOS) with professional tools: CMake, Git and pull requests, gdb and sanitizers, GoogleTest (graded by mutation testing), exceptions, threads and ThreadSanitizer, clang-tidy and clang-format, profiling, third-party libraries, POSIX processes and sockets, and two capstones (a multi-threaded key-value server and a C library). Each project is graded by GitHub Actions in the learner's own repository. See [`pro-track/`](pro-track/README.md).
 
-Everything you submit is compiled by Clang 20 running as WebAssembly in a Web Worker and executed on a WASI runtime, with a 3 second time limit for infinite loops. Compiler errors come with plain-English explanations. There is no server: the site is static and works on GitHub Pages.
+Everything you submit is compiled by Clang 20 running as WebAssembly in a Web Worker and executed on a WASI runtime, with a 3 second time limit for infinite loops. Each run gets its own in-memory folder, so lessons can read and write files, and tests can pass command-line arguments and check exit codes. Compiler errors come with plain-English explanations. There is no server: the site is static and works on GitHub Pages.
 
 ## Deploy to GitHub Pages
 
@@ -41,6 +42,7 @@ Other scripts:
 | `npm run verify:wasm` | Cross-checks all content against the exact browser toolchain (browsercc Clang in Node) |
 | `npm run build` | Type-checks and builds `dist/` |
 | `npm run test:e2e` | Serves `dist/` and drives the real UI in headless Chromium |
+| `npm run check:pro` | Checks every Pro Track grader: the starter must fail and the reference solution must pass (needs the tools from `pro-track/starter/tools/setup.sh`) |
 
 ## How it works
 
@@ -52,7 +54,7 @@ Other scripts:
 
 ## Known limits
 
-- No C++ exceptions or threads (WASI). The error-handling module teaches the exception-free patterns instead.
+- No C++ exceptions or threads (WASI). The error-handling module teaches the exception-free patterns, and the Pro Track teaches exceptions and concurrency on a real machine.
 - WebAssembly memory is only bounds-checked at its outer edge, so many out-of-bounds bugs won't crash the way they do natively.
 - Programs can't read input interactively; each test supplies stdin in advance. Use "Run with my input" to try your own.
 - Because C++ compiles with a precompiled `<bits/stdc++.h>`, a missing `#include` in C++ code still compiles here. The GCC check in CI uses real includes.
@@ -61,8 +63,9 @@ Other scripts:
 
 Content lives in YAML under `content/`:
 
-- `content/lessons/NN-id.yaml`: a module with `steps`. A step has `title`, `text` (Markdown), `hints`, and either `fill:` (code with `[[answer]]` blanks) or `seed:` + `solution:`. Add `tests:` with `stdin:` for programs, or `harness:` (a hidden `main` using `CHECK`, `CHECK_INT`, `CHECK_STR`, `CHECK_DBL` in C, or `CHECK` and `CHECK_EQ` in C++) for function steps. Optional `require:`/`forbid:` rules take a regex `pattern` and a `message`.
+- `content/lessons/NN-id.yaml`: a module with `steps`. A step has a unique, permanent `id` (saved progress is keyed by it, so never renumber ids), `title`, `text` (Markdown), `hints`, and either `fill:` (code with `[[answer]]` blanks) or `seed:` + `solution:`. Add `tests:` with `stdin:` for programs, or `harness:` (a hidden `main` using `CHECK`, `CHECK_INT`, `CHECK_STR`, `CHECK_DBL` in C, or `CHECK` and `CHECK_EQ` in C++) for function steps. A test can also give `files:` (name to contents, placed in the program's working folder), `args:` (command-line arguments) and `exit:` (the expected exit code). Optional `require:`/`forbid:` rules take a regex `pattern` and a `message`.
 - `content/drills/<module-id>.yaml`: drills of type `predict`, `fill`, `bug` (mark the line with `// BUG` and give `fix:`), `compiles` and `boss` (an exercise like a lesson step). `pre:` holds code above `main`; `body:` goes inside `main`.
 - `content/projects/NN-id.yaml`: a `seed` and `milestones`, each with the full `solution` at that point. Your code carries forward between milestones.
+- `content/pro.yaml`: the Pro Track project list. Each project's lesson is `pro-track/starter/projects/<dir>/README.md`.
 
 Expected outputs are computed from the reference solutions by `npm run content`, so you never type them by hand. `python3 scripts/yaml-quote-fix.py content/*/*.yaml` quotes prose lines that contain colons.

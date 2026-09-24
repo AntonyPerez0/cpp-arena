@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { useStore } from "../state/store";
 import { nextStep, rankFor, totals, dailyStreak } from "../state/derived";
-import { drills, modules, projects } from "../content";
+import { drills, modules, projects, pro } from "../content";
 import CompilerBadge from "../components/CompilerBadge";
 
 export default function Home() {
@@ -95,6 +95,14 @@ export default function Home() {
           <div className="card-kicker">Projects</div>
           <h3>{projects.length} builds with milestones</h3>
           <p>From a calculator and a text adventure to a memory allocator, an expression interpreter and your own vector&lt;T&gt;.</p>
+        </Link>
+        <Link to="/pro" className="card card-link">
+          <div className="card-kicker">Pro Track</div>
+          <h3>{pro.length} projects on a real machine</h3>
+          <p>
+            CMake, Git and pull requests, gdb and sanitizers, unit tests, profiling, threads, sockets and two capstones, graded by GitHub Actions like a
+            team's CI.
+          </p>
         </Link>
       </section>
     </div>

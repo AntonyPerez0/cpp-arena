@@ -1,0 +1,53 @@
+topic: cpp-generic
+lang: cpp
+drills:
+  - type: predict
+    pre: |
+      template <typename... Ts>
+      int count(Ts...) { return sizeof...(Ts); }
+    body: |
+      std::cout << count(1, "a", 2.5) << count() << "\n";
+    why: sizeof... gives the number of elements in a pack.
+  - type: predict
+    pre: |
+      template <typename... Ts>
+      auto sum(Ts... xs) { return (xs + ... + 0); }
+    body: |
+      std::cout << sum(1, 2, 3, 4) << " " << sum() << "\n";
+    why: A binary fold with an init value works even for an empty pack.
+  - type: fill
+    prompt: Forward each argument with its original value category.
+    pre: |
+      template <typename T, typename... Args>
+      T make(Args&&... args) { return T(std::[[forward]]<Args>(args)...); }
+    body: |
+      std::string s = make<std::string>(3, 'z');
+      std::cout << s << "\n";
+    why: std::forward<Args>(args)... preserves lvalue/rvalue-ness for each argument.
+  - type: predict
+    body: |
+      std::cout << std::is_integral_v<bool> << std::is_integral_v<double> << std::is_same_v<int, const int> << "\n";
+    why: bool is integral, double isn't, and const int is a different type from int.
+  - type: predict
+    pre: |
+      template <typename T> struct is_ptr : std::false_type {};
+      template <typename T> struct is_ptr<T*> : std::true_type {};
+    body: |
+      std::cout << is_ptr<int>::value << is_ptr<int*>::value << is_ptr<char**>::value << "\n";
+    why: The partial specialization matches any pointer type, including pointers to pointers.
+  - type: compiles
+    pre: |
+      template <typename T>
+      concept HasSize = requires(const T& t) { t.size(); };
+      template <HasSize T>
+      std::size_t n(const T& t) { return t.size(); }
+    body: |
+      std::cout << n(42) << "\n";
+    why: int doesn't satisfy HasSize, so the call is rejected with a clear constraint error.
+  - type: compiles
+    pre: |
+      constexpr int square(int x) { return x * x; }
+    body: |
+      static_assert(square(12) == 144);
+      std::cout << "ok\n";
+    why: constexpr functions can run during compilation, so static_assert can check them.

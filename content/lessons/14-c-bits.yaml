@@ -5,6 +5,7 @@ phase: "C: Memory"
 summary: "Work with individual bits using bitwise operators and flags, and control compilation with #define and macros."
 steps:
   - title: "#define constants"
+    id: c-bits-1
     text: |
       Lines starting with `#` are handled by the **preprocessor** before compilation. `#define` does a text substitution:
 
@@ -30,6 +31,7 @@ steps:
       - expect: "10 players"
 
   - title: Macro pitfalls
+    id: c-bits-2
     text: |
       Macros can take arguments, but they're pure text replacement, which bites:
 
@@ -73,6 +75,7 @@ steps:
       - expect: "28"
 
   - title: Bitwise operators
+    id: c-bits-3
     text: |
       Bitwise operators work on the individual bits of integers:
 
@@ -115,6 +118,7 @@ steps:
       - Loop while x is not 0. Add `x & 1` to the count, then `x >>= 1`.
 
   - title: Flags
+    id: c-bits-4
     text: |
       Bits make compact on/off switches. Give each flag its own bit:
 
@@ -153,6 +157,7 @@ steps:
       - expect: "5 1 0"
 
   - title: "Challenge: power of two"
+    id: c-bits-5
     text: |
       A classic bit trick: a positive number is a power of two exactly when it has a single 1 bit. And `x & (x - 1)` clears the lowest set bit, so for powers of two it gives 0.
 

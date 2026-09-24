@@ -1,0 +1,445 @@
+id: cpp-templates
+title: Templates
+lang: cpp
+phase: "C++: Modern and Advanced"
+summary: Write code once for many types. Function and class templates, constexpr, and if constexpr.
+steps:
+  - title: Function templates
+    id: cpp-templates-1
+    text: |
+      A **template** is a recipe the compiler uses to generate code for each type you use it with:
+
+      ```cpp
+      template <typename T>
+      T biggest(T a, T b) {
+          return a > b ? a : b;
+      }
+
+      biggest(3, 9);             // T = int
+      biggest(2.5, 1.0);         // T = double
+      biggest<std::string>("a", "b");
+      ```
+
+      **Your turn:** make `clamp_value` a template.
+    fill: |
+      #include <iostream>
+
+      [[template]] <[[typename]] T>
+      T clamp_value(T x, T lo, T hi) {
+          if (x < lo) return lo;
+          if (x > hi) return hi;
+          return x;
+      }
+
+      int main() {
+          std::cout << clamp_value(150, 0, 100) << " " << clamp_value(-0.5, 0.0, 1.0) << "\n";
+      }
+    hints:
+      - "It starts with `template <typename T>`."
+    tests:
+      - expect: "100 0"
+
+  - title: Templates over containers
+    id: cpp-templates-2
+    text: |
+      Templates can take any parameter type, including containers of T:
+
+      ```cpp
+      template <typename T>
+      T sum(const std::vector<T>& v) {
+          T s{};                  // T{} is "zero" for numbers, "" for strings
+          for (const auto& x : v) s += x;
+          return s;
+      }
+      ```
+
+      **Your turn:** write `template <typename T> int count_equal(const std::vector<T>& v, const T& value)` that counts elements equal to `value`.
+    seed: |
+      #include <vector>
+
+    solution: |
+      #include <vector>
+
+      template <typename T>
+      int count_equal(const std::vector<T>& v, const T& value) {
+          int n = 0;
+          for (const auto& x : v)
+              if (x == value) n++;
+          return n;
+      }
+    harness: |
+      int main() {
+          CHECK_EQ("ints", count_equal(std::vector<int>{1, 2, 1, 3, 1}, 1), 3);
+          CHECK_EQ("strings", count_equal(std::vector<std::string>{"eco", "buy", "eco"}, std::string("eco")), 2);
+          CHECK_EQ("chars", count_equal(std::vector<char>{'a', 'b'}, 'z'), 0);
+      }
+    hints:
+      - "Start with `template <typename T>` on the line before the function."
+      - Loop and compare each element with `==`.
+
+  - title: Class templates
+    id: cpp-templates-3
+    text: |
+      Classes can be templates too. That's how `std::vector<T>` works:
+
+      ```cpp
+      template <typename T>
+      class Box {
+      public:
+          explicit Box(T v) : value_(v) {}
+          const T& get() const { return value_; }
+      private:
+          T value_;
+      };
+
+      Box<int> b(5);
+      ```
+
+      **Your turn:** write a class template `Stack<T>` with `push(const T&)`, `pop()` (returns the top value and removes it; assume non-empty), `bool empty() const` and `int size() const`. Store items in a `std::vector<T>`.
+    seed: |
+      #include <vector>
+
+      template <typename T>
+      class Stack {
+      public:
+
+      private:
+          std::vector<T> items_;
+      };
+    solution: |
+      #include <vector>
+
+      template <typename T>
+      class Stack {
+      public:
+          void push(const T& v) { items_.push_back(v); }
+          T pop() {
+              T top = items_.back();
+              items_.pop_back();
+              return top;
+          }
+          bool empty() const { return items_.empty(); }
+          int size() const { return (int)items_.size(); }
+
+      private:
+          std::vector<T> items_;
+      };
+    harness: |
+      int main() {
+          Stack<int> s;
+          CHECK("starts empty", s.empty());
+          s.push(1);
+          s.push(2);
+          CHECK_EQ("size 2", s.size(), 2);
+          CHECK_EQ("pop 2", s.pop(), 2);
+          CHECK_EQ("pop 1", s.pop(), 1);
+          CHECK("empty again", s.empty());
+          Stack<std::string> t;
+          t.push("smoke");
+          t.push("flash");
+          CHECK_EQ("string stack", t.pop(), std::string("flash"));
+      }
+    hints:
+      - "`push` is `items_.push_back(v);`."
+      - "`pop` saves `items_.back()`, calls `items_.pop_back()`, and returns the saved value."
+
+  - title: constexpr
+    id: cpp-templates-4
+    text: |
+      `constexpr` functions can run **at compile time** when given constant inputs. The result is baked into the program:
+
+      ```cpp
+      constexpr int square(int x) { return x * x; }
+      static_assert(square(12) == 144);   // checked by the compiler!
+      int arr[square(3)];                 // array size known at compile time
+      ```
+
+      **Your turn:** write `constexpr long long power(long long base, int exp)`. The tests include `static_assert`s, so if your function can't run at compile time, it won't even compile.
+    seed: |
+      long long power(long long base, int exp) {
+
+      }
+    solution: |
+      constexpr long long power(long long base, int exp) {
+          long long r = 1;
+          for (int i = 0; i < exp; i++) r *= base;
+          return r;
+      }
+    harness: |
+      static_assert(power(2, 10) == 1024, "power(2, 10) should be 1024 at compile time");
+      static_assert(power(7, 0) == 1, "power(7, 0) should be 1");
+      int main() {
+          CHECK_EQ("power(3, 4)", power(3, 4), 81LL);
+          CHECK_EQ("power(10, 12)", power(10, 12), 1000000000000LL);
+          constexpr long long c = power(5, 3);
+          CHECK_EQ("constexpr power(5, 3)", c, 125LL);
+      }
+    hints:
+      - Add `constexpr` in front of the return type.
+      - A simple loop multiplying `r` by `base`, `exp` times, works in constexpr functions.
+
+  - title: if constexpr
+    id: cpp-templates-5
+    text: |
+      Inside a template, `if constexpr` picks a branch **at compile time**, and the other branch isn't even compiled for that type. Combine it with type traits from `<type_traits>`:
+
+      ```cpp
+      template <typename T>
+      std::string kind(const T&) {
+          if constexpr (std::is_integral_v<T>) return "integer";
+          else if constexpr (std::is_floating_point_v<T>) return "float";
+          else return "other";
+      }
+      ```
+
+      **Your turn:** write `template <typename T> std::string to_text(const T& v)`: for arithmetic types (`std::is_arithmetic_v<T>`) return `std::to_string(v)`, and otherwise assume it's already a string and return `"\"" + v + "\""` (quoted).
+    seed: |
+      #include <string>
+      #include <type_traits>
+
+      template <typename T>
+      std::string to_text(const T& v) {
+
+      }
+    solution: |
+      #include <string>
+      #include <type_traits>
+
+      template <typename T>
+      std::string to_text(const T& v) {
+          if constexpr (std::is_arithmetic_v<T>) {
+              return std::to_string(v);
+          } else {
+              return "\"" + v + "\"";
+          }
+      }
+    harness: |
+      int main() {
+          CHECK_EQ("int", to_text(42), std::string("42"));
+          CHECK_EQ("string", to_text(std::string("gg")), std::string("\"gg\""));
+          CHECK_EQ("long", to_text(7L), std::string("7"));
+      }
+    hints:
+      - "`if constexpr (std::is_arithmetic_v<T>) { ... } else { ... }`"
+      - Without `constexpr`, the string branch would also be compiled for int and fail.
+
+  - title: Values as template parameters
+    id: cpp-templates-6
+    text: |
+      Template parameters don't have to be types. A **non-type template parameter** is a compile-time value, usually a size:
+
+      ```cpp
+      template <typename T, std::size_t N>
+      class Ring { T items_[N]; /* ... */ };
+
+      Ring<int, 8> r;    // N is 8, baked in at compile time
+      ```
+
+      That's exactly how `std::array<int, 5>` works. The size lives in the **type**, so there's no heap allocation, and `Ring<int, 8>` and `Ring<int, 16>` are different types.
+
+      **Your turn:** write `template <typename T, std::size_t N> class FixedStack` backed by a plain array `T items_[N]`:
+
+      - `bool push(const T& v)`: returns `false` (and does nothing) when full
+      - `T pop()`: removes and returns the top (assume non-empty)
+      - `std::size_t size() const`, `bool full() const`
+      - `static constexpr std::size_t capacity() { return N; }`
+    seed: |
+      #include <cstddef>
+
+      template <typename T, std::size_t N>
+      class FixedStack {
+      public:
+
+      private:
+          T items_[N];
+          std::size_t count_ = 0;
+      };
+    solution: |
+      #include <cstddef>
+
+      template <typename T, std::size_t N>
+      class FixedStack {
+      public:
+          bool push(const T& v) {
+              if (count_ == N) return false;
+              items_[count_++] = v;
+              return true;
+          }
+          T pop() { return items_[--count_]; }
+          std::size_t size() const { return count_; }
+          bool full() const { return count_ == N; }
+          static constexpr std::size_t capacity() { return N; }
+
+      private:
+          T items_[N];
+          std::size_t count_ = 0;
+      };
+    harness: |
+      #include <string>
+      int main() {
+          FixedStack<int, 3> s;
+          CHECK_EQ("capacity comes from N", FixedStack<int, 3>::capacity(), 3u);
+          CHECK_EQ("push 1", s.push(1), true);
+          s.push(2);
+          s.push(3);
+          CHECK_EQ("full after 3", s.full(), true);
+          CHECK_EQ("push when full fails", s.push(4), false);
+          CHECK_EQ("size stays 3", s.size(), 3u);
+          CHECK_EQ("pop returns the top", s.pop(), 3);
+          CHECK_EQ("then 2", s.pop(), 2);
+          FixedStack<std::string, 2> names;
+          names.push("nuke");
+          CHECK_EQ("works for strings", names.pop(), std::string("nuke"));
+          static_assert(sizeof(FixedStack<char, 100>) >= 100, "storage is inside the object");
+      }
+    hints:
+      - "`push`: if `count_ == N` return false; otherwise `items_[count_++] = v;` and return true."
+      - "`pop`: `return items_[--count_];`"
+
+  - title: Template specialization
+    id: cpp-templates-7
+    text: |
+      Sometimes one type needs different behavior from the general template. A **full specialization** provides a replacement for exactly that type:
+
+      ```cpp
+      template <typename T>
+      struct TypeName { static std::string get() { return "unknown"; } };
+
+      template <>
+      struct TypeName<int> { static std::string get() { return "int"; } };
+      ```
+
+      `template <>` with empty brackets means "all the parameters are already fixed". The compiler picks the most specific match. This is how the standard library implements things like `std::hash<std::string>`, and how you add support for your own types to library templates.
+
+      **Your turn:** add specializations of `TypeName` for `double` (`"double"`), `bool` (`"bool"`) and `std::string` (`"string"`).
+    seed: |
+      #include <string>
+
+      template <typename T>
+      struct TypeName {
+          static std::string get() { return "unknown"; }
+      };
+
+      template <>
+      struct TypeName<int> {
+          static std::string get() { return "int"; }
+      };
+
+      // your specializations here
+    solution: |
+      #include <string>
+
+      template <typename T>
+      struct TypeName {
+          static std::string get() { return "unknown"; }
+      };
+
+      template <>
+      struct TypeName<int> {
+          static std::string get() { return "int"; }
+      };
+
+      // your specializations here
+      template <>
+      struct TypeName<double> {
+          static std::string get() { return "double"; }
+      };
+
+      template <>
+      struct TypeName<bool> {
+          static std::string get() { return "bool"; }
+      };
+
+      template <>
+      struct TypeName<std::string> {
+          static std::string get() { return "string"; }
+      };
+    harness: |
+      template <typename T>
+      std::string name_of(const T&) { return TypeName<T>::get(); }
+      int main() {
+          CHECK_EQ("int", TypeName<int>::get(), std::string("int"));
+          CHECK_EQ("double", TypeName<double>::get(), std::string("double"));
+          CHECK_EQ("bool", TypeName<bool>::get(), std::string("bool"));
+          CHECK_EQ("std::string", TypeName<std::string>::get(), std::string("string"));
+          CHECK_EQ("char is still unknown", TypeName<char>::get(), std::string("unknown"));
+          CHECK_EQ("deduced from a value", name_of(2.5), std::string("double"));
+      }
+    hints:
+      - Copy the `TypeName<int>` block and change the type and the returned text.
+      - "For strings, specialize on `std::string`: `template <> struct TypeName<std::string> { ... };`"
+
+  - title: "Challenge: a MinStack<T>"
+    id: cpp-templates-8
+    text: |
+      A classic interview question, now generic. **Your turn:** write `template <typename T> class MinStack` where **every** operation is O(1), including finding the minimum:
+
+      - `void push(const T& v)`
+      - `void pop()` (assume non-empty)
+      - `const T& top() const`
+      - `const T& min() const`: the smallest element currently in the stack
+      - `bool empty() const`
+
+      Hint for the O(1) min: alongside each value, remember what the minimum was at that point. Or keep a second stack of minimums.
+    seed: |
+      #include <vector>
+
+      template <typename T>
+      class MinStack {
+      public:
+
+      private:
+
+      };
+    solution: |
+      #include <vector>
+
+      template <typename T>
+      class MinStack {
+      public:
+          void push(const T& v) {
+              items_.push_back(v);
+              if (mins_.empty() || v < mins_.back() || v == mins_.back()) mins_.push_back(v);
+          }
+          void pop() {
+              if (items_.back() == mins_.back()) mins_.pop_back();
+              items_.pop_back();
+          }
+          const T& top() const { return items_.back(); }
+          const T& min() const { return mins_.back(); }
+          bool empty() const { return items_.empty(); }
+
+      private:
+          std::vector<T> items_;
+          std::vector<T> mins_;
+      };
+    harness: |
+      #include <string>
+      int main() {
+          MinStack<int> s;
+          s.push(5);
+          s.push(3);
+          s.push(7);
+          s.push(3);
+          CHECK_EQ("top", s.top(), 3);
+          CHECK_EQ("min with duplicates", s.min(), 3);
+          s.pop();
+          CHECK_EQ("min after popping one 3", s.min(), 3);
+          s.pop();
+          s.pop();
+          CHECK_EQ("min after popping both 3s", s.min(), 5);
+          s.pop();
+          CHECK_EQ("empty", s.empty(), true);
+          MinStack<std::string> w;
+          w.push("mirage");
+          w.push("ancient");
+          w.push("vertigo");
+          CHECK_EQ("string min", w.min(), std::string("ancient"));
+          w.pop();
+          w.pop();
+          CHECK_EQ("string min after pops", w.min(), std::string("mirage"));
+      }
+    hints:
+      - "Keep two vectors: `items_` and `mins_`."
+      - "On push, also push onto `mins_` when the value is less than or equal to the current min."
+      - "On pop, if the value leaving equals `mins_.back()`, pop `mins_` too."

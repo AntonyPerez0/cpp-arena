@@ -1,0 +1,424 @@
+id: cpp-move
+title: Move semantics
+lang: cpp
+phase: "C++: Modern and Advanced"
+summary: Why C++ can pass big objects around cheaply. lvalues vs rvalues, std::move, move constructors and the rule of five.
+steps:
+  - title: Copies are expensive
+    id: cpp-move-1
+    text: |
+      Copying a `std::vector` with a million elements copies a million elements. But often the source is about to disappear anyway (a temporary, or a variable you're done with). In that case you can **steal** its internals instead: that's a **move**.
+
+      - An **lvalue** is something with a name that lives on (`v`).
+      - An **rvalue** is a temporary about to die (`make_vector()`, `a + b`).
+
+      `std::move(x)` doesn't move anything by itself. It *casts* `x` to an rvalue, which says "I'm done with x, you may steal from it".
+
+      After a move, the source is in a valid but unspecified state. Don't read its value; you may assign a new one.
+
+      **Your turn:** move `big` into `store` instead of copying it.
+    fill: |
+      #include <iostream>
+      #include <utility>
+      #include <vector>
+
+      int main() {
+          std::vector<int> big(1000000, 7);
+          std::vector<std::vector<int>> store;
+          store.push_back([[std::move]](big));
+          std::cout << store[0].size() << "\n";
+      }
+    hints:
+      - "Wrap it: `std::move(big)`."
+    tests:
+      - expect: "1000000"
+
+  - title: Write a move constructor
+    id: cpp-move-2
+    text: |
+      A class that owns a resource can implement moving itself. The **move constructor** takes an rvalue reference (`T&&`), steals the pointer, and leaves the source empty so its destructor does nothing harmful:
+
+      ```cpp
+      Buffer(Buffer&& other) noexcept
+          : data_(other.data_), size_(other.size_) {
+          other.data_ = nullptr;
+          other.size_ = 0;
+      }
+      ```
+
+      `noexcept` promises it won't fail, which lets `std::vector` use it when growing.
+
+      **Your turn:** write the move constructor for `Buffer`.
+    seed: |
+      class Buffer {
+      public:
+          explicit Buffer(int n) : data_(new int[n]()), size_(n) {}
+          ~Buffer() { delete[] data_; }
+          Buffer(const Buffer&) = delete;
+          Buffer& operator=(const Buffer&) = delete;
+          // move constructor here
+
+          int size() const { return size_; }
+          const int* data() const { return data_; }
+
+      private:
+          int* data_;
+          int size_;
+      };
+    solution: |
+      class Buffer {
+      public:
+          explicit Buffer(int n) : data_(new int[n]()), size_(n) {}
+          ~Buffer() { delete[] data_; }
+          Buffer(const Buffer&) = delete;
+          Buffer& operator=(const Buffer&) = delete;
+          // move constructor here
+          Buffer(Buffer&& other) noexcept : data_(other.data_), size_(other.size_) {
+              other.data_ = nullptr;
+              other.size_ = 0;
+          }
+          int size() const { return size_; }
+          const int* data() const { return data_; }
+
+      private:
+          int* data_;
+          int size_;
+      };
+    harness: |
+      #include <utility>
+      int main() {
+          Buffer a(64);
+          const int* original = a.data();
+          Buffer b(std::move(a));
+          CHECK("b stole a's memory", b.data() == original);
+          CHECK_EQ("b has the size", b.size(), 64);
+          CHECK("a is empty", a.data() == nullptr);
+          CHECK_EQ("a size is 0", a.size(), 0);
+          std::vector<Buffer> v;
+          v.push_back(Buffer(3));
+          v.push_back(Buffer(5));
+          CHECK_EQ("vector of move-only buffers", v[1].size(), 5);
+      }
+    hints:
+      - "Signature: `Buffer(Buffer&& other) noexcept`."
+      - "Copy the pointer and size from other, then set `other.data_ = nullptr;` and `other.size_ = 0;`."
+
+  - title: Move assignment and the rule of five
+    id: cpp-move-3
+    text: |
+      **Move assignment** (`a = std::move(b);`) must also release what `a` currently owns, and must survive self-assignment:
+
+      ```cpp
+      Buffer& operator=(Buffer&& other) noexcept {
+          if (this != &other) {
+              delete[] data_;
+              data_ = other.data_;  size_ = other.size_;
+              other.data_ = nullptr; other.size_ = 0;
+          }
+          return *this;
+      }
+      ```
+
+      The **rule of five**: if you write any of destructor, copy constructor, copy assignment, move constructor, move assignment, think about all five. Even better is the **rule of zero**: use members like `std::vector` and `std::unique_ptr` that already handle all five, and write none.
+
+      **Your turn:** add move assignment.
+    seed: |
+      class Buffer {
+      public:
+          explicit Buffer(int n) : data_(new int[n]()), size_(n) {}
+          ~Buffer() { delete[] data_; }
+          Buffer(Buffer&& other) noexcept : data_(other.data_), size_(other.size_) {
+              other.data_ = nullptr;
+              other.size_ = 0;
+          }
+          // move assignment here
+
+          int size() const { return size_; }
+          const int* data() const { return data_; }
+
+      private:
+          int* data_;
+          int size_;
+      };
+    solution: |
+      class Buffer {
+      public:
+          explicit Buffer(int n) : data_(new int[n]()), size_(n) {}
+          ~Buffer() { delete[] data_; }
+          Buffer(Buffer&& other) noexcept : data_(other.data_), size_(other.size_) {
+              other.data_ = nullptr;
+              other.size_ = 0;
+          }
+          // move assignment here
+          Buffer& operator=(Buffer&& other) noexcept {
+              if (this != &other) {
+                  delete[] data_;
+                  data_ = other.data_;
+                  size_ = other.size_;
+                  other.data_ = nullptr;
+                  other.size_ = 0;
+              }
+              return *this;
+          }
+          int size() const { return size_; }
+          const int* data() const { return data_; }
+
+      private:
+          int* data_;
+          int size_;
+      };
+    harness: |
+      #include <utility>
+      int main() {
+          Buffer a(10), b(20);
+          const int* bp = b.data();
+          a = std::move(b);
+          CHECK("a now owns b's memory", a.data() == bp);
+          CHECK_EQ("a size", a.size(), 20);
+          CHECK("b emptied", b.data() == nullptr && b.size() == 0);
+          Buffer& self = a;
+          a = std::move(self);
+          CHECK("self-move keeps the data", a.data() == bp && a.size() == 20);
+          for (int i = 0; i < 2000; i++) {
+              Buffer t(100000);
+              a = std::move(t);
+          }
+          CHECK("2000 move-assignments without leaking", a.size() == 100000);
+      }
+    hints:
+      - "Signature: `Buffer& operator=(Buffer&& other) noexcept`."
+      - "Guard with `if (this != &other)`, free your old data with `delete[] data_;`, steal, reset other."
+      - "End with `return *this;`."
+
+  - title: Return by value is free
+    id: cpp-move-4
+    text: |
+      Returning a local object by value doesn't copy it. When you return a temporary (`return Widget(...);`), C++17 **guarantees** the object is built directly in the caller's variable: no copy, no move. Returning a named local is almost always optimized the same way, and otherwise it's moved.
+
+      So write functions that return by value; don't return pointers or use out-parameters for performance.
+
+      **Your turn:** the `Tracker` struct counts copies. Write `Tracker make_tracker(int id)` so that creating one via your function performs **zero** copies. The test prints the copy count.
+    seed: |
+      struct Tracker {
+          static inline int copies = 0;
+          int id;
+          explicit Tracker(int i) : id(i) {}
+          Tracker(const Tracker& o) : id(o.id) { copies++; }
+      };
+
+      Tracker make_tracker(int id) {
+
+      }
+    solution: |
+      struct Tracker {
+          static inline int copies = 0;
+          int id;
+          explicit Tracker(int i) : id(i) {}
+          Tracker(const Tracker& o) : id(o.id) { copies++; }
+      };
+
+      Tracker make_tracker(int id) {
+          return Tracker(id);
+      }
+    harness: |
+      int main() {
+          Tracker t = make_tracker(7);
+          CHECK_EQ("id", t.id, 7);
+          CHECK_EQ("copies made", Tracker::copies, 0);
+      }
+    hints:
+      - "Just `return Tracker(id);`. Guaranteed copy elision does the rest."
+
+  - title: Moved-from objects
+    id: cpp-move-5
+    text: |
+      After `b = std::move(a);`, what is `a`? For standard library types the rule is **valid but unspecified**:
+
+      - You **may** destroy it, assign it a new value, or call functions with no preconditions (`clear()`, `empty()`, `size()`).
+      - You **must not** rely on its value. A moved-from `std::string` is usually empty, but nothing promises that.
+
+      So the professional habit is: after moving from something, either stop using it or reset it explicitly.
+
+      ```cpp
+      std::vector<std::string> batch = std::move(pending);
+      pending.clear();   // now it's definitely empty and ready to reuse
+      ```
+
+      **Your turn:** write `std::vector<std::string> take_all(std::vector<std::string>& src)` that moves the whole contents out of `src` (no element copies) and leaves `src` definitely empty.
+    seed: |
+      #include <string>
+      #include <utility>
+      #include <vector>
+
+      std::vector<std::string> take_all(std::vector<std::string>& src) {
+
+      }
+    solution: |
+      #include <string>
+      #include <utility>
+      #include <vector>
+
+      std::vector<std::string> take_all(std::vector<std::string>& src) {
+          std::vector<std::string> out = std::move(src);
+          src.clear();
+          return out;
+      }
+    require:
+      - pattern: "std::move\\s*\\(\\s*src\\s*\\)|std::exchange\\s*\\(\\s*src"
+        message: "Move the whole vector with `std::move(src)` instead of copying element by element."
+    harness: |
+      int main() {
+          std::vector<std::string> q = {"entry", "flash", "smoke"};
+          const std::string* first = q.data();
+          auto got = take_all(q);
+          CHECK_EQ("got all three", got.size(), 3u);
+          CHECK_EQ("order kept", got[1], std::string("flash"));
+          CHECK("elements were moved, not copied", got.data() == first);
+          CHECK("source is empty", q.empty());
+          q.push_back("retake");
+          CHECK_EQ("source is reusable", q.size(), 1u);
+      }
+    hints:
+      - "`std::vector<std::string> out = std::move(src);` steals src's buffer in one go."
+      - "Then `src.clear();` so the caller gets a known state, and `return out;`."
+
+  - title: Sink parameters and emplace_back
+    id: cpp-move-6
+    text: |
+      When a function is going to **keep** a string (store it in a member or a container), take it **by value** and move it into place. This is called a *sink* parameter:
+
+      ```cpp
+      explicit Player(std::string name) : name_(std::move(name)) {}
+      ```
+
+      - Caller passes a temporary: it's moved in twice, zero copies.
+      - Caller passes a variable it still needs: exactly one copy, which is unavoidable.
+
+      For containers, `emplace_back(args...)` constructs the element **inside** the vector from constructor arguments, instead of building a temporary and moving it in.
+
+      ```cpp
+      team.emplace_back("ropz");   // calls Player(std::string) in place
+      ```
+
+      **Your turn:** give `Player` a sink constructor, and write `void recruit(std::vector<Player>& team, std::string name)` that adds a player using `emplace_back` and moves the name.
+    seed: |
+      #include <string>
+      #include <utility>
+      #include <vector>
+
+      class Player {
+      public:
+          // sink constructor here
+
+          const std::string& name() const { return name_; }
+
+      private:
+          std::string name_;
+      };
+
+      void recruit(std::vector<Player>& team, std::string name) {
+
+      }
+    solution: |
+      #include <string>
+      #include <utility>
+      #include <vector>
+
+      class Player {
+      public:
+          // sink constructor here
+          explicit Player(std::string name) : name_(std::move(name)) {}
+          const std::string& name() const { return name_; }
+
+      private:
+          std::string name_;
+      };
+
+      void recruit(std::vector<Player>& team, std::string name) {
+          team.emplace_back(std::move(name));
+      }
+    require:
+      - pattern: "emplace_back\\s*\\(\\s*std::move\\s*\\(\\s*name\\s*\\)\\s*\\)"
+        message: "Add the player with `team.emplace_back(std::move(name));`"
+      - pattern: "name_\\s*\\(\\s*std::move\\s*\\(\\s*name\\s*\\)\\s*\\)"
+        message: "In the constructor, move the parameter into the member: `name_(std::move(name))`."
+    harness: |
+      int main() {
+          std::vector<Player> team;
+          recruit(team, "twistzz");
+          std::string n = "elige";
+          recruit(team, n);
+          CHECK_EQ("team size", team.size(), 2u);
+          CHECK_EQ("first player", team[0].name(), std::string("twistzz"));
+          CHECK_EQ("second player", team[1].name(), std::string("elige"));
+          CHECK_EQ("caller's copy is untouched", n, std::string("elige"));
+          std::string longname(100, 'x');
+          const char* buf = longname.data();
+          Player p(std::move(longname));
+          CHECK("constructor moves, not copies", p.name().data() == buf);
+      }
+    hints:
+      - "Constructor: `explicit Player(std::string name) : name_(std::move(name)) {}`"
+      - "recruit: `team.emplace_back(std::move(name));`"
+
+  - title: "Challenge: a move-aware log"
+    id: cpp-move-7
+    text: |
+      Put it together. `std::exchange(obj, new_value)` from `<utility>` sets `obj` to `new_value` and returns the **old** value, moving where it can. It's the tidy way to "take" a member and leave it reset:
+
+      ```cpp
+      return std::exchange(lines_, {});   // hand over the lines, leave an empty vector
+      ```
+
+      **Your turn:** write class `Log`:
+
+      - `void add(std::string line)`: a sink; ignore empty lines
+      - `int size() const`
+      - `std::vector<std::string> flush()`: hand over all lines (no copies) and leave the log empty
+    seed: |
+      #include <string>
+      #include <utility>
+      #include <vector>
+
+      class Log {
+      public:
+
+      private:
+          std::vector<std::string> lines_;
+      };
+    solution: |
+      #include <string>
+      #include <utility>
+      #include <vector>
+
+      class Log {
+      public:
+          void add(std::string line) {
+              if (!line.empty()) lines_.push_back(std::move(line));
+          }
+          int size() const { return static_cast<int>(lines_.size()); }
+          std::vector<std::string> flush() { return std::exchange(lines_, {}); }
+
+      private:
+          std::vector<std::string> lines_;
+      };
+    harness: |
+      int main() {
+          Log log;
+          log.add("round 1: T win");
+          log.add("");
+          std::string big(64, 'k');
+          const char* bigbuf = big.data();
+          log.add(std::move(big));
+          CHECK_EQ("empty line ignored", log.size(), 2);
+          auto out = log.flush();
+          CHECK_EQ("flush returns everything", out.size(), 2u);
+          CHECK_EQ("first line", out[0], std::string("round 1: T win"));
+          CHECK("long line was moved all the way in", out[1].data() == bigbuf);
+          CHECK_EQ("log is empty after flush", log.size(), 0);
+          log.add("round 2");
+          CHECK_EQ("log is reusable", log.flush().size(), 1u);
+      }
+    hints:
+      - "`add`: `if (!line.empty()) lines_.push_back(std::move(line));`"
+      - "`flush`: `return std::exchange(lines_, {});`"

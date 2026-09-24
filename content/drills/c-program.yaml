@@ -1,0 +1,111 @@
+topic: c-program
+lang: c
+drills:
+  - type: predict
+    pre: |
+      int counter(void) {
+          static int n = 0;
+          return ++n;
+      }
+    body: |
+      counter();
+      counter();
+      printf("%d\n", counter());
+    why: A static local keeps its value between calls and is initialized only once.
+  - type: predict
+    pre: |
+      int counter(void) {
+          int n = 0;
+          return ++n;
+      }
+    body: |
+      counter();
+      counter();
+      printf("%d\n", counter());
+    why: A normal local is created fresh on every call.
+  - type: compiles
+    pre: |
+      typedef struct { int x; } P;
+      typedef struct { int x; } P;
+    body: |
+      P p = {1};
+      printf("%d\n", p.x);
+    why: "C11 allows repeating an identical typedef, but the two anonymous structs are different types, so this is a conflicting redefinition. Include guards prevent exactly this."
+  - type: fill
+    prompt: Make this helper private to its file.
+    pre: |
+      [[static]] int clamp100(int v) { return v > 100 ? 100 : v; }
+    body: |
+      printf("%d\n", clamp100(250));
+    why: static at file scope gives internal linkage, so no other file can see or clash with the name.
+  - type: fill
+    prompt: Declare a global that's defined further down (or in another file).
+    pre: |
+      [[extern]] int rounds;
+      int half(void) { return rounds / 2; }
+      int rounds = 30;
+    body: |
+      printf("%d\n", half());
+    why: extern declares without defining; the single definition comes later.
+  - type: compiles
+    pre: |
+      int total(int *a, int n) {
+          int s = 0;
+          for (int i = 0; i < n; i++) s += a[i];
+          return s;
+      }
+    body: |
+      const int v[] = {1, 2, 3};
+      printf("%d\n", total(v, 3));
+    answer: "yes"
+    why: "It compiles in C, but only with a warning about discarding const. total only reads a, so its parameter should be `const int *`."
+  - type: predict
+    pre: |
+      int main2(int argc, char **argv) {
+          return argc > 1 ? (int)strlen(argv[1]) : -1;
+      }
+    body: |
+      char *args[] = {"prog", "dust2", NULL};
+      printf("%d %d\n", main2(2, args), main2(1, args));
+    why: argv[0] is the program name; argv[1] is the first real argument.
+  - type: predict
+    body: |
+      char *end;
+      long v = strtol("42abc", &end, 10);
+      printf("%ld %s\n", v, end);
+    why: strtol stops at the first character that isn't part of the number and points end at it.
+  - type: boss
+    why: Usage errors go to stderr with a nonzero exit code so scripts can detect them.
+    prompt: |
+      This program is run as `./greet NAME` (the tests pass arguments). With exactly one argument, print `hello NAME` and exit 0. Otherwise print `usage: greet NAME` to **stderr** and exit with code 2.
+    seed: |
+      #include <stdio.h>
+
+      int main(int argc, char **argv) {
+
+          return 0;
+      }
+    solution: |
+      #include <stdio.h>
+
+      int main(int argc, char **argv) {
+          if (argc != 2) {
+              fprintf(stderr, "usage: greet NAME\n");
+              return 2;
+          }
+          printf("hello %s\n", argv[1]);
+          return 0;
+      }
+    require:
+      - pattern: "stderr"
+        message: The usage message goes to stderr.
+    tests:
+      - args: ["ropz"]
+      - args: []
+        exit: 2
+        allowEmpty: true
+      - args: ["a", "b"]
+        exit: 2
+        allowEmpty: true
+    hints:
+      - "Check `argc != 2` first; print the usage with `fprintf(stderr, ...)` and `return 2;`"

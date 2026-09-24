@@ -5,6 +5,7 @@ phase: "C: Foundations"
 summary: Store values in named boxes. int, double and char, printing them with format specifiers, and constants.
 steps:
   - title: Your first variable
+    id: c-vars-1
     text: |
       A **variable** is a named box that holds a value. In C you must say what *type* of value goes in the box.
 
@@ -35,6 +36,7 @@ steps:
       - expect: "Score: 42"
 
   - title: Printing values with %d
+    id: c-vars-2
     text: |
       `printf` replaces each `%d` with the next value after the format string, in order.
 
@@ -59,6 +61,7 @@ steps:
       - expect: "K/D: 20/5"
 
   - title: Changing a variable
+    id: c-vars-3
     text: |
       A variable can be given a new value with `=`. The old value is replaced.
 
@@ -99,6 +102,7 @@ steps:
       - expect: "Money left: 500"
 
   - title: Decimals with double
+    id: c-vars-4
     text: |
       `int` can't hold fractions. For numbers with a decimal point use `double`, and print it with `%f`.
 
@@ -125,6 +129,7 @@ steps:
       - expect: "Rating: 1.25"
 
   - title: Characters with char
+    id: c-vars-5
     text: |
       A `char` holds a single character, written in **single** quotes: `'A'`. Double quotes make a string, which is a different thing.
 
@@ -174,6 +179,7 @@ steps:
       - expect: "Team: T\nCode: 84"
 
   - title: Constants and sizeof
+    id: c-vars-6
     text: |
       Put `const` in front of a declaration to make a variable read-only. Trying to change it later is a compile error, which protects you from accidents.
 

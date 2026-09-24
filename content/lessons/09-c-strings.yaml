@@ -5,6 +5,7 @@ phase: "C: Memory"
 summary: C strings are char arrays ending in '\0'. Length, copying, comparing, and writing string functions yourself.
 steps:
   - title: The null terminator
+    id: c-strings-1
     text: |
       C has no built-in string type. A string is a **char array** that ends with the special character `'\0'` (value 0), called the **null terminator**.
 
@@ -33,6 +34,7 @@ steps:
       - expect: "ak"
 
   - title: strlen and friends
+    id: c-strings-2
     text: |
       `<string.h>` has the standard string functions:
 
@@ -84,6 +86,7 @@ steps:
         hidden: true
 
   - title: Write your own strlen
+    id: c-strings-3
     text: |
       Knowing how the library works makes you dangerous (in a good way). A string's length is the number of chars before `'\0'`.
 
@@ -117,6 +120,7 @@ steps:
       - Start a counter at 0 and move forward while `s[n] != '\0'`.
 
   - title: Compare strings correctly
+    id: c-strings-4
     text: |
       `a == b` on two strings compares their **addresses**, not their contents. To compare text, use `strcmp`:
 
@@ -164,6 +168,7 @@ steps:
         hidden: true
 
   - title: Characters are numbers
+    id: c-strings-5
     text: |
       Because chars are small numbers, you can do math on them. Letters `'a'` to `'z'` are consecutive, so `'a' + 2` is `'c'`, and `c - 'a'` gives a letter's position in the alphabet.
 
@@ -203,6 +208,7 @@ steps:
       - "If `s[i]` is between 'a' and 'z', subtract `'a' - 'A'` (or call `toupper` from `<ctype.h>`)."
 
   - title: "Challenge: palindromes"
+    id: c-strings-6
     text: |
       A palindrome reads the same forwards and backwards, like `level` or `racecar`.
 

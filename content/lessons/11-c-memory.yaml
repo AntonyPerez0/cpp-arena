@@ -5,6 +5,7 @@ phase: "C: Memory"
 summary: The stack vs the heap. malloc, free, calloc and realloc, growing arrays, and who owns what.
 steps:
   - title: Stack vs heap
+    id: c-memory-1
     text: |
       So far every variable lived on the **stack**: it's created when its block starts and destroyed automatically when the block ends. Stack arrays need a size known up front, and they die when the function returns.
 
@@ -42,6 +43,7 @@ steps:
       - expect: "0 40"
 
   - title: Size decided at runtime
+    id: c-memory-2
     text: |
       The real power of `malloc`: the size can come from input.
 
@@ -96,6 +98,7 @@ steps:
         hidden: true
 
   - title: Return heap memory from a function
+    id: c-memory-3
     text: |
       A stack array dies when its function returns, so returning its address is a bug (a **dangling pointer**):
 
@@ -141,6 +144,7 @@ steps:
       - Allocate with malloc, fill it in a loop, and return the pointer.
 
   - title: calloc and strdup-style copies
+    id: c-memory-4
     text: |
       - `calloc(count, size)` allocates **and zeroes** the memory.
       - To keep a copy of a string, allocate `strlen(s) + 1` bytes (the +1 is for `'\0'`) and copy it in.
@@ -183,6 +187,7 @@ steps:
       - Copy with `strcpy(c, s)` (or memcpy of n + 1 bytes) and return c.
 
   - title: Growing with realloc
+    id: c-memory-5
     text: |
       `realloc(p, new_size)` resizes a heap block, keeping the old contents. It may move the block, so always use the pointer it returns:
 
@@ -251,6 +256,7 @@ steps:
         hidden: true
 
   - title: Memory bugs to avoid
+    id: c-memory-6
     text: |
       The classic heap mistakes, which C won't catch for you:
 
@@ -310,3 +316,287 @@ steps:
     hints:
       - "\"gg wp\" needs 2 + 1 + 2 = 5 chars **plus** the terminator. Add `+ 1` to the size of `out`."
       - "`tmp` is only a scratch copy. Call `free(tmp);` before returning."
+
+  - title: A 2D grid on the heap
+    id: c-memory-7
+    text: |
+      When a grid's size is only known at runtime, a common layout is an **array of row pointers**, each row its own allocation:
+
+      ```
+      grid ──> [ row0 ] ──> [ 0 0 0 0 ]
+               [ row1 ] ──> [ 0 0 0 0 ]
+               [ row2 ] ──> [ 0 0 0 0 ]
+      ```
+
+      ```c
+      int **g = malloc(rows * sizeof *g);        // the row pointers
+      for (int r = 0; r < rows; r++)
+          g[r] = calloc(cols, sizeof *g[r]);     // each row, zeroed
+      ```
+
+      `sizeof *g` means "the size of whatever g points at". It stays correct even if you change the type later, which is why many style guides prefer it.
+
+      Freeing goes in reverse: every row first, then the array of pointers. If any allocation fails halfway, free what you already allocated and return `NULL`.
+
+      **Your turn:** write `make_grid` (all cells zero) and `free_grid`.
+    seed: |
+      #include <stdlib.h>
+
+      int **make_grid(int rows, int cols) {
+
+      }
+
+      void free_grid(int **g, int rows) {
+
+      }
+    solution: |
+      #include <stdlib.h>
+
+      int **make_grid(int rows, int cols) {
+          int **g = malloc(rows * sizeof *g);
+          if (g == NULL) return NULL;
+          for (int r = 0; r < rows; r++) {
+              g[r] = calloc(cols, sizeof *g[r]);
+              if (g[r] == NULL) {
+                  for (int k = 0; k < r; k++) free(g[k]);
+                  free(g);
+                  return NULL;
+              }
+          }
+          return g;
+      }
+
+      void free_grid(int **g, int rows) {
+          if (g == NULL) return;
+          for (int r = 0; r < rows; r++) free(g[r]);
+          free(g);
+      }
+    require:
+      - pattern: "free\\s*\\(\\s*g\\s*\\)"
+        message: "After freeing each row, free the array of row pointers too: `free(g);`"
+    harness: |
+      int main(void) {
+          int **g = make_grid(3, 4);
+          CHECK("grid was allocated", g != NULL);
+          int zero = 1;
+          for (int r = 0; r < 3; r++)
+              for (int c = 0; c < 4; c++)
+                  if (g[r][c] != 0) zero = 0;
+          CHECK("every cell starts at 0", zero);
+          g[2][3] = 9;
+          g[0][0] = 1;
+          CHECK_INT("g[2][3] after writing", g[2][3], 9);
+          CHECK_INT("rows are separate", g[1][3], 0);
+          free_grid(g, 3);
+          int **big = make_grid(100, 100);
+          big[99][99] = 5;
+          CHECK_INT("100 x 100 corner", big[99][99], 5);
+          free_grid(big, 100);
+          free_grid(NULL, 0);
+          CHECK("free_grid(NULL, 0) is safe", 1);
+          return 0;
+      }
+    hints:
+      - "First `int **g = malloc(rows * sizeof *g);`, then a loop with `g[r] = calloc(cols, sizeof *g[r]);`."
+      - "free_grid: `free(g[r])` for every row, then `free(g)`. Return early if g is NULL."
+
+  - title: Who owns what
+    id: c-memory-8
+    text: |
+      C has no garbage collector, so every heap pointer needs an **owner**: the one piece of code responsible for freeing it. Professional C code writes this down in a comment next to each function:
+
+      ```c
+      /* Returns a new array of new strings. The caller owns both:
+         free each word, then the array, or call free_words(). */
+      char **split_words(const char *s, int *count);
+      ```
+
+      A function that allocates something nested usually ships a matching "free" function, so callers can't get the order wrong.
+
+      **Your turn:** write `split_words`. It splits `s` on single spaces into separately allocated strings, stores how many in `*count`, and returns the array. Then write `free_words`. You can assume words are separated by exactly one space and `s` has no leading or trailing spaces. An empty string has 0 words (you may return `NULL` then).
+    seed: |
+      #include <stdlib.h>
+      #include <string.h>
+
+      /* Caller owns the result: release it with free_words(). */
+      char **split_words(const char *s, int *count) {
+
+      }
+
+      void free_words(char **words, int count) {
+
+      }
+    solution: |
+      #include <stdlib.h>
+      #include <string.h>
+
+      /* Caller owns the result: release it with free_words(). */
+      char **split_words(const char *s, int *count) {
+          *count = 0;
+          if (*s == '\0') return NULL;
+          int n = 1;
+          for (const char *p = s; *p; p++)
+              if (*p == ' ') n++;
+          char **words = malloc(n * sizeof *words);
+          if (words == NULL) return NULL;
+          const char *start = s;
+          for (int i = 0; i < n; i++) {
+              const char *end = strchr(start, ' ');
+              size_t len = end ? (size_t)(end - start) : strlen(start);
+              words[i] = malloc(len + 1);
+              memcpy(words[i], start, len);
+              words[i][len] = '\0';
+              start = end ? end + 1 : start + len;
+          }
+          *count = n;
+          return words;
+      }
+
+      void free_words(char **words, int count) {
+          for (int i = 0; i < count; i++) free(words[i]);
+          free(words);
+      }
+    harness: |
+      int main(void) {
+          int n = -1;
+          char **w = split_words("plant the bomb", &n);
+          CHECK_INT("word count", n, 3);
+          CHECK_STR("first word", w[0], "plant");
+          CHECK_STR("second word", w[1], "the");
+          CHECK_STR("third word", w[2], "bomb");
+          free_words(w, n);
+          char **one = split_words("eco", &n);
+          CHECK_INT("single word count", n, 1);
+          CHECK_STR("single word", one[0], "eco");
+          free_words(one, n);
+          char **none = split_words("", &n);
+          CHECK_INT("empty string has 0 words", n, 0);
+          free_words(none, n);
+          const char *src = "a bb";
+          char **copy = split_words(src, &n);
+          CHECK("words are copies, not pointers into s", copy[0] != src);
+          free_words(copy, n);
+          return 0;
+      }
+    hints:
+      - "First count the words: one more than the number of spaces (unless the string is empty)."
+      - "Allocate `n` pointers, then for each word allocate `len + 1` bytes, `memcpy` the letters and add `'\\0'`."
+      - "`strchr(start, ' ')` finds the next space, or returns NULL for the last word."
+      - "free_words frees every word, then the array. `free(NULL)` is safe, so the empty case needs nothing special."
+
+  - title: "Challenge: a string builder"
+    id: c-memory-9
+    text: |
+      Building a long string with repeated `strcat` into a fixed buffer is how buffer overflows happen. Real C code uses a **string builder**: a struct that owns a growing heap buffer.
+
+      ```c
+      typedef struct {
+          char *buf;   /* always '\0'-terminated once initialized */
+          size_t len;  /* characters used, not counting '\0' */
+          size_t cap;  /* bytes allocated */
+      } Builder;
+      ```
+
+      **Your turn:** write the four functions:
+
+      - `sb_init(b)`: allocate a small starting buffer (say 8 bytes) holding `""`. Return 0 on success, -1 if allocation fails.
+      - `sb_append(b, s)`: append `s`, doubling `cap` as many times as needed. Return 0, or -1 if `realloc` fails (leave `b` unchanged then).
+      - `sb_str(b)`: return the current string.
+      - `sb_free(b)`: free the buffer and reset the fields.
+    seed: |
+      #include <stdlib.h>
+      #include <string.h>
+
+      typedef struct {
+          char *buf;
+          size_t len;
+          size_t cap;
+      } Builder;
+
+      int sb_init(Builder *b) {
+
+      }
+
+      int sb_append(Builder *b, const char *s) {
+
+      }
+
+      const char *sb_str(const Builder *b) {
+
+      }
+
+      void sb_free(Builder *b) {
+
+      }
+    solution: |
+      #include <stdlib.h>
+      #include <string.h>
+
+      typedef struct {
+          char *buf;
+          size_t len;
+          size_t cap;
+      } Builder;
+
+      int sb_init(Builder *b) {
+          b->cap = 8;
+          b->len = 0;
+          b->buf = malloc(b->cap);
+          if (b->buf == NULL) return -1;
+          b->buf[0] = '\0';
+          return 0;
+      }
+
+      int sb_append(Builder *b, const char *s) {
+          size_t add = strlen(s);
+          size_t need = b->len + add + 1;
+          if (need > b->cap) {
+              size_t cap = b->cap;
+              while (cap < need) cap *= 2;
+              char *tmp = realloc(b->buf, cap);
+              if (tmp == NULL) return -1;
+              b->buf = tmp;
+              b->cap = cap;
+          }
+          memcpy(b->buf + b->len, s, add + 1);
+          b->len += add;
+          return 0;
+      }
+
+      const char *sb_str(const Builder *b) {
+          return b->buf;
+      }
+
+      void sb_free(Builder *b) {
+          free(b->buf);
+          b->buf = NULL;
+          b->len = 0;
+          b->cap = 0;
+      }
+    harness: |
+      int main(void) {
+          Builder b;
+          CHECK_INT("sb_init succeeds", sb_init(&b), 0);
+          CHECK_STR("starts empty", sb_str(&b), "");
+          sb_append(&b, "rush");
+          sb_append(&b, " ");
+          sb_append(&b, "b");
+          CHECK_STR("three appends", sb_str(&b), "rush b");
+          CHECK_INT("len tracks characters", (int)b.len, 6);
+          sb_append(&b, ", no stop, go go go, everybody rush");
+          CHECK_STR("long append grows the buffer", sb_str(&b), "rush b, no stop, go go go, everybody rush");
+          CHECK("cap is big enough", b.cap > b.len);
+          sb_free(&b);
+          CHECK("sb_free resets buf", b.buf == NULL && b.len == 0 && b.cap == 0);
+          Builder many;
+          sb_init(&many);
+          for (int i = 0; i < 1000; i++) sb_append(&many, "ab");
+          CHECK_INT("1000 appends", (int)strlen(sb_str(&many)), 2000);
+          CHECK_INT("len after 1000 appends", (int)many.len, 2000);
+          sb_free(&many);
+          return 0;
+      }
+    hints:
+      - "sb_init: set cap to 8, len to 0, `malloc` the buffer and put `'\\0'` in it."
+      - "sb_append: you need `len + strlen(s) + 1` bytes. Double a local copy of cap until it's enough, then `realloc` into a temp pointer."
+      - "Copy with `memcpy(b->buf + b->len, s, add + 1)` so the terminator comes along, then add to len."

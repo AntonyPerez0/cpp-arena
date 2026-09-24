@@ -1,0 +1,72 @@
+topic: cpp-iterators
+lang: cpp
+drills:
+  - type: predict
+    body: |
+      std::vector<int> v = {1, 2, 3};
+      auto it = v.end();
+      --it;
+      std::cout << *it << "\n";
+    why: end() is one past the last element, so stepping back once reaches 3.
+  - type: predict
+    pre: |
+      struct Bag {
+          int items[3] = {4, 5, 6};
+          int* begin() { return items; }
+          int* end() { return items + 3; }
+      };
+    body: |
+      Bag b;
+      int s = 0;
+      for (int x : b) s += x;
+      std::cout << s << "\n";
+    why: Any type with begin() and end() works with range-for; plain pointers are valid iterators.
+  - type: compiles
+    pre: |
+      struct Box { int v[2] = {1, 2}; };
+    body: |
+      Box b;
+      for (int x : b) std::cout << x;
+    why: Range-for needs begin() and end() (members or free functions), and Box has neither.
+  - type: fill
+    prompt: Declare the category that standard algorithms look for.
+    pre: |
+      struct It {
+          using iterator_category = std::[[forward_iterator_tag]];
+          using value_type = int;
+          using difference_type = std::ptrdiff_t;
+          int v = 0;
+          int operator*() const { return v; }
+          It& operator++() { ++v; return *this; }
+          It operator++(int) { It o = *this; ++v; return o; }
+          bool operator==(const It& o) const { return v == o.v; }
+      };
+    body: |
+      std::cout << std::forward_iterator<It> << "\n";
+    why: The iterator_category tag (plus the other member types) is how iterators advertise what they support.
+  - type: predict
+    body: |
+      std::list<int> l = {3, 1, 2};
+      auto it = l.begin();
+      std::advance(it, 2);
+      std::cout << *it << " " << std::distance(l.begin(), l.end()) << "\n";
+    why: advance moves a list iterator step by step; distance counts the elements.
+  - type: bug
+    pre: |
+      struct Range {
+          int lo, hi;
+          struct It {
+              int v;
+              int operator*() const { return v; }
+              It& operator++() { v += 2; return *this; }
+              bool operator==(const It& o) const { return v >= o.v; }
+          };
+          It begin() const { return {lo}; }
+          It end() const { return {lo}; } // BUG
+      };
+    body: |
+      int s = 0;
+      for (int x : Range{0, 7}) s += x;
+      std::cout << s << "\n";
+    fix: "It end() const { return {hi}; }"
+    why: end() must mark where iteration stops. Returning the start makes the range empty immediately.

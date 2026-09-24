@@ -5,6 +5,7 @@ phase: "C: Foundations"
 summary: Split programs into named, reusable pieces. Parameters, return values, prototypes, scope and recursion.
 steps:
   - title: Define and call a function
+    id: c-funcs-1
     text: |
       A function packages code under a name. It has a **return type**, a **name**, **parameters**, and a **body**:
 
@@ -35,6 +36,7 @@ steps:
       - "`return` sends a value back to the caller."
 
   - title: Write a function
+    id: c-funcs-2
     text: |
       **Your turn:** write `int max3(int a, int b, int c)` that returns the largest of three numbers.
     seed: |
@@ -61,6 +63,7 @@ steps:
       - Keep a running best. Start with `int m = a;` and compare it with b, then c.
 
   - title: void functions
+    id: c-funcs-3
     text: |
       A function that doesn't return a value has return type `void`. It's used for its effect, like printing.
 
@@ -101,6 +104,7 @@ steps:
       - Loop n times printing `=`, then print `\n` once after the loop.
 
   - title: Prototypes
+    id: c-funcs-4
     text: |
       C reads your file top to bottom. If `main` calls a function that's defined *below* it, the compiler hasn't seen it yet. Fix that with a **prototype**: the function's first line followed by `;`.
 
@@ -149,6 +153,7 @@ steps:
       - expect: "5"
 
   - title: Scope and pass by value
+    id: c-funcs-5
     text: |
       Variables declared inside a function only exist inside it (**local scope**).
 
@@ -201,6 +206,7 @@ steps:
       - expect: "hp 75"
 
   - title: Recursion
+    id: c-funcs-6
     text: |
       A function can call itself. That's **recursion**. Every recursive function needs a **base case** that stops, and a step that moves toward it.
 
@@ -235,6 +241,7 @@ steps:
       - "Otherwise return `fib(n - 1) + fib(n - 2)`."
 
   - title: "Challenge: is it prime?"
+    id: c-funcs-7
     text: |
       A prime is a whole number greater than 1 whose only divisors are 1 and itself.
 

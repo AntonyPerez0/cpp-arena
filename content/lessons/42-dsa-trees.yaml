@@ -1,0 +1,560 @@
+id: dsa-trees
+title: Trees and heaps
+lang: cpp
+phase: "Data Structures and Algorithms"
+summary: Recursive thinking with trees. Binary tree basics, binary search trees, traversals and validation, level-order with a queue, a binary heap by hand, and a trie for autocomplete.
+steps:
+  - title: Binary trees and recursion
+    id: dsa-trees-1
+    text: |
+      A **binary tree** node holds a value and up to two children. Ownership is naturally a tree too, so `std::unique_ptr` children mean the whole tree frees itself:
+
+      ```cpp
+      struct Node {
+          int value;
+          std::unique_ptr<Node> left, right;
+      };
+      ```
+
+      Almost every tree algorithm has the same recursive shape: handle the empty tree (`nullptr`), then combine the answers from the two subtrees.
+
+      ```cpp
+      int count(const Node* n) {
+          if (!n) return 0;
+          return 1 + count(n->left.get()) + count(n->right.get());
+      }
+      ```
+
+      **Your turn:** write `height` (an empty tree has height 0, a single node 1) and `sum`.
+    seed: |
+      #include <memory>
+
+      struct Node {
+          int value;
+          std::unique_ptr<Node> left, right;
+      };
+
+      int height(const Node* n) {
+
+      }
+
+      long sum(const Node* n) {
+
+      }
+    solution: |
+      #include <algorithm>
+      #include <memory>
+
+      struct Node {
+          int value;
+          std::unique_ptr<Node> left, right;
+      };
+
+      int height(const Node* n) {
+          if (!n) return 0;
+          return 1 + std::max(height(n->left.get()), height(n->right.get()));
+      }
+
+      long sum(const Node* n) {
+          if (!n) return 0;
+          return n->value + sum(n->left.get()) + sum(n->right.get());
+      }
+    harness: |
+      static std::unique_ptr<Node> leaf(int v) { return std::unique_ptr<Node>(new Node{v, nullptr, nullptr}); }
+      int main() {
+          // 1 has children 2 and 3; 2 has a left child 4
+          auto root = leaf(1);
+          root->left = leaf(2);
+          root->right = leaf(3);
+          root->left->left = leaf(4);
+          CHECK_EQ("height", height(root.get()), 3);
+          CHECK_EQ("sum", sum(root.get()), 10L);
+          CHECK_EQ("empty height", height(nullptr), 0);
+          CHECK_EQ("empty sum", sum(nullptr), 0L);
+          CHECK_EQ("single node", height(root->right.get()), 1);
+      }
+    hints:
+      - "Base case: `if (!n) return 0;`"
+      - "height is 1 + the larger of the two subtree heights; sum is the value plus both subtree sums."
+      - "Use `.get()` to pass a child's raw pointer without giving up ownership."
+
+  - title: Binary search trees
+    id: dsa-trees-2
+    text: |
+      A **binary search tree** (BST) keeps everything in a node's left subtree **smaller** than the node, and everything in its right subtree **larger**. Search then walks one path from the root, discarding half of a balanced tree at each step: O(log n).
+
+      `std::map` and `std::set` are balanced BSTs (red-black trees), which rebalance themselves so the height stays O(log n) even for sorted input. A plain BST can degrade into a linked list.
+
+      Insertion walks down to the empty spot where the key belongs. With a `std::unique_ptr<Node>&` you can follow the path **by reference** and assign into the right slot:
+
+      ```cpp
+      std::unique_ptr<Node>* slot = &root_;
+      while (*slot) slot = key < (*slot)->key ? &(*slot)->left : &(*slot)->right;
+      *slot = std::make_unique<Node>(key);
+      ```
+
+      **Your turn:** write `Bst::insert` (returns false for duplicates) and `Bst::contains`, both iterative.
+    seed: |
+      #include <memory>
+
+      class Bst {
+      public:
+          bool insert(int key);
+          bool contains(int key) const;
+          int size() const { return size_; }
+
+      private:
+          struct Node {
+              int key;
+              std::unique_ptr<Node> left, right;
+              explicit Node(int k) : key(k) {}
+          };
+          std::unique_ptr<Node> root_;
+          int size_ = 0;
+      };
+    solution: |
+      #include <memory>
+
+      class Bst {
+      public:
+          bool insert(int key);
+          bool contains(int key) const;
+          int size() const { return size_; }
+
+      private:
+          struct Node {
+              int key;
+              std::unique_ptr<Node> left, right;
+              explicit Node(int k) : key(k) {}
+          };
+          std::unique_ptr<Node> root_;
+          int size_ = 0;
+      };
+
+      bool Bst::insert(int key) {
+          std::unique_ptr<Node>* slot = &root_;
+          while (*slot) {
+              if (key == (*slot)->key) return false;
+              slot = key < (*slot)->key ? &(*slot)->left : &(*slot)->right;
+          }
+          *slot = std::make_unique<Node>(key);
+          size_++;
+          return true;
+      }
+
+      bool Bst::contains(int key) const {
+          const Node* n = root_.get();
+          while (n) {
+              if (key == n->key) return true;
+              n = key < n->key ? n->left.get() : n->right.get();
+          }
+          return false;
+      }
+    harness: |
+      int main() {
+          Bst t;
+          for (int k : {50, 30, 70, 20, 40, 60, 80}) t.insert(k);
+          CHECK_EQ("size", t.size(), 7);
+          CHECK_EQ("duplicate refused", t.insert(40), false);
+          CHECK_EQ("contains 60", t.contains(60), true);
+          CHECK_EQ("contains 20", t.contains(20), true);
+          CHECK_EQ("missing 65", t.contains(65), false);
+          Bst big;
+          unsigned x = 7;
+          int inserted = 0;
+          for (int i = 0; i < 100000; i++) {
+              x = x * 1103515245u + 12345u;
+              inserted += big.insert(static_cast<int>(x >> 8));
+          }
+          CHECK_EQ("100,000 random keys", big.size(), inserted);
+      }
+    hints:
+      - "Walk a pointer-to-slot down from `&root_`; stop at an empty slot."
+      - "Go left when `key < (*slot)->key`, right when greater, and return false on equality."
+      - "contains is the same walk with a plain `const Node*`."
+
+  - title: Traversals and validation
+    id: dsa-trees-3
+    text: |
+      Three classic depth-first orders visit every node:
+
+      - **pre-order**: node, left, right (copying a tree, serializing it)
+      - **in-order**: left, node, right (a BST comes out **sorted**)
+      - **post-order**: left, right, node (deleting a tree, evaluating an expression tree)
+
+      In-order gives a neat BST check, but there's a subtler direct one: every node must lie within a **range** inherited from its ancestors. Checking only that each child is on the correct side of its parent is a classic wrong answer: a node can be right of its parent but still too big for its grandparent.
+
+      **Your turn:** write `void in_order(const Node* n, std::vector<int>& out)` and `bool is_bst(const Node* n, long lo, long hi)` that checks all keys lie strictly between lo and hi (the test calls it with `LONG_MIN`, `LONG_MAX`).
+    seed: |
+      #include <climits>
+      #include <memory>
+      #include <vector>
+
+      struct Node {
+          int key;
+          std::unique_ptr<Node> left, right;
+      };
+
+      void in_order(const Node* n, std::vector<int>& out) {
+
+      }
+
+      bool is_bst(const Node* n, long lo, long hi) {
+
+      }
+    solution: |
+      #include <climits>
+      #include <memory>
+      #include <vector>
+
+      struct Node {
+          int key;
+          std::unique_ptr<Node> left, right;
+      };
+
+      void in_order(const Node* n, std::vector<int>& out) {
+          if (!n) return;
+          in_order(n->left.get(), out);
+          out.push_back(n->key);
+          in_order(n->right.get(), out);
+      }
+
+      bool is_bst(const Node* n, long lo, long hi) {
+          if (!n) return true;
+          if (n->key <= lo || n->key >= hi) return false;
+          return is_bst(n->left.get(), lo, n->key) && is_bst(n->right.get(), n->key, hi);
+      }
+    harness: |
+      static std::unique_ptr<Node> mk(int k) { return std::unique_ptr<Node>(new Node{k, nullptr, nullptr}); }
+      int main() {
+          auto good = mk(8);
+          good->left = mk(3);
+          good->right = mk(10);
+          good->left->left = mk(1);
+          good->left->right = mk(6);
+          std::vector<int> v;
+          in_order(good.get(), v);
+          CHECK_EQ("in-order is sorted", v, (std::vector<int>{1, 3, 6, 8, 10}));
+          CHECK_EQ("valid BST", is_bst(good.get(), LONG_MIN, LONG_MAX), true);
+          auto sneaky = mk(8);
+          sneaky->left = mk(3);
+          sneaky->left->right = mk(9);
+          CHECK_EQ("9 is right of 3 but bigger than 8", is_bst(sneaky.get(), LONG_MIN, LONG_MAX), false);
+          CHECK_EQ("empty tree is a BST", is_bst(nullptr, LONG_MIN, LONG_MAX), true);
+      }
+    hints:
+      - "in_order: recurse left, push the key, recurse right."
+      - "is_bst: an empty subtree is fine. Otherwise the key must satisfy lo < key < hi."
+      - "Going left tightens the upper bound to the key; going right tightens the lower bound."
+
+  - title: Level order with a queue
+    id: dsa-trees-4
+    text: |
+      **Breadth-first** traversal visits a tree level by level. Instead of recursion it uses a **queue**: take a node from the front, record it, push its children to the back. The same technique finds shortest paths in graphs (next module).
+
+      To separate the levels, process the queue in batches: at the start of each level, the queue holds exactly that level's nodes.
+
+      ```cpp
+      while (!q.empty()) {
+          std::size_t n = q.size();      // nodes on this level
+          for (std::size_t i = 0; i < n; i++) { ... q.pop(); push children ... }
+      }
+      ```
+
+      **Your turn:** write `std::vector<std::vector<int>> levels(const Node* root)`.
+    seed: |
+      #include <memory>
+      #include <queue>
+      #include <vector>
+
+      struct Node {
+          int key;
+          std::unique_ptr<Node> left, right;
+      };
+
+      std::vector<std::vector<int>> levels(const Node* root) {
+
+      }
+    solution: |
+      #include <memory>
+      #include <queue>
+      #include <vector>
+
+      struct Node {
+          int key;
+          std::unique_ptr<Node> left, right;
+      };
+
+      std::vector<std::vector<int>> levels(const Node* root) {
+          std::vector<std::vector<int>> out;
+          if (!root) return out;
+          std::queue<const Node*> q;
+          q.push(root);
+          while (!q.empty()) {
+              std::size_t n = q.size();
+              std::vector<int> level;
+              for (std::size_t i = 0; i < n; i++) {
+                  const Node* cur = q.front();
+                  q.pop();
+                  level.push_back(cur->key);
+                  if (cur->left) q.push(cur->left.get());
+                  if (cur->right) q.push(cur->right.get());
+              }
+              out.push_back(level);
+          }
+          return out;
+      }
+    harness: |
+      static std::unique_ptr<Node> mk(int k) { return std::unique_ptr<Node>(new Node{k, nullptr, nullptr}); }
+      int main() {
+          auto r = mk(1);
+          r->left = mk(2);
+          r->right = mk(3);
+          r->left->left = mk(4);
+          r->right->left = mk(5);
+          r->right->right = mk(6);
+          auto lv = levels(r.get());
+          CHECK_EQ("number of levels", lv.size(), 3u);
+          CHECK_EQ("level 0", lv[0], (std::vector<int>{1}));
+          CHECK_EQ("level 1", lv[1], (std::vector<int>{2, 3}));
+          CHECK_EQ("level 2", lv[2], (std::vector<int>{4, 5, 6}));
+          CHECK("empty tree", levels(nullptr).empty());
+      }
+    hints:
+      - "Use `std::queue<const Node*>` starting with the root."
+      - "Each round, read `q.size()` first, then pop exactly that many nodes into one level vector, pushing their children."
+
+  - title: A binary heap by hand
+    id: dsa-trees-5
+    text: |
+      A **binary heap** is a complete binary tree stored in a plain array. No pointers at all:
+
+      ```
+      index:    0   1   2   3   4   5
+      parent(i) = (i - 1) / 2      children(i) = 2i + 1, 2i + 2
+      ```
+
+      In a **min-heap**, every parent is ≤ its children, so the minimum is always at index 0.
+
+      - **push**: append at the end, then *sift up*: swap with the parent while smaller.
+      - **pop**: move the last element to the root, then *sift down*: swap with the smaller child while larger.
+
+      Both are O(log n). This is what's inside `std::priority_queue`.
+
+      **Your turn:** implement `MinHeap::push`, `MinHeap::pop` (assume non-empty) and `top`.
+    seed: |
+      #include <utility>
+      #include <vector>
+
+      class MinHeap {
+      public:
+          void push(int v);
+          void pop();
+          int top() const;
+          bool empty() const { return a_.empty(); }
+          std::size_t size() const { return a_.size(); }
+
+      private:
+          std::vector<int> a_;
+      };
+    solution: |
+      #include <utility>
+      #include <vector>
+
+      class MinHeap {
+      public:
+          void push(int v);
+          void pop();
+          int top() const;
+          bool empty() const { return a_.empty(); }
+          std::size_t size() const { return a_.size(); }
+
+      private:
+          std::vector<int> a_;
+      };
+
+      void MinHeap::push(int v) {
+          a_.push_back(v);
+          std::size_t i = a_.size() - 1;
+          while (i > 0) {
+              std::size_t parent = (i - 1) / 2;
+              if (a_[parent] <= a_[i]) break;
+              std::swap(a_[parent], a_[i]);
+              i = parent;
+          }
+      }
+
+      void MinHeap::pop() {
+          a_[0] = a_.back();
+          a_.pop_back();
+          std::size_t i = 0, n = a_.size();
+          while (true) {
+              std::size_t l = 2 * i + 1, r = 2 * i + 2, smallest = i;
+              if (l < n && a_[l] < a_[smallest]) smallest = l;
+              if (r < n && a_[r] < a_[smallest]) smallest = r;
+              if (smallest == i) break;
+              std::swap(a_[i], a_[smallest]);
+              i = smallest;
+          }
+      }
+
+      int MinHeap::top() const { return a_[0]; }
+    forbid:
+      - pattern: "priority_queue|make_heap|push_heap|pop_heap|std::sort|std::set|multiset"
+        message: Implement the sift-up and sift-down loops yourself on this step.
+    harness: |
+      int main() {
+          MinHeap h;
+          for (int v : {5, 3, 8, 1, 9, 2}) h.push(v);
+          CHECK_EQ("min at top", h.top(), 1);
+          std::vector<int> out;
+          while (!h.empty()) {
+              out.push_back(h.top());
+              h.pop();
+          }
+          CHECK_EQ("pops in sorted order", out, (std::vector<int>{1, 2, 3, 5, 8, 9}));
+          MinHeap big;
+          unsigned x = 3;
+          for (int i = 0; i < 100000; i++) {
+              x = x * 1664525u + 1013904223u;
+              big.push(static_cast<int>(x >> 8));
+          }
+          int prev = -1;
+          bool sorted = true;
+          while (!big.empty()) {
+              if (big.top() < prev) sorted = false;
+              prev = big.top();
+              big.pop();
+          }
+          CHECK("100,000 pushes and pops in order", sorted);
+      }
+    hints:
+      - "push: append, then while i > 0 and the parent `(i - 1) / 2` is bigger, swap and move up."
+      - "pop: move the last element to index 0, pop_back, then sift down."
+      - "Sift down: find the smallest of i, 2i+1 and 2i+2 (those that exist); stop if it's i, else swap and continue."
+
+  - title: "Challenge: a trie for autocomplete"
+    id: dsa-trees-6
+    text: |
+      A **trie** (prefix tree) stores strings character by character: each node has up to 26 children, one per letter, and a flag marking where a word ends. Every word sharing a prefix shares that path, so "how many words start with `de_`?" takes O(length of the prefix), no matter how many words there are. Search boxes, spell checkers and routers use tries.
+
+      **Your turn:** write class `Trie` for lowercase words:
+
+      - `void insert(const std::string& w)`
+      - `bool contains(const std::string& w) const`: exact word
+      - `int count_prefix(const std::string& p) const`: how many inserted words start with p (store a counter in every node you pass during insert)
+      - `std::vector<std::string> complete(const std::string& p, std::size_t limit) const`: up to `limit` words with that prefix, in alphabetical order (a depth-first walk visiting children 'a' to 'z' produces them sorted)
+
+      Inserting the same word twice counts it once.
+    seed: |
+      #include <array>
+      #include <memory>
+      #include <string>
+      #include <vector>
+
+      class Trie {
+      public:
+          void insert(const std::string& w);
+          bool contains(const std::string& w) const;
+          int count_prefix(const std::string& p) const;
+          std::vector<std::string> complete(const std::string& p, std::size_t limit) const;
+
+      private:
+          struct Node {
+              std::array<std::unique_ptr<Node>, 26> next;
+              bool end = false;
+              int pass = 0;
+          };
+          Node root_;
+      };
+    solution: |
+      #include <array>
+      #include <memory>
+      #include <string>
+      #include <vector>
+
+      class Trie {
+      public:
+          void insert(const std::string& w);
+          bool contains(const std::string& w) const;
+          int count_prefix(const std::string& p) const;
+          std::vector<std::string> complete(const std::string& p, std::size_t limit) const;
+
+      private:
+          struct Node {
+              std::array<std::unique_ptr<Node>, 26> next;
+              bool end = false;
+              int pass = 0;
+          };
+          const Node* find(const std::string& p) const {
+              const Node* n = &root_;
+              for (char c : p) {
+                  n = n->next[c - 'a'].get();
+                  if (!n) return nullptr;
+              }
+              return n;
+          }
+          static void collect(const Node* n, std::string& word, std::size_t limit, std::vector<std::string>& out) {
+              if (out.size() >= limit) return;
+              if (n->end) out.push_back(word);
+              for (int i = 0; i < 26; i++) {
+                  if (n->next[i]) {
+                      word.push_back(static_cast<char>('a' + i));
+                      collect(n->next[i].get(), word, limit, out);
+                      word.pop_back();
+                  }
+              }
+          }
+          Node root_;
+      };
+
+      void Trie::insert(const std::string& w) {
+          if (contains(w)) return;
+          Node* n = &root_;
+          n->pass++;
+          for (char c : w) {
+              auto& child = n->next[c - 'a'];
+              if (!child) child = std::make_unique<Node>();
+              n = child.get();
+              n->pass++;
+          }
+          n->end = true;
+      }
+
+      bool Trie::contains(const std::string& w) const {
+          const Node* n = find(w);
+          return n && n->end;
+      }
+
+      int Trie::count_prefix(const std::string& p) const {
+          const Node* n = find(p);
+          return n ? n->pass : 0;
+      }
+
+      std::vector<std::string> Trie::complete(const std::string& p, std::size_t limit) const {
+          std::vector<std::string> out;
+          const Node* n = find(p);
+          if (!n) return out;
+          std::string word = p;
+          collect(n, word, limit, out);
+          return out;
+      }
+    harness: |
+      int main() {
+          Trie t;
+          for (const char* w : {"dust", "dustii", "nuke", "inferno", "nuketown", "dune", "ancient"}) t.insert(w);
+          t.insert("dust");
+          CHECK_EQ("contains dust", t.contains("dust"), true);
+          CHECK_EQ("prefix only is not a word", t.contains("du"), false);
+          CHECK_EQ("words starting with du", t.count_prefix("du"), 3);
+          CHECK_EQ("words starting with nuke", t.count_prefix("nuke"), 2);
+          CHECK_EQ("no words with x", t.count_prefix("x"), 0);
+          CHECK_EQ("empty prefix counts all (duplicate once)", t.count_prefix(""), 7);
+          CHECK_EQ("complete du", t.complete("du", 10), (std::vector<std::string>{"dune", "dust", "dustii"}));
+          CHECK_EQ("limit", t.complete("", 2), (std::vector<std::string>{"ancient", "dune"}));
+          CHECK("no completions", t.complete("zz", 5).empty());
+      }
+    hints:
+      - "insert: skip if already contained. Walk from the root creating missing children, incrementing `pass` on every node (including the root)."
+      - "Write a private `find(prefix)` that returns the node at the end of the prefix, or nullptr."
+      - "complete: from that node, depth-first over children 0..25, appending letters to a running string and collecting words where `end` is true, until you have `limit`."

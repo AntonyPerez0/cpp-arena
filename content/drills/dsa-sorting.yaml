@@ -1,0 +1,46 @@
+topic: dsa-sorting
+lang: cpp
+drills:
+  - type: predict
+    body: |
+      std::vector<std::pair<int, char>> v = {{2, 'a'}, {1, 'b'}, {2, 'c'}, {1, 'd'}};
+      std::stable_sort(v.begin(), v.end(), [](auto& x, auto& y) { return x.first < y.first; });
+      for (auto& p : v) std::cout << p.second;
+      std::cout << "\n";
+    why: stable_sort keeps equal keys in their original order.
+  - type: predict
+    body: |
+      std::vector<int> v = {7, 2, 9, 4, 5};
+      int pivot = v.back(), i = 0;
+      for (int j = 0; j < 4; j++) if (v[j] < pivot) std::swap(v[i++], v[j]);
+      std::swap(v[i], v.back());
+      std::cout << i << "\n";
+    why: Lomuto partition puts the pivot 5 at its final index, after the two smaller elements.
+  - type: predict
+    body: |
+      std::vector<int> v = {9, 1, 8, 2, 7};
+      std::nth_element(v.begin(), v.begin() + 2, v.end());
+      std::cout << v[2] << "\n";
+    why: nth_element puts the value that belongs at index 2 in sorted order (the median, 7) there.
+  - type: bug
+    body: |
+      std::vector<int> v = {3, 1, 2};
+      std::sort(v.begin(), v.end(), [](int a, int b) { return a <= b; }); // BUG
+      std::cout << v[0] << v[1] << v[2] << "\n";
+    fix: "std::sort(v.begin(), v.end(), [](int a, int b) { return a < b; });"
+    ub: true
+    why: A comparator must be a strict weak ordering. `<=` says equal elements come before each other, which is undefined behavior.
+  - type: predict
+    body: |
+      std::vector<int> count(4, 0);
+      for (int x : {3, 0, 3, 1, 3}) count[x]++;
+      for (int c : count) std::cout << c;
+      std::cout << "\n";
+    why: Counting sort's first pass tallies each value.
+  - type: compiles
+    pre: |
+      struct P { int x; };
+    body: |
+      std::vector<P> v = {{2}, {1}};
+      std::sort(v.begin(), v.end());
+    why: std::sort needs operator< (or a comparator), and P has neither.

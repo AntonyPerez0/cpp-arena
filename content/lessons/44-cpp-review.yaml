@@ -1,0 +1,449 @@
+id: cpp-review
+title: "Capstone: code review"
+lang: cpp
+phase: "Capstone: Code Review"
+summary: Review realistic pull requests the way a senior engineer would. Each step hides several real bugs (off-by-one errors, dangling references, leaks on error paths, invalidated iterators, integer overflow and broken class design) for you to find and fix.
+steps:
+  - title: "Review: pagination"
+    id: cpp-review-1
+    text: |
+      Reading other people's code critically is half of a professional developer's job. In a code review, ask of every line: **what inputs break this?** Empty input, the first and last item, zero, negative numbers, huge numbers.
+
+      A teammate opened this pull request for the leaderboard API. The spec says:
+
+      - `page` is **1-based** (page 1 is the first page)
+      - pages past the end return an empty list, never crash
+      - `page < 1` or `per_page < 1` returns an empty list
+
+      The tests here are the reviewer's edge cases. **Your turn:** find and fix the bugs. There are three.
+    seed: |
+      #include <string>
+      #include <vector>
+
+      std::vector<std::string> page_of(const std::vector<std::string>& items, int page, int per_page) {
+          std::vector<std::string> out;
+          int start = page * per_page;
+          int end = start + per_page;
+          for (int i = start; i < end; i++) out.push_back(items[i]);
+          return out;
+      }
+    solution: |
+      #include <string>
+      #include <vector>
+
+      std::vector<std::string> page_of(const std::vector<std::string>& items, int page, int per_page) {
+          std::vector<std::string> out;
+          if (page < 1 || per_page < 1) return out;
+          long long start = static_cast<long long>(page - 1) * per_page;
+          long long end = start + per_page;
+          long long size = static_cast<long long>(items.size());
+          if (end > size) end = size;
+          for (long long i = start; i < end; i++) out.push_back(items[i]);
+          return out;
+      }
+    harness: |
+      int main() {
+          std::vector<std::string> v = {"a", "b", "c", "d", "e"};
+          CHECK_EQ("page 1", page_of(v, 1, 2), (std::vector<std::string>{"a", "b"}));
+          CHECK_EQ("page 2", page_of(v, 2, 2), (std::vector<std::string>{"c", "d"}));
+          CHECK_EQ("last partial page", page_of(v, 3, 2), (std::vector<std::string>{"e"}));
+          CHECK("past the end is empty", page_of(v, 4, 2).empty());
+          CHECK("page 0 is invalid", page_of(v, 0, 2).empty());
+          CHECK("per_page 0 is invalid", page_of(v, 1, 0).empty());
+          CHECK("huge page number doesn't overflow", page_of(v, 2000000000, 2000000000).empty());
+          CHECK("empty list", page_of({}, 1, 10).empty());
+      }
+    hints:
+      - "Bug 1: page is 1-based, so page 1 must start at index 0: `(page - 1) * per_page`."
+      - "Bug 2: the last page can be partial, and pages past the end are empty. Clamp `end` to `items.size()`."
+      - "Bug 3: invalid arguments. Reject `page < 1 || per_page < 1` up front. And `page * per_page` can overflow an int: compute it in `long long`."
+
+  - title: "Review: dangling references"
+    id: cpp-review-2
+    text: |
+      `std::string_view` and references are cheap *views* of data owned by someone else. The classic review catch: a view that **outlives** what it points at. It compiles cleanly, often seems to work in testing, and then prints garbage in production.
+
+      Red flags to look for:
+
+      - returning a `string_view` or a reference to a **local** or a **temporary**
+      - storing a `string_view` member initialized from a temporary `std::string`
+      - keeping a reference into a container that later grows
+
+      **Your turn:** this pull request adds a greeting helper and a `Tag` type. Both have lifetime bugs. Fix them by making each owner hold its own `std::string`. (The checks inspect the types too, since dangling-view bugs can seem to work by luck.)
+    seed: |
+      #include <string>
+      #include <string_view>
+
+      std::string_view greeting(const std::string& name) {
+          std::string text = "gl hf, " + name;
+          return text;
+      }
+
+      class Tag {
+      public:
+          explicit Tag(const std::string& label) : label_(label) {}
+          std::string_view label() const { return label_; }
+
+      private:
+          std::string_view label_;
+      };
+
+      Tag make_tag(int round) {
+          return Tag("round " + std::to_string(round));
+      }
+    solution: |
+      #include <string>
+      #include <string_view>
+
+      std::string greeting(const std::string& name) {
+          std::string text = "gl hf, " + name;
+          return text;
+      }
+
+      class Tag {
+      public:
+          explicit Tag(const std::string& label) : label_(label) {}
+          std::string_view label() const { return label_; }
+
+      private:
+          std::string label_;
+      };
+
+      Tag make_tag(int round) {
+          return Tag("round " + std::to_string(round));
+      }
+    harness: |
+      #include <type_traits>
+      int main() {
+          static_assert(std::is_same_v<decltype(greeting(std::string())), std::string>, "greeting must return an owning std::string");
+          CHECK_EQ("greeting", std::string(greeting("ropz")), std::string("gl hf, ropz"));
+          Tag t = make_tag(16);
+          std::string filler(100, 'x');
+          CHECK_EQ("tag outlives the temporary", std::string(t.label()), std::string("round 16"));
+          CHECK("Tag owns its text", sizeof(Tag) == sizeof(std::string));
+      }
+    hints:
+      - "`greeting` returns a view of the local `text`, which is destroyed at the closing brace. Return `std::string` instead."
+      - "`Tag` stores a view of the temporary string built in `make_tag`. Make the member a `std::string`; the accessor can still return a view of it."
+
+  - title: "Review: leaks on the error path"
+    id: cpp-review-3
+    text: |
+      In C-style code, every early `return` is a chance to leak. Reviewers trace **each exit path** and check that everything acquired before it gets released.
+
+      This codebase wraps `malloc`/`free` in `xmalloc`/`xfree`, which count live allocations. (Real projects do the same to find leaks in tests.) The function parses `count` numbers from a string into a heap buffer, then copies them into a second buffer with duplicates removed.
+
+      **Your turn:** the happy path is fine, but some error paths leak. Make every path leave `live_allocations` where it started. There are two leaks. Staying in this C style is fine; a common tidy fix is a single cleanup label (`goto cleanup;`) or freeing before each return.
+    seed: |
+      #include <cstdlib>
+      #include <cstring>
+
+      static int live_allocations = 0;
+      void* xmalloc(std::size_t n) { void* p = std::malloc(n > 0 ? n : 1); if (p) live_allocations++; return p; }
+      void xfree(void* p) { if (p) live_allocations--; std::free(p); }
+
+      /* Parses up to `count` space-separated ints from `text`, keeps the first
+         occurrence of each, and returns how many unique values there were.
+         Returns -1 if the text doesn't contain `count` valid numbers. */
+      int unique_count(const char* text, int count) {
+          int* values = static_cast<int*>(xmalloc(sizeof(int) * count));
+          const char* p = text;
+          for (int i = 0; i < count; i++) {
+              char* end;
+              long v = std::strtol(p, &end, 10);
+              if (end == p) return -1;
+              values[i] = static_cast<int>(v);
+              p = end;
+          }
+          int* unique = static_cast<int*>(xmalloc(sizeof(int) * count));
+          int n = 0;
+          for (int i = 0; i < count; i++) {
+              bool seen = false;
+              for (int j = 0; j < n; j++) seen = seen || unique[j] == values[i];
+              if (!seen) unique[n++] = values[i];
+          }
+          if (n == 0) return -1;
+          xfree(unique);
+          xfree(values);
+          return n;
+      }
+    solution: |
+      #include <cstdlib>
+      #include <cstring>
+
+      static int live_allocations = 0;
+      void* xmalloc(std::size_t n) { void* p = std::malloc(n > 0 ? n : 1); if (p) live_allocations++; return p; }
+      void xfree(void* p) { if (p) live_allocations--; std::free(p); }
+
+      /* Parses up to `count` space-separated ints from `text`, keeps the first
+         occurrence of each, and returns how many unique values there were.
+         Returns -1 if the text doesn't contain `count` valid numbers. */
+      int unique_count(const char* text, int count) {
+          int result = -1;
+          int* unique = nullptr;
+          int* values = static_cast<int*>(xmalloc(sizeof(int) * count));
+          const char* p = text;
+          for (int i = 0; i < count; i++) {
+              char* end;
+              long v = std::strtol(p, &end, 10);
+              if (end == p) goto cleanup;
+              values[i] = static_cast<int>(v);
+              p = end;
+          }
+          unique = static_cast<int*>(xmalloc(sizeof(int) * count));
+          {
+              int n = 0;
+              for (int i = 0; i < count; i++) {
+                  bool seen = false;
+                  for (int j = 0; j < n; j++) seen = seen || unique[j] == values[i];
+                  if (!seen) unique[n++] = values[i];
+              }
+              if (n > 0) result = n;
+          }
+      cleanup:
+          xfree(unique);
+          xfree(values);
+          return result;
+      }
+    harness: |
+      int main() {
+          CHECK_EQ("happy path", unique_count("3 1 3 2 1", 5), 3);
+          CHECK_EQ("no leak on success", live_allocations, 0);
+          CHECK_EQ("bad number", unique_count("4 x 6", 3), -1);
+          CHECK_EQ("no leak when parsing fails", live_allocations, 0);
+          CHECK_EQ("too few numbers", unique_count("1 2", 3), -1);
+          CHECK_EQ("still no leak", live_allocations, 0);
+          CHECK_EQ("zero numbers", unique_count("", 0), -1);
+          CHECK_EQ("no leak on the empty path", live_allocations, 0);
+      }
+    hints:
+      - "Leak 1: when strtol fails, `return -1` skips freeing `values`."
+      - "Leak 2: when n == 0, the early return skips freeing both buffers."
+      - "One tidy fix: keep a `result` variable, `goto cleanup;` on errors, and free both pointers (xfree(nullptr) is safe) at a single `cleanup:` label."
+
+  - title: "Review: modifying while iterating"
+    id: cpp-review-4
+    text: |
+      Another classic: changing a container while looping over it.
+
+      - erasing index `i` shifts the next element into position `i`, and then `i++` **skips** it
+      - `push_back` during a range-for can reallocate, invalidating the loop's hidden iterators
+      - a reference taken before a `push_back` can dangle afterwards
+
+      **Your turn:** this pull request enforces bans and fills the roster back up with substitutes. Fix it so that every banned player is removed (including when two are adjacent), one substitute is added per removed player, and `captain` returns the right name. There are three bugs.
+    seed: |
+      #include <set>
+      #include <string>
+      #include <vector>
+
+      // Removes banned players, then appends one substitute per removal.
+      void apply_bans(std::vector<std::string>& roster, const std::set<std::string>& banned, const std::string& sub) {
+          int removed = 0;
+          for (std::size_t i = 0; i < roster.size(); i++) {
+              if (banned.count(roster[i])) {
+                  roster.erase(roster.begin() + i);
+                  removed++;
+              }
+          }
+          for (const auto& p : roster) {
+              if (removed > 0 && p != sub) {
+                  roster.push_back(sub);
+                  removed--;
+              }
+          }
+      }
+
+      // Returns the first player's name after adding a new player at the end.
+      std::string captain_after_signing(std::vector<std::string>& roster, const std::string& signing) {
+          const std::string& captain = roster.front();
+          roster.push_back(signing);
+          return captain;
+      }
+    solution: |
+      #include <set>
+      #include <string>
+      #include <vector>
+
+      // Removes banned players, then appends one substitute per removal.
+      void apply_bans(std::vector<std::string>& roster, const std::set<std::string>& banned, const std::string& sub) {
+          std::size_t removed = std::erase_if(roster, [&](const std::string& p) { return banned.count(p) > 0; });
+          for (std::size_t i = 0; i < removed; i++) roster.push_back(sub);
+      }
+
+      // Returns the first player's name after adding a new player at the end.
+      std::string captain_after_signing(std::vector<std::string>& roster, const std::string& signing) {
+          std::string captain = roster.front();
+          roster.push_back(signing);
+          return captain;
+      }
+    forbid:
+      - pattern: "const\\s+std::string\\s*&\\s*captain\\s*="
+        message: "`captain` is a reference into the vector, and push_back can reallocate and leave it dangling. Copy the name first."
+    harness: |
+      int main() {
+          std::vector<std::string> r = {"a", "cheat1", "cheat2", "b", "cheat3"};
+          apply_bans(r, {"cheat1", "cheat2", "cheat3"}, "sub");
+          CHECK_EQ("adjacent bans both removed, one sub each", r, (std::vector<std::string>{"a", "b", "sub", "sub", "sub"}));
+          std::vector<std::string> clean = {"x", "y"};
+          apply_bans(clean, {"z"}, "sub");
+          CHECK_EQ("nothing banned", clean, (std::vector<std::string>{"x", "y"}));
+          std::vector<std::string> all = {"c1", "c2"};
+          apply_bans(all, {"c1", "c2"}, "sub");
+          CHECK_EQ("everyone banned", all, (std::vector<std::string>{"sub", "sub"}));
+          std::vector<std::string> team = {"karrigan", "ropz"};
+          team.shrink_to_fit();
+          CHECK_EQ("captain survives reallocation", captain_after_signing(team, "jks"), std::string("karrigan"));
+      }
+    hints:
+      - "Bug 1: after `erase(begin() + i)`, the next player moves into slot i and `i++` skips them. `std::erase_if` (C++20) removes all matches correctly and returns how many."
+      - "Bug 2: the second loop push_backs into `roster` while range-for iterates it. Just loop `removed` times instead."
+      - "Bug 3: `captain` is a reference into the vector, and push_back may reallocate. Copy the string instead."
+
+  - title: "Review: integer math"
+    id: cpp-review-5
+    text: |
+      Numeric code gets reviewed for four things: **overflow**, **division by zero**, **signed/unsigned mix-ups**, and **empty input**.
+
+      **Your turn:** this pull request adds stats for the match history page. The specification:
+
+      - `win_rate(wins, games)`: whole-number percentage, rounded down; 0 when there are no games. It must work for career totals in the billions.
+      - `average(scores)`: the mean as a double; 0.0 for no scores. Scores can be large.
+      - `last_n_total(scores, n)`: the sum of the last `n` scores (all of them if there are fewer than n).
+
+      There are four bugs.
+    seed: |
+      #include <vector>
+
+      int win_rate(int wins, int games) {
+          return wins * 100 / games;
+      }
+
+      double average(const std::vector<int>& scores) {
+          int sum = 0;
+          for (int s : scores) sum += s;
+          return static_cast<double>(sum) / scores.size();
+      }
+
+      long long last_n_total(const std::vector<int>& scores, std::size_t n) {
+          long long total = 0;
+          for (std::size_t i = scores.size() - n; i < scores.size(); i++) total += scores[i];
+          return total;
+      }
+    solution: |
+      #include <vector>
+
+      int win_rate(int wins, int games) {
+          if (games <= 0) return 0;
+          return static_cast<int>(static_cast<long long>(wins) * 100 / games);
+      }
+
+      double average(const std::vector<int>& scores) {
+          if (scores.empty()) return 0.0;
+          long long sum = 0;
+          for (int s : scores) sum += s;
+          return static_cast<double>(sum) / static_cast<double>(scores.size());
+      }
+
+      long long last_n_total(const std::vector<int>& scores, std::size_t n) {
+          long long total = 0;
+          std::size_t start = n >= scores.size() ? 0 : scores.size() - n;
+          for (std::size_t i = start; i < scores.size(); i++) total += scores[i];
+          return total;
+      }
+    harness: |
+      int main() {
+          CHECK_EQ("simple rate", win_rate(3, 4), 75);
+          CHECK_EQ("no games", win_rate(0, 0), 0);
+          CHECK_EQ("career totals don't overflow", win_rate(1500000000, 2000000000), 75);
+          CHECK_EQ("average", average({1, 2, 3, 4}), 2.5);
+          CHECK_EQ("empty average", average({}), 0.0);
+          CHECK_EQ("big scores", average({2000000000, 2000000000}), 2000000000.0);
+          CHECK_EQ("last 2", last_n_total({5, 6, 7}, 2), 13LL);
+          CHECK_EQ("n larger than size", last_n_total({5, 6, 7}, 10), 18LL);
+          CHECK_EQ("empty scores", last_n_total({}, 3), 0LL);
+      }
+    hints:
+      - "win_rate: guard `games <= 0`, and do the multiplication in `long long`: 1.5 billion × 100 doesn't fit in an int."
+      - "average: an empty vector divides by zero, and an `int` sum overflows for big scores. Use a long long sum and check empty first."
+      - "last_n_total: `scores.size() - n` is unsigned, so it wraps to a huge number when n is bigger than the size. Clamp the start index."
+
+  - title: "Review: class design"
+    id: cpp-review-6
+    text: |
+      Design bugs in class hierarchies are invisible in small tests and expensive in production:
+
+      - a base class used polymorphically **without a virtual destructor**: deleting through a base pointer skips the derived destructor (leaking whatever it owns)
+      - storing derived objects **by value** in a container of the base type **slices** them: only the base part is copied, and virtual calls go to the base version
+      - an intended override with a **slightly different signature** (missing `const`) silently creates a new function instead. `override` turns that into a compile error
+
+      **Your turn:** this pull request adds weapon logging. Find and fix all three problems so the tests pass.
+    seed: |
+      #include <memory>
+      #include <string>
+      #include <vector>
+
+      inline int live_scopes = 0;
+
+      class Weapon {
+      public:
+          ~Weapon() {}
+          virtual std::string name() const { return "weapon"; }
+          virtual int damage() const { return 0; }
+      };
+
+      class Sniper : public Weapon {
+      public:
+          Sniper() { live_scopes++; }
+          ~Sniper() { live_scopes--; }
+          std::string name() const { return "sniper"; }
+          int damage() { return 115; }
+      };
+
+      std::vector<std::string> names(const std::vector<Weapon>& arsenal) {
+          std::vector<std::string> out;
+          for (const auto& w : arsenal) out.push_back(w.name());
+          return out;
+      }
+    solution: |
+      #include <memory>
+      #include <string>
+      #include <vector>
+
+      inline int live_scopes = 0;
+
+      class Weapon {
+      public:
+          virtual ~Weapon() {}
+          virtual std::string name() const { return "weapon"; }
+          virtual int damage() const { return 0; }
+      };
+
+      class Sniper : public Weapon {
+      public:
+          Sniper() { live_scopes++; }
+          ~Sniper() override { live_scopes--; }
+          std::string name() const override { return "sniper"; }
+          int damage() const override { return 115; }
+      };
+
+      std::vector<std::string> names(const std::vector<std::unique_ptr<Weapon>>& arsenal) {
+          std::vector<std::string> out;
+          for (const auto& w : arsenal) out.push_back(w->name());
+          return out;
+      }
+    harness: |
+      int main() {
+          {
+              std::unique_ptr<Weapon> w = std::make_unique<Sniper>();
+              CHECK_EQ("damage through the base", w->damage(), 115);
+          }
+          CHECK_EQ("derived destructor ran", live_scopes, 0);
+          std::vector<std::unique_ptr<Weapon>> arsenal;
+          arsenal.push_back(std::make_unique<Sniper>());
+          arsenal.push_back(std::make_unique<Weapon>());
+          CHECK_EQ("no slicing", names(arsenal), (std::vector<std::string>{"sniper", "weapon"}));
+      }
+    hints:
+      - "Make the base destructor `virtual`, so deleting a Sniper through a Weapon pointer runs ~Sniper."
+      - "`int damage()` in Sniper lacks `const`, so it doesn't override. Add `const override` (and `override` on name())."
+      - "`std::vector<Weapon>` slices every Sniper into a plain Weapon. Take `std::vector<std::unique_ptr<Weapon>>` and call `w->name()`."

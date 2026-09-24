@@ -9,9 +9,10 @@
     "content": "node scripts/build-content.mjs",
     "verify:wasm": "node scripts/verify-wasm.mjs",
     "verify": "npm run content && npm run verify:wasm",
-    "build": "node scripts/copy-toolchain.mjs && tsc --noEmit && vite build",
+    "build": "node scripts/copy-toolchain.mjs && tsc --noEmit && vite build && node scripts/pack-pro.mjs",
     "preview": "vite preview",
-    "test:e2e": "node scripts/e2e.mjs"
+    "test:e2e": "node scripts/e2e.mjs",
+    "check:pro": "bash pro-track/check.sh"
   },
   "dependencies": {
     "@bjorn3/browser_wasi_shim": "0.4.2",

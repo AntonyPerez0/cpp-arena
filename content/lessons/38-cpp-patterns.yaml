@@ -1,0 +1,557 @@
+id: cpp-patterns
+title: Design patterns in modern C++
+lang: cpp
+phase: "C++: Professional C++"
+summary: The patterns you'll meet in every large C++ codebase, written the modern way. Strategies as closures, a factory registry, observers with weak_ptr, pimpl, RAII wrappers for C libraries, and a table-driven state machine.
+steps:
+  - title: Strategies as closures
+    id: cpp-patterns-1
+    text: |
+      The classic **Strategy** pattern swaps an algorithm at runtime. The textbook version uses an abstract base class and a subclass per strategy. When a strategy is a single function, modern C++ just uses `std::function`, and a **function that returns a lambda** builds configured strategies:
+
+      ```cpp
+      std::function<long(long)> percent_off(int pct) {
+          return [pct](long cents) { return cents - cents * pct / 100; };
+      }
+      ```
+
+      The lambda **captures** `pct`, so each returned strategy remembers its own settings. That's a *closure*.
+
+      **Your turn:** write the strategy factories `percent_off(pct)` and `flat_off(amount)` (never below 0), and `Cart::total()`, which sums the prices and applies the cart's discount strategy once to the sum.
+    seed: |
+      #include <functional>
+      #include <vector>
+
+      using Discount = std::function<long(long)>;
+
+      Discount percent_off(int pct) {
+
+      }
+
+      Discount flat_off(long amount) {
+
+      }
+
+      struct Cart {
+          std::vector<long> prices;
+          Discount discount = [](long cents) { return cents; };
+          long total() const;
+      };
+
+      long Cart::total() const {
+
+      }
+    solution: |
+      #include <functional>
+      #include <vector>
+
+      using Discount = std::function<long(long)>;
+
+      Discount percent_off(int pct) {
+          return [pct](long cents) { return cents - cents * pct / 100; };
+      }
+
+      Discount flat_off(long amount) {
+          return [amount](long cents) { return cents > amount ? cents - amount : 0; };
+      }
+
+      struct Cart {
+          std::vector<long> prices;
+          Discount discount = [](long cents) { return cents; };
+          long total() const;
+      };
+
+      long Cart::total() const {
+          long sum = 0;
+          for (long p : prices) sum += p;
+          return discount(sum);
+      }
+    harness: |
+      int main() {
+          Cart c;
+          c.prices = {2700, 1000, 300};
+          CHECK_EQ("no discount", c.total(), 4000L);
+          c.discount = percent_off(25);
+          CHECK_EQ("25% off", c.total(), 3000L);
+          c.discount = flat_off(500);
+          CHECK_EQ("flat 500 off", c.total(), 3500L);
+          c.discount = flat_off(9999);
+          CHECK_EQ("never below 0", c.total(), 0L);
+          auto ten = percent_off(10), half = percent_off(50);
+          CHECK("each closure keeps its own pct", ten(1000) == 900 && half(1000) == 500);
+      }
+    hints:
+      - "`return [pct](long cents) { return cents - cents * pct / 100; };`"
+      - "flat_off: return 0 when the amount is bigger than the total."
+      - "total(): sum the prices, then `return discount(sum);`"
+
+  - title: A factory registry
+    id: cpp-patterns-2
+    text: |
+      A **factory** creates objects by *name* (from a config file, a network message, a command line), returning them through a base-class pointer. Instead of a giant `if`/`else` chain, large codebases use a **registry**: a map from name to a creator function. New types register themselves without anyone editing the factory.
+
+      ```cpp
+      using Creator = std::function<std::unique_ptr<Weapon>()>;
+      std::map<std::string, Creator> creators_;
+      ```
+
+      Returning `std::unique_ptr` makes ownership obvious: the caller owns the new object.
+
+      **Your turn:** implement `Factory::add` (returns false if the name is already registered), `Factory::create` (returns `nullptr` for unknown names) and `Factory::names` (sorted).
+    seed: |
+      #include <functional>
+      #include <map>
+      #include <memory>
+      #include <string>
+      #include <vector>
+
+      struct Weapon {
+          virtual ~Weapon() = default;
+          virtual int damage() const = 0;
+      };
+
+      class Factory {
+      public:
+          using Creator = std::function<std::unique_ptr<Weapon>()>;
+          bool add(const std::string& name, Creator make);
+          std::unique_ptr<Weapon> create(const std::string& name) const;
+          std::vector<std::string> names() const;
+
+      private:
+          std::map<std::string, Creator> creators_;
+      };
+    solution: |
+      #include <functional>
+      #include <map>
+      #include <memory>
+      #include <string>
+      #include <vector>
+
+      struct Weapon {
+          virtual ~Weapon() = default;
+          virtual int damage() const = 0;
+      };
+
+      class Factory {
+      public:
+          using Creator = std::function<std::unique_ptr<Weapon>()>;
+          bool add(const std::string& name, Creator make);
+          std::unique_ptr<Weapon> create(const std::string& name) const;
+          std::vector<std::string> names() const;
+
+      private:
+          std::map<std::string, Creator> creators_;
+      };
+
+      bool Factory::add(const std::string& name, Creator make) {
+          return creators_.emplace(name, std::move(make)).second;
+      }
+
+      std::unique_ptr<Weapon> Factory::create(const std::string& name) const {
+          auto it = creators_.find(name);
+          if (it == creators_.end()) return nullptr;
+          return it->second();
+      }
+
+      std::vector<std::string> Factory::names() const {
+          std::vector<std::string> out;
+          for (const auto& [name, make] : creators_) out.push_back(name);
+          return out;
+      }
+    harness: |
+      struct Ak : Weapon { int damage() const override { return 36; } };
+      struct Awp : Weapon { int damage() const override { return 115; } };
+      int main() {
+          Factory f;
+          CHECK_EQ("add ak", f.add("ak47", [] { return std::make_unique<Ak>(); }), true);
+          f.add("awp", [] { return std::make_unique<Awp>(); });
+          CHECK_EQ("duplicate name refused", f.add("awp", [] { return std::make_unique<Ak>(); }), false);
+          auto w = f.create("awp");
+          CHECK("created an awp", w && w->damage() == 115);
+          CHECK("unknown gives nullptr", f.create("negev") == nullptr);
+          CHECK_EQ("names sorted", f.names(), (std::vector<std::string>{"ak47", "awp"}));
+          auto a = f.create("ak47"), b = f.create("ak47");
+          CHECK("each create makes a new object", a && b && a.get() != b.get());
+      }
+    hints:
+      - "`creators_.emplace(name, std::move(make)).second` is false when the key already existed."
+      - "create: `find` the name; if missing return nullptr, otherwise call the creator: `it->second()`."
+      - "std::map is already sorted by key, so names() just collects the keys."
+
+  - title: Observers with weak_ptr
+    id: cpp-patterns-3
+    text: |
+      In the **Observer** pattern a subject notifies listeners when something happens. The hard part in C++ is **lifetime**: if a listener is destroyed while the subject still holds a pointer to it, the next notification uses a dangling pointer.
+
+      Storing `std::weak_ptr` solves it. The subject doesn't keep listeners alive, and `lock()` tells you whether each one still exists:
+
+      ```cpp
+      for (auto& w : listeners_) {
+          if (auto l = w.lock()) l->on_event(e);    // still alive: notify
+      }
+      ```
+
+      **Your turn:** implement `Scoreboard::subscribe` and `Scoreboard::publish`. `publish` notifies every living listener in subscription order, **removes** expired ones, and returns how many were notified.
+    seed: |
+      #include <memory>
+      #include <string>
+      #include <vector>
+
+      struct Listener {
+          virtual ~Listener() = default;
+          virtual void on_score(const std::string& team, int score) = 0;
+      };
+
+      class Scoreboard {
+      public:
+          void subscribe(const std::shared_ptr<Listener>& l);
+          int publish(const std::string& team, int score);
+          std::size_t listener_count() const { return listeners_.size(); }
+
+      private:
+          std::vector<std::weak_ptr<Listener>> listeners_;
+      };
+    solution: |
+      #include <memory>
+      #include <string>
+      #include <vector>
+
+      struct Listener {
+          virtual ~Listener() = default;
+          virtual void on_score(const std::string& team, int score) = 0;
+      };
+
+      class Scoreboard {
+      public:
+          void subscribe(const std::shared_ptr<Listener>& l);
+          int publish(const std::string& team, int score);
+          std::size_t listener_count() const { return listeners_.size(); }
+
+      private:
+          std::vector<std::weak_ptr<Listener>> listeners_;
+      };
+
+      void Scoreboard::subscribe(const std::shared_ptr<Listener>& l) {
+          listeners_.push_back(l);
+      }
+
+      int Scoreboard::publish(const std::string& team, int score) {
+          int notified = 0;
+          for (auto it = listeners_.begin(); it != listeners_.end();) {
+              if (auto l = it->lock()) {
+                  l->on_score(team, score);
+                  notified++;
+                  ++it;
+              } else {
+                  it = listeners_.erase(it);
+              }
+          }
+          return notified;
+      }
+    harness: |
+      struct Log : Listener {
+          std::string text;
+          void on_score(const std::string& team, int score) override { text += team + ":" + std::to_string(score) + " "; }
+      };
+      int main() {
+          Scoreboard sb;
+          auto a = std::make_shared<Log>();
+          auto b = std::make_shared<Log>();
+          sb.subscribe(a);
+          sb.subscribe(b);
+          CHECK_EQ("two notified", sb.publish("navi", 1), 2);
+          CHECK("scoreboard does not keep listeners alive", a.use_count() == 1);
+          b.reset();
+          CHECK_EQ("destroyed listener skipped", sb.publish("faze", 2), 1);
+          CHECK_EQ("expired entry removed", sb.listener_count(), 1u);
+          CHECK_EQ("a saw both", a->text, std::string("navi:1 faze:2 "));
+      }
+    hints:
+      - "subscribe: `listeners_.push_back(l);` converts the shared_ptr to a weak_ptr."
+      - "publish: loop with an iterator; `if (auto l = it->lock())` notify and advance, else `it = listeners_.erase(it);`"
+
+  - title: Pimpl
+    id: cpp-patterns-4
+    text: |
+      In a big codebase, changing a class's **private members** forces every file that includes its header to recompile, and in a shared library it breaks binary compatibility. The **pimpl** idiom ("pointer to implementation") hides the private data behind a pointer to a struct that's only *declared* in the header:
+
+      ```cpp
+      // widget.h
+      class Widget {
+      public:
+          Widget();
+          ~Widget();                       // declared here...
+          int value() const;
+      private:
+          struct Impl;                     // incomplete here
+          std::unique_ptr<Impl> impl_;
+      };
+
+      // widget.cpp
+      struct Widget::Impl { int value = 42; std::vector<int> cache; };
+      Widget::Widget() : impl_(std::make_unique<Impl>()) {}
+      Widget::~Widget() = default;         // ...defined where Impl is complete
+      ```
+
+      The destructor **must** be defined after `Impl` is complete, because `unique_ptr` needs to know how to delete it. Forgetting that is the classic pimpl compile error.
+
+      **Your turn:** the "header" part is written. Write the "source file" part: define `Impl` (holding a `std::vector<std::string>` of names), the constructor, destructor, move constructor, `add` and `count`.
+    seed: |
+      #include <memory>
+      #include <string>
+      #include <vector>
+
+      // ---- roster.h ----
+      class Roster {
+      public:
+          Roster();
+          ~Roster();
+          Roster(Roster&&) noexcept;
+          void add(const std::string& name);
+          int count() const;
+
+      private:
+          struct Impl;
+          std::unique_ptr<Impl> impl_;
+      };
+
+      // ---- roster.cpp ----
+    solution: |
+      #include <memory>
+      #include <string>
+      #include <vector>
+
+      // ---- roster.h ----
+      class Roster {
+      public:
+          Roster();
+          ~Roster();
+          Roster(Roster&&) noexcept;
+          void add(const std::string& name);
+          int count() const;
+
+      private:
+          struct Impl;
+          std::unique_ptr<Impl> impl_;
+      };
+
+      // ---- roster.cpp ----
+      struct Roster::Impl {
+          std::vector<std::string> names;
+      };
+
+      Roster::Roster() : impl_(std::make_unique<Impl>()) {}
+      Roster::~Roster() = default;
+      Roster::Roster(Roster&&) noexcept = default;
+
+      void Roster::add(const std::string& name) { impl_->names.push_back(name); }
+      int Roster::count() const { return static_cast<int>(impl_->names.size()); }
+    harness: |
+      #include <type_traits>
+      int main() {
+          Roster r;
+          r.add("karrigan");
+          r.add("ropz");
+          CHECK_EQ("count", r.count(), 2);
+          Roster moved(std::move(r));
+          CHECK_EQ("moved roster keeps the data", moved.count(), 2);
+          CHECK("still not copyable (unique_ptr member)", !std::is_copy_constructible_v<Roster>);
+          CHECK_EQ("public size is one pointer", sizeof(Roster), sizeof(void*));
+      }
+    hints:
+      - "`struct Roster::Impl { std::vector<std::string> names; };`"
+      - "`Roster::Roster() : impl_(std::make_unique<Impl>()) {}`, and `Roster::~Roster() = default;` after Impl is defined."
+      - "`Roster::Roster(Roster&&) noexcept = default;` also needs Impl complete, so it goes here too."
+
+  - title: RAII wrappers for C libraries
+    id: cpp-patterns-5
+    text: |
+      Enterprise C++ constantly calls C libraries (OS APIs, databases, compression, crypto) that hand out handles you must release: `FILE*` with `fclose`, `sqlite3*` with `sqlite3_close`, and so on. Wrap each one **immediately** in a `std::unique_ptr` with a custom deleter, so it's released on every path, exactly once:
+
+      ```cpp
+      struct FileCloser {
+          void operator()(FILE* f) const { if (f) std::fclose(f); }
+      };
+      using File = std::unique_ptr<FILE, FileCloser>;
+
+      File f(std::fopen("data.txt", "r"));     // closes itself
+      if (!f) { /* open failed */ }
+      std::fgets(buf, sizeof buf, f.get());    // .get() for the raw handle
+      ```
+
+      **Your turn:** write the `FileCloser`, the `File` alias, `File open_file(path, mode)`, and `std::optional<std::string> first_line(path)`, which returns the file's first line (without the newline) or `std::nullopt` if it can't be opened or is empty. No manual `fclose` in `first_line`.
+    seed: |
+      #include <cstdio>
+      #include <memory>
+      #include <optional>
+      #include <string>
+
+      // FileCloser, File and open_file here
+
+      std::optional<std::string> first_line(const std::string& path) {
+
+      }
+    solution: |
+      #include <cstdio>
+      #include <memory>
+      #include <optional>
+      #include <string>
+
+      // FileCloser, File and open_file here
+      struct FileCloser {
+          void operator()(std::FILE* f) const {
+              if (f) std::fclose(f);
+          }
+      };
+      using File = std::unique_ptr<std::FILE, FileCloser>;
+
+      File open_file(const std::string& path, const char* mode) {
+          return File(std::fopen(path.c_str(), mode));
+      }
+
+      std::optional<std::string> first_line(const std::string& path) {
+          File f = open_file(path, "r");
+          if (!f) return std::nullopt;
+          char buf[256];
+          if (!std::fgets(buf, sizeof buf, f.get())) return std::nullopt;
+          std::string line(buf);
+          if (!line.empty() && line.back() == '\n') line.pop_back();
+          return line;
+      }
+    forbid:
+      - pattern: "first_line[\\s\\S]*fclose\\s*\\(\\s*f"
+        message: "Let the File's deleter close the handle; don't call fclose by hand in first_line."
+    harness: |
+      int main() {
+          CHECK_EQ("first line", first_line("maps.txt").value_or("?"), std::string("de_dust2"));
+          CHECK("missing file", !first_line("missing.txt"));
+          CHECK("empty file", !first_line("empty.txt"));
+          {
+              File w = open_file("out.txt", "w");
+              CHECK("opened for writing", w != nullptr);
+              std::fputs("written\n", w.get());
+          }
+          CHECK_EQ("closed (and flushed) at end of scope", first_line("out.txt").value_or("?"), std::string("written"));
+          CHECK_EQ("File is one pointer wide", sizeof(File), sizeof(std::FILE*));
+      }
+    tests:
+      - files:
+          maps.txt: "de_dust2\nde_nuke\n"
+          empty.txt: ""
+    hints:
+      - "`struct FileCloser { void operator()(std::FILE* f) const { if (f) std::fclose(f); } };`"
+      - "`using File = std::unique_ptr<std::FILE, FileCloser>;` and open_file returns `File(std::fopen(path.c_str(), mode))`."
+      - "In first_line, `fgets` into a buffer, build a std::string and drop a trailing '\\n'."
+
+  - title: "Challenge: a table-driven state machine"
+    id: cpp-patterns-6
+    text: |
+      Protocols, UI flows, order pipelines and game rounds are **state machines**. Encoding the legal transitions in a **table** (instead of nested ifs scattered through the code) makes them easy to review, test and extend:
+
+      ```cpp
+      struct Transition { State from; Event on; State to; };
+      constexpr Transition table[] = {
+          {State::Idle, Event::Start, State::Warmup},
+          ...
+      };
+      ```
+
+      **Your turn:** implement a match lifecycle with these transitions:
+
+      | From | Event | To |
+      |---|---|---|
+      | Idle | Start | Warmup |
+      | Warmup | GoLive | Live |
+      | Live | Pause | Paused |
+      | Paused | Resume | Live |
+      | Live | End | Over |
+      | Paused | End | Over |
+
+      Write `std::optional<State> next(State s, Event e)` using a table, and class `Match` whose `bool handle(Event e)` applies a legal event (returning true) or rejects an illegal one (returning false, state unchanged). `state()` returns the current state and `history()` the number of accepted events.
+    seed: |
+      #include <optional>
+
+      enum class State { Idle, Warmup, Live, Paused, Over };
+      enum class Event { Start, GoLive, Pause, Resume, End };
+
+      std::optional<State> next(State s, Event e) {
+
+      }
+
+      class Match {
+      public:
+          bool handle(Event e);
+          State state() const { return state_; }
+          int history() const { return accepted_; }
+
+      private:
+          State state_ = State::Idle;
+          int accepted_ = 0;
+      };
+    solution: |
+      #include <optional>
+
+      enum class State { Idle, Warmup, Live, Paused, Over };
+      enum class Event { Start, GoLive, Pause, Resume, End };
+
+      struct Transition {
+          State from;
+          Event on;
+          State to;
+      };
+
+      constexpr Transition kTable[] = {
+          {State::Idle, Event::Start, State::Warmup},
+          {State::Warmup, Event::GoLive, State::Live},
+          {State::Live, Event::Pause, State::Paused},
+          {State::Paused, Event::Resume, State::Live},
+          {State::Live, Event::End, State::Over},
+          {State::Paused, Event::End, State::Over},
+      };
+
+      std::optional<State> next(State s, Event e) {
+          for (const auto& t : kTable) {
+              if (t.from == s && t.on == e) return t.to;
+          }
+          return std::nullopt;
+      }
+
+      class Match {
+      public:
+          bool handle(Event e);
+          State state() const { return state_; }
+          int history() const { return accepted_; }
+
+      private:
+          State state_ = State::Idle;
+          int accepted_ = 0;
+      };
+
+      bool Match::handle(Event e) {
+          auto to = next(state_, e);
+          if (!to) return false;
+          state_ = *to;
+          accepted_++;
+          return true;
+      }
+    harness: |
+      int main() {
+          Match m;
+          CHECK_EQ("can't go live from idle", m.handle(Event::GoLive), false);
+          CHECK("still idle", m.state() == State::Idle);
+          CHECK_EQ("start", m.handle(Event::Start), true);
+          CHECK_EQ("go live", m.handle(Event::GoLive), true);
+          CHECK_EQ("pause", m.handle(Event::Pause), true);
+          CHECK_EQ("can't pause twice", m.handle(Event::Pause), false);
+          CHECK_EQ("resume", m.handle(Event::Resume), true);
+          CHECK_EQ("end", m.handle(Event::End), true);
+          CHECK("over", m.state() == State::Over);
+          CHECK_EQ("over is final", m.handle(Event::Start), false);
+          CHECK_EQ("accepted events", m.history(), 5);
+          CHECK("end from paused", next(State::Paused, Event::End) == State::Over);
+          CHECK("no resume from live", !next(State::Live, Event::Resume));
+      }
+    hints:
+      - "Define `struct Transition { State from; Event on; State to; };` and a `constexpr Transition kTable[]` with the six rows."
+      - "next: loop over the table and return `t.to` on a match; otherwise `std::nullopt`."
+      - "handle: ask next(); if it's empty return false, otherwise update the state and count."

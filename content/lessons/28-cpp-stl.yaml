@@ -1,0 +1,453 @@
+id: cpp-stl
+title: More of the STL
+lang: cpp
+phase: "C++: Standard Library"
+summary: The rest of the everyday toolbox. enum class, std::array, deque, priority_queue, iterators and iterator invalidation, and std::function callbacks.
+steps:
+  - title: enum class
+    id: cpp-stl-1
+    text: |
+      Plain C `enum` values leak into the surrounding scope and silently convert to `int`, so `if (team == RED_ALERT)` can compare unrelated things. C++'s **scoped enum** fixes both:
+
+      ```cpp
+      enum class Side { T, CT };
+      Side s = Side::CT;         // must be qualified
+      int n = s;                 // error: no implicit conversion
+      int m = static_cast<int>(s);  // explicit is fine
+      ```
+
+      Combine it with `switch`: compilers warn (`-Wswitch`, part of `-Wall`) when you forget to handle one of the values, which catches bugs whenever someone adds a new enumerator later.
+
+      **Your turn:** write `std::string to_string(Weapon w)` covering every value, and `int price(Weapon w)`: rifle 2700, sniper 4750, pistol 300.
+    seed: |
+      #include <string>
+
+      enum class Weapon { Rifle, Sniper, Pistol };
+
+      std::string to_string(Weapon w) {
+
+      }
+
+      int price(Weapon w) {
+
+      }
+    solution: |
+      #include <string>
+
+      enum class Weapon { Rifle, Sniper, Pistol };
+
+      std::string to_string(Weapon w) {
+          switch (w) {
+              case Weapon::Rifle: return "rifle";
+              case Weapon::Sniper: return "sniper";
+              case Weapon::Pistol: return "pistol";
+          }
+          return "?";
+      }
+
+      int price(Weapon w) {
+          switch (w) {
+              case Weapon::Rifle: return 2700;
+              case Weapon::Sniper: return 4750;
+              case Weapon::Pistol: return 300;
+          }
+          return 0;
+      }
+    require:
+      - pattern: "switch"
+        message: "Use a `switch` over the enum so the compiler can warn about missing cases."
+    harness: |
+      int main() {
+          CHECK_EQ("rifle name", to_string(Weapon::Rifle), std::string("rifle"));
+          CHECK_EQ("sniper name", to_string(Weapon::Sniper), std::string("sniper"));
+          CHECK_EQ("pistol name", to_string(Weapon::Pistol), std::string("pistol"));
+          CHECK_EQ("rifle price", price(Weapon::Rifle), 2700);
+          CHECK_EQ("sniper price", price(Weapon::Sniper), 4750);
+          CHECK_EQ("pistol price", price(Weapon::Pistol), 300);
+      }
+    hints:
+      - "`switch (w) { case Weapon::Rifle: return \"rifle\"; ... }`"
+      - "Add a `return` after the switch too, since the compiler can't be sure an enum holds only listed values."
+
+  - title: std::array
+    id: cpp-stl-2
+    text: |
+      `std::array<T, N>` is a fixed-size array with the size in its type (you built one in the templates module). Compared with a C array it:
+
+      - knows its size (`.size()`),
+      - doesn't decay to a pointer, so functions receive the whole thing,
+      - can be copied, compared with `==` and returned from functions,
+      - has bounds-checked access with `.at(i)`, which reports an error instead of silently reading garbage.
+
+      Use it whenever the size is fixed and known at compile time.
+
+      **Your turn:** write `std::array<int, 3> podium(const std::vector<int>& scores)` returning the three highest scores, highest first. Missing places are 0. Don't modify the input.
+    seed: |
+      #include <array>
+      #include <vector>
+
+      std::array<int, 3> podium(const std::vector<int>& scores) {
+
+      }
+    solution: |
+      #include <algorithm>
+      #include <array>
+      #include <functional>
+      #include <vector>
+
+      std::array<int, 3> podium(const std::vector<int>& scores) {
+          std::vector<int> sorted = scores;
+          std::sort(sorted.begin(), sorted.end(), std::greater<int>());
+          std::array<int, 3> top{};
+          for (std::size_t i = 0; i < top.size() && i < sorted.size(); i++) top[i] = sorted[i];
+          return top;
+      }
+    harness: |
+      int main() {
+          std::vector<int> s = {12, 40, 7, 33, 40};
+          auto p = podium(s);
+          CHECK_EQ("first", p[0], 40);
+          CHECK_EQ("second (tie)", p[1], 40);
+          CHECK_EQ("third", p[2], 33);
+          CHECK_EQ("input untouched", s[0], 12);
+          CHECK("arrays compare with ==", podium({5}) == (std::array<int, 3>{5, 0, 0}));
+          CHECK("empty input", podium({}) == (std::array<int, 3>{0, 0, 0}));
+      }
+    hints:
+      - "Copy the vector, then sort the copy descending with `std::greater<int>()`."
+      - "`std::array<int, 3> top{};` starts as all zeros. Fill as many places as you have scores."
+
+  - title: deque, the double-ended queue
+    id: cpp-stl-3
+    text: |
+      `std::deque` supports fast `push_back`, `push_front`, `pop_back` **and** `pop_front`, which makes it perfect for queues and sliding windows. (`std::vector` can only add and remove cheaply at the back. Erasing its front shifts every element.)
+
+      ```cpp
+      std::deque<int> d;
+      d.push_back(1);
+      d.push_front(0);     // 0 1
+      d.pop_front();       // 1
+      ```
+
+      `std::queue` is just a restricted wrapper around a deque.
+
+      **Your turn:** write class `MovingAverage` that remembers only the last `n` values added and reports their average.
+    seed: |
+      #include <deque>
+
+      class MovingAverage {
+      public:
+          explicit MovingAverage(int n);
+          void add(int value);
+          double average() const;
+
+      private:
+
+      };
+    solution: |
+      #include <deque>
+
+      class MovingAverage {
+      public:
+          explicit MovingAverage(int n) : n_(n) {}
+          void add(int value) {
+              window_.push_back(value);
+              sum_ += value;
+              if (static_cast<int>(window_.size()) > n_) {
+                  sum_ -= window_.front();
+                  window_.pop_front();
+              }
+          }
+          double average() const { return window_.empty() ? 0.0 : static_cast<double>(sum_) / window_.size(); }
+
+      private:
+          int n_;
+          std::deque<int> window_;
+          long sum_ = 0;
+      };
+    harness: |
+      int main() {
+          MovingAverage m(3);
+          CHECK_EQ("empty average is 0", m.average(), 0.0);
+          m.add(10);
+          CHECK_EQ("one value", m.average(), 10.0);
+          m.add(20);
+          m.add(30);
+          CHECK_EQ("three values", m.average(), 20.0);
+          m.add(40);
+          CHECK_EQ("oldest dropped: 20 30 40", m.average(), 30.0);
+          m.add(-90);
+          CHECK_EQ("30 40 -90", m.average(), -20.0 / 3.0);
+      }
+    hints:
+      - "Keep a `std::deque<int> window_` and a running `sum_`."
+      - "On add: push_back and add to the sum. If the window is now larger than n, subtract `front()` and `pop_front()`."
+
+  - title: priority_queue and top-k
+    id: cpp-stl-4
+    text: |
+      `std::priority_queue` is a **heap**: `push` and `pop` cost O(log n), and `top()` is always the largest element (by default).
+
+      To keep the **k largest** values of a big stream, use a *min*-heap of size k: whenever it grows past k, pop the smallest. That's O(n log k) instead of sorting everything.
+
+      ```cpp
+      std::priority_queue<int, std::vector<int>, std::greater<int>> minheap;  // top() is the smallest
+      ```
+
+      The three template arguments are: element type, underlying container, comparison.
+
+      **Your turn:** write `std::vector<int> top_k(const std::vector<int>& v, int k)` returning the k largest values, largest first, using a min-heap of size at most k.
+    seed: |
+      #include <functional>
+      #include <queue>
+      #include <vector>
+
+      std::vector<int> top_k(const std::vector<int>& v, int k) {
+
+      }
+    solution: |
+      #include <algorithm>
+      #include <functional>
+      #include <queue>
+      #include <vector>
+
+      std::vector<int> top_k(const std::vector<int>& v, int k) {
+          std::priority_queue<int, std::vector<int>, std::greater<int>> heap;
+          for (int x : v) {
+              heap.push(x);
+              if (static_cast<int>(heap.size()) > k) heap.pop();
+          }
+          std::vector<int> out;
+          while (!heap.empty()) {
+              out.push_back(heap.top());
+              heap.pop();
+          }
+          std::reverse(out.begin(), out.end());
+          return out;
+      }
+    require:
+      - pattern: "priority_queue"
+        message: "Use a `std::priority_queue` min-heap."
+    forbid:
+      - pattern: "std::sort|partial_sort|nth_element"
+        message: "Solve it with the heap rather than sorting."
+    harness: |
+      int main() {
+          CHECK_EQ("top 3", top_k({5, 1, 9, 3, 7, 9, 2}, 3), (std::vector<int>{9, 9, 7}));
+          CHECK_EQ("k larger than input", top_k({4, 8}, 5), (std::vector<int>{8, 4}));
+          CHECK_EQ("k = 0", top_k({1, 2, 3}, 0), (std::vector<int>{}));
+          CHECK_EQ("negatives", top_k({-5, -1, -3}, 2), (std::vector<int>{-1, -3}));
+      }
+    hints:
+      - "Declare `std::priority_queue<int, std::vector<int>, std::greater<int>> heap;`"
+      - "Push every value; when the size exceeds k, `pop()` removes the smallest."
+      - "Pop everything into a vector (smallest first), then `std::reverse` it."
+
+  - title: Iterators
+    id: cpp-stl-5
+    text: |
+      Iterators are the glue between containers and algorithms: generalized pointers with `*it` to read, `++it` to advance, and `==` to compare. `begin()` points at the first element; `end()` points **one past** the last (never dereference it).
+
+      Writing a function against an iterator **pair** instead of a specific container makes it work with vectors, arrays, deques, lists and even plain C arrays:
+
+      ```cpp
+      template <typename It>
+      int count_negatives(It first, It last) {
+          int n = 0;
+          for (; first != last; ++first)
+              if (*first < 0) n++;
+          return n;
+      }
+      ```
+
+      That's exactly how `<algorithm>` is written. `rbegin()`/`rend()` walk backwards, and `std::next(it, n)`/`std::distance(a, b)` move and measure.
+
+      **Your turn:** write `template <typename It> It find_max(It first, It last)` returning an iterator to the first largest element, or `last` if the range is empty. Don't use `std::max_element`.
+    seed: |
+      template <typename It>
+      It find_max(It first, It last) {
+
+      }
+    solution: |
+      template <typename It>
+      It find_max(It first, It last) {
+          if (first == last) return last;
+          It best = first;
+          for (++first; first != last; ++first) {
+              if (*best < *first) best = first;
+          }
+          return best;
+      }
+    forbid:
+      - pattern: "max_element"
+        message: Write the loop yourself on this step.
+    harness: |
+      #include <deque>
+      #include <list>
+      #include <iterator>
+      int main() {
+          std::vector<int> v = {3, 9, 2, 9};
+          auto it = find_max(v.begin(), v.end());
+          CHECK_EQ("value", *it, 9);
+          CHECK_EQ("first of equal maxima", std::distance(v.begin(), it), 1);
+          std::list<std::string> l = {"inferno", "ancient", "vertigo"};
+          CHECK_EQ("works on a list", *find_max(l.begin(), l.end()), std::string("vertigo"));
+          int raw[] = {4, -1, 7};
+          CHECK_EQ("works on a C array", *find_max(std::begin(raw), std::end(raw)), 7);
+          CHECK("empty range returns last", find_max(v.begin(), v.begin()) == v.begin());
+          CHECK_EQ("reverse iterators find the last max", std::distance(v.begin(), find_max(v.rbegin(), v.rend()).base()) - 1, 3);
+      }
+    hints:
+      - "If `first == last` return last. Otherwise remember `It best = first;`"
+      - "Loop over the rest; when `*best < *first`, set `best = first`. Using `<` only (not `>`) keeps the first maximum and needs only operator<."
+
+  - title: Iterator invalidation
+    id: cpp-stl-6
+    text: |
+      Changing a container can **invalidate** iterators, pointers and references into it. Using one afterwards is undefined behavior, and one of the most common C++ bugs in real code:
+
+      | Container | What invalidates |
+      |---|---|
+      | `vector` | `push_back` that reallocates: **everything**. `erase`: the erased element and everything after it |
+      | `deque` | inserting at either end invalidates iterators (but not references) |
+      | `list`, `map`, `set` | only iterators to erased elements |
+
+      The safe erase-while-looping pattern uses the iterator `erase` **returns** (the element after the removed one):
+
+      ```cpp
+      for (auto it = v.begin(); it != v.end(); ) {
+          if (dead(*it)) it = v.erase(it);   // don't ++ after erasing
+          else ++it;
+      }
+      ```
+
+      (For vectors, `std::erase_if(v, pred)` does this in one efficient call, as you saw in the algorithms module. The loop pattern is still what you need for `map` and for loops that do more than erase.)
+
+      **Your turn:** write `int remove_expired(std::map<std::string, int>& sessions, int now)` that erases every session whose expiry time is `<= now`, returning how many were removed. Use the loop pattern.
+    seed: |
+      #include <map>
+      #include <string>
+
+      int remove_expired(std::map<std::string, int>& sessions, int now) {
+
+      }
+    solution: |
+      #include <map>
+      #include <string>
+
+      int remove_expired(std::map<std::string, int>& sessions, int now) {
+          int removed = 0;
+          for (auto it = sessions.begin(); it != sessions.end();) {
+              if (it->second <= now) {
+                  it = sessions.erase(it);
+                  removed++;
+              } else {
+                  ++it;
+              }
+          }
+          return removed;
+      }
+    require:
+      - pattern: "=\\s*sessions\\.erase\\s*\\(\\s*it\\s*\\)"
+        message: "Continue from the iterator erase returns: `it = sessions.erase(it);`"
+    harness: |
+      int main() {
+          std::map<std::string, int> s = {{"a", 5}, {"b", 20}, {"c", 10}, {"d", 3}};
+          CHECK_EQ("removed at t=10", remove_expired(s, 10), 3);
+          CHECK_EQ("one left", s.size(), 1u);
+          CHECK("b survives", s.count("b") == 1);
+          CHECK_EQ("nothing more to remove", remove_expired(s, 19), 0);
+          CHECK_EQ("remove the last", remove_expired(s, 20), 1);
+          CHECK("now empty", s.empty());
+      }
+    hints:
+      - "Use a loop with no increment in its header: `for (auto it = sessions.begin(); it != sessions.end(); )`."
+      - "If expired: `it = sessions.erase(it); removed++;` else `++it;`"
+
+  - title: "Challenge: callbacks with std::function"
+    id: cpp-stl-7
+    text: |
+      `std::function<R(Args...)>` holds **any** callable with that signature: a plain function, a lambda (including one with captures), or an object with `operator()`. It's C++'s answer to the C function-pointer-plus-`void*` pattern from the C modules, but type-safe.
+
+      ```cpp
+      std::function<void(const std::string&)> handler = [&count](const std::string&) { count++; };
+      handler("boom");
+      ```
+
+      **Your turn:** build an `EventBus` where handlers subscribe to named events:
+
+      - `int on(const std::string& event, std::function<void(const std::string&)> fn)` registers a handler and returns a unique id (1, 2, 3, ...)
+      - `bool off(int id)` unregisters; returns false if the id isn't registered
+      - `int emit(const std::string& event, const std::string& payload)` calls every handler for that event, in registration order, and returns how many ran
+    seed: |
+      #include <functional>
+      #include <string>
+      #include <vector>
+
+      class EventBus {
+      public:
+
+      private:
+
+      };
+    solution: |
+      #include <algorithm>
+      #include <functional>
+      #include <string>
+      #include <vector>
+
+      class EventBus {
+      public:
+          int on(const std::string& event, std::function<void(const std::string&)> fn) {
+              handlers_.push_back({++last_id_, event, std::move(fn)});
+              return last_id_;
+          }
+          bool off(int id) {
+              auto it = std::find_if(handlers_.begin(), handlers_.end(), [id](const Handler& h) { return h.id == id; });
+              if (it == handlers_.end()) return false;
+              handlers_.erase(it);
+              return true;
+          }
+          int emit(const std::string& event, const std::string& payload) {
+              int ran = 0;
+              for (const auto& h : handlers_) {
+                  if (h.event == event) {
+                      h.fn(payload);
+                      ran++;
+                  }
+              }
+              return ran;
+          }
+
+      private:
+          struct Handler {
+              int id;
+              std::string event;
+              std::function<void(const std::string&)> fn;
+          };
+          std::vector<Handler> handlers_;
+          int last_id_ = 0;
+      };
+    harness: |
+      int main() {
+          EventBus bus;
+          std::string log;
+          int kills = 0;
+          int a = bus.on("kill", [&](const std::string& who) { log += "A:" + who + " "; kills++; });
+          int b = bus.on("kill", [&](const std::string& who) { log += "B:" + who + " "; });
+          bus.on("bomb", [&](const std::string& site) { log += "bomb@" + site + " "; });
+          CHECK("ids are unique", a != b);
+          CHECK_EQ("two kill handlers ran", bus.emit("kill", "ropz"), 2);
+          CHECK_EQ("bomb handler", bus.emit("bomb", "B"), 1);
+          CHECK_EQ("no handlers", bus.emit("defuse", "x"), 0);
+          CHECK_EQ("order", log, std::string("A:ropz B:ropz bomb@B "));
+          CHECK_EQ("off works", bus.off(a), true);
+          CHECK_EQ("off twice fails", bus.off(a), false);
+          bus.emit("kill", "rain");
+          CHECK_EQ("A no longer runs", kills, 1);
+          CHECK_EQ("B still runs", log, std::string("A:ropz B:ropz bomb@B B:rain "));
+      }
+    hints:
+      - "Store a private struct `{int id; std::string event; std::function<void(const std::string&)> fn;}` in a vector."
+      - "`on` pushes a new entry with `++last_id_` and returns that id."
+      - "`off` finds the id with `std::find_if` and erases it. `emit` loops over entries whose event matches."
