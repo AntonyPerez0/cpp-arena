@@ -1,0 +1,51 @@
+topic: dsa-complexity
+lang: cpp
+drills:
+  - type: predict
+    body: |
+      std::vector<int> v = {1, 3, 3, 3, 7};
+      auto lo = std::lower_bound(v.begin(), v.end(), 3) - v.begin();
+      auto hi = std::upper_bound(v.begin(), v.end(), 3) - v.begin();
+      std::cout << lo << " " << hi << "\n";
+    why: Equal elements occupy [lower_bound, upper_bound), here indexes 1 to 3.
+  - type: predict
+    body: |
+      std::vector<int> v = {2, 4, 6};
+      std::cout << (std::lower_bound(v.begin(), v.end(), 5) - v.begin()) << "\n";
+    why: lower_bound returns where 5 would be inserted to keep the vector sorted.
+  - type: predict
+    body: |
+      int n = 1024, steps = 0;
+      while (n > 1) { n /= 2; steps++; }
+      std::cout << steps << "\n";
+    why: Halving 1024 down to 1 takes log2(1024) = 10 steps. That's why binary search is O(log n).
+  - type: predict
+    body: |
+      std::vector<int> v = {3, 1, 4, 1, 5};
+      std::vector<long long> pre(v.size() + 1, 0);
+      for (std::size_t i = 0; i < v.size(); i++) pre[i + 1] = pre[i] + v[i];
+      std::cout << pre[4] - pre[1] << "\n";
+    why: pre[4] - pre[1] is the sum of v[1..3] = 1 + 4 + 1.
+  - type: bug
+    pre: |
+      int find(const std::vector<int>& v, int x) {
+          int lo = 0, hi = (int)v.size() - 1;
+          while (lo < hi) { // BUG
+              int mid = lo + (hi - lo) / 2;
+              if (v[mid] == x) return mid;
+              if (v[mid] < x) lo = mid + 1; else hi = mid - 1;
+          }
+          return -1;
+      }
+    body: |
+      std::vector<int> v = {1, 3, 5};
+      std::cout << find(v, 5) << "\n";
+    fix: "while (lo <= hi) {"
+    why: With an inclusive range, lo == hi is still one candidate to check. `<` skips it.
+  - type: predict
+    body: |
+      std::unordered_set<int> seen;
+      int dup = -1;
+      for (int x : {4, 7, 2, 7, 4}) if (!seen.insert(x).second) { dup = x; break; }
+      std::cout << dup << "\n";
+    why: insert(...).second is false the first time a value repeats. 7 repeats first.

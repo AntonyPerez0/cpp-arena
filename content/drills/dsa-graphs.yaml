@@ -1,0 +1,63 @@
+topic: dsa-graphs
+lang: cpp
+drills:
+  - type: predict
+    body: |
+      std::vector<std::vector<int>> adj(4);
+      for (auto [a, b] : std::vector<std::pair<int, int>>{{0, 1}, {0, 2}, {2, 3}}) {
+          adj[a].push_back(b);
+          adj[b].push_back(a);
+      }
+      std::cout << adj[0].size() << adj[2].size() << adj[3].size() << "\n";
+    why: In an undirected graph each edge appears in both endpoints' lists.
+  - type: predict
+    body: |
+      std::vector<std::vector<int>> adj = {{1, 2}, {3}, {3}, {}};
+      std::vector<int> dist(4, -1);
+      std::queue<int> q;
+      dist[0] = 0;
+      q.push(0);
+      while (!q.empty()) {
+          int v = q.front(); q.pop();
+          for (int w : adj[v]) if (dist[w] < 0) { dist[w] = dist[v] + 1; q.push(w); }
+      }
+      std::cout << dist[3] << "\n";
+    why: BFS reaches 3 in two steps (0 to 1 to 3).
+  - type: predict
+    body: |
+      std::vector<int> indeg = {0, 1, 1, 2};
+      int ready = 0;
+      for (int d : indeg) ready += (d == 0);
+      std::cout << ready << "\n";
+    why: Kahn's algorithm starts with every vertex of in-degree 0.
+  - type: predict
+    body: |
+      std::vector<int> parent = {0, 0, 1, 2};
+      int x = 3;
+      while (parent[x] != x) x = parent[x];
+      std::cout << x << "\n";
+    why: find() follows parent links up to the root of the set.
+  - type: bug
+    body: |
+      std::vector<std::vector<int>> adj = {{1}, {0, 2}, {1}};
+      std::vector<bool> seen = {true, false, false};
+      std::vector<int> stack = {0};
+      int visits = 0;
+      while (!stack.empty()) {
+          int v = stack.back(); stack.pop_back();
+          visits++;
+          for (int w : adj[v]) stack.push_back(w); // BUG
+      }
+      std::cout << visits << "\n";
+    fix: "for (int w : adj[v]) if (!seen[w]) { seen[w] = true; stack.push_back(w); }"
+    ub: true
+    why: The seen vector is never used. Without checking and marking visited vertices, DFS on a graph with cycles (0 and 1 point at each other) never stops.
+  - type: predict
+    body: |
+      using Item = std::pair<int, int>;
+      std::priority_queue<Item, std::vector<Item>, std::greater<Item>> pq;
+      pq.push({5, 1});
+      pq.push({2, 7});
+      pq.push({2, 3});
+      std::cout << pq.top().first << pq.top().second << "\n";
+    why: Pairs compare by first, then second; the min-heap yields (2, 3).

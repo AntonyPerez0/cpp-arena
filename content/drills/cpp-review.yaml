@@ -1,0 +1,56 @@
+topic: cpp-review
+lang: cpp
+drills:
+  - type: bug
+    pre: |
+      std::string_view first_word(const std::string& s) {
+          return std::string_view(s).substr(0, s.find(' '));
+      }
+    body: |
+      std::string_view w = first_word(std::string("gg wp")); // BUG
+      std::string copy(w);
+      std::cout << copy << "\n";
+    fix: "std::string text = \"gg wp\"; std::string_view w = first_word(text);"
+    ub: true
+    why: The temporary string dies at the end of the full expression, leaving w dangling.
+  - type: bug
+    body: |
+      std::vector<int> v;
+      int total = 0;
+      for (std::size_t i = 0; i <= v.size() - 1; i++) total += v[i]; // BUG
+      std::cout << total << "\n";
+    fix: "for (std::size_t i = 0; i < v.size(); i++) total += v[i];"
+    ub: true
+    why: For an empty vector, v.size() - 1 wraps around to a huge unsigned number.
+  - type: predict
+    body: |
+      int wins = 1500000000;
+      long long pct = static_cast<long long>(wins) * 100 / 2000000000;
+      std::cout << pct << "\n";
+    why: Widening before multiplying avoids overflow.
+  - type: bug
+    pre: |
+      struct Base { virtual std::string who() const { return "base"; } virtual ~Base() = default; };
+      struct Derived : Base { std::string who() const override { return "derived"; } };
+      std::string name(Base b) { return b.who(); } // BUG
+    body: |
+      Derived d;
+      std::cout << name(d) << "\n";
+    fix: "std::string name(const Base& b) { return b.who(); }"
+    why: Passing by value slices the Derived down to a Base copy. Take a reference to keep virtual dispatch.
+  - type: compiles
+    pre: |
+      struct Base { virtual int f() const { return 1; } virtual ~Base() = default; };
+      struct D : Base { int f() override { return 2; } };
+    body: |
+      D d;
+      std::cout << d.f() << "\n";
+    why: f() without const doesn't match the base signature, and `override` turns that silent mistake into an error.
+  - type: bug
+    body: |
+      std::vector<int> v = {1, 2, 2, 3};
+      for (std::size_t i = 0; i < v.size(); i++) // BUG
+          if (v[i] == 2) v.erase(v.begin() + i);
+      std::cout << v.size() << "\n";
+    fix: "for (std::size_t i = v.size(); i-- > 0;)"
+    why: Erasing shifts the next element into slot i, and i++ skips it. Walking backwards avoids that (and std::erase(v, 2) is simpler still).

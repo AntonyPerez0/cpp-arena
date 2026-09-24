@@ -1,0 +1,370 @@
+id: dsa-sorting
+title: Sorting algorithms
+lang: cpp
+phase: "Data Structures and Algorithms"
+summary: How sorting really works. Insertion sort, merge sort, quicksort partitioning, counting sort, stability with custom comparators, and quickselect.
+steps:
+  - title: Insertion sort
+    id: dsa-sorting-1
+    text: |
+      **Insertion sort** grows a sorted prefix: take the next element and shift larger ones right until its spot opens up. Like sorting cards in your hand.
+
+      - O(n²) in general, but O(n) on data that's already *almost* sorted.
+      - Stable (equal elements keep their order) and in-place.
+      - Fastest of all for tiny arrays. Real `std::sort` implementations switch to it for ranges below about 16 elements.
+
+      ```
+      for i in 1..n-1:
+          key = v[i]; j = i - 1
+          while j >= 0 and v[j] > key: v[j + 1] = v[j]; j--
+          v[j + 1] = key
+      ```
+
+      **Your turn:** implement `insertion_sort` and return how many element **shifts** it performed (a measure of how unsorted the input was).
+    seed: |
+      #include <vector>
+
+      long insertion_sort(std::vector<int>& v) {
+
+      }
+    solution: |
+      #include <vector>
+
+      long insertion_sort(std::vector<int>& v) {
+          long shifts = 0;
+          for (std::size_t i = 1; i < v.size(); i++) {
+              int key = v[i];
+              std::size_t j = i;
+              while (j > 0 && v[j - 1] > key) {
+                  v[j] = v[j - 1];
+                  j--;
+                  shifts++;
+              }
+              v[j] = key;
+          }
+          return shifts;
+      }
+    forbid:
+      - pattern: "std::sort|stable_sort|std::ranges::sort"
+        message: Implement the algorithm yourself on this step.
+    harness: |
+      int main() {
+          std::vector<int> a = {5, 2, 4, 6, 1, 3};
+          long s = insertion_sort(a);
+          CHECK_EQ("sorted", a, (std::vector<int>{1, 2, 3, 4, 5, 6}));
+          CHECK_EQ("shifts", s, 9L);
+          std::vector<int> sorted = {1, 2, 3, 4};
+          CHECK_EQ("already sorted: no shifts", insertion_sort(sorted), 0L);
+          std::vector<int> rev = {4, 3, 2, 1};
+          CHECK_EQ("reversed: every pair shifts", insertion_sort(rev), 6L);
+          std::vector<int> empty;
+          CHECK_EQ("empty", insertion_sort(empty), 0L);
+      }
+    hints:
+      - "Loop i from 1; save `key = v[i]` and slide j down while `v[j - 1] > key`."
+      - "Using `j > 0` with `v[j - 1]` avoids a negative size_t index."
+      - "Count one shift each time you copy `v[j] = v[j - 1]`."
+
+  - title: Merge sort
+    id: dsa-sorting-2
+    text: |
+      **Merge sort** splits the array in half, sorts each half recursively, then **merges** the two sorted halves by repeatedly taking the smaller front element.
+
+      - Always O(n log n), even in the worst case.
+      - Stable, which is why `std::stable_sort` is usually a merge sort.
+      - Needs O(n) extra memory for merging.
+
+      The merge step is the heart of it (you wrote one for strings in the STL module). **Your turn:** implement `merge_sort(std::vector<int>& v)`. The test sorts 200,000 numbers, so an O(n²) sort won't finish in time.
+    seed: |
+      #include <vector>
+
+      void merge_sort(std::vector<int>& v) {
+
+      }
+    solution: |
+      #include <vector>
+
+      static void sort_range(std::vector<int>& v, std::vector<int>& tmp, std::size_t lo, std::size_t hi) {
+          if (hi - lo < 2) return;
+          std::size_t mid = lo + (hi - lo) / 2;
+          sort_range(v, tmp, lo, mid);
+          sort_range(v, tmp, mid, hi);
+          std::size_t i = lo, j = mid, k = lo;
+          while (i < mid && j < hi) tmp[k++] = (v[j] < v[i]) ? v[j++] : v[i++];
+          while (i < mid) tmp[k++] = v[i++];
+          while (j < hi) tmp[k++] = v[j++];
+          for (std::size_t x = lo; x < hi; x++) v[x] = tmp[x];
+      }
+
+      void merge_sort(std::vector<int>& v) {
+          std::vector<int> tmp(v.size());
+          sort_range(v, tmp, 0, v.size());
+      }
+    forbid:
+      - pattern: "std::sort|stable_sort|std::ranges::sort|std::merge|inplace_merge"
+        message: Implement merge sort yourself on this step.
+    harness: |
+      #include <algorithm>
+      int main() {
+          std::vector<int> a = {38, 27, 43, 3, 9, 82, 10};
+          merge_sort(a);
+          CHECK_EQ("small", a, (std::vector<int>{3, 9, 10, 27, 38, 43, 82}));
+          std::vector<int> e;
+          merge_sort(e);
+          CHECK("empty", e.empty());
+          std::vector<int> big(200000);
+          unsigned x = 12345;
+          for (auto& y : big) {
+              x = x * 1103515245u + 12345u;
+              y = static_cast<int>(x >> 8) % 1000000;
+          }
+          std::vector<int> expect = big;
+          std::sort(expect.begin(), expect.end());
+          merge_sort(big);
+          CHECK("200,000 random numbers", big == expect);
+      }
+    hints:
+      - "Write a recursive helper that sorts the half-open range `[lo, hi)` using one shared temporary buffer."
+      - "Base case: fewer than 2 elements. Otherwise sort `[lo, mid)` and `[mid, hi)`, then merge into tmp and copy back."
+      - "When merging, take from the right half only if it's strictly smaller; that keeps the sort stable."
+
+  - title: Quicksort and partitioning
+    id: dsa-sorting-3
+    text: |
+      **Quicksort** picks a *pivot*, **partitions** the array so smaller elements come before it and larger after, then recursively sorts both sides. No merging needed.
+
+      - O(n log n) on average, in place, and very fast in practice.
+      - O(n²) worst case with bad pivots (for example, always the last element of already-sorted data). That's why real implementations pick pivots carefully and `std::sort` falls back to heapsort when recursion gets too deep ("introsort").
+
+      The **Lomuto** partition, using the last element as the pivot:
+
+      ```
+      pivot = v[hi]; i = lo
+      for j in lo..hi-1:
+          if v[j] < pivot: swap(v[i], v[j]); i++
+      swap(v[i], v[hi])     // pivot lands at its final position i
+      return i
+      ```
+
+      **Your turn:** write `int partition(std::vector<int>& v, int lo, int hi)` (inclusive range) and `void quick_sort(std::vector<int>& v, int lo, int hi)`.
+    seed: |
+      #include <utility>
+      #include <vector>
+
+      int partition(std::vector<int>& v, int lo, int hi) {
+
+      }
+
+      void quick_sort(std::vector<int>& v, int lo, int hi) {
+
+      }
+    solution: |
+      #include <utility>
+      #include <vector>
+
+      int partition(std::vector<int>& v, int lo, int hi) {
+          int pivot = v[hi];
+          int i = lo;
+          for (int j = lo; j < hi; j++) {
+              if (v[j] < pivot) {
+                  std::swap(v[i], v[j]);
+                  i++;
+              }
+          }
+          std::swap(v[i], v[hi]);
+          return i;
+      }
+
+      void quick_sort(std::vector<int>& v, int lo, int hi) {
+          if (lo >= hi) return;
+          int p = partition(v, lo, hi);
+          quick_sort(v, lo, p - 1);
+          quick_sort(v, p + 1, hi);
+      }
+    forbid:
+      - pattern: "std::sort|stable_sort|std::ranges::sort|std::partition|nth_element"
+        message: Implement the partition yourself on this step.
+    harness: |
+      #include <algorithm>
+      int main() {
+          std::vector<int> p = {7, 2, 9, 4, 5};
+          int at = partition(p, 0, 4);
+          CHECK_EQ("pivot 5 lands at index 2", at, 2);
+          CHECK("left side smaller", p[0] < 5 && p[1] < 5);
+          CHECK("right side larger", p[3] > 5 && p[4] > 5);
+          std::vector<int> a = {3, 6, 1, 8, 2, 9, 2};
+          quick_sort(a, 0, 6);
+          CHECK_EQ("sorted with duplicates", a, (std::vector<int>{1, 2, 2, 3, 6, 8, 9}));
+          std::vector<int> big(100000);
+          unsigned x = 99;
+          for (auto& y : big) {
+              x = x * 1664525u + 1013904223u;
+              y = static_cast<int>(x >> 4);
+          }
+          std::vector<int> expect = big;
+          std::sort(expect.begin(), expect.end());
+          quick_sort(big, 0, static_cast<int>(big.size()) - 1);
+          CHECK("100,000 random numbers", big == expect);
+      }
+    hints:
+      - "partition: `int pivot = v[hi]; int i = lo;` then for each j < hi, swap smaller elements to position i."
+      - "Finally swap the pivot into place: `std::swap(v[i], v[hi]); return i;`"
+      - "quick_sort: stop when `lo >= hi`, else partition and recurse on both sides of p."
+
+  - title: Counting sort
+    id: dsa-sorting-4
+    text: |
+      Comparison sorts can't beat O(n log n). But when the values are **small integers** in a known range `0..k`, you don't need comparisons at all: count how many times each value occurs, then write them back in order. That's O(n + k).
+
+      It's the core of radix sort, and it's why sorting a million ages or exam scores is basically instant.
+
+      **Your turn:** write `void counting_sort(std::vector<int>& v, int max_value)` for values in `0..max_value`.
+    seed: |
+      #include <vector>
+
+      void counting_sort(std::vector<int>& v, int max_value) {
+
+      }
+    solution: |
+      #include <vector>
+
+      void counting_sort(std::vector<int>& v, int max_value) {
+          std::vector<int> count(max_value + 1, 0);
+          for (int x : v) count[x]++;
+          std::size_t k = 0;
+          for (int value = 0; value <= max_value; value++) {
+              for (int c = 0; c < count[value]; c++) v[k++] = value;
+          }
+      }
+    forbid:
+      - pattern: "std::sort|stable_sort|std::ranges::sort"
+        message: Count, don't compare, on this step.
+    harness: |
+      int main() {
+          std::vector<int> a = {4, 1, 3, 4, 0, 1, 1};
+          counting_sort(a, 4);
+          CHECK_EQ("small", a, (std::vector<int>{0, 1, 1, 1, 3, 4, 4}));
+          std::vector<int> big(1000000);
+          for (int i = 0; i < 1000000; i++) big[i] = (i * 37) % 101;
+          counting_sort(big, 100);
+          bool ok = true;
+          for (std::size_t i = 1; i < big.size(); i++) if (big[i - 1] > big[i]) ok = false;
+          CHECK("a million values", ok && big.front() == 0 && big.back() == 100);
+      }
+    hints:
+      - "`std::vector<int> count(max_value + 1, 0);` and `count[x]++` for every x."
+      - "Then walk value from 0 to max_value, writing it `count[value]` times."
+
+  - title: Stability and custom comparators
+    id: dsa-sorting-5
+    text: |
+      A sort is **stable** if equal elements keep their original relative order. It matters when sorting records by one key after another, or when the input order means something (like arrival time).
+
+      - `std::sort`: not stable, usually slightly faster
+      - `std::stable_sort`: stable
+
+      A comparator must be a **strict weak ordering**: return true only when a should come *strictly* before b. Using `<=` instead of `<` breaks this rule and is undefined behavior; with `std::sort` it can even crash.
+
+      **Your turn:** write `void rank(std::vector<Entry>& v)` that orders entries by score, highest first. Entries with equal scores must stay in their original (sign-up) order.
+    seed: |
+      #include <algorithm>
+      #include <string>
+      #include <vector>
+
+      struct Entry {
+          std::string name;
+          int score;
+      };
+
+      void rank(std::vector<Entry>& v) {
+
+      }
+    solution: |
+      #include <algorithm>
+      #include <string>
+      #include <vector>
+
+      struct Entry {
+          std::string name;
+          int score;
+      };
+
+      void rank(std::vector<Entry>& v) {
+          std::stable_sort(v.begin(), v.end(), [](const Entry& a, const Entry& b) { return a.score > b.score; });
+      }
+    forbid:
+      - pattern: "<=|>="
+        message: "A comparator must be strict: use `>` or `<`, never `<=` or `>=`."
+    harness: |
+      int main() {
+          std::vector<Entry> v = {{"a", 10}, {"b", 30}, {"c", 10}, {"d", 30}, {"e", 20}, {"f", 10}};
+          rank(v);
+          std::string order;
+          for (const auto& e : v) order += e.name;
+          CHECK_EQ("by score, ties in sign-up order", order, std::string("bdeacf"));
+          std::vector<Entry> many;
+          for (int i = 0; i < 50000; i++) many.push_back({std::to_string(i), i % 3});
+          rank(many);
+          bool stable = true;
+          for (std::size_t i = 1; i < many.size(); i++)
+              if (many[i - 1].score == many[i].score && std::stoi(many[i - 1].name) > std::stoi(many[i].name)) stable = false;
+          CHECK("stable on 50,000 entries", stable && many.front().score == 2);
+      }
+    hints:
+      - "Use `std::stable_sort` with a lambda comparator."
+      - "Highest first: `return a.score > b.score;`"
+
+  - title: "Challenge: quickselect"
+    id: dsa-sorting-6
+    text: |
+      To find the k-th smallest element (a median, a percentile, "the 95th percentile latency"), you don't need to sort everything. **Quickselect** partitions like quicksort but only recurses into the side that contains position k, which gives **O(n) on average**. `std::nth_element` does exactly this.
+
+      **Your turn:** write `int kth_smallest(std::vector<int> v, int k)` (k is 0-based; the vector is passed by value so you may rearrange it) using your own partition loop. Pick the **middle** element as the pivot (swap it to the end first) so already-sorted input stays fast.
+    seed: |
+      #include <utility>
+      #include <vector>
+
+      int kth_smallest(std::vector<int> v, int k) {
+
+      }
+    solution: |
+      #include <utility>
+      #include <vector>
+
+      int kth_smallest(std::vector<int> v, int k) {
+          int lo = 0, hi = static_cast<int>(v.size()) - 1;
+          while (true) {
+              if (lo == hi) return v[lo];
+              int mid = lo + (hi - lo) / 2;
+              std::swap(v[mid], v[hi]);
+              int pivot = v[hi], i = lo;
+              for (int j = lo; j < hi; j++) {
+                  if (v[j] < pivot) std::swap(v[i++], v[j]);
+              }
+              std::swap(v[i], v[hi]);
+              if (k == i) return v[i];
+              if (k < i) hi = i - 1;
+              else lo = i + 1;
+          }
+      }
+    forbid:
+      - pattern: "std::sort|stable_sort|nth_element|std::ranges::|partial_sort|priority_queue"
+        message: Write the partition loop yourself.
+    harness: |
+      int main() {
+          CHECK_EQ("median of 5", kth_smallest({9, 1, 7, 3, 5}, 2), 5);
+          CHECK_EQ("smallest", kth_smallest({9, 1, 7, 3, 5}, 0), 1);
+          CHECK_EQ("largest", kth_smallest({9, 1, 7, 3, 5}, 4), 9);
+          CHECK_EQ("duplicates", kth_smallest({4, 4, 4, 1}, 2), 4);
+          CHECK_EQ("single", kth_smallest({42}, 0), 42);
+          std::vector<int> sorted(200000);
+          for (int i = 0; i < 200000; i++) sorted[i] = i;
+          CHECK_EQ("already sorted input stays fast", kth_smallest(sorted, 123456), 123456);
+          std::vector<int> big(300000);
+          for (int i = 0; i < 300000; i++) big[i] = static_cast<int>((7919LL * i) % 300000);
+          CHECK_EQ("300,000 shuffled", kth_smallest(big, 150000), 150000);
+      }
+    hints:
+      - "Loop with a range `[lo, hi]`. Swap the middle element to hi and partition like Lomuto."
+      - "After partitioning, the pivot is at its final index i. If k == i you're done; otherwise narrow the range to the side containing k."
+      - "When lo == hi, that single element is the answer."

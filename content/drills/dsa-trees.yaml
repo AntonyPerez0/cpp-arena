@@ -1,0 +1,40 @@
+topic: dsa-trees
+lang: cpp
+drills:
+  - type: predict
+    pre: |
+      struct N { int v; std::unique_ptr<N> l, r; };
+      int h(const N* n) { return n ? 1 + std::max(h(n->l.get()), h(n->r.get())) : 0; }
+    body: |
+      N root{1, nullptr, nullptr};
+      root.l = std::make_unique<N>(N{2, nullptr, nullptr});
+      root.l->l = std::make_unique<N>(N{3, nullptr, nullptr});
+      std::cout << h(&root) << "\n";
+    why: The longest root-to-leaf path has three nodes.
+  - type: predict
+    body: |
+      std::priority_queue<int, std::vector<int>, std::greater<int>> h;
+      for (int x : {5, 2, 8, 1}) h.push(x);
+      h.pop();
+      std::cout << h.top() << "\n";
+    why: A min-heap pops the smallest (1), leaving 2 on top.
+  - type: predict
+    body: |
+      std::vector<int> heap = {1, 3, 2, 7, 4};
+      std::size_t i = 4;
+      std::cout << (i - 1) / 2 << " " << 2 * 1 + 1 << "\n";
+    why: In an array heap, parent(i) = (i - 1) / 2 and the left child of 1 is at 2*1 + 1.
+  - type: predict
+    body: |
+      std::set<int> s = {50, 30, 70, 20, 40};
+      for (int x : s) std::cout << x << " ";
+      std::cout << "\n";
+    why: std::set is a balanced BST; iterating it is an in-order traversal, which is sorted.
+  - type: bug
+    body: |
+      std::vector<int> h = {1, 5, 3, 7};
+      h.push_back(2);
+      for (std::size_t i = h.size() - 1; i > 0 && h[i] < h[i / 2]; i /= 2) std::swap(h[i], h[i / 2]); // BUG
+      std::cout << h[1] << h[4] << "\n";
+    fix: "for (std::size_t i = h.size() - 1; i > 0 && h[i] < h[(i - 1) / 2]; i = (i - 1) / 2) std::swap(h[i], h[(i - 1) / 2]);"
+    why: With 0-based arrays the parent of i is (i - 1) / 2, not i / 2. The wrong parent breaks the heap order.

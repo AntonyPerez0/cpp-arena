@@ -1,0 +1,43 @@
+topic: dsa-hash
+lang: cpp
+drills:
+  - type: predict
+    body: |
+      std::size_t buckets = 8;
+      std::cout << (13 % buckets) << " " << (21 % buckets) << "\n";
+    why: 13 and 21 land in the same bucket, a collision that chaining handles with a list.
+  - type: predict
+    body: |
+      std::unordered_map<std::string, int> m;
+      m["a"]++;
+      m["a"]++;
+      std::cout << m["a"] << m.size() << m.count("b") << m.size() << "\n";
+    why: operator[] inserts a default 0 on first use; count() never inserts.
+  - type: compiles
+    pre: |
+      struct Pt { int x, y; bool operator==(const Pt&) const = default; };
+    body: |
+      std::unordered_set<Pt> s;
+      s.insert({1, 2});
+    why: There's no std::hash<Pt>, so the set doesn't know how to hash its keys. Provide a hasher.
+  - type: predict
+    body: |
+      std::list<int> l = {1, 2, 3};
+      auto it = std::next(l.begin(), 2);
+      l.splice(l.begin(), l, it);
+      for (int x : l) std::cout << x;
+      std::cout << " " << *it << "\n";
+    why: splice moves the node to the front without invalidating the iterator, the trick behind O(1) LRU caches.
+  - type: predict
+    body: |
+      std::unordered_map<int, int> m;
+      m.reserve(100);
+      std::cout << (m.bucket_count() >= 100) << "\n";
+    why: reserve pre-allocates enough buckets for that many elements, avoiding rehashes.
+  - type: bug
+    body: |
+      std::unordered_map<std::string, int> stock = {{"awp", 2}};
+      if (stock["ak"] > 0) std::cout << "in stock\n"; // BUG
+      std::cout << stock.size() << "\n";
+    fix: "if (stock.count(\"ak\") && stock.at(\"ak\") > 0) std::cout << \"in stock\\n\";"
+    why: operator[] inserts missing keys, silently growing the map on every lookup. Use find, count or contains to look up.

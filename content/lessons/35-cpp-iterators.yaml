@@ -1,0 +1,442 @@
+id: cpp-iterators
+title: Writing iterators and containers
+lang: cpp
+phase: "C++: Professional C++"
+summary: Make your own types work with range-for and the standard algorithms. begin and end, writing an iterator class, const iteration, iterator concepts, lazy ranges and a ring buffer.
+steps:
+  - title: Making a class iterable
+    id: cpp-iterators-1
+    text: |
+      Range-for is rewritten by the compiler into iterator calls:
+
+      ```cpp
+      for (auto& x : c) { ... }
+      // becomes roughly:
+      for (auto it = c.begin(), end = c.end(); it != end; ++it) { auto& x = *it; ... }
+      ```
+
+      So **any** type with `begin()` and `end()` members works with range-for, and with every standard algorithm. If your class stores its data contiguously, plain pointers are perfectly good iterators.
+
+      **Your turn:** give `Scoreboard` `begin()` and `end()` (both a non-const and a const version) that return pointers into its fixed array, covering only the `count_` scores that were added.
+    seed: |
+      class Scoreboard {
+      public:
+          bool add(int s) {
+              if (count_ == 8) return false;
+              scores_[count_++] = s;
+              return true;
+          }
+          // begin() and end() here
+
+      private:
+          int scores_[8] = {};
+          int count_ = 0;
+      };
+    solution: |
+      class Scoreboard {
+      public:
+          bool add(int s) {
+              if (count_ == 8) return false;
+              scores_[count_++] = s;
+              return true;
+          }
+          // begin() and end() here
+          int* begin() { return scores_; }
+          int* end() { return scores_ + count_; }
+          const int* begin() const { return scores_; }
+          const int* end() const { return scores_ + count_; }
+
+      private:
+          int scores_[8] = {};
+          int count_ = 0;
+      };
+    harness: |
+      #include <algorithm>
+      #include <numeric>
+      int main() {
+          Scoreboard b;
+          b.add(12); b.add(40); b.add(7);
+          int total = 0;
+          for (int s : b) total += s;
+          CHECK_EQ("range-for sums only added scores", total, 59);
+          CHECK_EQ("works with std::max_element", *std::max_element(b.begin(), b.end()), 40);
+          std::sort(b.begin(), b.end());
+          CHECK_EQ("std::sort through your iterators", *b.begin(), 7);
+          const Scoreboard& cb = b;
+          CHECK_EQ("const version with std::accumulate", std::accumulate(cb.begin(), cb.end(), 0), 59);
+          for (int& s : b) s *= 2;
+          CHECK_EQ("non-const iteration can modify", *(b.end() - 1), 80);
+      }
+    hints:
+      - "`int* begin() { return scores_; }` and `int* end() { return scores_ + count_; }`"
+      - "The const versions are the same but return `const int*` and are marked `const`."
+
+  - title: Writing an iterator class
+    id: cpp-iterators-2
+    text: |
+      When the data isn't contiguous (a linked list, a tree, a file), you write an **iterator class**. For a forward iterator you need:
+
+      - `operator*` to get the current element
+      - `operator++` (prefix) to advance, returning `*this`
+      - `operator==` to compare (C++20 generates `!=` for you)
+
+      ```cpp
+      class Iter {
+      public:
+          explicit Iter(Node* n) : node_(n) {}
+          int& operator*() const { return node_->value; }
+          Iter& operator++() { node_ = node_->next; return *this; }
+          bool operator==(const Iter& o) const { return node_ == o.node_; }
+      private:
+          Node* node_;
+      };
+      ```
+
+      `end()` is simply an iterator holding `nullptr`, the position one past the last node.
+
+      **Your turn:** finish the `Iterator` inside `IntList` and add `begin()` and `end()`.
+    seed: |
+      #include <memory>
+
+      class IntList {
+          struct Node {
+              int value;
+              std::unique_ptr<Node> next;
+          };
+
+      public:
+          void push_front(int v) { head_ = std::unique_ptr<Node>(new Node{v, std::move(head_)}); }
+
+          class Iterator {
+          public:
+              explicit Iterator(Node* n) : node_(n) {}
+              // operator*, operator++, operator== here
+
+          private:
+              Node* node_;
+          };
+
+          // begin() and end() here
+
+      private:
+          std::unique_ptr<Node> head_;
+      };
+    solution: |
+      #include <memory>
+
+      class IntList {
+          struct Node {
+              int value;
+              std::unique_ptr<Node> next;
+          };
+
+      public:
+          void push_front(int v) { head_ = std::unique_ptr<Node>(new Node{v, std::move(head_)}); }
+
+          class Iterator {
+          public:
+              explicit Iterator(Node* n) : node_(n) {}
+              // operator*, operator++, operator== here
+              int& operator*() const { return node_->value; }
+              Iterator& operator++() {
+                  node_ = node_->next.get();
+                  return *this;
+              }
+              bool operator==(const Iterator& o) const { return node_ == o.node_; }
+
+          private:
+              Node* node_;
+          };
+
+          // begin() and end() here
+          Iterator begin() { return Iterator(head_.get()); }
+          Iterator end() { return Iterator(nullptr); }
+
+      private:
+          std::unique_ptr<Node> head_;
+      };
+    harness: |
+      int main() {
+          IntList l;
+          l.push_front(3);
+          l.push_front(2);
+          l.push_front(1);
+          std::vector<int> seen;
+          for (int x : l) seen.push_back(x);
+          CHECK_EQ("range-for visits in order", seen, (std::vector<int>{1, 2, 3}));
+          for (int& x : l) x *= 10;
+          auto it = l.begin();
+          ++it;
+          CHECK_EQ("modify through the iterator", *it, 20);
+          IntList empty;
+          CHECK("empty list: begin == end", empty.begin() == empty.end());
+      }
+    hints:
+      - "`int& operator*() const { return node_->value; }`"
+      - "`Iterator& operator++() { node_ = node_->next.get(); return *this; }`"
+      - "`begin()` wraps `head_.get()`; `end()` wraps `nullptr`."
+
+  - title: Iterator concepts and algorithms
+    id: cpp-iterators-3
+    text: |
+      Standard algorithms need to know **what kind** of iterator they're given: can it go backwards? jump ahead in O(1)? C++20 checks this with *concepts* such as `std::forward_iterator` and `std::random_access_iterator`. For your iterator to qualify, it must declare a few member types:
+
+      ```cpp
+      using iterator_category = std::forward_iterator_tag;
+      using value_type = int;
+      using difference_type = std::ptrdiff_t;
+      ```
+
+      and support post-increment (`it++`) and default construction. Then algorithms like `std::find`, `std::count_if`, and `std::ranges::` versions accept it, and `static_assert(std::forward_iterator<Iter>)` proves it at compile time.
+
+      **Your turn:** make `Countdown::Iterator` a proper forward iterator: add the three member types, a default constructor, and post-increment. `Countdown(n)` yields n, n-1, ..., 1.
+    seed: |
+      #include <cstddef>
+      #include <iterator>
+
+      class Countdown {
+      public:
+          explicit Countdown(int from) : from_(from) {}
+
+          class Iterator {
+          public:
+              // member types here
+
+              explicit Iterator(int v) : v_(v) {}
+              int operator*() const { return v_; }
+              Iterator& operator++() {
+                  --v_;
+                  return *this;
+              }
+              bool operator==(const Iterator& o) const { return v_ == o.v_; }
+
+          private:
+              int v_ = 0;
+          };
+
+          Iterator begin() const { return Iterator(from_); }
+          Iterator end() const { return Iterator(0); }
+
+      private:
+          int from_;
+      };
+    solution: |
+      #include <cstddef>
+      #include <iterator>
+
+      class Countdown {
+      public:
+          explicit Countdown(int from) : from_(from) {}
+
+          class Iterator {
+          public:
+              // member types here
+              using iterator_category = std::forward_iterator_tag;
+              using value_type = int;
+              using difference_type = std::ptrdiff_t;
+
+              Iterator() = default;
+              explicit Iterator(int v) : v_(v) {}
+              int operator*() const { return v_; }
+              Iterator& operator++() {
+                  --v_;
+                  return *this;
+              }
+              Iterator operator++(int) {
+                  Iterator old = *this;
+                  --v_;
+                  return old;
+              }
+              bool operator==(const Iterator& o) const { return v_ == o.v_; }
+
+          private:
+              int v_ = 0;
+          };
+
+          Iterator begin() const { return Iterator(from_); }
+          Iterator end() const { return Iterator(0); }
+
+      private:
+          int from_;
+      };
+    harness: |
+      #include <algorithm>
+      #include <ranges>
+      int main() {
+          static_assert(std::forward_iterator<Countdown::Iterator>, "must satisfy std::forward_iterator");
+          Countdown c(5);
+          std::vector<int> v(c.begin(), c.end());
+          CHECK_EQ("construct a vector from the range", v, (std::vector<int>{5, 4, 3, 2, 1}));
+          CHECK_EQ("std::count_if", std::count_if(c.begin(), c.end(), [](int x) { return x % 2 == 1; }), 3);
+          CHECK_EQ("std::ranges::distance", std::ranges::distance(c), 5);
+          auto it = c.begin();
+          auto old = it++;
+          CHECK("post-increment returns the old position", *old == 5 && *it == 4);
+      }
+    hints:
+      - "Add `using iterator_category = std::forward_iterator_tag;`, `using value_type = int;` and `using difference_type = std::ptrdiff_t;`."
+      - "Add `Iterator() = default;` so it can be default-constructed."
+      - "Post-increment takes a dummy int: `Iterator operator++(int) { Iterator old = *this; --v_; return old; }`"
+
+  - title: A lazy range
+    id: cpp-iterators-4
+    text: |
+      An iterator doesn't have to point at stored data at all. It can **compute** values on the fly. That's how `std::views::iota` works, and it's how Python's `range()` is built: no array is ever allocated, so `range(0, 1'000'000'000)` costs nothing.
+
+      **Your turn:** write `class Range` for `for (int i : Range(start, stop, step))` with a positive step, like Python: it yields start, start + step, ... while the value is `< stop`. Careful: with a step of 3, the values may jump **past** `stop` without ever equalling it, so the end condition can't be a plain `==` on the current value.
+    seed: |
+      class Range {
+      public:
+          Range(int start, int stop, int step = 1) : start_(start), stop_(stop), step_(step) {}
+
+      private:
+          int start_, stop_, step_;
+      };
+    solution: |
+      class Range {
+      public:
+          Range(int start, int stop, int step = 1) : start_(start), stop_(stop), step_(step) {}
+
+          class Iterator {
+          public:
+              Iterator(int v, int step) : v_(v), step_(step) {}
+              int operator*() const { return v_; }
+              Iterator& operator++() {
+                  v_ += step_;
+                  return *this;
+              }
+              bool operator==(const Iterator& o) const { return v_ == o.v_; }
+
+          private:
+              int v_, step_;
+          };
+
+          Iterator begin() const { return Iterator(start_, step_); }
+          Iterator end() const {
+              int n = start_ >= stop_ ? 0 : (stop_ - start_ + step_ - 1) / step_;
+              return Iterator(start_ + n * step_, step_);
+          }
+
+      private:
+          int start_, stop_, step_;
+      };
+    harness: |
+      static std::vector<int> collect(const Range& r) {
+          std::vector<int> v;
+          for (int i : r) v.push_back(i);
+          return v;
+      }
+      int main() {
+          CHECK_EQ("Range(0, 5)", collect(Range(0, 5)), (std::vector<int>{0, 1, 2, 3, 4}));
+          CHECK_EQ("Range(0, 10, 3) jumps past 10", collect(Range(0, 10, 3)), (std::vector<int>{0, 3, 6, 9}));
+          CHECK_EQ("Range(2, 8, 2)", collect(Range(2, 8, 2)), (std::vector<int>{2, 4, 6}));
+          CHECK_EQ("empty when start >= stop", collect(Range(5, 5)).size(), 0u);
+          CHECK_EQ("negative start", collect(Range(-3, 0)), (std::vector<int>{-3, -2, -1}));
+          long long sum = 0;
+          for (int i : Range(0, 1000000)) sum += i;
+          CHECK_EQ("a million values without storing them", sum, 499999500000LL);
+      }
+    hints:
+      - "Give Range a nested `Iterator` holding the current value and the step."
+      - "Compute how many values there are: `n = (stop - start + step - 1) / step` (or 0 if start >= stop). Then `end()` is at `start + n * step`, a value begin really reaches."
+      - "Alternatively, make `operator==` treat 'at or past stop' as equal to end. Either way, `for` must stop."
+
+  - title: "Challenge: a ring buffer"
+    id: cpp-iterators-5
+    text: |
+      A **ring buffer** (circular buffer) is a fixed-capacity queue stored in an array: the write position wraps around to the start, overwriting the oldest item when full. Audio pipelines, loggers and network stacks use them because they never allocate after construction.
+
+      ```
+      capacity 4, after pushing 1..6:   [5][6][3][4]   oldest = 3
+                                                ^head
+      ```
+
+      **Your turn:** write `template <typename T, std::size_t N> class RingBuffer` with:
+
+      - `void push(const T& v)`: adds v; when full, overwrites the oldest
+      - `std::size_t size() const`, `bool full() const`
+      - `const T& operator[](std::size_t i) const`: i-th element counting from the **oldest**
+      - `begin()`/`end()` so range-for visits oldest to newest (an iterator holding a buffer pointer and an index works well)
+    seed: |
+      #include <array>
+      #include <cstddef>
+
+      template <typename T, std::size_t N>
+      class RingBuffer {
+      public:
+
+      private:
+          std::array<T, N> data_{};
+          std::size_t head_ = 0;   // index of the oldest element
+          std::size_t size_ = 0;
+      };
+    solution: |
+      #include <array>
+      #include <cstddef>
+
+      template <typename T, std::size_t N>
+      class RingBuffer {
+      public:
+          void push(const T& v) {
+              if (size_ < N) {
+                  data_[(head_ + size_) % N] = v;
+                  size_++;
+              } else {
+                  data_[head_] = v;
+                  head_ = (head_ + 1) % N;
+              }
+          }
+          std::size_t size() const { return size_; }
+          bool full() const { return size_ == N; }
+          const T& operator[](std::size_t i) const { return data_[(head_ + i) % N]; }
+
+          class Iterator {
+          public:
+              Iterator(const RingBuffer* rb, std::size_t i) : rb_(rb), i_(i) {}
+              const T& operator*() const { return (*rb_)[i_]; }
+              Iterator& operator++() {
+                  ++i_;
+                  return *this;
+              }
+              bool operator==(const Iterator& o) const { return i_ == o.i_; }
+
+          private:
+              const RingBuffer* rb_;
+              std::size_t i_;
+          };
+          Iterator begin() const { return Iterator(this, 0); }
+          Iterator end() const { return Iterator(this, size_); }
+
+      private:
+          std::array<T, N> data_{};
+          std::size_t head_ = 0;   // index of the oldest element
+          std::size_t size_ = 0;
+      };
+    harness: |
+      #include <string>
+      template <typename R>
+      std::vector<int> items(const R& r) {
+          std::vector<int> v;
+          for (const auto& x : r) v.push_back(x);
+          return v;
+      }
+      int main() {
+          RingBuffer<int, 4> rb;
+          rb.push(1); rb.push(2); rb.push(3);
+          CHECK_EQ("not full yet", items(rb), (std::vector<int>{1, 2, 3}));
+          CHECK_EQ("full is false", rb.full(), false);
+          rb.push(4); rb.push(5); rb.push(6);
+          CHECK_EQ("oldest overwritten", items(rb), (std::vector<int>{3, 4, 5, 6}));
+          CHECK_EQ("size stays at capacity", rb.size(), 4u);
+          CHECK_EQ("operator[] from the oldest", rb[0], 3);
+          CHECK_EQ("last element", rb[3], 6);
+          for (int i = 7; i <= 100; i++) rb.push(i);
+          CHECK_EQ("after many wraps", items(rb), (std::vector<int>{97, 98, 99, 100}));
+          RingBuffer<std::string, 2> names;
+          names.push("a"); names.push("b"); names.push("c");
+          CHECK_EQ("strings", names[0] + names[1], std::string("bc"));
+      }
+    hints:
+      - "When not full, write at `(head_ + size_) % N` and grow size_. When full, overwrite `data_[head_]` and advance head_."
+      - "`operator[](i)` is `data_[(head_ + i) % N]`."
+      - "The iterator can store a pointer to the buffer and a logical index 0..size_; `operator*` returns `(*rb_)[i_]`."
