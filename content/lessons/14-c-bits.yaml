@@ -7,13 +7,36 @@ steps:
   - title: "#define constants"
     id: c-bits-1
     text: |
-      Lines starting with `#` are handled by the **preprocessor** before compilation. `#define` does a text substitution:
+      Before the compiler proper sees your code, a first stage called the **preprocessor** runs. It handles every line that starts with `#`. You've been using it since the first lesson: `#include <stdio.h>` tells the preprocessor to paste in the contents of that header file.
 
-      ```c
-      #define MAX_ROUNDS 24
+      `#define` creates a **macro**: a name that the preprocessor replaces with text everywhere it appears.
+
+      ```c run
+      #include <stdio.h>
+
+      #define MAX_HP 100
+      #define GAME_NAME "Arena"
+
+      int main(void) {
+          int hp = MAX_HP;
+          printf("%s: %d/%d\n", GAME_NAME, hp - 35, MAX_HP);
+          return 0;
+      }
       ```
 
-      Every `MAX_ROUNDS` in the code is replaced with `24` before the compiler sees it. By convention macro names are UPPERCASE.
+      ```output
+      Arena: 65/100
+      ```
+
+      ### It's text replacement
+
+      The preprocessor doesn't understand C. It literally replaces the token `MAX_HP` with `100` before compiling, as if you had typed `100` yourself. So there's no type, no memory, and no `=` or `;` in the definition. A common mistake is `#define MAX_HP 100;`: the semicolon becomes part of the replacement and breaks expressions like `MAX_HP * 2`.
+
+      ### Conventions
+
+      - Macro names are written in `UPPER_CASE`, so readers know text replacement is happening.
+      - Use them for values used in many places, so changing one line updates them all.
+      - In modern C, `const` variables and `enum` constants are often preferable because they have types and obey scope. But `#define` is still everywhere in real C code, including all the standard headers, and it's the only option for some jobs, like array sizes in older C and conditional compilation (`#ifdef DEBUG`).
 
       **Your turn:** define `TEAM_SIZE` as `5` so the program prints `10 players`.
     fill: |
@@ -33,18 +56,45 @@ steps:
   - title: Macro pitfalls
     id: c-bits-2
     text: |
-      Macros can take arguments, but they're pure text replacement, which bites:
+      Macros can take parameters, which makes them look like functions:
 
       ```c
       #define SQUARE(x) x * x
-      SQUARE(1 + 2)   // becomes 1 + 2 * 1 + 2 = 5, not 9!
       ```
 
-      The fix: wrap every argument **and** the whole body in parentheses:
+      But they aren't functions. The preprocessor pastes the argument's **text** into the body, without evaluating it first. That leads to surprises:
 
       ```c
-      #define SQUARE(x) ((x) * (x))
+      SQUARE(1 + 2)      // becomes  1 + 2 * 1 + 2   which is 5, not 9
+      100 / SQUARE(5)    // becomes  100 / 5 * 5     which is 100, not 4
       ```
+
+      The fix is to put parentheses around **every use of each parameter** and around **the whole body**:
+
+      ```c run
+      #include <stdio.h>
+
+      #define BAD_SQUARE(x) x * x
+      #define SQUARE(x) ((x) * (x))
+      #define MAX(a, b) ((a) > (b) ? (a) : (b))
+
+      int main(void) {
+          printf("%d %d\n", BAD_SQUARE(1 + 2), SQUARE(1 + 2));
+          printf("%d %d\n", 100 / BAD_SQUARE(5), 100 / SQUARE(5));
+          printf("%d\n", MAX(3, 7) * 2);
+          return 0;
+      }
+      ```
+
+      ```output
+      5 9
+      100 4
+      14
+      ```
+
+      ### Another trap: arguments evaluated twice
+
+      `MAX(i++, j)` expands to use `i++` twice, so `i` may be incremented twice. A real function evaluates each argument exactly once. This is why modern C code prefers `static inline` functions over function-like macros whenever possible: they have types, evaluate arguments once, and show up in the debugger. Macros remain useful for things functions can't do, but always write them defensively.
 
       **Your turn:** `DOUBLE(3 + 4) * 2` should be 28, but this prints 18. Fix the `DOUBLE` macro.
     seed: |
@@ -77,18 +127,53 @@ steps:
   - title: Bitwise operators
     id: c-bits-3
     text: |
-      Bitwise operators work on the individual bits of integers:
+      Every integer is stored as a pattern of **bits** (binary digits, 0 or 1). The number 13 is `1101` in binary: 8 + 4 + 0 + 1. Bitwise operators work on those individual bits, all at once:
 
-      | Op | Name | Example (binary) |
-      |---|---|---|
-      | `&` | AND | `1100 & 1010 = 1000` |
-      | `\|` | OR | `1100 \| 1010 = 1110` |
-      | `^` | XOR | `1100 ^ 1010 = 0110` |
-      | `~` | NOT | flips every bit |
-      | `<<` | shift left | `0001 << 2 = 0100` |
-      | `>>` | shift right | `1000 >> 3 = 0001` |
+      | Operator | Name | Result bit is 1 when | Example |
+      |---|---|---|---|
+      | `a & b` | AND | both bits are 1 | `1100 & 1010 = 1000` |
+      | `a \| b` | OR | at least one is 1 | `1100 \| 1010 = 1110` |
+      | `a ^ b` | XOR | the bits differ | `1100 ^ 1010 = 0110` |
+      | `~a` | NOT | the bit was 0 | flips every bit |
+      | `a << n` | shift left | bits move n places left (zeros come in) | `0011 << 2 = 1100` |
+      | `a >> n` | shift right | bits move n places right | `1100 >> 2 = 0011` |
 
-      `1 << n` is a number with only bit `n` set (that's 2 to the power n).
+      Shifting left by n multiplies by 2 to the power n, and shifting right divides by it. `1u << n` is a number with only bit `n` set.
+
+      ```c run
+      #include <stdio.h>
+
+      int lowest_set_bit(unsigned x) {
+          for (int i = 0; i < 32; i++) {
+              if (x & (1u << i)) {
+                  return i;
+              }
+          }
+          return -1;
+      }
+
+      int main(void) {
+          unsigned a = 12, b = 10;
+          printf("%u %u %u\n", a & b, a | b, a ^ b);
+          printf("%u %u\n", 1u << 5, 40u >> 3);
+          printf("%d %d\n", lowest_set_bit(12), lowest_set_bit(0));
+          return 0;
+      }
+      ```
+
+      ```output
+      8 14 6
+      32 5
+      2 -1
+      ```
+
+      ### Testing one bit
+
+      `x & 1` is 1 if the lowest bit of `x` is set, else 0. More generally, `x & (1u << i)` is non-zero exactly when bit `i` is set. Combining that test with shifting (`x >>= 1` moves the next bit into the lowest position) lets you look at every bit in turn.
+
+      ### Use unsigned types
+
+      Bit manipulation should use **unsigned** integers (`unsigned`, `uint32_t`). Shifting negative signed numbers, or shifting a 1 into the sign bit, is undefined or implementation-defined. The `u` suffix in `1u` makes the literal unsigned.
 
       **Your turn:** write `int count_bits(unsigned x)` that returns how many bits are 1. Check the lowest bit with `x & 1`, then shift right.
     seed: |
@@ -120,19 +205,56 @@ steps:
   - title: Flags
     id: c-bits-4
     text: |
-      Bits make compact on/off switches. Give each flag its own bit:
+      A common use of bits is **flags**: packing several yes/no settings into a single integer, one bit each. File permissions, network protocol headers, graphics options and hardware registers all work this way.
+
+      Give each flag its own bit with a shift:
 
       ```c
-      #define HAS_HELMET  (1u << 0)
-      #define HAS_KIT     (1u << 1)
-      #define IS_SCOPED   (1u << 2)
-
-      unsigned state = 0;
-      state |= HAS_KIT;            // turn on
-      state &= ~HAS_KIT;           // turn off
-      state ^= IS_SCOPED;          // toggle
-      if (state & HAS_HELMET) {}   // test
+      #define BOLD      (1u << 0)   /* 001 */
+      #define ITALIC    (1u << 1)   /* 010 */
+      #define UNDERLINE (1u << 2)   /* 100 */
       ```
+
+      Then four operations cover everything:
+
+      | Goal | Code |
+      |---|---|
+      | turn a flag on | `style \|= ITALIC;` |
+      | turn a flag off | `style &= ~ITALIC;` |
+      | toggle a flag | `style ^= ITALIC;` |
+      | test a flag | `if (style & ITALIC)` |
+
+      ```c run
+      #include <stdio.h>
+
+      #define BOLD      (1u << 0)
+      #define ITALIC    (1u << 1)
+      #define UNDERLINE (1u << 2)
+
+      int main(void) {
+          unsigned style = BOLD | UNDERLINE;
+          printf("%u\n", style);
+          style ^= BOLD;
+          style |= ITALIC;
+          printf("%u bold=%d italic=%d\n", style, (style & BOLD) != 0, (style & ITALIC) != 0);
+          return 0;
+      }
+      ```
+
+      ```output
+      5
+      6 bold=0 italic=1
+      ```
+
+      ### Why `&= ~FLAG` turns a flag off
+
+      `~ITALIC` has every bit set **except** the italic bit (`...11101`). AND-ing with it keeps every other bit as it was and forces the italic bit to 0.
+
+      ### Why `!= 0` when testing
+
+      `style & ITALIC` is either 0 or the flag's value (here 2), not 1. As a condition in `if` that's fine, since non-zero is true. When you want an actual 0 or 1, compare with `!= 0` (or use `!!`).
+
+      Combining flags with `|` when calling a function (like `BOLD | ITALIC`) is a pattern you'll see in many C APIs, including `open()` on Unix.
 
       **Your turn:** fill in the operators.
     fill: |
@@ -159,7 +281,47 @@ steps:
   - title: "Challenge: power of two"
     id: c-bits-5
     text: |
-      A classic bit trick: a positive number is a power of two exactly when it has a single 1 bit. And `x & (x - 1)` clears the lowest set bit, so for powers of two it gives 0.
+      Bit tricks let you answer some questions in a single expression. The classic one: is a number a power of two?
+
+      A power of two has **exactly one** 1 bit: 1 is `0001`, 2 is `0010`, 4 is `0100`, 8 is `1000`.
+
+      ### The trick: `x & (x - 1)`
+
+      Subtracting 1 flips the lowest 1 bit to 0 and every 0 bit below it to 1. For example, 12 is `1100` and 11 is `1011`. AND-ing them keeps only the bits both have: `1000`, which is 8. So `x & (x - 1)` is `x` with its **lowest set bit cleared**.
+
+      If `x` had only one bit set, clearing it leaves 0. That's the power-of-two test. Zero needs special care, though: `0 & (0 - 1)` is also 0, but 0 is not a power of two, so it has to be excluded separately.
+
+      The same trick gives a fast way to count bits: keep clearing the lowest set bit until nothing is left, counting as you go. The loop runs once per 1 bit instead of once per bit position.
+
+      ```c run
+      #include <stdio.h>
+
+      int count_bits_fast(unsigned x) {
+          int n = 0;
+          while (x != 0) {
+              x &= x - 1;
+              n++;
+          }
+          return n;
+      }
+
+      int main(void) {
+          printf("%d %d %d\n", count_bits_fast(12), count_bits_fast(255), count_bits_fast(0));
+          printf("%u %u\n", 12u & (12u - 1), 16u & (16u - 1));
+          return 0;
+      }
+      ```
+
+      ```output
+      2 8 0
+      8 0
+      ```
+
+      `16 & 15` is 0 because 16 is a power of two; `12 & 11` is 8 because 12 has two bits set.
+
+      ### Why bother with tricks like this?
+
+      They show up in performance-sensitive code (hash tables often require power-of-two sizes so that `hash & (size - 1)` can replace a slower `%`), in systems programming, and in interviews. More importantly, working them out builds a real understanding of how numbers are stored.
 
       **Your turn:** write `int is_pow2(unsigned x)` returning 1 or 0, without loops.
     seed: |

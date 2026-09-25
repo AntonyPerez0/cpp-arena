@@ -7,15 +7,38 @@ steps:
   - title: Declare and index
     id: c-arrays-1
     text: |
-      An **array** is a fixed-size row of values of the same type, stored next to each other in memory.
+      Suppose a game tracks the score of 5 players. Five separate variables (`score1`, `score2`, ...) work, but they're painful: you can't loop over them, and 100 players would need 100 names. An **array** solves this: one name for a whole row of values of the same type, stored **side by side** in memory.
 
-      ```c
-      int ammo[3] = {30, 20, 7};
-      printf("%d\n", ammo[0]);   // 30, indexes start at 0
-      ammo[2] = 8;               // change the last one
+      ```c run
+      #include <stdio.h>
+
+      int main(void) {
+          int temps[4] = {18, 21, 25, 19};
+          printf("first: %d\n", temps[0]);
+          printf("third: %d\n", temps[2]);
+          temps[3] = 20;
+          printf("last is now: %d\n", temps[3]);
+          return 0;
+      }
       ```
 
-      An array of size 3 has valid indexes **0, 1, 2**. `ammo[3]` is out of bounds. C won't stop you, and the result is undefined behaviour.
+      ```output
+      first: 18
+      third: 25
+      last is now: 20
+      ```
+
+      ### Declaring
+
+      `int temps[4]` creates 4 ints in a row. The size must be known when the array is created and it never changes. The `{ ... }` list gives initial values. If the list is shorter than the size, the rest are set to 0, so `int counts[10] = {0};` is a handy way to zero a whole array. You can also leave the size out and let the list decide: `int temps[] = {18, 21, 25, 19};` has size 4.
+
+      ### Indexing starts at 0
+
+      `temps[i]` is element number `i`, counting from **0**. An array of size 4 has indexes **0, 1, 2, 3**, so the last one is always `size - 1`. The index is really an **offset**: how many elements past the start. The first element is 0 steps from the start.
+
+      ### No safety net
+
+      C does **not** check indexes. `temps[4]` or `temps[-1]` compiles fine and reads or writes whatever memory happens to be next to the array. That's **undefined behavior**: the program might crash, print garbage, or seem to work and fail later. Keeping indexes in range is your job.
 
       **Your turn:** print the first and the last element of the array.
     fill: |
@@ -35,18 +58,45 @@ steps:
   - title: Loop over an array
     id: c-arrays-2
     text: |
-      Loops and arrays are best friends. The idiom:
+      Arrays and loops go together: the loop counter becomes the index, so one loop can visit every element no matter how many there are.
 
-      ```c
-      int n = 5;
-      for (int i = 0; i < n; i++) {
-          printf("%d\n", a[i]);
+      ```c run
+      #include <stdio.h>
+
+      int main(void) {
+          double prices[] = {2.5, 4.0, 1.25, 3.75};
+          int n = sizeof(prices) / sizeof(prices[0]);
+          double total = 0;
+          for (int i = 0; i < n; i++) {
+              printf("item %d: %.2f\n", i, prices[i]);
+              total += prices[i];
+          }
+          printf("%d items, total %.2f\n", n, total);
+          return 0;
       }
       ```
 
-      Note `i < n`, not `i <= n`. Using `<=` reads one past the end, a classic **off-by-one** bug.
+      ```output
+      item 0: 2.50
+      item 1: 4.00
+      item 2: 1.25
+      item 3: 3.75
+      4 items, total 11.50
+      ```
 
-      The trick `sizeof(a) / sizeof(a[0])` gives the number of elements of a real array (not of a pointer, as you'll see soon).
+      ### The standard loop
+
+      `for (int i = 0; i < n; i++)` visits indexes 0 through n-1: exactly the valid ones. The most common array bug is `i <= n`, which runs one extra time and reads `a[n]`, one past the end. This mistake is so common it has a name: an **off-by-one** error.
+
+      ### Counting elements with sizeof
+
+      `sizeof(prices)` is the size of the whole array in bytes (4 doubles x 8 bytes = 32), and `sizeof(prices[0])` is the size of one element (8). Dividing gives the element count (4). Computing it like this means the loop stays correct if you add items to the list later.
+
+      This only works where the array itself was declared. Once an array is passed to a function it becomes a pointer, and `sizeof` gives the pointer's size instead. You'll see this in a couple of steps.
+
+      ### Averages
+
+      Remember the integer division trap: if you sum ints and divide by an int count, cast one side to `double` first.
 
       **Your turn:** print the average of the array with two decimals: `avg 18.00`.
     seed: |
@@ -83,7 +133,51 @@ steps:
   - title: Read into an array
     id: c-arrays-3
     text: |
-      You can `scanf` directly into an element: `scanf("%d", &a[i]);`
+      Each element of an array is a normal variable, so you can read input directly into one. `scanf` needs its address, just like with a plain variable: `&a[i]`.
+
+      A common pattern: first read how many values there will be, then read them into an array inside a loop.
+
+      ```c run
+      #include <stdio.h>
+
+      int main(void) {
+          int values[50];
+          int n;
+          scanf("%d", &n);
+          for (int i = 0; i < n; i++) {
+              scanf("%d", &values[i]);
+          }
+          int above = 0;
+          for (int i = 0; i < n; i++) {
+              if (values[i] > values[0]) {
+                  above++;
+              }
+          }
+          printf("%d values are bigger than the first\n", above);
+          return 0;
+      }
+      ```
+
+      ```input
+      6
+      10 4 15 22 10 11
+      ```
+
+      ```output
+      3 values are bigger than the first
+      ```
+
+      ### Why store the values at all?
+
+      For a sum or a maximum you don't need an array: one pass while reading is enough. You need an array when you must look at the data **more than once** or **out of order**, like comparing everything to the first value, sorting, or printing in reverse. Reading first and processing afterwards is a very common program structure.
+
+      ### Capacity
+
+      The array has a fixed capacity (50 here). The program trusts the input to say at most 50. Real programs check that `n` fits before reading, or allocate memory of the right size at run time (you'll learn `malloc` in the dynamic memory module).
+
+      ### Looping backwards
+
+      To walk an array from the end, start at the last valid index and count down: `for (int i = n - 1; i >= 0; i--)`. Note the start is `n - 1`, not `n`, and the condition is `i >= 0` so index 0 is included.
 
       **Your turn:** input is `n` (at most 100) followed by `n` numbers. Print them in **reverse** order on one line, separated by spaces.
 
@@ -127,17 +221,45 @@ steps:
   - title: Arrays as parameters
     id: c-arrays-4
     text: |
-      When you pass an array to a function, the function **doesn't know its length**. Always pass the length too:
+      You can pass an array to a function, which lets you write reusable tools like "sum this array" or "find this value". The parameter is written with empty brackets:
 
-      ```c
-      int sum(int a[], int n) {
-          int s = 0;
-          for (int i = 0; i < n; i++) s += a[i];
-          return s;
+      ```c run
+      #include <stdio.h>
+
+      int count_over(int a[], int n, int limit) {
+          int count = 0;
+          for (int i = 0; i < n; i++) {
+              if (a[i] > limit) {
+                  count++;
+              }
+          }
+          return count;
+      }
+
+      int main(void) {
+          int speeds[] = {45, 72, 51, 90, 38};
+          printf("%d\n", count_over(speeds, 5, 50));
+          printf("%d\n", count_over(speeds, 5, 100));
+          return 0;
       }
       ```
 
-      Unlike plain ints, changes to array elements inside the function **are** visible to the caller (the next module explains why).
+      ```output
+      3
+      0
+      ```
+
+      ### The function doesn't know the length
+
+      When you pass an array, C doesn't copy the elements. It passes the **address of the first element**, and nothing about the length comes along. Inside the function, `a` is really a pointer, and `sizeof(a)` gives the size of a pointer (often 4 or 8), not the array. That's why every C function that takes an array also takes its length: `int a[], int n`. The standard library works the same way.
+
+      ### Search: returning early
+
+      A **linear search** checks elements one by one. As soon as it finds a match, it can `return` right away; there's no point looking further. If the loop finishes without finding anything, the value isn't there, so the code after the loop returns a "not found" signal. Returning `-1` is the usual convention, because `-1` can never be a valid index.
+
+      ### Changes are shared
+
+      Because the function receives the array's address rather than a copy, if it **changes** `a[i]`, the caller's array changes too. That's different from plain ints, and it's the subject of the next step.
 
       **Your turn:** write `int index_of(int a[], int n, int target)` that returns the index of the first element equal to `target`, or `-1` if it isn't there.
     seed: |
@@ -168,15 +290,46 @@ steps:
   - title: Modify an array in a function
     id: c-arrays-5
     text: |
-      **Your turn:** write `void reverse(int a[], int n)` that reverses the array **in place** (no second array).
+      Since a function receives the array's address, it can modify the caller's elements directly. This is called working **in place**: no second array is needed.
 
-      Swap the first and last element, then the second and second-to-last, and so on until the middle.
+      ```c run
+      #include <stdio.h>
+
+      void add_bonus(int a[], int n, int bonus) {
+          for (int i = 0; i < n; i++) {
+              a[i] += bonus;
+          }
+      }
+
+      int main(void) {
+          int scores[] = {10, 20, 30};
+          add_bonus(scores, 3, 5);
+          printf("%d %d %d\n", scores[0], scores[1], scores[2]);
+          return 0;
+      }
+      ```
+
+      ```output
+      15 25 35
+      ```
+
+      ### Swapping two elements
+
+      To exchange two values you need a **temporary** variable. Writing `a[i] = a[j]; a[j] = a[i];` loses the original `a[i]` on the first line, so both end up equal. Save one value first:
 
       ```c
       int tmp = a[i];
       a[i] = a[j];
       a[j] = tmp;
       ```
+
+      ### Reversing: two indexes moving inward
+
+      Reversing in place means swapping the first and last elements, then the second and second-to-last, and so on. Use two indexes: `i` starting at the front (0) and `j` at the back (`n - 1`). After each swap, move `i` forward and `j` backward. Stop when they meet or cross (`i < j` is the loop condition). If you kept going past the middle, you'd swap everything back again.
+
+      Check edge cases in your head: an array of 1 element (the loop shouldn't run), an even length (4 elements: swap 0-3 and 1-2), and an odd length (5 elements: the middle one stays put).
+
+      **Your turn:** write `void reverse(int a[], int n)` that reverses the array **in place** (no second array).
     seed: |
       void reverse(int a[], int n) {
 
@@ -217,17 +370,46 @@ steps:
   - title: 2D arrays
     id: c-arrays-6
     text: |
-      A 2D array is an array of rows:
+      A **2D array** is an array of arrays: a grid with rows and columns. It's the natural fit for boards, maps, images and tables.
 
-      ```c
-      int grid[2][3] = {
-          {1, 2, 3},
-          {4, 5, 6},
-      };
-      printf("%d\n", grid[1][2]);   // row 1, column 2: 6
+      ```c run
+      #include <stdio.h>
+
+      int main(void) {
+          int seats[2][4] = {
+              {1, 0, 1, 1},
+              {0, 0, 1, 0},
+          };
+          int taken = 0;
+          for (int r = 0; r < 2; r++) {
+              for (int c = 0; c < 4; c++) {
+                  taken += seats[r][c];
+              }
+          }
+          printf("row 1, seat 2: %d\n", seats[1][2]);
+          printf("%d seats taken\n", taken);
+          return 0;
+      }
       ```
 
-      Loop over it with nested loops: rows outside, columns inside.
+      ```output
+      row 1, seat 2: 1
+      4 seats taken
+      ```
+
+      ### Indexing
+
+      `seats[r][c]` means row `r`, column `c`. Both start at 0. `int seats[2][4]` has 2 rows of 4 columns.
+
+      ### In memory
+
+      The grid is stored **row by row** in one long line: all of row 0, then all of row 1. That's why the column count must be known: to find `seats[1][2]`, C skips one full row of 4 and then 2 more elements.
+
+      ### Nested loops
+
+      Rows go in the outer loop and columns in the inner loop, so the program walks the grid the same way it's laid out in memory. To compute something **per row** (like each row's sum), reset the running total at the start of each outer pass and print it at the end of the pass. Something that follows a **diagonal** needs only one loop: the main diagonal is where row equals column, `g[i][i]`.
+
+      Reading a grid from input works the same way: nested loops with `scanf("%d", &g[r][c])`.
 
       **Your turn:** read a 3x3 grid of numbers and print the sum of each row on its own line, then the sum of the main diagonal (top-left to bottom-right) as `diag N`.
     seed: |

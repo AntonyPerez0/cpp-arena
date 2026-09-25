@@ -206,6 +206,38 @@ async function buildExercise(where, lang, raw, prevSolution) {
   return out;
 }
 
+// ---------------------------------------------------------------- worked examples in lesson text
+/**
+ * Lesson text can include complete example programs as ```c run (or ```cpp run)
+ * blocks. Each one is compiled and run; if the next block is ```output, the
+ * program must print exactly that. Returns the text with plain info strings.
+ */
+async function checkExamples(where, text) {
+  if (!text || !/```(c|cpp) run/.test(text)) return text;
+  const blocks = [...text.matchAll(/^```([^\n]*)\n([\s\S]*?)^```[ \t]*$/gm)];
+  for (let i = 0; i < blocks.length; i++) {
+    const m = blocks[i][1].trim().match(/^(c|cpp) run$/);
+    if (!m) continue;
+    const lang = m[1];
+    const code = blocks[i][2];
+    // An ```input block right after the example is what the program reads.
+    const hasInput = blocks[i + 1]?.[1].trim() === "input";
+    const stdin = hasInput ? blocks[i + 1][2] : "";
+    const res = await execute(lang, code, [stdin], { werror: true });
+    if (!res.compiled) {
+      errors.push(`${where}: example ${i + 1} in the text does not compile:\n${res.diagnostics}`);
+      continue;
+    }
+    const r = res.runs[0];
+    if (r.code !== 0 || r.timedOut) errors.push(`${where}: example in the text exits with ${r.code}`);
+    const next = blocks[i + (hasInput ? 2 : 1)];
+    if (next && next[1].trim() === "output" && normalizeOutput(next[2]) !== normalizeOutput(r.stdout)) {
+      errors.push(`${where}: example in the text says it prints\n${next[2]}\nbut it prints\n${r.stdout}`);
+    }
+  }
+  return text.replace(/^```(c|cpp) run[ \t]*$/gm, "```$1").replace(/^```(output|input)[ \t]*$/gm, "```text");
+}
+
 // ---------------------------------------------------------------- lessons
 async function buildLessons() {
   const files = readYamlDir("content/lessons");
@@ -227,7 +259,8 @@ async function buildLessons() {
         const ex = await buildExercise(where, s.lang ?? m.lang, s, null);
         if (!ex) return null;
         if (!s.text) errors.push(`${where}: missing text`);
-        return { id: s.id ?? `${m.id}-${i + 1}`, title: s.title, text: s.text ?? "", ...ex };
+        const text = await checkExamples(where, s.text ?? "");
+        return { id: s.id ?? `${m.id}-${i + 1}`, title: s.title, text, ...ex };
       }),
     );
     modules.push({ id: m.id, title: m.title, lang: m.lang, phase: m.phase ?? "", summary: m.summary ?? "", steps: steps.filter(Boolean) });
@@ -247,7 +280,7 @@ async function buildProjects() {
       const where = `${file} milestone ${i + 1} (${ms.title})`;
       const ex = await buildExercise(where, p.lang, { ...ms, seed: i === 0 ? p.seed : undefined, seedMayPass: i > 0 || ms.seedMayPass }, prev);
       if (!ex) continue;
-      milestones.push({ title: ms.title, text: ms.text ?? "", ...ex });
+      milestones.push({ title: ms.title, text: await checkExamples(where, ms.text ?? ""), ...ex });
       prev = ex.solution;
     }
     projects.push({ id: p.id, title: p.title, lang: p.lang, level: p.level, after: p.after ?? null, summary: p.summary ?? "", milestones });

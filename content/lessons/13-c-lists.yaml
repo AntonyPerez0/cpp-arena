@@ -7,7 +7,7 @@ steps:
   - title: A node that points to a node
     id: c-lists-1
     text: |
-      A **linked list** is a chain of nodes. Each node holds a value and a pointer to the next node. The last node's `next` is `NULL`.
+      This module puts structs, pointers and `malloc` together to build the first real **data structure**. Arrays store elements side by side, which makes them fast to index but hard to grow or insert into. A **linked list** takes the opposite approach: each element (a **node**) is separate, and each node holds a pointer to the next one.
 
       ```c
       struct Node {
@@ -16,7 +16,49 @@ steps:
       };
       ```
 
-      A struct can contain a pointer to its own type, even though it can't contain *itself*.
+      - `value` is the data.
+      - `next` points at the following node, or is `NULL` for the last node.
+      - The whole list is reached through one pointer to the first node, called the **head**. An empty list is just `head == NULL`.
+
+      A struct can't contain itself (that would be infinitely big), but it can contain a **pointer** to its own type, because a pointer is a fixed size.
+
+      ### Walking a list
+
+      You can't jump to "element 5" of a list. You start at the head and follow `next` pointers until you reach `NULL`:
+
+      ```c run
+      #include <stdio.h>
+      #include <stddef.h>
+
+      struct Node {
+          const char *name;
+          struct Node *next;
+      };
+
+      int main(void) {
+          struct Node third = {"cherry", NULL};
+          struct Node second = {"banana", &third};
+          struct Node first = {"apple", &second};
+          int count = 0;
+          for (struct Node *p = &first; p != NULL; p = p->next) {
+              printf("%s\n", p->name);
+              count++;
+          }
+          printf("%d nodes\n", count);
+          return 0;
+      }
+      ```
+
+      ```output
+      apple
+      banana
+      cherry
+      3 nodes
+      ```
+
+      The `for` loop is the standard list traversal: start at the head, stop at `NULL`, and step with `p = p->next`. You'll write it many times.
+
+      In real programs nodes are allocated with `malloc` (next step); here they're plain local variables to keep the first example simple.
 
       **Your turn:** link three stack-allocated nodes together and walk the list.
     fill: |
@@ -47,13 +89,61 @@ steps:
   - title: Push to the front
     id: c-lists-2
     text: |
-      Real lists allocate nodes on the heap. Adding at the front is the easiest operation: the new node points at the old head, and becomes the new head.
+      Real lists create nodes on the heap, one `malloc` per node, so the list can grow as long as needed. The easiest insertion is at the **front**:
 
-      The function has to change the caller's head pointer, so it takes a **pointer to the head pointer**:
+      1. Allocate a new node and fill in its value.
+      2. Point its `next` at the current head.
+      3. Make the new node the head.
 
-      ```c
-      void push_front(struct Node **head, int value);
+      The order matters: if you replaced the head first, you'd lose the pointer to the rest of the list.
+
+      ### Changing the caller's head
+
+      Step 3 changes the head pointer, which belongs to the caller. As you saw with pointers to pointers, a function that must change the caller's pointer needs **the address of that pointer**, so the parameter is `struct Node **head`. Inside, `*head` is the caller's head pointer.
+
+      ```c run
+      #include <stdio.h>
+      #include <stdlib.h>
+
+      struct Node {
+          int value;
+          struct Node *next;
+      };
+
+      int push_back(struct Node **head, int value) {
+          struct Node *n = malloc(sizeof *n);
+          if (n == NULL) return 0;
+          n->value = value;
+          n->next = NULL;
+          struct Node **link = head;
+          while (*link != NULL) {
+              link = &(*link)->next;
+          }
+          *link = n;
+          return 1;
+      }
+
+      int main(void) {
+          struct Node *list = NULL;
+          push_back(&list, 1);
+          push_back(&list, 2);
+          push_back(&list, 3);
+          for (struct Node *p = list; p; p = p->next) printf("%d ", p->value);
+          printf("\n");
+          while (list) {
+              struct Node *next = list->next;
+              free(list);
+              list = next;
+          }
+          return 0;
+      }
       ```
+
+      ```output
+      1 2 3 
+      ```
+
+      This example adds at the **back** instead: it walks a pointer-to-a-link until it finds the `NULL` at the end and attaches the node there. Adding at the back takes a walk through the whole list (O(n)); adding at the front is immediate (O(1)), which is why push-front is the basic list operation.
 
       **Your turn:** implement it.
     seed: |
@@ -101,6 +191,56 @@ steps:
   - title: Length and sum
     id: c-lists-3
     text: |
+      Most list functions follow the same traversal pattern: start at the head, do something with each node, follow `next` until `NULL`. Only the "do something" changes.
+
+      ```c run
+      #include <stdio.h>
+      #include <stddef.h>
+
+      struct Node {
+          int value;
+          struct Node *next;
+      };
+
+      int list_max(const struct Node *head) {
+          int best = head->value;
+          for (const struct Node *p = head->next; p != NULL; p = p->next) {
+              if (p->value > best) {
+                  best = p->value;
+              }
+          }
+          return best;
+      }
+
+      int count_negative(const struct Node *head) {
+          int n = 0;
+          for (; head != NULL; head = head->next) {
+              if (head->value < 0) {
+                  n++;
+              }
+          }
+          return n;
+      }
+
+      int main(void) {
+          struct Node c = {-4, NULL}, b = {9, &c}, a = {-1, &b};
+          printf("max %d, negatives %d\n", list_max(&a), count_negative(&a));
+          return 0;
+      }
+      ```
+
+      ```output
+      max 9, negatives 2
+      ```
+
+      ### Notes
+
+      - `count_negative` moves the parameter `head` itself. That's fine: it's the function's own copy of the pointer, so the caller's list is unaffected.
+      - `const struct Node *` promises the function won't modify the nodes; traversal functions should always take `const`.
+      - `list_max` reads `head->value` without checking, so it requires a non-empty list. A function that must handle empty lists (like counting or summing) should work naturally when `head` is `NULL`: the loop simply doesn't run and the result is 0.
+
+      Think about the empty list for every list function you write; it's the most common edge case in hidden tests.
+
       **Your turn:** write two traversal functions:
 
       - `int list_length(const struct Node *head)`
@@ -152,13 +292,53 @@ steps:
   - title: Free the whole list
     id: c-lists-4
     text: |
-      Every node was malloc'd, so every node must be freed. The trap: after `free(p)` you can't read `p->next` anymore. Save it first.
+      Every node was allocated with `malloc`, so every node must be freed, or the list leaks. Freeing looks like a traversal, but with a trap:
 
       ```c
-      struct Node *next = p->next;
-      free(p);
-      p = next;
+      for (struct Node *p = head; p != NULL; p = p->next) {
+          free(p);     // then the loop reads p->next: use after free!
+      }
       ```
+
+      After `free(p)`, the node's memory no longer belongs to you, so reading `p->next` to move on is undefined behavior. It may even appear to work, which is why this bug survives in real code. The fix: **save the next pointer before freeing**.
+
+      ```c run
+      #include <stdio.h>
+      #include <stdlib.h>
+
+      struct Node {
+          int value;
+          struct Node *next;
+      };
+
+      int main(void) {
+          struct Node *head = NULL;
+          for (int i = 0; i < 4; i++) {
+              struct Node *n = malloc(sizeof *n);
+              if (!n) return 1;
+              n->value = i;
+              n->next = head;
+              head = n;
+          }
+          int total = 0;
+          while (head != NULL) {
+              struct Node *next = head->next;
+              total += head->value;
+              free(head);
+              head = next;
+          }
+          printf("freed all, total was %d\n", total);
+          return 0;
+      }
+      ```
+
+      ```output
+      freed all, total was 6
+      ```
+
+      The loop reads what it needs from the node (its value and `next`) **before** freeing it, then moves on using the saved pointer. When the loop ends, `head` is `NULL`, which correctly describes an empty list.
+
+      This "save, free, advance" shape is how every linked structure is destroyed. Tools like AddressSanitizer report the wrong version immediately as a heap-use-after-free.
 
       **Your turn:** write `int free_list(struct Node *head)` that frees every node and returns how many it freed.
     seed: |
@@ -210,7 +390,72 @@ steps:
   - title: Reverse a linked list
     id: c-lists-5
     text: |
-      A famous interview question. Walk the list once and flip every `next` pointer to point backwards. You'll need three pointers: `prev`, `cur`, and `next`.
+      Reversing a linked list is a famous interview question because it tests whether you can manipulate pointers without losing track of anything. The goal: flip every `next` arrow to point backwards, in one pass, without allocating new nodes.
+
+      ### Three pointers
+
+      - `prev`: the part already reversed (starts as `NULL`, the new end).
+      - `cur`: the node being flipped (starts at the head).
+      - `next`: saved before flipping, so the rest of the list isn't lost.
+
+      Each step:
+
+      1. Save `next = cur->next`.
+      2. Flip: `cur->next = prev`.
+      3. Move forward: `prev = cur`, then `cur = next`.
+
+      When `cur` becomes `NULL`, `prev` is the new head.
+
+      The **Watch it run** link below shows exactly this: watch the heap arrows turn around one at a time. Here's the same three-pointer walk used for a different job, removing every node with a given value (it needs to remember the previous node to relink around the removed one):
+
+      ```c run
+      #include <stdio.h>
+      #include <stdlib.h>
+
+      struct Node {
+          int value;
+          struct Node *next;
+      };
+
+      struct Node *remove_all(struct Node *head, int target) {
+          struct Node *prev = NULL, *cur = head;
+          while (cur != NULL) {
+              struct Node *next = cur->next;
+              if (cur->value == target) {
+                  if (prev == NULL) head = next;
+                  else prev->next = next;
+                  free(cur);
+              } else {
+                  prev = cur;
+              }
+              cur = next;
+          }
+          return head;
+      }
+
+      int main(void) {
+          int vals[] = {3, 1, 3, 2};
+          struct Node *head = NULL;
+          for (int i = 3; i >= 0; i--) {
+              struct Node *n = malloc(sizeof *n);
+              if (!n) return 1;
+              n->value = vals[i];
+              n->next = head;
+              head = n;
+          }
+          head = remove_all(head, 3);
+          for (struct Node *p = head; p; p = p->next) printf("%d ", p->value);
+          printf("\n");
+          while (head) { struct Node *n = head->next; free(head); head = n; }
+          return 0;
+      }
+      ```
+
+      ```output
+      1 2 
+      ```
+
+      Draw a small list on paper and trace your reverse before coding. Check the empty list and a one-node list too.
 
       **Your turn:** write `struct Node *reverse(struct Node *head)` that returns the new head.
     seed: |
@@ -265,14 +510,57 @@ steps:
   - title: A stack on an array
     id: c-lists-6
     text: |
-      A **stack** is last-in, first-out, like a pile of plates: `push` adds on top, `pop` removes from the top.
+      A **stack** is a collection with two operations: **push** adds an item on top, **pop** removes the top item. The last item in is the first out (**LIFO**), like a pile of plates. Stacks are everywhere: the call stack that holds function frames, undo history, and parsing nested brackets.
+
+      You could build one from a linked list (push and pop at the front), but the simplest version uses an **array** plus a counter:
 
       ```c
       typedef struct {
           int items[64];
-          int top;        // number of items
+          int top;        /* how many items are stored; also the next free index */
       } Stack;
       ```
+
+      - The items live in `items[0]` to `items[top - 1]`, and the top of the stack is `items[top - 1]`.
+      - **push**: store at `items[top]`, then increment `top`.
+      - **pop**: decrement `top`, then return `items[top]`.
+      - Empty when `top == 0`; full when `top == 64`.
+
+      ```c run
+      #include <stdio.h>
+
+      typedef struct {
+          char items[32];
+          int top;
+      } CharStack;
+
+      int balanced(const char *s) {
+          CharStack st = {.top = 0};
+          for (; *s; s++) {
+              if (*s == '(') {
+                  if (st.top == 32) return 0;
+                  st.items[st.top++] = '(';
+              } else if (*s == ')') {
+                  if (st.top == 0) return 0;
+                  st.top--;
+              }
+          }
+          return st.top == 0;
+      }
+
+      int main(void) {
+          printf("%d %d %d\n", balanced("(a(b)c)"), balanced("(()"), balanced(")("));
+          return 0;
+      }
+      ```
+
+      ```output
+      1 0 0
+      ```
+
+      This checks whether parentheses are balanced: push on `(`, pop on `)`. A `)` with nothing to pop, or anything left over at the end, means unbalanced. Note `st.items[st.top++] = '('`: it stores at the current top and then increments, which is push in one line.
+
+      Always check capacity before pushing into a fixed array; writing `items[64]` would overflow.
 
       **Your turn:** implement `push` (return 0 if full, 1 if ok) and `pop` (return the top item and remove it; the caller guarantees the stack isn't empty).
     seed: |

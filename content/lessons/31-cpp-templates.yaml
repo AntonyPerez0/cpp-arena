@@ -7,18 +7,50 @@ steps:
   - title: Function templates
     id: cpp-templates-1
     text: |
-      A **template** is a recipe the compiler uses to generate code for each type you use it with:
+      Suppose you want a `biggest(a, b)` function for ints, for doubles and for strings. Without templates you'd write three nearly identical functions. A **template** lets you write it **once**, with a placeholder for the type. The compiler then generates a real function for each type you actually use.
 
-      ```cpp
+      ```cpp run
+      #include <iostream>
+      #include <string>
+
       template <typename T>
       T biggest(T a, T b) {
           return a > b ? a : b;
       }
 
-      biggest(3, 9);             // T = int
-      biggest(2.5, 1.0);         // T = double
-      biggest<std::string>("a", "b");
+      template <typename T>
+      void show_twice(const T& x) {
+          std::cout << x << " " << x << "\n";
+      }
+
+      int main() {
+          std::cout << biggest(3, 9) << "\n";                    // T = int
+          std::cout << biggest(2.5, 1.0) << "\n";                // T = double
+          std::cout << biggest<std::string>("pear", "apple") << "\n";
+          show_twice('z');
+          show_twice(std::string("hey"));
+      }
       ```
+
+      ```output
+      9
+      2.5
+      pear
+      z z
+      hey hey
+      ```
+
+      ### How it works
+
+      - `template <typename T>` introduces a **type parameter** named `T`. Inside the function, `T` is used like any type.
+      - When you call `biggest(3, 9)`, the compiler **deduces** `T = int` from the arguments and generates `int biggest(int, int)`. That's called **instantiation**. It happens at compile time, so templates cost nothing at run time.
+      - You can also name the type yourself: `biggest<std::string>("pear", "apple")`. Here that's needed, because the arguments are string literals (`const char*`), and comparing two pointers with `>` wouldn't compare the text.
+      - The template only works for types that support what the body does. `biggest` needs `>`; `show_twice` needs `<<`.
+
+      ### Common mistakes
+
+      - Mixing types: `biggest(3, 2.5)` fails, because `T` can't be both `int` and `double`. Write `biggest<double>(3, 2.5)` or pass matching types.
+      - Putting a template's definition in a `.cpp` file and only its declaration in a header. The compiler needs the whole body wherever the template is used, so templates normally live entirely in headers.
 
       **Your turn:** make `clamp_value` a template.
     fill: |
@@ -42,16 +74,54 @@ steps:
   - title: Templates over containers
     id: cpp-templates-2
     text: |
-      Templates can take any parameter type, including containers of T:
+      A template parameter can appear anywhere in a signature, including **inside** other types. `const std::vector<T>&` accepts a vector of anything, and `T` is deduced from the vector you pass.
 
-      ```cpp
+      ```cpp run
+      #include <iostream>
+      #include <string>
+      #include <vector>
+
       template <typename T>
       T sum(const std::vector<T>& v) {
-          T s{};                  // T{} is "zero" for numbers, "" for strings
+          T s{};                          // T{} is "zero" for numbers, "" for strings
           for (const auto& x : v) s += x;
           return s;
       }
+
+      template <typename T>
+      bool contains(const std::vector<T>& v, const T& target) {
+          for (const auto& x : v) {
+              if (x == target) return true;
+          }
+          return false;
+      }
+
+      int main() {
+          std::cout << sum(std::vector<int>{1, 2, 3}) << "\n";
+          std::cout << sum(std::vector<double>{0.5, 0.25}) << "\n";
+          std::cout << sum(std::vector<std::string>{"ab", "cd", "e"}) << "\n";
+
+          std::vector<std::string> pets = {"cat", "dog"};
+          std::cout << contains(pets, std::string("dog")) << contains(pets, std::string("owl")) << "\n";
+      }
       ```
+
+      ```output
+      6
+      0.75
+      abcde
+      10
+      ```
+
+      ### How it works
+
+      - `T s{};` is **value initialization**: `0` for numbers, an empty string for `std::string`, an empty vector for vectors. It's the generic way to say "start from nothing".
+      - Take elements by `const auto&` and the target by `const T&`, so strings and other big types aren't copied.
+      - In `contains(pets, std::string("dog"))`, both arguments must agree on `T`. Passing a plain `"dog"` literal would make the compiler deduce `T = std::string` from the vector but `const char*` from the literal, and that's a deduction error.
+
+      ### Your task
+
+      Counting matches is the same loop as `contains`, but with a counter instead of an early return. It only needs `==` from the element type.
 
       **Your turn:** write `template <typename T> int count_equal(const std::vector<T>& v, const T& value)` that counts elements equal to `value`.
     seed: |
@@ -80,20 +150,56 @@ steps:
   - title: Class templates
     id: cpp-templates-3
     text: |
-      Classes can be templates too. That's how `std::vector<T>` works:
+      Classes can be templates too. That's exactly how `std::vector<T>`, `std::map<K, V>` and `std::unique_ptr<T>` work: one class definition, and you choose the types when you use it.
 
-      ```cpp
+      ```cpp run
+      #include <iostream>
+      #include <string>
+      #include <vector>
+
       template <typename T>
-      class Box {
+      class Queue {
       public:
-          explicit Box(T v) : value_(v) {}
-          const T& get() const { return value_; }
+          void enqueue(const T& v) { items_.push_back(v); }
+          T dequeue() {
+              T front = items_[head_];
+              head_++;
+              return front;
+          }
+          int size() const { return (int)items_.size() - head_; }
+          bool empty() const { return size() == 0; }
+
       private:
-          T value_;
+          std::vector<T> items_;
+          int head_ = 0;
       };
 
-      Box<int> b(5);
+      int main() {
+          Queue<std::string> q;
+          q.enqueue("first");
+          q.enqueue("second");
+          std::cout << q.dequeue() << ", " << q.size() << " left\n";
+
+          Queue<int> nums;
+          for (int i = 1; i <= 3; i++) nums.enqueue(i * i);
+          while (!nums.empty()) std::cout << nums.dequeue() << " ";
+          std::cout << "\n";
+      }
       ```
+
+      ```output
+      first, 1 left
+      1 4 9 
+      ```
+
+      ### How it works
+
+      - `template <typename T>` goes before the class. Inside, `T` is used for members, parameters and return types.
+      - When you **use** a class template, you usually write the type in angle brackets: `Queue<std::string>`, `Queue<int>`. Each is a separate class generated by the compiler.
+      - Member functions defined inside the class body need nothing extra. (Defined outside, they'd need `template <typename T>` again and `Queue<T>::` before the name.)
+      - Storing items in a `std::vector<T>` gives you memory management for free. That's the rule of zero at work.
+
+      This queue is simple but wasteful: dequeued items stay in the vector. A stack has no such problem, because it adds and removes at the **same** end, which is exactly what `push_back`, `back` and `pop_back` do.
 
       **Your turn:** write a class template `Stack<T>` with `push(const T&)`, `pop()` (returns the top value and removes it; assume non-empty), `bool empty() const` and `int size() const`. Store items in a `std::vector<T>`.
     seed: |
@@ -146,13 +252,51 @@ steps:
   - title: constexpr
     id: cpp-templates-4
     text: |
-      `constexpr` functions can run **at compile time** when given constant inputs. The result is baked into the program:
+      Templates run the type machinery at compile time. `constexpr` lets ordinary **calculations** run at compile time too. A `constexpr` function can be evaluated by the compiler whenever its arguments are compile-time constants, and the result is baked into the program as a number.
 
-      ```cpp
-      constexpr int square(int x) { return x * x; }
-      static_assert(square(12) == 144);   // checked by the compiler!
-      int arr[square(3)];                 // array size known at compile time
+      ```cpp run
+      #include <array>
+      #include <iostream>
+
+      constexpr int factorial(int n) {
+          int result = 1;
+          for (int i = 2; i <= n; i++) result *= i;
+          return result;
+      }
+
+      constexpr int cube(int x) { return x * x * x; }
+
+      static_assert(factorial(5) == 120);           // checked while compiling
+      static_assert(cube(3) == 27, "cube is broken");
+
+      int main() {
+          std::array<int, cube(2)> slots{};         // size 8, known at compile time
+          std::cout << slots.size() << "\n";
+
+          constexpr int f6 = factorial(6);          // computed by the compiler
+          std::cout << f6 << "\n";
+
+          int n = 4;                                // a run-time value...
+          std::cout << factorial(n) << "\n";        // ...so this call runs normally
+      }
       ```
+
+      ```output
+      8
+      720
+      24
+      ```
+
+      ### How it works
+
+      - `static_assert(condition)` is checked by the **compiler**. If it's false, the program doesn't compile at all. It's a test that runs before your program exists.
+      - Anything that needs a compile-time constant, like a `std::array` size or a template argument, can use a `constexpr` function call.
+      - The same function still works at run time with normal variables, as `factorial(n)` shows.
+      - Since C++14, `constexpr` functions can have loops, local variables and `if` statements. They can't do things like I/O or (before C++20) heap allocation.
+
+      ### Your task: power
+
+      Multiply `result` by `base`, `exp` times, starting from `result = 1`. Mark the function `constexpr`; the tests use `static_assert`, so without it the tests won't even compile. Use `long long` for the result so big powers fit.
 
       **Your turn:** write `constexpr long long power(long long base, int exp)`. The tests include `static_assert`s, so if your function can't run at compile time, it won't even compile.
     seed: |
@@ -181,16 +325,59 @@ steps:
   - title: if constexpr
     id: cpp-templates-5
     text: |
-      Inside a template, `if constexpr` picks a branch **at compile time**, and the other branch isn't even compiled for that type. Combine it with type traits from `<type_traits>`:
+      Sometimes a template needs to do slightly different things for different kinds of types. A normal `if` can't do that: **both** branches must compile for every `T`, even the branch that never runs. `if constexpr` decides **at compile time**, and the discarded branch isn't compiled for that type at all.
 
-      ```cpp
+      Combine it with **type traits** from `<type_traits>`, which answer questions about types at compile time:
+
+      | Trait | True for |
+      |---|---|
+      | `std::is_integral_v<T>` | `int`, `long`, `char`, `bool`, ... |
+      | `std::is_floating_point_v<T>` | `float`, `double` |
+      | `std::is_arithmetic_v<T>` | either of the above |
+      | `std::is_same_v<T, U>` | exactly the same type |
+
+      ```cpp run
+      #include <iostream>
+      #include <string>
+      #include <type_traits>
+
       template <typename T>
-      std::string kind(const T&) {
-          if constexpr (std::is_integral_v<T>) return "integer";
-          else if constexpr (std::is_floating_point_v<T>) return "float";
-          else return "other";
+      std::string describe(const T& v) {
+          if constexpr (std::is_same_v<T, bool>) {
+              return v ? "yes" : "no";
+          } else if constexpr (std::is_integral_v<T>) {
+              return "int " + std::to_string(v);
+          } else if constexpr (std::is_floating_point_v<T>) {
+              return "real " + std::to_string(v);
+          } else {
+              return "text '" + v + "'";
+          }
+      }
+
+      int main() {
+          std::cout << describe(true) << "\n";
+          std::cout << describe(42) << "\n";
+          std::cout << describe(0.5) << "\n";
+          std::cout << describe(std::string("hi")) << "\n";
       }
       ```
+
+      ```output
+      yes
+      int 42
+      real 0.500000
+      text 'hi'
+      ```
+
+      ### Why the plain if fails
+
+      With `T = int`, the last branch `"text '" + v + "'"` would be `const char*` plus `int`, which is nonsense and won't compile. `if constexpr` throws that branch away for `int`, so it's never compiled. With `T = std::string`, the `std::to_string(v)` branches are thrown away instead.
+
+      ### Notes
+
+      - The `bool` check comes first because `bool` also counts as integral.
+      - `std::to_string(0.5)` gives `"0.500000"` (six decimals), like `printf("%f")`.
+      - The `_v` suffix is shorthand: `std::is_integral_v<T>` means `std::is_integral<T>::value`.
 
       **Your turn:** write `template <typename T> std::string to_text(const T& v)`: for arithmetic types (`std::is_arithmetic_v<T>`) return `std::to_string(v)`, and otherwise assume it's already a string and return `"\"" + v + "\""` (quoted).
     seed: |
@@ -226,16 +413,54 @@ steps:
   - title: Values as template parameters
     id: cpp-templates-6
     text: |
-      Template parameters don't have to be types. A **non-type template parameter** is a compile-time value, usually a size:
+      Template parameters don't have to be types. A **non-type template parameter** is a compile-time **value**, most often a size:
 
-      ```cpp
+      ```cpp run
+      #include <cstddef>
+      #include <iostream>
+
       template <typename T, std::size_t N>
-      class Ring { T items_[N]; /* ... */ };
+      class History {
+      public:
+          void record(const T& v) {
+              items_[next_ % N] = v;          // overwrite the oldest once full
+              next_++;
+          }
+          std::size_t stored() const { return next_ < N ? next_ : N; }
+          static constexpr std::size_t capacity() { return N; }
 
-      Ring<int, 8> r;    // N is 8, baked in at compile time
+      private:
+          T items_[N]{};
+          std::size_t next_ = 0;
+      };
+
+      int main() {
+          History<int, 3> h;
+          for (int i = 1; i <= 5; i++) h.record(i * 10);
+          std::cout << h.stored() << " of " << h.capacity() << "\n";
+          std::cout << History<char, 16>::capacity() << "\n";
+          std::cout << "bigger N, bigger object: " << (sizeof(History<int, 100>) > sizeof(History<int, 3>)) << "\n";
+      }
       ```
 
-      That's exactly how `std::array<int, 5>` works. The size lives in the **type**, so there's no heap allocation, and `Ring<int, 8>` and `Ring<int, 16>` are different types.
+      ```output
+      3 of 3
+      16
+      bigger N, bigger object: 1
+      ```
+
+      ### How it works
+
+      - `std::size_t N` is a parameter of the template, fixed when you write `History<int, 3>`. Inside the class it's a constant, so `T items_[N]` is a normal fixed-size array.
+      - The array lives **inside the object**. There's no heap allocation at all, which is why `sizeof` grows with `N`: a `History<int, 100>` object holds 100 ints plus a counter.
+      - `History<int, 3>` and `History<int, 100>` are **different types**. You can't assign one to the other.
+      - `static constexpr std::size_t capacity()` belongs to the class, not an object, so it can be called as `History<char, 16>::capacity()`.
+
+      This is exactly how `std::array<int, 5>` works.
+
+      ### Your task: a fixed-size stack
+
+      Keep `count_` as the number of items. `push` writes to `items_[count_]` and increments, **unless** `count_ == N`, in which case it returns `false`. `pop` decrements first, then returns `items_[count_]`.
 
       **Your turn:** write `template <typename T, std::size_t N> class FixedStack` backed by a plain array `T items_[N]`:
 
@@ -299,17 +524,56 @@ steps:
   - title: Template specialization
     id: cpp-templates-7
     text: |
-      Sometimes one type needs different behavior from the general template. A **full specialization** provides a replacement for exactly that type:
+      Sometimes one particular type needs different behavior from the general template. A **full specialization** provides a replacement definition for exactly that type, and the compiler picks the most specific match.
 
-      ```cpp
+      ```cpp run
+      #include <iostream>
+      #include <string>
+
       template <typename T>
-      struct TypeName { static std::string get() { return "unknown"; } };
+      struct Unit {
+          static std::string symbol() { return ""; }
+      };
 
       template <>
-      struct TypeName<int> { static std::string get() { return "int"; } };
+      struct Unit<double> {
+          static std::string symbol() { return " m"; }
+      };
+
+      template <>
+      struct Unit<std::string> {
+          static std::string symbol() { return " (label)"; }
+      };
+
+      template <typename T>
+      void print_value(const T& v) {
+          std::cout << v << Unit<T>::symbol() << "\n";
+      }
+
+      int main() {
+          print_value(3.5);
+          print_value(std::string("door"));
+          print_value(7);
+      }
       ```
 
-      `template <>` with empty brackets means "all the parameters are already fixed". The compiler picks the most specific match. This is how the standard library implements things like `std::hash<std::string>`, and how you add support for your own types to library templates.
+      ```output
+      3.5 m
+      door (label)
+      7
+      ```
+
+      ### How it works
+
+      - The general template is written first. Every specialization comes after it.
+      - `template <>` with **empty** brackets means "all the parameters are already filled in". Then `struct Unit<double>` names the exact type being specialized.
+      - A specialization is a completely separate definition. It doesn't inherit anything from the general version, so you must write every member you need.
+      - `print_value` uses `Unit<T>::symbol()`. For `int` there's no specialization, so the general version is used and returns an empty string.
+      - `static` member functions are called on the class itself, with `::`, no object needed.
+
+      ### Where you'll see this
+
+      This is how the standard library lets you plug your own types into its templates. For example, to use your own struct as a key in `std::unordered_map`, you specialize `std::hash<YourType>`.
 
       **Your turn:** add specializations of `TypeName` for `double` (`"double"`), `bool` (`"bool"`) and `std::string` (`"string"`).
     seed: |
@@ -372,7 +636,63 @@ steps:
   - title: "Challenge: a MinStack<T>"
     id: cpp-templates-8
     text: |
-      A classic interview question, now generic. **Your turn:** write `template <typename T> class MinStack` where **every** operation is O(1), including finding the minimum:
+      Time for a classic interview problem, made generic. A normal stack gives you `push`, `pop` and `top` in O(1). Finding the **minimum** would normally mean scanning every element, O(n). The trick to make it O(1) is to **remember the answer as you go**.
+
+      Here's the same idea for a running **maximum** in a history of scores:
+
+      ```cpp run
+      #include <algorithm>
+      #include <iostream>
+      #include <vector>
+
+      class ScoreLog {
+      public:
+          void add(int s) {
+              int best = best_.empty() ? s : std::max(s, best_.back());
+              scores_.push_back(s);
+              best_.push_back(best);          // the max of everything up to here
+          }
+          void undo() { scores_.pop_back(); best_.pop_back(); }
+          int best() const { return best_.back(); }
+
+      private:
+          std::vector<int> scores_;
+          std::vector<int> best_;
+      };
+
+      int main() {
+          ScoreLog log;
+          for (int s : {40, 75, 60, 90}) {
+              log.add(s);
+              std::cout << "after " << s << ": best " << log.best() << "\n";
+          }
+          log.undo();
+          std::cout << "after undo: best " << log.best() << "\n";
+      }
+      ```
+
+      ```output
+      after 40: best 40
+      after 75: best 75
+      after 60: best 75
+      after 90: best 90
+      after undo: best 75
+      ```
+
+      ### Why it works
+
+      At every position, `best_` stores the maximum of all the values **at or below** that position. Since a stack only ever removes from the top, the values below never change. So after popping, the new top of `best_` is still correct. Every operation is O(1).
+
+      ### Making it generic
+
+      For your `MinStack<T>`, apply the same idea with `std::min`, and use `T` everywhere a value appears. Two common designs:
+
+      - Store pairs `{value, min_so_far}` in one `std::vector<std::pair<T, T>>`.
+      - Keep two vectors, as `ScoreLog` does.
+
+      `top()` and `min()` return `const T&`, a reference to the stored element, so nothing is copied.
+
+      **Your turn:** write `template <typename T> class MinStack` where **every** operation is O(1), including finding the minimum:
 
       - `void push(const T& v)`
       - `void pop()` (assume non-empty)

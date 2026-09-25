@@ -708,7 +708,7 @@ await test("SEO: real URLs, per-page metadata, sitemap and old hash links", asyn
   const step = await get("learn/c-pointers/2/");
   for (const [re, what] of [
     [/<title>Change the caller's variable · Pointers \(C\) \| C\/C\+\+ Arena<\/title>/, "title"],
-    [/<meta name="description" content="Remember that C passes arguments by value/, "description"],
+    [/<meta name="description" content="Remember from the functions module: C passes arguments by value/, "description"],
     [/<link rel="canonical" href="https:\/\/[^"]+\/learn\/c-pointers\/2\/"/, "canonical"],
     [/<meta property="og:image"/, "og:image"],
     [/"@type":"LearningResource"/, "structured data"],

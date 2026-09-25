@@ -7,15 +7,48 @@ steps:
   - title: References are aliases
     id: cpp-refs-1
     text: |
-      A **reference** is another name for an existing variable. Declare one with `&` after the type:
+      A **reference** is another name (an **alias**) for an existing variable. It isn't a copy and it isn't a separate box: using the reference **is** using the original.
 
-      ```cpp
-      int hp = 100;
-      int& ref = hp;   // ref IS hp
-      ref -= 30;       // hp is now 70
+      ```cpp run
+      #include <iostream>
+
+      int main() {
+          int score = 10;
+          int& s = score;
+          s += 5;
+          std::cout << score << "\n";
+          score = 100;
+          std::cout << s << "\n";
+          int other = 7;
+          s = other;
+          std::cout << score << "\n";
+      }
       ```
 
-      Unlike pointers, a reference must be initialized, can't be null, and can't be re-pointed later. No `*` or `->` needed to use it.
+      ```output
+      15
+      100
+      7
+      ```
+
+      ### Declaring one
+
+      Put `&` after the type: `int& s = score;` makes `s` refer to `score`. From then on, `s` and `score` are two names for the same int.
+
+      ### How references differ from pointers
+
+      A reference does the same job as a pointer in many situations (reaching another variable), with fewer ways to go wrong:
+
+      | | Pointer | Reference |
+      |---|---|---|
+      | Must be initialized | no | **yes** |
+      | Can be null | yes | **no** |
+      | Can be changed to refer elsewhere | yes | **no** |
+      | Syntax to use the target | `*p`, `p->x` | just the name |
+
+      Look at the last part of the example carefully: `s = other;` does **not** make `s` refer to `other`. A reference is bound once, forever. The assignment copies `other`'s **value** (7) into the variable `s` refers to, which is `score`.
+
+      The `&` symbol is overloaded again: in a declaration after a type (`int&`) it means "reference"; in an expression before a variable (`&x`) it still means "address of".
 
       **Your turn:** make `alias` a reference to `money`, then spend 800 through it.
     fill: |
@@ -35,14 +68,49 @@ steps:
   - title: Pass by reference
     id: cpp-refs-2
     text: |
-      Reference parameters let a function modify the caller's variables with none of the pointer noise:
+      References shine as function parameters. A **reference parameter** is bound to the caller's variable, so the function can change it, without any of C's pointer syntax:
 
-      ```cpp
-      void heal(int& hp) { hp = 100; }
+      ```cpp run
+      #include <iostream>
+      #include <string>
 
-      int hp = 12;
-      heal(hp);        // no & at the call site
+      void add_suffix(std::string& s, int n) {
+          s += "#" + std::to_string(n);
+      }
+
+      void split_minutes(int total, int& minutes, int& seconds) {
+          minutes = total / 60;
+          seconds = total % 60;
+      }
+
+      int main() {
+          std::string name = "player";
+          add_suffix(name, 7);
+          int m, s;
+          split_minutes(135, m, s);
+          std::cout << name << " " << m << ":" << s << "\n";
+      }
       ```
+
+      ```output
+      player#7 2:15
+      ```
+
+      ### Compared with C
+
+      In C you'd write `void add_suffix(char *s, ...)`, call it as `add_suffix(&name, 7)`, and use `*s` inside. With references:
+
+      - The parameter is declared `std::string& s`.
+      - The call site passes the variable plainly: `add_suffix(name, 7)`.
+      - Inside, `s` is used like a normal variable.
+
+      `split_minutes` shows **out parameters** with references: the function fills in `minutes` and `seconds` for the caller.
+
+      ### The downside
+
+      At the call site, `add_suffix(name, 7)` doesn't show that `name` might change. Good names (and `const&` for parameters that don't change, next step) make intent clear. Many teams also prefer returning values (possibly a struct) over out parameters when practical.
+
+      `std::to_string(n)` converts a number to a `std::string`.
 
       **Your turn:** write `void swap_values(int& a, int& b)`.
     seed: |
@@ -68,13 +136,45 @@ steps:
   - title: const references
     id: cpp-refs-3
     text: |
-      Passing a `std::string` or a big object by value **copies** it. Passing by reference avoids the copy, and adding `const` promises you won't modify it. This is the everyday C++ way to take read-only parameters:
+      Passing a `std::string`, a vector, or any large object **by value** copies the whole thing: every character, every element. For a function that only reads its argument, that copy is wasted work. Passing by reference avoids it, and adding `const` promises (and enforces) that the function won't modify the argument:
 
-      ```cpp
-      int count_spaces(const std::string& s);
+      ```cpp run
+      #include <iostream>
+      #include <string>
+
+      bool ends_with(const std::string& s, const std::string& suffix) {
+          if (suffix.size() > s.size()) {
+              return false;
+          }
+          size_t start = s.size() - suffix.size();
+          for (size_t i = 0; i < suffix.size(); i++) {
+              if (s[start + i] != suffix[i]) {
+                  return false;
+              }
+          }
+          return true;
+      }
+
+      int main() {
+          std::cout << ends_with("report.pdf", ".pdf") << ends_with("a.txt", ".pdf") << ends_with("x", "long") << "\n";
+      }
       ```
 
-      Rule of thumb: small types (`int`, `double`, `char`) by value, everything bigger by `const&`.
+      ```output
+      100
+      ```
+
+      ### The everyday rule
+
+      - **Small, cheap types** (`int`, `double`, `char`, `bool`, pointers): pass by value.
+      - **Anything bigger** (`std::string`, containers, your classes): pass by `const&` when the function only reads.
+      - Pass by non-const `&` only when the function is meant to modify the argument.
+
+      A `const&` parameter can also bind to **temporaries** and literals: `ends_with("report.pdf", ".pdf")` works because C++ creates temporary strings for the call. A non-const `&` can't bind to a temporary.
+
+      ### Size checks first
+
+      `ends_with` checks lengths before indexing. `s.size() - suffix.size()` on unsigned sizes would wrap around to a huge number if the suffix were longer, and the loop would read out of bounds. Guard clauses like this prevent exactly the kind of bug you saw in the integer types module.
 
       **Your turn:** write `bool starts_with(const std::string& s, const std::string& prefix)` without using any library `starts_with`.
     seed: |
@@ -111,13 +211,43 @@ steps:
   - title: Overloading
     id: cpp-refs-4
     text: |
-      In C++, several functions can share a name if their parameter lists differ. The compiler picks the one that matches the arguments:
+      In C, every function needs a unique name, which leads to families like `abs`, `labs`, `fabs`. C++ allows **overloading**: several functions can share a name as long as their **parameter lists differ** (in number or types). The compiler picks the right one from the arguments at each call.
 
-      ```cpp
-      int area(int side) { return side * side; }
-      int area(int w, int h) { return w * h; }
-      double area(double r) { return 3.14159 * r * r; }
+      ```cpp run
+      #include <iostream>
+      #include <string>
+
+      std::string describe(bool b) { return b ? "yes" : "no"; }
+      std::string describe(double d) { return "about " + std::to_string((int)d); }
+      std::string describe(const std::string& s) { return "'" + s + "'"; }
+      std::string describe(int a, int b) { return std::to_string(a) + ".." + std::to_string(b); }
+
+      int main() {
+          std::cout << describe(true) << "\n";
+          std::cout << describe(9.7) << "\n";
+          std::cout << describe(std::string("hi")) << "\n";
+          std::cout << describe(1, 5) << "\n";
+      }
       ```
+
+      ```output
+      yes
+      about 9
+      'hi'
+      1..5
+      ```
+
+      ### How the compiler chooses
+
+      This is called **overload resolution**. The compiler looks at the argument types and picks the best match: an exact match beats one that needs a conversion. If two candidates are equally good, the call is **ambiguous** and doesn't compile, and if none fits, you get "no matching function".
+
+      ### Rules
+
+      - The return type alone can't distinguish overloads; the parameters must differ.
+      - Overloads should do **the same kind of thing** for different types. If they do unrelated things, give them different names.
+      - Beware literals: `describe("hi")` would pick the `bool` overload here, because a string literal converts to a pointer and a pointer converts to `bool` more directly than to `std::string`. That's why the example passes `std::string("hi")`.
+
+      `std::to_string` itself is an overloaded function: it has versions for `int`, `long`, `double` and more.
 
       **Your turn:** write two overloads of `describe`: one taking an `int` that returns `"int N"`, and one taking a `std::string` that returns `"string S"`. Use `std::to_string(n)` to turn a number into a string.
     seed: |
@@ -148,13 +278,45 @@ steps:
   - title: Default arguments
     id: cpp-refs-5
     text: |
-      Parameters can have default values, used when the caller leaves them out. Defaults go at the **end** of the parameter list:
+      A parameter can have a **default value** that's used when the caller leaves the argument out:
 
-      ```cpp
-      void spawn(std::string name, int hp = 100, int armor = 0);
-      spawn("bot");            // hp 100, armor 0
-      spawn("bot", 50);        // armor 0
+      ```cpp run
+      #include <iostream>
+      #include <string>
+
+      std::string repeat(const std::string& s, int times = 2, const std::string& sep = " ") {
+          std::string out;
+          for (int i = 0; i < times; i++) {
+              if (i > 0) out += sep;
+              out += s;
+          }
+          return out;
+      }
+
+      int main() {
+          std::cout << repeat("go") << "\n";
+          std::cout << repeat("go", 3) << "\n";
+          std::cout << repeat("go", 3, "-") << "\n";
+      }
       ```
+
+      ```output
+      go go
+      go go go
+      go-go-go
+      ```
+
+      ### Rules
+
+      - Defaults must be at the **end** of the parameter list. Once one parameter has a default, all the ones after it need defaults too, because arguments are matched left to right: you can't skip the middle one.
+      - Put the default in the **declaration** (usually the header), not repeated in the definition.
+      - Defaults are filled in at the call site, so `repeat("go")` is compiled as `repeat("go", 2, " ")`.
+
+      Defaults are a lightweight alternative to writing several overloads when the extra parameters are just options with sensible standard values.
+
+      ### Building a string
+
+      `std::string out;` starts empty, and `+=` appends. For padding, `std::string(n, c)` creates a string of `n` copies of the character `c`, which you can then join with `+`. Always handle the case where nothing needs to be added (the input is already long enough).
 
       **Your turn:** write `std::string pad(const std::string& s, int width, char fill = ' ')` that adds `fill` characters on the **left** until the string is `width` long. Strings already that long are returned unchanged.
     seed: |

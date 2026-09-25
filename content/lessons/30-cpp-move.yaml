@@ -7,14 +7,50 @@ steps:
   - title: Copies are expensive
     id: cpp-move-1
     text: |
-      Copying a `std::vector` with a million elements copies a million elements. But often the source is about to disappear anyway (a temporary, or a variable you're done with). In that case you can **steal** its internals instead: that's a **move**.
+      Copying a `std::vector` with a million elements copies a million elements. That's fine when you need two independent vectors. But very often the source is **about to disappear anyway**: it's a temporary, or a variable you'll never use again. Copying it and then throwing the original away is wasted work.
 
-      - An **lvalue** is something with a name that lives on (`v`).
-      - An **rvalue** is a temporary about to die (`make_vector()`, `a + b`).
+      A **move** avoids that. Instead of copying the elements, the new vector simply **takes over** the old one's heap buffer (a pointer, a size and a capacity: three small values), and the old vector is left empty. It's like handing someone your suitcase instead of packing an identical one for them.
 
-      `std::move(x)` doesn't move anything by itself. It *casts* `x` to an rvalue, which says "I'm done with x, you may steal from it".
+      ```cpp run
+      #include <iostream>
+      #include <string>
+      #include <utility>
+      #include <vector>
 
-      After a move, the source is in a valid but unspecified state. Don't read its value; you may assign a new one.
+      int main() {
+          std::string a = "a long string that lives on the heap, not in the small buffer";
+          std::string copy = a;                  // copies every character
+          std::string moved = std::move(a);      // takes a's buffer
+
+          std::cout << copy.size() << " " << moved.size() << "\n";
+          std::cout << (copy == moved) << "\n";
+
+          std::vector<std::string> shelf;
+          std::string book = "Dune";
+          shelf.push_back(book);                 // copy: we still use book below
+          shelf.push_back(std::move(copy));      // move: done with copy
+          std::cout << book << " | " << shelf.size() << "\n";
+      }
+      ```
+
+      ```output
+      61 61
+      1
+      Dune | 2
+      ```
+
+      ### lvalues and rvalues
+
+      C++ decides between copying and moving by looking at the **kind of expression**:
+
+      - An **lvalue** has a name and lives on after this line: `a`, `book`, `v[0]`. Stealing from it would surprise you later, so C++ **copies**.
+      - An **rvalue** is a temporary about to die: `make_vector()`, `a + b`, a literal. Nobody can use it again, so C++ **moves** from it automatically.
+
+      ### What std::move really does
+
+      `std::move(x)` doesn't move anything by itself. It's a **cast** that turns `x` into an rvalue, which means "I'm done with x, you may steal from it". The actual moving is done by whatever receives it: the vector's `push_back`, a constructor, an assignment.
+
+      After a move, the source is in a **valid but unspecified** state. Don't read its value. You may assign it a new one or let it be destroyed.
 
       **Your turn:** move `big` into `store` instead of copying it.
     fill: |
@@ -36,17 +72,58 @@ steps:
   - title: Write a move constructor
     id: cpp-move-2
     text: |
-      A class that owns a resource can implement moving itself. The **move constructor** takes an rvalue reference (`T&&`), steals the pointer, and leaves the source empty so its destructor does nothing harmful:
+      How does a class become movable? It provides a **move constructor**: a constructor that takes an **rvalue reference**, written `T&&`. An `&&` parameter only binds to rvalues (temporaries and `std::move`d values), so this constructor runs exactly when stealing is allowed.
 
-      ```cpp
-      Buffer(Buffer&& other) noexcept
-          : data_(other.data_), size_(other.size_) {
-          other.data_ = nullptr;
-          other.size_ = 0;
-      }
+      The recipe for a class that owns a raw resource:
+
+      1. Copy the **pointer** (and sizes) from `other` into the new object.
+      2. Set `other`'s pointer to `nullptr` (and sizes to 0), so its destructor won't free what you just took.
+
+      ```cpp run
+      #include <cstring>
+      #include <iostream>
+      #include <utility>
+
+      class Text {
+      public:
+          explicit Text(const char* s) : len_(std::strlen(s)), buf_(new char[len_ + 1]) {
+              std::memcpy(buf_, s, len_ + 1);
+          }
+          ~Text() { delete[] buf_; }
+          Text(const Text&) = delete;
+          Text& operator=(const Text&) = delete;
+
+          Text(Text&& other) noexcept : len_(other.len_), buf_(other.buf_) {
+              other.buf_ = nullptr;          // other no longer owns the buffer
+              other.len_ = 0;
+              std::cout << "moved\n";
+          }
+
+          const char* c_str() const { return buf_ ? buf_ : "(empty)"; }
+
+      private:
+          std::size_t len_;
+          char* buf_;
+      };
+
+      int main() {
+          Text a("hello");
+          Text b(std::move(a));              // runs the move constructor
+          std::cout << b.c_str() << " / " << a.c_str() << "\n";
+      }                                      // both destructors run; delete[] nullptr is harmless
       ```
 
-      `noexcept` promises it won't fail, which lets `std::vector` use it when growing.
+      ```output
+      moved
+      hello / (empty)
+      ```
+
+      ### Why each part matters
+
+      - Without step 2, both `a` and `b` would point at the same buffer, and both destructors would `delete[]` it: a double free.
+      - `delete[] nullptr` does nothing, so the moved-from object's destructor is safe.
+      - `noexcept` promises the move can't fail. `std::vector` checks this when it grows: it only moves elements into the new buffer if the move is `noexcept`, otherwise it falls back to copying. Moves that just shuffle pointers can't fail, so always mark them.
+      - The member initializer list reads `other`'s members **before** the body resets them.
 
       **Your turn:** write the move constructor for `Buffer`.
     seed: |
@@ -106,20 +183,68 @@ steps:
   - title: Move assignment and the rule of five
     id: cpp-move-3
     text: |
-      **Move assignment** (`a = std::move(b);`) must also release what `a` currently owns, and must survive self-assignment:
+      The move constructor makes a **new** object from a dying one. **Move assignment**, `a = std::move(b);`, is harder, because `a` already exists and may **already own something**. The recipe:
 
-      ```cpp
-      Buffer& operator=(Buffer&& other) noexcept {
-          if (this != &other) {
-              delete[] data_;
-              data_ = other.data_;  size_ = other.size_;
-              other.data_ = nullptr; other.size_ = 0;
+      1. If `this` is the same object as `other`, do nothing (self-assignment).
+      2. Free what you currently own.
+      3. Take `other`'s resources.
+      4. Leave `other` empty.
+      5. Return `*this`, so assignments can chain.
+
+      ```cpp run
+      #include <iostream>
+      #include <utility>
+
+      class Grid {
+      public:
+          explicit Grid(int n) : cells_(new int[n]()), n_(n) {}
+          ~Grid() { delete[] cells_; }
+          Grid(Grid&& o) noexcept : cells_(o.cells_), n_(o.n_) { o.cells_ = nullptr; o.n_ = 0; }
+
+          Grid& operator=(Grid&& o) noexcept {
+              if (this != &o) {
+                  delete[] cells_;                 // release the old buffer
+                  cells_ = o.cells_;
+                  n_ = o.n_;
+                  o.cells_ = nullptr;
+                  o.n_ = 0;
+              }
+              return *this;
           }
-          return *this;
+
+          int size() const { return n_; }
+
+      private:
+          int* cells_;
+          int n_;
+      };
+
+      int main() {
+          Grid a(10), b(3);
+          a = std::move(b);                        // a frees its 10 cells, takes b's 3
+          std::cout << a.size() << " " << b.size() << "\n";
+          Grid& alias = a;                         // another name for a
+          a = std::move(alias);                    // self-move: guarded, nothing breaks
+          std::cout << a.size() << "\n";
       }
       ```
 
-      The **rule of five**: if you write any of destructor, copy constructor, copy assignment, move constructor, move assignment, think about all five. Even better is the **rule of zero**: use members like `std::vector` and `std::unique_ptr` that already handle all five, and write none.
+      ```output
+      3 0
+      3
+      ```
+
+      ### What goes wrong without each step
+
+      - No `delete[]` first: `a`'s original 10 cells leak.
+      - No self-assignment check: moving an object into itself (here through the reference `alias`, which is easy to do by accident in real code) deletes its own buffer and then "takes" the pointer it just freed.
+      - Not resetting `o`: two objects own one buffer, so it's freed twice.
+
+      ### The rule of five, and the rule of zero
+
+      The five special members are the destructor, copy constructor, copy assignment, move constructor and move assignment. If you write **any** of them, you're managing a resource by hand, so think about **all five**.
+
+      Better still is the **rule of zero**: hold resources in members that already manage themselves, such as `std::vector<int>` or `std::unique_ptr<int[]>`. Then the compiler generates correct versions of all five, and you write none. Hand-written moves are worth learning so you understand what those types do for you.
 
       **Your turn:** add move assignment.
     seed: |
@@ -193,9 +318,56 @@ steps:
   - title: Return by value is free
     id: cpp-move-4
     text: |
-      Returning a local object by value doesn't copy it. When you return a temporary (`return Widget(...);`), C++17 **guarantees** the object is built directly in the caller's variable: no copy, no move. Returning a named local is almost always optimized the same way, and otherwise it's moved.
+      A common worry is that returning a big object from a function is slow, so people return pointers or fill in "out" parameters instead. In modern C++ that worry is outdated.
 
-      So write functions that return by value; don't return pointers or use out-parameters for performance.
+      - Returning a **temporary** (`return Widget(...);`): C++17 **guarantees** the object is built directly in the caller's variable. No copy and no move happen at all. This is called **copy elision**.
+      - Returning a **named local** (`Widget w; ...; return w;`): compilers almost always build it directly in place too (the "named return value optimization"). When they can't, the value is **moved**, not copied.
+
+      ```cpp run
+      #include <iostream>
+      #include <string>
+
+      struct Loud {
+          std::string tag;
+          explicit Loud(std::string t) : tag(t) { std::cout << "construct " << tag << "\n"; }
+          Loud(const Loud& o) : tag(o.tag) { std::cout << "COPY " << tag << "\n"; }
+      };
+
+      Loud make_direct() {
+          return Loud("direct");           // guaranteed: built right in the caller
+      }
+
+      Loud make_named() {
+          Loud l("named");
+          l.tag += "!";
+          return l;                        // NRVO in practice
+      }
+
+      int main() {
+          Loud a = make_direct();
+          Loud b = make_named();
+          std::cout << a.tag << " " << b.tag << "\n";
+          Loud c = a;                      // a real copy, because we asked for one
+      }
+      ```
+
+      ```output
+      construct direct
+      construct named
+      direct named!
+      COPY direct
+      ```
+
+      ### Reading the output
+
+      - Each function constructs exactly once, and there's no `COPY` line for `a` or `b`: the objects were built directly in `main`'s variables.
+      - The only copy is `Loud c = a;`, where copying is exactly what the code asks for, since `a` is still alive.
+
+      ### What this means for your code
+
+      - Return by value. It's the clearest way to write a function that makes something, and it's cheap.
+      - Don't write `return std::move(local);`. It **prevents** copy elision, forcing a move where there would have been nothing at all. Compilers warn about it (`-Wpessimizing-move`).
+      - Returning a temporary directly, like `return Tracker(id);`, is the case the language guarantees.
 
       **Your turn:** the `Tracker` struct counts copies. Write `Tracker make_tracker(int id)` so that creating one via your function performs **zero** copies. The test prints the copy count.
     seed: |
@@ -234,15 +406,49 @@ steps:
     text: |
       After `b = std::move(a);`, what is `a`? For standard library types the rule is **valid but unspecified**:
 
-      - You **may** destroy it, assign it a new value, or call functions with no preconditions (`clear()`, `empty()`, `size()`).
-      - You **must not** rely on its value. A moved-from `std::string` is usually empty, but nothing promises that.
+      - It's still a real object. You **may** destroy it, assign it a new value, or call functions with no preconditions, such as `clear()`, `empty()` and `size()`.
+      - You **must not** rely on its value. A moved-from `std::string` or `std::vector` is usually empty, but the standard doesn't promise it.
 
-      So the professional habit is: after moving from something, either stop using it or reset it explicitly.
+      ```cpp run
+      #include <iostream>
+      #include <string>
+      #include <utility>
+      #include <vector>
 
-      ```cpp
-      std::vector<std::string> batch = std::move(pending);
-      pending.clear();   // now it's definitely empty and ready to reuse
+      int main() {
+          std::vector<std::string> inbox = {"hi", "lunch?", "meeting at 3"};
+
+          std::vector<std::string> archive = std::move(inbox);   // steal the whole buffer
+          inbox.clear();                                          // now definitely empty
+          std::cout << archive.size() << " archived, inbox " << inbox.size() << "\n";
+
+          inbox.push_back("new mail");                            // reusing it is fine
+          std::cout << inbox[0] << "\n";
+
+          std::string draft = "unsent text";
+          archive.push_back(std::move(draft));                    // move one element in
+          draft = "fresh draft";                                  // assign a new value: fine
+          std::cout << archive.back() << " / " << draft << "\n";
+      }
       ```
+
+      ```output
+      3 archived, inbox 0
+      new mail
+      unsent text / fresh draft
+      ```
+
+      ### How it works
+
+      - `std::vector<std::string> archive = std::move(inbox);` runs the vector's move constructor. It takes over the buffer, so none of the strings are copied, however many there are.
+      - `inbox.clear()` turns "unspecified" into "definitely empty", which is what the next user of `inbox` expects.
+      - After `std::move(draft)`, assigning a new value is always allowed, and from then on `draft` is fully usable again.
+
+      ### The professional habit
+
+      After moving from something, either **stop using it** or **reset it explicitly** (`clear()`, assignment). Code that reads a moved-from value may work today and break on another compiler.
+
+      A function can also move out of a **reference parameter**, as your task does. That's powerful but surprising for the caller, so name such functions clearly (`take_all`, `release`, `drain`), so readers know the argument will be emptied.
 
       **Your turn:** write `std::vector<std::string> take_all(std::vector<std::string>& src)` that moves the whole contents out of `src` (no element copies) and leaves `src` definitely empty.
     seed: |
@@ -285,20 +491,61 @@ steps:
   - title: Sink parameters and emplace_back
     id: cpp-move-6
     text: |
-      When a function is going to **keep** a string (store it in a member or a container), take it **by value** and move it into place. This is called a *sink* parameter:
+      When a function or constructor is going to **keep** a string (store it in a member or a container), how should it take the parameter?
 
-      ```cpp
-      explicit Player(std::string name) : name_(std::move(name)) {}
+      - `const std::string&` avoids a copy on the way in, but then storing it must copy.
+      - The **sink** pattern: take it **by value**, and `std::move` it into place. The caller decides whether that by-value parameter is filled by a copy (if they still need their string) or by a move (if they pass a temporary or use `std::move`).
+
+      ```cpp run
+      #include <iostream>
+      #include <string>
+      #include <utility>
+      #include <vector>
+
+      class Contact {
+      public:
+          Contact(std::string name, std::string phone)
+              : name_(std::move(name)), phone_(std::move(phone)) {}
+          std::string line() const { return name_ + ": " + phone_; }
+
+      private:
+          std::string name_;
+          std::string phone_;
+      };
+
+      int main() {
+          std::vector<Contact> book;
+          std::string mine = "Ada";
+          book.emplace_back(mine, "555-0101");        // mine is copied once; we still have it
+          book.emplace_back("Grace", "555-0199");     // built in place from the literals
+          book.push_back(Contact("Linus", "555-0142"));  // builds a temporary, then moves it in
+          for (const auto& c : book) std::cout << c.line() << "\n";
+          std::cout << "still have " << mine << "\n";
+      }
       ```
 
-      - Caller passes a temporary: it's moved in twice, zero copies.
-      - Caller passes a variable it still needs: exactly one copy, which is unavoidable.
-
-      For containers, `emplace_back(args...)` constructs the element **inside** the vector from constructor arguments, instead of building a temporary and moving it in.
-
-      ```cpp
-      team.emplace_back("ropz");   // calls Player(std::string) in place
+      ```output
+      Ada: 555-0101
+      Grace: 555-0199
+      Linus: 555-0142
+      still have Ada
       ```
+
+      ### The cost for each kind of caller
+
+      - Passing a variable you still need: exactly **one copy** (into the parameter), then a cheap move into the member. You can't do better, since two strings must exist.
+      - Passing a temporary or `std::move(x)`: **zero copies**, just moves.
+
+      ### emplace_back vs push_back
+
+      - `push_back(obj)` takes a finished object and copies or moves it into the vector.
+      - `emplace_back(args...)` passes `args` straight to the element's constructor, building it **inside** the vector's memory. No temporary object at all.
+
+      Use `emplace_back` when you have constructor arguments rather than an existing object.
+
+      ### Common mistake
+
+      Taking a parameter by value and then **not** moving it: `name_(name)` copies again. The `std::move` in the initializer is what makes the sink pattern pay off.
 
       **Your turn:** give `Player` a sink constructor, and write `void recruit(std::vector<Player>& team, std::string name)` that adds a player using `emplace_back` and moves the name.
     seed: |
@@ -364,11 +611,60 @@ steps:
   - title: "Challenge: a move-aware log"
     id: cpp-move-7
     text: |
-      Put it together. `std::exchange(obj, new_value)` from `<utility>` sets `obj` to `new_value` and returns the **old** value, moving where it can. It's the tidy way to "take" a member and leave it reset:
+      One last tool. `std::exchange(obj, new_value)` from `<utility>` sets `obj` to `new_value` and returns the **old** value, moving where it can. It's the tidy way to "take" something and leave a reset value behind, in one line.
 
-      ```cpp
-      return std::exchange(lines_, {});   // hand over the lines, leave an empty vector
+      ```cpp run
+      #include <iostream>
+      #include <string>
+      #include <utility>
+      #include <vector>
+
+      class Cart {
+      public:
+          void add(std::string item) {
+              if (item.empty()) return;
+              items_.push_back(std::move(item));      // sink: move into storage
+          }
+          std::vector<std::string> checkout() {
+              return std::exchange(items_, {});       // hand over, leave an empty cart
+          }
+          int size() const { return (int)items_.size(); }
+
+      private:
+          std::vector<std::string> items_;
+      };
+
+      int main() {
+          Cart cart;
+          cart.add("milk");
+          cart.add("");
+          cart.add("bread");
+          std::cout << cart.size() << " in cart\n";
+
+          std::vector<std::string> bought = cart.checkout();
+          std::cout << bought.size() << " bought, " << cart.size() << " left\n";
+
+          int ticket = 7;
+          int old = std::exchange(ticket, ticket + 1);
+          std::cout << old << " then " << ticket << "\n";
+      }
       ```
+
+      ```output
+      2 in cart
+      2 bought, 0 left
+      7 then 8
+      ```
+
+      ### How it works
+
+      - `std::exchange(items_, {})` moves the current vector out as the return value and assigns an empty vector (`{}`) in its place. No strings are copied, and the object is left in a known, empty state, not a "valid but unspecified" one.
+      - It works for any type: the `ticket` example is a handy "use the current number and advance it".
+      - `add` combines everything from this module: a sink parameter, an early return for invalid input, and a move into the container.
+
+      ### Putting it together for your Log
+
+      Your `Log` is the same shape as `Cart`: a sink `add` that skips empty lines, a `size`, and a `flush` that hands over all the lines and leaves the log empty.
 
       **Your turn:** write class `Log`:
 

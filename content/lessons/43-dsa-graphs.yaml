@@ -7,17 +7,55 @@ steps:
   - title: Adjacency lists
     id: dsa-graphs-1
     text: |
-      A **graph** is a set of *vertices* (numbered 0..n-1 here) connected by *edges*. Road maps, social networks, build dependencies and network topologies are all graphs.
+      Trees have strict rules: one root, one parent per node, no loops. A **graph** drops those rules. It's just a set of **vertices** (the things) connected by **edges** (the relationships), in any pattern. Road maps, social networks, the links between web pages, build dependencies and computer networks are all graphs.
 
-      The standard representation is an **adjacency list**: for each vertex, the list of its neighbors.
+      Two choices describe a graph:
 
-      ```cpp
-      std::vector<std::vector<int>> adj(n);
-      adj[a].push_back(b);     // edge a -> b
-      adj[b].push_back(a);     // ...and b -> a if the graph is undirected
+      - **Directed or undirected**: a one-way street or a follow on social media is directed (a → b doesn't imply b → a); a friendship or a two-way road is undirected.
+      - **Weighted or unweighted**: whether edges carry a cost, like a distance.
+
+      Here, vertices are numbered `0..n-1`. The standard representation is an **adjacency list**: for each vertex, the list of its neighbors.
+
+      ```cpp run
+      #include <iostream>
+      #include <string>
+      #include <utility>
+      #include <vector>
+
+      int main() {
+          std::vector<std::string> city = {"Oslo", "Bergen", "Trondheim", "Tromso"};
+          std::vector<std::pair<int, int>> roads = {{0, 1}, {0, 2}, {1, 2}, {2, 3}};
+
+          std::vector<std::vector<int>> adj(city.size());
+          for (auto [a, b] : roads) {
+              adj[a].push_back(b);      // edge a -> b
+              adj[b].push_back(a);      // roads are two-way: b -> a too
+          }
+
+          for (std::size_t v = 0; v < adj.size(); v++) {
+              std::cout << city[v] << " (" << adj[v].size() << "):";
+              for (int w : adj[v]) std::cout << " " << city[w];
+              std::cout << "\n";
+          }
+      }
       ```
 
-      It uses O(V + E) memory, far less than an n × n matrix for the sparse graphs you meet in practice.
+      ```output
+      Oslo (2): Bergen Trondheim
+      Bergen (2): Oslo Trondheim
+      Trondheim (3): Oslo Bergen Tromso
+      Tromso (1): Trondheim
+      ```
+
+      ### How it works
+
+      - `adj[v]` is the list of `v`'s neighbors. Its size is `v`'s **degree**: how many edges touch it.
+      - For an **undirected** graph, each edge is stored twice, once from each end. For a **directed** graph, only `adj[a].push_back(b)`.
+      - Looping over a vertex's neighbors is just a range-for over `adj[v]`, which is exactly what every graph algorithm does.
+
+      ### Why not a matrix?
+
+      An alternative is an n × n table where `m[a][b]` says whether the edge exists. That uses n² memory no matter how few edges there are. Real graphs are usually **sparse**: a million users each with a few hundred friends. The adjacency list uses O(V + E) memory, proportional to what actually exists.
 
       **Your turn:** write `build(n, edges, directed)` returning the adjacency list, and `int max_degree(const std::vector<std::vector<int>>& adj)` returning the largest number of neighbors any vertex has.
     seed: |
@@ -73,17 +111,74 @@ steps:
   - title: Shortest path with BFS
     id: dsa-graphs-2
     text: |
-      When every edge has the same cost, **breadth-first search** finds shortest paths: it explores everything 1 step away, then 2 steps, and so on, so the first time it reaches a cell is by a shortest route.
+      "What's the fewest number of steps from A to B?" When every edge costs the same (one move, one hop, one friend-of-a-friend), **breadth-first search** answers it. You saw BFS on trees as level-order traversal: it explores everything 1 step away, then everything 2 steps away, and so on. So the **first** time it reaches a vertex, it got there by a shortest route.
 
-      Grids are graphs too: each open cell is a vertex connected to its up/down/left/right neighbors.
+      Graphs can have cycles, so BFS also needs to remember which vertices it has already reached, or it would go around in circles. A `dist` array does both jobs: `-1` means "not reached yet", anything else is the shortest distance.
 
       ```
       dist[start] = 0; queue = [start]
       while queue not empty:
           cur = pop front
-          for each open neighbor nb with no dist yet:
+          for each neighbor nb with no dist yet:
               dist[nb] = dist[cur] + 1; push nb
       ```
+
+      ```cpp run
+      #include <iostream>
+      #include <queue>
+      #include <string>
+      #include <vector>
+
+      int main() {
+          std::vector<std::string> name = {"you", "ana", "ben", "cy", "dee", "eli"};
+          std::vector<std::vector<int>> friends = {{1, 2}, {0, 3}, {0, 3}, {1, 2, 4}, {3}, {}};
+
+          std::vector<int> dist(name.size(), -1);
+          std::queue<int> q;
+          dist[0] = 0;
+          q.push(0);
+          while (!q.empty()) {
+              int cur = q.front();
+              q.pop();
+              for (int nb : friends[cur]) {
+                  if (dist[nb] == -1) {             // first visit = shortest
+                      dist[nb] = dist[cur] + 1;
+                      q.push(nb);
+                  }
+              }
+          }
+          for (std::size_t v = 1; v < name.size(); v++) {
+              std::cout << name[v] << ": " << dist[v] << "\n";
+          }
+      }
+      ```
+
+      ```output
+      ana: 1
+      ben: 1
+      cy: 2
+      dee: 3
+      eli: -1
+      ```
+
+      `eli` has no friends in this network, so BFS never reaches them and the distance stays -1.
+
+      ### Grids are graphs
+
+      A maze is a graph in disguise: each open cell is a vertex, connected to its up, down, left and right neighbors. You don't need to build an adjacency list; generate the neighbors on the fly with direction arrays:
+
+      ```cpp
+      const int dr[] = {-1, 1, 0, 0};
+      const int dc[] = {0, 0, -1, 1};
+      for (int d = 0; d < 4; d++) {
+          int nr = r + dr[d], nc = c + dc[d];
+          if (nr < 0 || nc < 0 || nr >= rows || nc >= cols) continue;   // off the grid
+          if (grid[nr][nc] == '#') continue;                              // wall
+          ...
+      }
+      ```
+
+      Keep `dist` as a 2D vector of the same shape as the grid, find `S` first, and return `dist` at `E` (-1 if never reached). The queue holds `std::pair<int, int>` positions.
 
       **Your turn:** write `int shortest_path(const std::vector<std::string>& grid)` returning the fewest moves from `S` to `E`, moving through `.` cells (not `#`), or -1 if E can't be reached.
     seed: |
@@ -148,14 +243,68 @@ steps:
   - title: Depth-first flood fill
     id: dsa-graphs-3
     text: |
-      **Depth-first search** follows one path as far as it can before backtracking. It's the natural tool for "which things are connected?": pick an unvisited vertex, DFS from it to mark its whole component, and count how many times you had to start.
+      **Depth-first search** follows one path as far as it can before backtracking, like exploring a maze by always taking the next unexplored corridor. It's the natural tool for "which things are connected?": pick an unvisited vertex, DFS from it to mark its whole **connected component**, and count how many times you had to start.
 
-      Recursive DFS is elegant, but a big component can overflow the call stack (the default stack is only about 1 MB, and on this site even less). Production code often uses an **explicit stack** instead:
+      Recursive DFS is elegant, but each call uses stack space, and a big component can **overflow the call stack** (the default stack is only about 1 MB, and on this site even less). Production code often uses an **explicit stack**: a `std::vector` on the heap that holds the vertices still to explore.
 
-      ```cpp
-      std::vector<std::pair<int, int>> stack = {{r, c}};
-      while (!stack.empty()) { auto [r, c] = stack.back(); stack.pop_back(); ... push neighbors ... }
+      ```cpp run
+      #include <iostream>
+      #include <string>
+      #include <utility>
+      #include <vector>
+
+      int main() {
+          std::vector<std::string> img = {
+              "~~~~~~~~",
+              "~..~~~~~",
+              "~..~~.~~",
+              "~~~~~..~",
+              "~.~~~~~~",
+          };
+          int rows = (int)img.size(), cols = (int)img[0].size();
+          int regions = 0;
+          for (int r = 0; r < rows; r++) {
+              for (int c = 0; c < cols; c++) {
+                  if (img[r][c] != '.') continue;
+                  regions++;
+                  char mark = char('A' + regions - 1);
+                  std::vector<std::pair<int, int>> stack = {{r, c}};
+                  img[r][c] = mark;                         // mark when pushing
+                  while (!stack.empty()) {
+                      auto [cr, cc] = stack.back();
+                      stack.pop_back();
+                      const int dr[] = {-1, 1, 0, 0}, dc[] = {0, 0, -1, 1};
+                      for (int d = 0; d < 4; d++) {
+                          int nr = cr + dr[d], nc = cc + dc[d];
+                          if (nr < 0 || nc < 0 || nr >= rows || nc >= cols || img[nr][nc] != '.') continue;
+                          img[nr][nc] = mark;
+                          stack.push_back({nr, nc});
+                      }
+                  }
+              }
+          }
+          for (const auto& row : img) std::cout << row << "\n";
+          std::cout << regions << " regions\n";
+      }
       ```
+
+      ```output
+      ~~~~~~~~
+      ~AA~~~~~
+      ~AA~~B~~
+      ~~~~~BB~
+      ~C~~~~~~
+      3 regions
+      ```
+
+      ### How it works
+
+      - The outer loops find a cell that isn't part of any region yet. Each time one is found, a new region starts.
+      - The stack flood-fills from there: pop a cell, look at its four neighbors, and push every one that's still unvisited.
+      - Cells are **marked when pushed**, not when popped. Otherwise the same cell could be pushed many times by different neighbors before it's processed, wasting time and memory.
+      - Changing the grid itself serves as the "visited" record, which is why your task takes the grid **by value**: it can be modified freely without touching the caller's copy.
+
+      This is the "paint bucket" tool in image editors, and the same idea counts islands, rooms in a floor plan, or connected machines in a network.
 
       **Your turn:** write `int count_islands(std::vector<std::string> grid)`, counting groups of `#` cells connected up/down/left/right. Use an explicit stack: the test has an island of 250,000 cells.
     seed: |
@@ -218,15 +367,64 @@ steps:
   - title: Topological sort
     id: dsa-graphs-4
     text: |
-      Build systems, package managers, spreadsheets and job schedulers must run tasks **after** their dependencies. For a directed graph with no cycles, a **topological order** lists every vertex before everything that depends on it.
+      Build systems, package managers, spreadsheets and job schedulers must run tasks **after** their dependencies: compile before linking, install a library before the app that uses it. Model each task as a vertex and each "a must come before b" as a directed edge a → b. For a directed graph with no cycles, a **topological order** lists every vertex before everything that depends on it.
 
       **Kahn's algorithm**:
 
-      1. Count each vertex's *in-degree* (how many edges point to it).
+      1. Count each vertex's **in-degree** (how many edges point to it: how many things it's waiting for).
       2. Put every vertex with in-degree 0 in a queue: nothing blocks it.
-      3. Pop one, append it to the order, and decrement the in-degree of its dependents; any that reach 0 join the queue.
+      3. Pop one, append it to the order, and decrement the in-degree of everything that depends on it. Any that reach 0 are now unblocked and join the queue.
 
-      If the order ends up shorter than n, some vertices were never freed: the graph has a **cycle** (for example, two libraries that depend on each other).
+      ```cpp run
+      #include <iostream>
+      #include <queue>
+      #include <string>
+      #include <utility>
+      #include <vector>
+
+      int main() {
+          std::vector<std::string> step = {"shop", "cook", "set table", "eat", "wash up"};
+          std::vector<std::pair<int, int>> before = {{0, 1}, {1, 3}, {2, 3}, {3, 4}};
+
+          std::vector<std::vector<int>> next(step.size());
+          std::vector<int> indegree(step.size(), 0);
+          for (auto [a, b] : before) {
+              next[a].push_back(b);
+              indegree[b]++;
+          }
+
+          std::queue<int> ready;
+          for (int v = 0; v < (int)step.size(); v++) if (indegree[v] == 0) ready.push(v);
+
+          std::vector<int> order;
+          while (!ready.empty()) {
+              int v = ready.front();
+              ready.pop();
+              order.push_back(v);
+              for (int w : next[v]) {
+                  if (--indegree[w] == 0) ready.push(w);    // its last blocker is done
+              }
+          }
+          for (int v : order) std::cout << step[v] << " -> ";
+          std::cout << (order.size() == step.size() ? "done" : "cycle!") << "\n";
+      }
+      ```
+
+      ```output
+      shop -> set table -> cook -> eat -> wash up -> done
+      ```
+
+      ### Reading the result
+
+      `shop` and `set table` have nothing before them, so both start in the queue. `eat` waits until both `cook` and `set table` are done (its in-degree drops from 2 to 0), and `wash up` comes last. Several valid orders usually exist; this one depends on the order vertices join the queue.
+
+      ### Detecting cycles
+
+      If a vertex is part of a cycle (a depends on b, b depends on a), its in-degree never reaches 0, so it never joins the queue. So if the final order is **shorter than n**, the graph has a cycle, and there's no valid order.
+
+      ### Your task: deterministic ties
+
+      Your version must produce one exact order: when several vertices are ready at once, take the **smallest number** first. Replace the queue with a min-heap, `std::priority_queue<int, std::vector<int>, std::greater<int>>`, and use `top()` instead of `front()`.
 
       **Your turn:** write `std::vector<int> build_order(int n, const std::vector<std::pair<int, int>>& deps)` where `{a, b}` means "a must be built before b". Use a **min-heap** instead of a plain queue so ties come out smallest-number first (the tests expect that exact order). Return an empty vector if there's a cycle.
     seed: |
@@ -281,7 +479,7 @@ steps:
   - title: Dijkstra's shortest paths
     id: dsa-graphs-5
     text: |
-      When edges have **different weights** (distances, latencies, costs), BFS is no longer enough. **Dijkstra's algorithm** is BFS with a priority queue: always expand the unfinished vertex with the smallest known distance.
+      When edges have **different weights** (kilometers, milliseconds, dollars), the path with the fewest edges isn't necessarily the cheapest, so BFS is no longer enough. **Dijkstra's algorithm** fixes that: it's BFS with a **priority queue**, always expanding the unfinished vertex with the smallest known distance.
 
       ```
       dist[src] = 0; heap = {(0, src)}
@@ -293,7 +491,64 @@ steps:
                   dist[w] = dist[v] + cost; push (dist[w], w)
       ```
 
-      O((V + E) log V). It requires **non-negative** weights. It's the algorithm behind route planners and network routing protocols like OSPF.
+      ```cpp run
+      #include <functional>
+      #include <iostream>
+      #include <queue>
+      #include <string>
+      #include <utility>
+      #include <vector>
+
+      int main() {
+          std::vector<std::string> town = {"A", "B", "C", "D"};
+          // adj[v] = list of (neighbor, minutes)
+          std::vector<std::vector<std::pair<int, int>>> adj = {
+              {{1, 10}, {2, 3}},     // A -> B 10 min, A -> C 3 min
+              {{3, 2}},              // B -> D 2 min
+              {{1, 4}, {3, 8}},      // C -> B 4 min, C -> D 8 min
+              {},
+          };
+
+          const long long INF = 1'000'000'000;
+          std::vector<long long> dist(town.size(), INF);
+          using Item = std::pair<long long, int>;                       // (distance, vertex)
+          std::priority_queue<Item, std::vector<Item>, std::greater<Item>> heap;
+          dist[0] = 0;
+          heap.push({0, 0});
+          while (!heap.empty()) {
+              auto [d, v] = heap.top();
+              heap.pop();
+              if (d > dist[v]) continue;                                // an outdated entry
+              for (auto [w, cost] : adj[v]) {
+                  if (dist[v] + cost < dist[w]) {
+                      dist[w] = dist[v] + cost;
+                      heap.push({dist[w], w});
+                  }
+              }
+          }
+          for (std::size_t v = 0; v < town.size(); v++) std::cout << town[v] << " " << dist[v] << "\n";
+      }
+      ```
+
+      ```output
+      A 0
+      B 7
+      C 3
+      D 9
+      ```
+
+      ### Reading the result
+
+      The direct road A → B takes 10 minutes, but A → C → B takes 3 + 4 = 7. And D is best reached through B: 7 + 2 = 9, beating A → C → D at 11. BFS, which counts edges, would have picked the direct 10-minute road.
+
+      ### The details
+
+      - The heap holds `(distance, vertex)` pairs. Pairs compare by their first element, and `std::greater` makes it a min-heap, so `top()` is the closest unfinished vertex.
+      - A vertex can be pushed several times as better routes are found. The `if (d > dist[v]) continue;` line skips the outdated entries. This "lazy deletion" is simpler than updating entries inside the heap.
+      - Use `long long` for distances: many large weights can add up past the `int` limit.
+      - It requires **non-negative** weights. A negative edge could make a "finished" vertex cheaper later, which breaks the algorithm's core assumption.
+
+      O((V + E) log V). It's the algorithm behind route planners and network routing protocols like OSPF. For your task, build the adjacency list from the edge list first, and turn every distance still at "infinity" into -1 at the end.
 
       **Your turn:** write `std::vector<long long> dijkstra(int n, const std::vector<Edge>& edges, int src)` for a directed graph. Unreachable vertices get -1.
     seed: |
@@ -369,12 +624,68 @@ steps:
   - title: "Challenge: union-find"
     id: dsa-graphs-6
     text: |
-      **Union-find** (disjoint set union) tracks which items are in the same group while groups keep merging: network connectivity, clustering, Kruskal's minimum spanning tree, detecting cycles as edges arrive.
+      Some problems are about groups that keep **merging**: which computers can reach each other as cables are added, which accounts belong to the same person as links are found. Re-running a BFS after every merge would be slow. **Union-find** (also called disjoint set union) answers "are these two in the same group?" and "merge these two groups" in nearly O(1) each.
 
-      Each set is a tree; `find(x)` walks to the root, which identifies the set. Two tricks make it nearly O(1) per operation:
+      Each group is stored as a tree through a `parent` array. The **root** of a tree identifies its group: `find(x)` follows parents up to the root. Two items are in the same group exactly when they have the same root, and merging two groups just points one root at the other.
 
-      - **path compression**: while finding, point nodes directly at the root
-      - **union by size**: attach the smaller tree under the larger one
+      ```cpp run
+      #include <iostream>
+      #include <numeric>
+      #include <vector>
+
+      std::vector<int> parent;
+
+      int find(int x) {
+          while (parent[x] != x) x = parent[x];     // walk up to the root
+          return x;
+      }
+
+      void unite(int a, int b) {
+          parent[find(a)] = find(b);               // hang one root under the other
+      }
+
+      int main() {
+          parent.resize(6);
+          std::iota(parent.begin(), parent.end(), 0);   // everyone is their own group: 0 1 2 3 4 5
+          unite(0, 1);
+          unite(2, 3);
+          unite(1, 3);                                  // joins {0,1} with {2,3}
+          std::cout << (find(0) == find(2)) << (find(0) == find(4)) << "\n";
+
+          int groups = 0;
+          for (int i = 0; i < 6; i++) groups += (find(i) == i);   // count roots
+          std::cout << groups << " groups\n";
+      }
+      ```
+
+      ```output
+      10
+      3 groups
+      ```
+
+      The groups are `{0, 1, 2, 3}`, `{4}` and `{5}`.
+
+      ### Making it fast
+
+      This simple version can build long chains, making `find` O(n). Two tricks fix that:
+
+      - **Union by size**: keep a `size` array, and always attach the **smaller** tree under the root of the larger one. Trees then stay shallow (height at most log n).
+      - **Path compression**: during `find`, after locating the root, point every node you passed **directly** at it. The next `find` on any of them is a single step.
+
+      ```cpp
+      int find(int x) {
+          int root = x;
+          while (parent[root] != root) root = parent[root];
+          while (parent[x] != root) {            // second pass: repoint the path
+              int next = parent[x];
+              parent[x] = root;
+              x = next;
+          }
+          return root;
+      }
+      ```
+
+      Together they make each operation effectively constant time. Keep a `groups_` counter that starts at `n` and drops by one on every successful merge, and read a set's size from its root.
 
       **Your turn:** write class `UnionFind`:
 

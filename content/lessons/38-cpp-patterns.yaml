@@ -7,15 +7,58 @@ steps:
   - title: Strategies as closures
     id: cpp-patterns-1
     text: |
-      The classic **Strategy** pattern swaps an algorithm at runtime. The textbook version uses an abstract base class and a subclass per strategy. When a strategy is a single function, modern C++ just uses `std::function`, and a **function that returns a lambda** builds configured strategies:
+      A **design pattern** is a named, well-tested solution to a problem that keeps coming up. Knowing the names helps you recognize them in large codebases and talk about designs with other programmers. This module shows the ones you'll meet most, written the modern C++ way.
 
-      ```cpp
-      std::function<long(long)> percent_off(int pct) {
-          return [pct](long cents) { return cents - cents * pct / 100; };
+      The **Strategy** pattern swaps an algorithm at run time: how to sort, how to price, how to compress. The textbook version uses an abstract base class with one subclass per strategy. When a strategy is a single function, modern C++ just uses `std::function`, and a **function that returns a lambda** builds configured strategies:
+
+      ```cpp run
+      #include <functional>
+      #include <iostream>
+      #include <string>
+      #include <vector>
+
+      using Shipping = std::function<double(double weight_kg)>;
+
+      Shipping flat_rate(double price) {
+          return [price](double) { return price; };
+      }
+
+      Shipping per_kg(double rate, double minimum) {
+          return [rate, minimum](double kg) {
+              double cost = kg * rate;
+              return cost < minimum ? minimum : cost;
+          };
+      }
+
+      int main() {
+          std::vector<std::pair<std::string, Shipping>> options = {
+              {"standard", per_kg(1.5, 4.0)},
+              {"express", flat_rate(12.0)},
+          };
+          for (double kg : {1.0, 10.0}) {
+              for (const auto& [name, cost] : options) {
+                  std::cout << kg << "kg " << name << ": " << cost(kg) << "\n";
+              }
+          }
       }
       ```
 
-      The lambda **captures** `pct`, so each returned strategy remembers its own settings. That's a *closure*.
+      ```output
+      1kg standard: 4
+      1kg express: 12
+      10kg standard: 15
+      10kg express: 12
+      ```
+
+      ### Closures
+
+      Each lambda **captures** its settings (`price`, or `rate` and `minimum`), so every returned strategy remembers its own configuration after the factory function has returned. A lambda together with its captured values is called a **closure**. `per_kg(1.5, 4.0)` and `per_kg(2.0, 5.0)` are two independent strategies made by the same code.
+
+      ### Your task
+
+      - `percent_off(pct)` returns a lambda capturing `pct` that takes cents and subtracts `cents * pct / 100`.
+      - `flat_off(amount)` subtracts `amount` but never goes below 0.
+      - `Cart::total()` adds up `prices` and then calls `discount(sum)` **once** on the total.
 
       **Your turn:** write the strategy factories `percent_off(pct)` and `flat_off(amount)` (never below 0), and `Cart::total()`, which sums the prices and applies the cart's discount strategy once to the sum.
     seed: |
@@ -88,14 +131,66 @@ steps:
   - title: A factory registry
     id: cpp-patterns-2
     text: |
-      A **factory** creates objects by *name* (from a config file, a network message, a command line), returning them through a base-class pointer. Instead of a giant `if`/`else` chain, large codebases use a **registry**: a map from name to a creator function. New types register themselves without anyone editing the factory.
+      A **factory** creates objects by **name**: the name comes from a config file, a network message or a command line, and the result is returned through a base-class pointer. The naive version is a giant `if`/`else` chain that must be edited for every new type. Large codebases use a **registry** instead: a map from name to a **creator function**. Adding a type means registering one more entry, and the factory itself never changes.
 
-      ```cpp
-      using Creator = std::function<std::unique_ptr<Weapon>()>;
-      std::map<std::string, Creator> creators_;
+      ```cpp run
+      #include <functional>
+      #include <iostream>
+      #include <map>
+      #include <memory>
+      #include <string>
+
+      struct Codec {
+          virtual ~Codec() = default;
+          virtual std::string encode(const std::string& s) const = 0;
+      };
+
+      struct Upper : Codec {
+          std::string encode(const std::string& s) const override {
+              std::string r = s;
+              for (char& c : r) if (c >= 'a' && c <= 'z') c = char(c - 32);
+              return r;
+          }
+      };
+
+      struct Reverse : Codec {
+          std::string encode(const std::string& s) const override { return {s.rbegin(), s.rend()}; }
+      };
+
+      int main() {
+          std::map<std::string, std::function<std::unique_ptr<Codec>()>> registry;
+          registry["upper"] = [] { return std::make_unique<Upper>(); };
+          registry["reverse"] = [] { return std::make_unique<Reverse>(); };
+
+          for (const char* name : {"reverse", "rot13", "upper"}) {
+              auto it = registry.find(name);
+              if (it == registry.end()) {
+                  std::cout << name << ": unknown codec\n";
+                  continue;
+              }
+              std::unique_ptr<Codec> c = it->second();       // call the creator
+              std::cout << name << ": " << c->encode("hello") << "\n";
+          }
+      }
       ```
 
-      Returning `std::unique_ptr` makes ownership obvious: the caller owns the new object.
+      ```output
+      reverse: olleh
+      rot13: unknown codec
+      upper: HELLO
+      ```
+
+      ### How it works
+
+      - Each map value is a function that takes nothing and returns a `std::unique_ptr<Codec>`. A capture-less lambda `[] { return std::make_unique<Upper>(); }` fits, because `unique_ptr<Upper>` converts to `unique_ptr<Codec>`.
+      - `it->second()` calls the stored creator and gets a brand new object. The caller owns it, which the `unique_ptr` return type makes obvious.
+      - Unknown names are looked up with `find`, never `[]`, which would insert an empty function.
+
+      ### Your task
+
+      - `add`: if `creators_` already contains the name, return `false`; otherwise store it (move the `std::function` in) and return `true`.
+      - `create`: `find` the name; return `nullptr` if missing, otherwise call the creator.
+      - `names`: a `std::map` is already sorted by key, so loop over it and collect the keys.
 
       **Your turn:** implement `Factory::add` (returns false if the name is already registered), `Factory::create` (returns `nullptr` for unknown names) and `Factory::names` (sorted).
     seed: |
@@ -181,15 +276,64 @@ steps:
   - title: Observers with weak_ptr
     id: cpp-patterns-3
     text: |
-      In the **Observer** pattern a subject notifies listeners when something happens. The hard part in C++ is **lifetime**: if a listener is destroyed while the subject still holds a pointer to it, the next notification uses a dangling pointer.
+      In the **Observer** pattern, a subject (a stock ticker, a button, a scoreboard) notifies a list of listeners when something happens. The hard part in C++ is **lifetime**: if a listener is destroyed while the subject still holds a raw pointer to it, the next notification uses a dangling pointer and the program crashes, or worse.
 
-      Storing `std::weak_ptr` solves it. The subject doesn't keep listeners alive, and `lock()` tells you whether each one still exists:
+      Storing `std::weak_ptr` solves it. The subject doesn't keep listeners alive, and `lock()` tells it whether each one still exists.
 
-      ```cpp
-      for (auto& w : listeners_) {
-          if (auto l = w.lock()) l->on_event(e);    // still alive: notify
+      ```cpp run
+      #include <iostream>
+      #include <memory>
+      #include <string>
+      #include <vector>
+
+      struct Screen {
+          std::string name;
+          void show(double price) const { std::cout << name << " shows " << price << "\n"; }
+      };
+
+      class Ticker {
+      public:
+          void attach(const std::shared_ptr<Screen>& s) { screens_.push_back(s); }
+          void update(double price) {
+              for (const auto& w : screens_) {
+                  if (auto s = w.lock()) s->show(price);      // alive: notify
+              }
+          }
+          std::size_t attached() const { return screens_.size(); }
+
+      private:
+          std::vector<std::weak_ptr<Screen>> screens_;
+      };
+
+      int main() {
+          Ticker t;
+          auto lobby = std::make_shared<Screen>(Screen{"lobby"});
+          t.attach(lobby);
+          {
+              auto phone = std::make_shared<Screen>(Screen{"phone"});
+              t.attach(phone);
+              t.update(101.5);
+          }                                 // phone is destroyed here
+          t.update(99.0);                   // skipped safely: lock() returns empty
+          std::cout << t.attached() << " entries still stored\n";
       }
       ```
+
+      ```output
+      lobby shows 101.5
+      phone shows 101.5
+      lobby shows 99
+      2 entries still stored
+      ```
+
+      ### How it works
+
+      - The owners (`main` here) hold `shared_ptr`s. The ticker only holds `weak_ptr`s, so it never keeps a screen alive.
+      - `lock()` returns a `shared_ptr` that keeps the object alive **during** the call, or an empty one if it's already gone.
+
+      ### The leftover entry
+
+      Notice the ticker still stores 2 entries after `phone` died. The dead `weak_ptr` is harmless, but over time a long-running subject would collect thousands of them. Your task fixes this: remove expired entries while publishing. `std::erase_if(listeners_, [](const auto& w) { return w.expired(); })` does it in one call, or you can build a new vector of the live ones as you notify.
 
       **Your turn:** implement `Scoreboard::subscribe` and `Scoreboard::publish`. `publish` notifies every living listener in subscription order, **removes** expired ones, and returns how many were notified.
     seed: |
@@ -273,27 +417,66 @@ steps:
   - title: Pimpl
     id: cpp-patterns-4
     text: |
-      In a big codebase, changing a class's **private members** forces every file that includes its header to recompile, and in a shared library it breaks binary compatibility. The **pimpl** idiom ("pointer to implementation") hides the private data behind a pointer to a struct that's only *declared* in the header:
+      In a big codebase, a header is included by hundreds of files. Changing a class's **private members** changes its header, so every one of those files must recompile, and in a shared library it breaks binary compatibility with programs built against the old version. The **pimpl** idiom ("pointer to implementation") hides the private data behind a pointer to a struct that the header only **declares**.
 
-      ```cpp
-      // widget.h
-      class Widget {
+      ```cpp run
+      #include <iostream>
+      #include <memory>
+      #include <string>
+      #include <vector>
+
+      // ---- counter.h: what users see ----
+      class WordCounter {
       public:
-          Widget();
-          ~Widget();                       // declared here...
-          int value() const;
+          WordCounter();
+          ~WordCounter();
+          void add(const std::string& w);
+          int distinct() const;
+
       private:
-          struct Impl;                     // incomplete here
+          struct Impl;                         // declared, not defined: "incomplete"
           std::unique_ptr<Impl> impl_;
       };
 
-      // widget.cpp
-      struct Widget::Impl { int value = 42; std::vector<int> cache; };
-      Widget::Widget() : impl_(std::make_unique<Impl>()) {}
-      Widget::~Widget() = default;         // ...defined where Impl is complete
+      // ---- counter.cpp: private details, free to change ----
+      struct WordCounter::Impl {
+          std::vector<std::string> seen;
+      };
+
+      WordCounter::WordCounter() : impl_(std::make_unique<Impl>()) {}
+      WordCounter::~WordCounter() = default;   // Impl is complete here
+
+      void WordCounter::add(const std::string& w) {
+          for (const auto& s : impl_->seen) if (s == w) return;
+          impl_->seen.push_back(w);
+      }
+
+      int WordCounter::distinct() const { return (int)impl_->seen.size(); }
+
+      int main() {
+          WordCounter c;
+          for (const char* w : {"to", "be", "or", "not", "to", "be"}) c.add(w);
+          std::cout << c.distinct() << "\n";
+      }
       ```
 
-      The destructor **must** be defined after `Impl` is complete, because `unique_ptr` needs to know how to delete it. Forgetting that is the classic pimpl compile error.
+      ```output
+      4
+      ```
+
+      ### How it works
+
+      - The header only says `struct Impl;` and holds a `std::unique_ptr<Impl>`. Users of the class can't see or depend on what's inside `Impl`.
+      - The `.cpp` file defines `Impl` and every member function. You can now change the private data (switch the vector to a set, add a cache) without touching the header.
+      - Every member function reaches the data through `impl_->...`.
+
+      ### The destructor trap
+
+      `unique_ptr<Impl>` must know `Impl`'s full definition to delete it. If you let the compiler generate the destructor **in the header**, it's generated where `Impl` is incomplete, and you get a confusing error about `sizeof` of an incomplete type. The fix is to **declare** the destructor in the header and **define** it (even as `= default`) in the `.cpp` file, after `Impl`. The same applies to the move constructor and move assignment.
+
+      ### Your task
+
+      Define `struct Roster::Impl` with a `std::vector<std::string>`, then the constructor (create the Impl with `make_unique`), `Roster::~Roster() = default;`, `Roster::Roster(Roster&&) noexcept = default;`, and `add` and `count` working through `impl_`.
 
       **Your turn:** the "header" part is written. Write the "source file" part: define `Impl` (holding a `std::vector<std::string>` of names), the constructor, destructor, move constructor, `add` and `count`.
     seed: |
@@ -366,18 +549,63 @@ steps:
   - title: RAII wrappers for C libraries
     id: cpp-patterns-5
     text: |
-      Enterprise C++ constantly calls C libraries (OS APIs, databases, compression, crypto) that hand out handles you must release: `FILE*` with `fclose`, `sqlite3*` with `sqlite3_close`, and so on. Wrap each one **immediately** in a `std::unique_ptr` with a custom deleter, so it's released on every path, exactly once:
+      Professional C++ constantly calls **C libraries**: OS APIs, databases, compression, crypto. They hand out raw handles that you must release with a specific function: `FILE*` with `fclose`, `sqlite3*` with `sqlite3_close`, and so on. Forgetting, or releasing twice, is the same class of bug as `malloc`/`free`.
 
-      ```cpp
+      The fix is to wrap each handle **immediately** in a `std::unique_ptr` with a **custom deleter**: a small type whose `operator()` releases the handle. Then it's released on every path, exactly once, automatically.
+
+      ```cpp run
+      #include <cstdio>
+      #include <iostream>
+      #include <memory>
+
       struct FileCloser {
-          void operator()(FILE* f) const { if (f) std::fclose(f); }
+          void operator()(std::FILE* f) const {
+              if (f) {
+                  std::fclose(f);
+                  std::cout << "(closed)\n";
+              }
+          }
       };
-      using File = std::unique_ptr<FILE, FileCloser>;
+      using File = std::unique_ptr<std::FILE, FileCloser>;
 
-      File f(std::fopen("data.txt", "r"));     // closes itself
-      if (!f) { /* open failed */ }
-      std::fgets(buf, sizeof buf, f.get());    // .get() for the raw handle
+      int count_lines(const char* path) {
+          File f(std::fopen(path, "r"));
+          if (!f) return -1;                    // nothing to close; early return is safe
+          int n = 0;
+          for (int c; (c = std::fgetc(f.get())) != EOF; ) {
+              if (c == '\n') n++;
+          }
+          return n;                             // f closes itself here
+      }
+
+      int main() {
+          {
+              File out(std::fopen("data.txt", "w"));
+              std::fputs("one\ntwo\nthree\n", out.get());
+          }                                     // closed (and flushed) here
+          std::cout << count_lines("data.txt") << " lines\n";
+          std::cout << count_lines("missing.txt") << "\n";
+      }
       ```
+
+      ```output
+      (closed)
+      (closed)
+      3 lines
+      -1
+      ```
+
+      ### How it works
+
+      - `std::unique_ptr<std::FILE, FileCloser>` is a unique_ptr whose second template argument says **how** to delete. Instead of `delete`, it calls `FileCloser{}(ptr)`.
+      - `f.get()` gives the raw `FILE*` for the C functions.
+      - An empty `unique_ptr` never calls the deleter, so a failed `fopen` (null) needs no special handling. The `if (f)` check inside the deleter is extra safety.
+      - The `File` alias keeps the long type readable.
+
+      ### Your task
+
+      - `open_file(path, mode)` returns `File(std::fopen(path.c_str(), mode.c_str()))` (or with whatever parameter types you choose).
+      - `first_line` opens the file, returns `std::nullopt` if that fails, then reads characters with `fgetc` until `'\n'` or `EOF`. If nothing at all was read (an empty file), return `std::nullopt`.
 
       **Your turn:** write the `FileCloser`, the `File` alias, `File open_file(path, mode)`, and `std::optional<std::string> first_line(path)`, which returns the file's first line (without the newline) or `std::nullopt` if it can't be opened or is empty. No manual `fclose` in `first_line`.
     seed: |
@@ -446,15 +674,76 @@ steps:
   - title: "Challenge: a table-driven state machine"
     id: cpp-patterns-6
     text: |
-      Protocols, UI flows, order pipelines and game rounds are **state machines**. Encoding the legal transitions in a **table** (instead of nested ifs scattered through the code) makes them easy to review, test and extend:
+      Protocols, UI flows, order pipelines and game rounds are **state machines**: the thing is always in exactly one **state**, and **events** move it to another state, but only along legal paths. An order can go from Paid to Shipped, never from Shipped back to Cart.
 
-      ```cpp
-      struct Transition { State from; Event on; State to; };
-      constexpr Transition table[] = {
-          {State::Idle, Event::Start, State::Warmup},
-          ...
+      Encoding the legal transitions in a **table**, instead of nested `if`s scattered through the code, makes them easy to review (the table **is** the specification), test and extend.
+
+      ```cpp run
+      #include <iostream>
+      #include <optional>
+
+      enum class Door { Closed, Open, Locked };
+      enum class Action { Open, Close, Lock, Unlock };
+
+      struct Transition {
+          Door from;
+          Action on;
+          Door to;
       };
+
+      constexpr Transition rules[] = {
+          {Door::Closed, Action::Open, Door::Open},
+          {Door::Open, Action::Close, Door::Closed},
+          {Door::Closed, Action::Lock, Door::Locked},
+          {Door::Locked, Action::Unlock, Door::Closed},
+      };
+
+      std::optional<Door> next(Door d, Action a) {
+          for (const auto& r : rules) {
+              if (r.from == d && r.on == a) return r.to;
+          }
+          return std::nullopt;                  // not in the table: illegal
+      }
+
+      const char* name(Door d) {
+          switch (d) {
+              case Door::Closed: return "closed";
+              case Door::Open: return "open";
+              case Door::Locked: return "locked";
+          }
+          return "?";
+      }
+
+      int main() {
+          Door d = Door::Closed;
+          for (Action a : {Action::Lock, Action::Open, Action::Unlock, Action::Open}) {
+              if (auto n = next(d, a)) {
+                  d = *n;
+                  std::cout << "-> " << name(d) << "\n";
+              } else {
+                  std::cout << "rejected, still " << name(d) << "\n";
+              }
+          }
+      }
       ```
+
+      ```output
+      -> locked
+      rejected, still locked
+      -> closed
+      -> open
+      ```
+
+      ### How it works
+
+      - Each row of `rules` is one legal move: from this state, on this event, go to that state. Anything not listed is illegal.
+      - `next` searches the table and returns the new state, or `std::nullopt` for an illegal event. With a handful of rules, a linear search is perfectly fast.
+      - The caller changes state **only** when `next` succeeds, so an illegal event leaves everything as it was.
+      - Adding a new rule is one more line in the table. No logic changes.
+
+      ### Your task
+
+      Write the six transitions from the table below as a `constexpr Transition` array, and `next` as above. In `Match::handle`, call `next(state_, e)`; on success, update `state_`, increment `accepted_` and return `true`; otherwise return `false` without changing anything.
 
       **Your turn:** implement a match lifecycle with these transitions:
 

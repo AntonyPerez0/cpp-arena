@@ -7,18 +7,42 @@ steps:
   - title: std::vector basics
     id: cpp-vector-1
     text: |
-      `std::vector<T>` is a growable array that manages its own memory. It's everything you built by hand with `realloc`, done right.
+      `std::vector<T>` is the most used type in C++. It's a **dynamic array**: elements stored side by side like a C array, but it grows as needed, knows its own size, and frees its memory automatically. It's everything you built by hand with `malloc`, `realloc` and a capacity counter, done correctly.
 
-      ```cpp
+      ```cpp run
+      #include <iostream>
       #include <vector>
+      #include <string>
 
-      std::vector<int> v = {3, 1, 4};
-      v.push_back(1);           // append: {3, 1, 4, 1}
-      v.size();                 // 4
-      v[0];                     // 3
-      v.back();                 // 1
-      v.pop_back();             // remove last
+      int main() {
+          std::vector<std::string> queue = {"ada", "linus"};
+          queue.push_back("grace");
+          std::cout << queue.size() << " waiting, first " << queue.front() << ", last " << queue.back() << "\n";
+          queue[1] = "ken";
+          queue.pop_back();
+          for (const std::string& name : queue) std::cout << name << " ";
+          std::cout << "\n";
+          std::vector<int> zeros(5);
+          std::vector<int> sevens(3, 7);
+          std::cout << zeros.size() << " " << sevens[2] << " " << queue.empty() << "\n";
+      }
       ```
+
+      ```output
+      3 waiting, first ada, last grace
+      ada ken 
+      5 7 0
+      ```
+
+      ### The essentials
+
+      - `std::vector<T>` holds elements of type `T`: `std::vector<int>`, `std::vector<std::string>`. The `<T>` is a **template argument** (templates get their own module).
+      - `push_back(x)` appends; `pop_back()` removes the last element.
+      - `size()`, `empty()`, `front()`, `back()`.
+      - `v[i]` indexes without checking, like a C array. `v.at(i)` checks and stops the program with an error if `i` is out of range.
+      - `std::vector<int> zeros(5)` makes 5 zero-initialized elements; `(3, 7)` makes three 7s. Braces `{3, 7}` would instead mean "the two elements 3 and 7".
+
+      Internally, a vector keeps a heap buffer with a **capacity** and doubles it when full, exactly like your `realloc` exercise. The **Watch it run** link shows the buffer moving to a bigger heap block as it grows.
 
       **Your turn:** fill in the blanks.
     fill: |
@@ -39,14 +63,49 @@ steps:
   - title: Loop over a vector
     id: cpp-vector-2
     text: |
-      Range-based for works on vectors. Use `const auto&` to avoid copying each element:
+      Looping over a vector is best done with a range-based `for`. The reference symbol decides whether you get copies or the real elements:
 
       ```cpp
-      for (const auto& x : v) { ... }
-      for (auto& x : v) { x *= 2; }     // & to modify in place
+      for (auto x : v)          // x is a copy of each element
+      for (const auto& x : v)   // x refers to each element, read-only: no copies
+      for (auto& x : v)         // x refers to each element, and you can modify it
       ```
 
-      Pass vectors to functions by `const&` (read-only) or `&` (to modify). Passing by value copies the whole thing.
+      For `int` the copy is cheap, but for strings or objects, `const auto&` avoids copying every element. Use `auto&` when you want to change the vector's elements in place.
+
+      ```cpp run
+      #include <iostream>
+      #include <vector>
+
+      std::vector<double> scaled(const std::vector<double>& v, double k) {
+          std::vector<double> out;
+          out.reserve(v.size());
+          for (double x : v) {
+              out.push_back(x * k);
+          }
+          return out;
+      }
+
+      int main() {
+          std::vector<double> prices = {1.5, 2.0, 4.25};
+          for (auto& p : prices) p += 1;
+          std::vector<double> doubled = scaled(prices, 2);
+          for (const auto& p : doubled) std::cout << p << " ";
+          std::cout << "\n";
+      }
+      ```
+
+      ```output
+      5 6 10.5 
+      ```
+
+      ### Passing and returning vectors
+
+      - Take a vector parameter by `const&` when the function only reads it; by value would copy every element.
+      - Take it by `&` when the function must modify the caller's vector.
+      - **Return** a new vector by value freely. Modern C++ moves (or directly constructs) the result instead of copying it, so returning even a large vector is cheap. You'll see why in the move semantics module.
+
+      `out.reserve(n)` sets the capacity up front when you know the final size, so `push_back` never has to reallocate.
 
       **Your turn:** write `std::vector<int> running_total(const std::vector<int>& v)` that returns the prefix sums. `{1, 2, 3, 4}` becomes `{1, 3, 6, 10}`.
     seed: |
@@ -80,13 +139,42 @@ steps:
   - title: Insert and erase
     id: cpp-vector-3
     text: |
-      Positions in a vector are expressed with **iterators**. `v.begin()` points at the first element, and `v.begin() + i` at element i.
+      Adding or removing elements in the **middle** of a vector uses **iterators**: objects that mark a position in a container. You'll study them in depth later; for now:
 
-      ```cpp
-      v.insert(v.begin() + 1, 99);   // insert before index 1
-      v.erase(v.begin() + 2);        // remove index 2
-      v.clear();                     // remove everything
+      - `v.begin()` is the position of the first element.
+      - `v.begin() + i` is the position of element `i`.
+      - `v.end()` is the position **one past** the last element.
+
+      ```cpp run
+      #include <iostream>
+      #include <string>
+      #include <vector>
+
+      int main() {
+          std::vector<std::string> steps = {"wake", "coffee", "work"};
+          steps.insert(steps.begin() + 1, "shower");
+          steps.insert(steps.end(), "sleep");
+          steps.erase(steps.begin() + 2);
+          for (const auto& s : steps) std::cout << s << " ";
+          std::cout << "(" << steps.size() << ")\n";
+      }
       ```
+
+      ```output
+      wake shower work sleep (4)
+      ```
+
+      - `insert(pos, value)` puts `value` **before** `pos`. Everything after it shifts one place to the right.
+      - `erase(pos)` removes the element at `pos`. Everything after it shifts left.
+      - `clear()` removes everything.
+
+      ### Cost
+
+      Because elements are contiguous, inserting or erasing in the middle must **move** every element after that position: O(n). Adding or removing at the **end** is fast (O(1)). If you do lots of middle insertions on big data, a different container may fit better, but for most sizes a vector is still the fastest choice, because moving contiguous memory is very quick.
+
+      ### Validate positions
+
+      `erase` and `insert` don't check their positions: erasing `v.begin() + 10` in a 3-element vector is undefined behavior. When an index comes from outside, check `0 <= i` and `i < v.size()` first (converting carefully between `int` and the unsigned `size()`).
 
       **Your turn:** write `void remove_at(std::vector<std::string>& v, int i)` that removes element `i` if it's a valid index and does nothing otherwise.
     seed: |
@@ -123,12 +211,47 @@ steps:
   - title: 2D vectors
     id: cpp-vector-4
     text: |
-      A vector of vectors makes a grid whose size is decided at runtime:
+      A vector can hold anything, including other vectors. A **vector of vectors** gives you a 2D grid whose size is decided at run time, without any manual memory management:
 
-      ```cpp
-      std::vector<std::vector<int>> grid(rows, std::vector<int>(cols, 0));
-      grid[r][c] = 5;
+      ```cpp run
+      #include <iostream>
+      #include <vector>
+
+      int main() {
+          int rows = 3, cols = 4;
+          std::vector<std::vector<int>> grid(rows, std::vector<int>(cols, 0));
+          for (int r = 0; r < rows; r++) {
+              for (int c = 0; c < cols; c++) {
+                  grid[r][c] = r * cols + c;
+              }
+          }
+          std::cout << grid[2][3] << " " << grid.size() << "x" << grid[0].size() << "\n";
+          int diagonal = 0;
+          for (int i = 0; i < rows; i++) diagonal += grid[i][i];
+          std::cout << diagonal << "\n";
+      }
       ```
+
+      ```output
+      11 3x4
+      15
+      ```
+
+      ### Reading the constructor
+
+      `std::vector<std::vector<int>> grid(rows, std::vector<int>(cols, 0))` means: `rows` copies of "a vector of `cols` zeros". Each row is its own independent vector.
+
+      ### Sizes
+
+      - `grid.size()` is the number of rows.
+      - `grid[r].size()` is the length of row `r`. Rows can even have different lengths (a "jagged" grid), which is why the code asks each row.
+      - `grid[r][c]` indexes like a 2D array.
+
+      ### Building a result of a different shape
+
+      When the output has a different shape from the input (like swapping rows and columns), create the output grid with the **new** dimensions first, then fill it with nested loops, reading from the input's `[r][c]` and writing to the output's corresponding position.
+
+      Compared with the C version (an array of row pointers with a `malloc` per row and careful freeing), this is shorter, can't leak, and copies correctly. The trade-off is that rows are separate allocations; performance-critical code sometimes uses one flat vector of `rows * cols` elements instead.
 
       **Your turn:** write `std::vector<std::vector<int>> transpose(const std::vector<std::vector<int>>& m)` that swaps rows and columns. A 2x3 matrix becomes 3x2. You can assume every row has the same length and there's at least one row.
     seed: |
@@ -165,15 +288,43 @@ steps:
   - title: string search and substrings
     id: cpp-vector-5
     text: |
-      Handy `std::string` members:
+      `std::string` has many useful member functions. The two you'll use most for text processing are `find` and `substr`:
 
-      ```cpp
-      std::string s = "de_dust2";
-      s.find("dust");        // 3 (index of first match)
-      s.find("zz");          // std::string::npos (not found)
-      s.substr(3, 4);        // "dust" (start, length)
-      s.substr(3);           // "dust2" (to the end)
+      ```cpp run
+      #include <iostream>
+      #include <string>
+
+      int main() {
+          std::string email = "ada.lovelace@example.com";
+          std::size_t at = email.find('@');
+          std::string user = email.substr(0, at);
+          std::string domain = email.substr(at + 1);
+          std::cout << user << " | " << domain << "\n";
+          std::size_t dot = user.find('.');
+          std::cout << user.substr(dot + 1) << "\n";
+          std::cout << (email.find("xyz") == std::string::npos) << "\n";
+          std::cout << email.rfind('.') << "\n";
+      }
       ```
+
+      ```output
+      ada.lovelace | example.com
+      lovelace
+      1
+      20
+      ```
+
+      ### find
+
+      `s.find(x)` searches for a character or substring and returns the **index** of the first match. If there's no match it returns the special value `std::string::npos` (the largest possible `size_t`). **Always** check for `npos` before using the result: using it as a position leads to wrong results or out-of-range errors. `rfind` searches from the end. Both can take a starting position as a second argument.
+
+      ### substr
+
+      `s.substr(pos, len)` returns a **new** string of `len` characters starting at `pos`. Leave out `len` to take everything to the end. If `pos` is beyond the end of the string, it throws an error, so make sure it's valid.
+
+      ### Store find's result as size_t
+
+      `find` returns a `std::size_t`. Storing it in an `int` loses the ability to compare with `npos` correctly. Use `std::size_t` (or `auto`).
 
       **Your turn:** write `std::string map_name(const std::string& s)` that strips a prefix ending in the first `_`. `"de_dust2"` becomes `"dust2"`; a string without `_` is returned unchanged.
     seed: |
@@ -204,6 +355,53 @@ steps:
   - title: "Challenge: split"
     id: cpp-vector-6
     text: |
+      Splitting a string on a separator is one of the most common text-processing tasks: CSV lines, paths, configuration values, command arguments. It's worth knowing how to write it correctly, because the edge cases trip people up.
+
+      ### The approach
+
+      Keep a `start` position (initially 0). Repeatedly `find` the separator from `start`:
+
+      - If found at position `p`, the piece is `s.substr(start, p - start)`. Add it, then continue from `start = p + 1`.
+      - If not found, the rest of the string, `s.substr(start)`, is the **last** piece. Add it and stop.
+
+      ```cpp run
+      #include <iostream>
+      #include <string>
+      #include <vector>
+
+      std::vector<std::string> words(const std::string& s) {
+          std::vector<std::string> out;
+          std::string current;
+          for (char c : s) {
+              if (c == ' ') {
+                  if (!current.empty()) out.push_back(current);
+                  current.clear();
+              } else {
+                  current += c;
+              }
+          }
+          if (!current.empty()) out.push_back(current);
+          return out;
+      }
+
+      int main() {
+          auto w = words("  the  quick brown   fox ");
+          std::cout << w.size() << ":";
+          for (const auto& x : w) std::cout << " [" << x << "]";
+          std::cout << "\n";
+      }
+      ```
+
+      ```output
+      4: [the] [quick] [brown] [fox]
+      ```
+
+      This example shows a different approach (building each piece character by character) for a different rule: splitting into **words**, where runs of spaces are skipped and empty pieces are dropped.
+
+      ### Your rule is different: keep empty pieces
+
+      For CSV-like data, `"a,,b"` has three fields, the middle one empty, and `""` is one empty field. Dropping empty pieces would shift columns and corrupt data. With the find-based approach, the rule "the text after the last separator is always one more piece" gives exactly these results: `n` separators always produce `n + 1` pieces. Test your function on `"a,,b"`, `""`, `","` and `"a,"` before submitting.
+
       **Your turn:** write `std::vector<std::string> split(const std::string& s, char sep)` that breaks a string at every `sep`.
 
       - `split("a,b,c", ',')` gives `{"a", "b", "c"}`

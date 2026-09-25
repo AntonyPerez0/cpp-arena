@@ -601,3 +601,17 @@ label.btn:focus-within { outline: 3px solid var(--accent2); outline-offset: 2px;
   .main { padding: 0; max-width: none; }
   .cert { break-inside: avoid; margin: 0; }
 }
+
+/* ---------- desktop: the lesson and the editor fill the window */
+@media (min-width: 961px) {
+  .step-grid { align-items: stretch; }
+  .step-text { height: calc(100vh - 6.2rem); max-height: none; }
+  .step-work { --editor-min: max(260px, calc(100vh - 19.5rem)); }
+  .step-work .fillcode { min-height: var(--editor-min); }
+  .step-work .editor .cm-editor { min-height: var(--editor-min); }
+  .step-work .editor .cm-scroller { flex: 1 1 auto; }
+}
+/* Very wide screens: use nearly all of the width. */
+@media (min-width: 1700px) {
+  .main, .footer { max-width: 97vw; }
+}

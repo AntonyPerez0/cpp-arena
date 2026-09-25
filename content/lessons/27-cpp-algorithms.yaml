@@ -7,13 +7,53 @@ steps:
   - title: sort and reverse
     id: cpp-algorithms-1
     text: |
-      `<algorithm>` works on **ranges** given as a pair of iterators, usually `v.begin(), v.end()`:
+      So far you've written a loop for every job: finding the biggest value, reversing, summing. Those loops are short, but each one is a chance to get an index wrong. The `<algorithm>` header has **ready-made, tested versions** of the common ones. Using them makes code shorter and says what it does by name.
 
-      ```cpp
-      std::sort(v.begin(), v.end());       // ascending
-      std::reverse(v.begin(), v.end());
-      auto it = std::max_element(v.begin(), v.end());   // iterator to the max
+      Algorithms work on a **range** given as two iterators: where to start and where to stop (one past the last element). For a whole vector that's `v.begin(), v.end()`.
+
+      ```cpp run
+      #include <algorithm>
+      #include <iostream>
+      #include <string>
+      #include <vector>
+
+      int main() {
+          std::vector<int> temps = {18, 25, 12, 30, 21};
+          auto hottest = std::max_element(temps.begin(), temps.end());
+          std::cout << "max " << *hottest << " at day " << (hottest - temps.begin()) << "\n";
+
+          std::sort(temps.begin(), temps.end());
+          for (int t : temps) std::cout << t << " ";
+          std::cout << "\n";
+
+          std::string word = "stressed";
+          std::reverse(word.begin(), word.end());
+          std::cout << word << "\n";
+
+          std::sort(temps.begin(), temps.begin() + 3, std::greater<int>());
+          for (int t : temps) std::cout << t << " ";
+          std::cout << "\n";
+      }
       ```
+
+      ```output
+      max 30 at day 3
+      12 18 21 25 30 
+      desserts
+      21 18 12 25 30 
+      ```
+
+      ### How it works
+
+      - `std::sort(first, last)` sorts that range in ascending order, in place. It's O(n log n), much faster than a hand-written bubble sort.
+      - `std::reverse(first, last)` flips the range. It works on strings too, because a string is a container of chars.
+      - `std::max_element` and `std::min_element` return an **iterator**, not a value. Use `*it` for the value and `it - v.begin()` for the index.
+      - The range doesn't have to be the whole container. `temps.begin() + 3` stops after three elements, so the last example only sorts the first three, in descending order with `std::greater<int>()`.
+
+      ### Common mistakes
+
+      - Passing iterators from **two different containers**, like `std::sort(a.begin(), b.end())`. That's undefined behavior.
+      - Forgetting that `max_element` on an empty range returns `end()`, which you must not dereference.
 
       **Your turn:** sort the scores ascending, then reverse them so the best is first.
     fill: |
@@ -36,7 +76,7 @@ steps:
   - title: Lambdas
     id: cpp-algorithms-2
     text: |
-      A **lambda** is an unnamed function you write inline:
+      Many algorithms let you customize them by passing a **function**. The easiest way to write that function is a **lambda**: an unnamed function written right where you need it.
 
       ```cpp
       auto square = [](int x) { return x * x; };
@@ -45,9 +85,52 @@ steps:
 
       - `[]` is the **capture list** (more soon)
       - `(int x)` are the parameters
-      - the return type is deduced
+      - the body is in `{ }`, and the return type is deduced from the `return`
 
-      Lambdas shine as arguments to algorithms. Here `std::sort` takes a third argument: a comparison that says whether `a` should come before `b`.
+      `std::sort` takes an optional third argument, a **comparison**: given two elements `a` and `b`, return `true` if `a` should come **before** `b`.
+
+      ```cpp run
+      #include <algorithm>
+      #include <iostream>
+      #include <string>
+      #include <vector>
+
+      struct Player {
+          std::string name;
+          int score;
+      };
+
+      int main() {
+          std::vector<Player> team = {{"ana", 40}, {"bo", 75}, {"cy", 40}, {"di", 90}};
+
+          std::sort(team.begin(), team.end(), [](const Player& a, const Player& b) {
+              if (a.score != b.score) return a.score > b.score;   // higher score first
+              return a.name < b.name;                             // ties: alphabetical
+          });
+          for (const auto& p : team) std::cout << p.name << ":" << p.score << " ";
+          std::cout << "\n";
+
+          auto is_vowel = [](char c) { return c == 'a' || c == 'e' || c == 'i' || c == 'o' || c == 'u'; };
+          std::cout << is_vowel('e') << is_vowel('z') << "\n";
+      }
+      ```
+
+      ```output
+      di:90 bo:75 ana:40 cy:40 
+      10
+      ```
+
+      ### Writing a comparison
+
+      - `a < b` gives ascending order; `a > b` gives descending.
+      - To sort by something else, compare that thing: `a.score > b.score`, `a.size() < b.size()`.
+      - For ties, compare a second field, as the example does with names.
+      - Take the parameters by `const&`, so sorting strings or structs doesn't copy them on every comparison.
+
+      ### Common mistakes
+
+      - Using `<=` instead of `<`. The comparison must return `false` for equal elements; `<=` breaks that rule and can make `std::sort` misbehave or crash.
+      - Forgetting the `return`. A lambda body with no `return` returns nothing, and the compiler will complain that `void` can't be used as a bool.
 
       **Your turn:** sort the words by **length**, shortest first.
     fill: |
@@ -73,15 +156,56 @@ steps:
   - title: find_if, count_if, any_of
     id: cpp-algorithms-3
     text: |
-      Algorithms that take a **predicate** (a function returning bool):
+      A **predicate** is a function that takes one element and returns `bool`: "is it negative?", "is it longer than 5?". A whole family of algorithms takes a predicate:
 
-      ```cpp
-      auto it = std::find_if(v.begin(), v.end(), [](int x) { return x < 0; });
-      if (it != v.end()) { /* *it is the first negative */ }
+      | Algorithm | Returns |
+      |---|---|
+      | `std::find_if(first, last, pred)` | iterator to the first match, or `last` |
+      | `std::count_if(first, last, pred)` | how many elements match |
+      | `std::any_of`, `std::all_of`, `std::none_of` | `bool` |
 
-      int n = std::count_if(v.begin(), v.end(), [](int x) { return x % 2 == 0; });
-      bool any = std::any_of(v.begin(), v.end(), [](int x) { return x > 100; });
+      ```cpp run
+      #include <algorithm>
+      #include <iostream>
+      #include <string>
+      #include <vector>
+
+      int main() {
+          std::vector<std::string> files = {"notes.txt", "photo.jpg", "todo.txt", "song.mp3"};
+
+          auto is_txt = [](const std::string& f) {
+              return f.size() >= 4 && f.substr(f.size() - 4) == ".txt";
+          };
+          std::cout << std::count_if(files.begin(), files.end(), is_txt) << " text files\n";
+
+          auto it = std::find_if(files.begin(), files.end(), [](const std::string& f) {
+              return f.starts_with("photo");
+          });
+          if (it != files.end()) std::cout << "found " << *it << "\n";
+
+          bool all_named = std::all_of(files.begin(), files.end(), [](const std::string& f) {
+              return f.find('.') != std::string::npos;
+          });
+          std::cout << "all have extensions: " << all_named << "\n";
+      }
       ```
+
+      ```output
+      2 text files
+      found photo.jpg
+      all have extensions: 1
+      ```
+
+      ### Checking the end of a string
+
+      "Does this string end with X?" comes up constantly. Two ways:
+
+      - C++20: `s.ends_with("_hs")` and `s.starts_with("photo")`. Short and safe.
+      - Before C++20: check the length first, then compare the tail with `s.substr(s.size() - n)` or `s.compare(...)`. Without the length check, `s.size() - n` on a short string wraps around to a huge number, because sizes are unsigned.
+
+      ### Why not a loop?
+
+      A loop works, of course. But `count_if(..., is_txt)` reads like the sentence "count the ones that are text files", and there's no counter to initialize or index to get wrong. Naming the predicate, as `is_txt` does, makes it even clearer.
 
       **Your turn:** write `int count_headshots(const std::vector<std::string>& kills)` counting entries that end with `"_hs"`, using `std::count_if` and a lambda.
     seed: |
@@ -118,19 +242,55 @@ steps:
   - title: accumulate and transform
     id: cpp-algorithms-4
     text: |
-      From `<numeric>`, `std::accumulate` folds a range into one value:
+      Two more workhorses:
 
-      ```cpp
-      int sum = std::accumulate(v.begin(), v.end(), 0);
-      int prod = std::accumulate(v.begin(), v.end(), 1, [](int acc, int x) { return acc * x; });
+      - `std::accumulate` (from `<numeric>`, not `<algorithm>`) **folds** a range into one value: start with an initial value, then combine it with each element in turn. By default "combine" means `+`.
+      - `std::transform` applies a function to each element and **writes the results** to another place.
+
+      ```cpp run
+      #include <algorithm>
+      #include <iostream>
+      #include <numeric>
+      #include <cctype>
+      #include <string>
+      #include <vector>
+
+      int main() {
+          std::vector<int> v = {3, 1, 4, 1, 5};
+
+          int sum = std::accumulate(v.begin(), v.end(), 0);
+          int product = std::accumulate(v.begin(), v.end(), 1, [](int acc, int x) { return acc * x; });
+          double avg = std::accumulate(v.begin(), v.end(), 0.0) / v.size();
+          std::cout << sum << " " << product << " " << avg << "\n";
+
+          std::vector<int> cubes(v.size());
+          std::transform(v.begin(), v.end(), cubes.begin(), [](int x) { return x * x * x; });
+          for (int c : cubes) std::cout << c << " ";
+          std::cout << "\n";
+
+          std::string shout = "quiet please";
+          std::transform(shout.begin(), shout.end(), shout.begin(), [](char c) { return (char)std::toupper(c); });
+          std::cout << shout << "\n";
+      }
       ```
 
-      `std::transform` applies a function to each element and writes the results somewhere:
-
-      ```cpp
-      std::vector<int> sq(v.size());
-      std::transform(v.begin(), v.end(), sq.begin(), [](int x) { return x * x; });
+      ```output
+      14 60 2.8
+      27 1 64 1 125 
+      QUIET PLEASE
       ```
+
+      ### The initial value decides the type
+
+      `accumulate` does its arithmetic in the type of the **initial value**. `std::accumulate(v.begin(), v.end(), 0)` adds ints and returns an int. For an average you want `0.0`, so the sum is a `double`. Writing `0` there and then dividing is a classic bug: the sum is fine, but a range of doubles would be truncated to ints at every step.
+
+      ### transform needs room
+
+      `std::transform` writes to the output iterator you give it, but it **doesn't create elements**. That's why the example sizes `cubes` first with `cubes(v.size())`. The output can also be the input itself, as with `shout`, which changes the string in place.
+
+      ### Edge case: empty ranges
+
+      Averaging an empty vector divides by zero. Check `v.empty()` first and return the agreed default.
 
       **Your turn:** write `double average_damage(const std::vector<int>& hits)` (0 for an empty vector) and `std::vector<int> with_armor(const std::vector<int>& hits)` that halves every hit (integer division). Use accumulate and transform.
     seed: |
@@ -179,7 +339,7 @@ steps:
   - title: Captures
     id: cpp-algorithms-5
     text: |
-      A lambda can use variables from the surrounding scope if it **captures** them:
+      The lambdas so far used only their own parameters. Often you need a value from **outside** the lambda, like a threshold the user typed in. A lambda can't see local variables automatically; you have to **capture** them in the `[]`:
 
       | Capture | Meaning |
       |---|---|
@@ -188,13 +348,54 @@ steps:
       | `[=]` | copy everything used |
       | `[&]` | reference everything used |
 
-      ```cpp
-      int limit = 50;
-      auto big = std::count_if(v.begin(), v.end(), [limit](int x) { return x > limit; });
+      ```cpp run
+      #include <algorithm>
+      #include <iostream>
+      #include <iterator>
+      #include <string>
+      #include <vector>
 
-      int total = 0;
-      std::for_each(v.begin(), v.end(), [&total](int x) { total += x; });
+      int main() {
+          std::vector<std::string> names = {"ana", "bartholomew", "cy", "delphine", "ed"};
+          size_t max_len = 3;
+
+          std::vector<std::string> shorts;
+          std::copy_if(names.begin(), names.end(), std::back_inserter(shorts),
+                       [max_len](const std::string& s) { return s.size() <= max_len; });
+          for (const auto& s : shorts) std::cout << s << " ";
+          std::cout << "\n";
+
+          int letters = 0;
+          std::for_each(names.begin(), names.end(), [&letters](const std::string& s) { letters += (int)s.size(); });
+          std::cout << letters << " letters\n";
+
+          int bonus = 10;
+          auto add_bonus = [bonus](int x) { return x + bonus; };
+          bonus = 1000;                          // too late: the lambda holds its own copy
+          std::cout << add_bonus(5) << "\n";
+      }
       ```
+
+      ```output
+      ana cy ed 
+      26 letters
+      15
+      ```
+
+      ### Copy or reference?
+
+      - `[max_len]` copies the value **when the lambda is created**. Later changes to the variable don't affect it, as `add_bonus` shows.
+      - `[&letters]` refers to the real variable, so the lambda can **change** it. That's how the letter count builds up.
+      - Capture by copy when you only read a small value; by reference when you need to update something, or to avoid copying something big.
+
+      ### back_inserter
+
+      `std::copy_if(first, last, out, pred)` copies the matching elements to `out`. Since you don't know in advance how many will match, you can't pre-size the result. `std::back_inserter(v)` (from `<iterator>`) is an output iterator that calls `v.push_back(...)` for every element written, so the vector grows as needed.
+
+      ### Common mistakes
+
+      - Using a variable in a lambda without capturing it: "error: 'threshold' is not captured".
+      - Capturing by reference in a lambda that outlives the variable, for example one stored and called after the function returned. The reference dangles.
 
       **Your turn:** write `std::vector<int> above(const std::vector<int>& v, int threshold)` that returns the elements greater than `threshold`, keeping their order. Use `std::copy_if` with `std::back_inserter(out)` and a lambda that captures `threshold`.
     seed: |
@@ -230,13 +431,61 @@ steps:
   - title: Erase with a condition
     id: cpp-algorithms-6
     text: |
-      Removing elements that match a condition used to need the "erase-remove idiom". C++20 made it one call:
+      Removing every element that matches a condition sounds simple, but erasing inside a loop is a known trap: after `v.erase(it)`, the iterator `it` is invalid, and indexes shift under you. The standard library solves it properly.
+
+      C++20 gives you a single call:
+
+      ```cpp run
+      #include <iostream>
+      #include <string>
+      #include <vector>
+
+      struct Task {
+          std::string title;
+          bool done;
+      };
+
+      int main() {
+          std::vector<int> v = {5, -2, 8, -1, 0, 3};
+          auto removed = std::erase_if(v, [](int x) { return x < 0; });
+          for (int x : v) std::cout << x << " ";
+          std::cout << "(removed " << removed << ")\n";
+
+          std::vector<Task> tasks = {{"shop", true}, {"code", false}, {"sleep", true}};
+          std::erase_if(tasks, [](const Task& t) { return t.done; });
+          for (const auto& t : tasks) std::cout << t.title << "\n";
+
+          std::string s = "b-a-n-a-n-a";
+          std::erase(s, '-');                      // remove a specific value
+          std::cout << s << "\n";
+      }
+      ```
+
+      ```output
+      5 8 0 3 (removed 2)
+      code
+      banana
+      ```
+
+      ### How it works
+
+      - `std::erase_if(container, pred)` removes every element for which `pred` returns `true`, keeps the rest **in their original order**, and returns how many it removed.
+      - `std::erase(container, value)` removes every element equal to `value`.
+      - Both work on `vector`, `string`, `deque` and `list`, and `erase_if` also works on maps and sets.
+
+      ### The old way: erase-remove
+
+      Before C++20 you'd see this idiom everywhere, and you'll still meet it in existing code:
 
       ```cpp
-      std::erase_if(v, [](int x) { return x < 0; });   // C++20
-      // old way:
       v.erase(std::remove_if(v.begin(), v.end(), pred), v.end());
       ```
+
+      `std::remove_if` doesn't actually shrink the vector (an algorithm only sees iterators, not the container). It moves the elements to keep to the front and returns an iterator to the new logical end. `v.erase(that, v.end())` then chops off the leftovers. Forgetting the `erase` part is a classic bug: the size never changes.
+
+      ### Predicates on pairs
+
+      Your vector holds `std::pair<std::string, int>`, so the lambda takes `const std::pair<std::string, int>& p` (or `const auto& p`) and looks at `p.second`. Read the condition carefully: "0 or less" means `<= 0`.
 
       **Your turn:** write `void drop_dead(std::vector<std::pair<std::string, int>>& players)` that removes players whose hp (the `int`) is 0 or less.
     seed: |

@@ -23,6 +23,14 @@ const today = new Date().toISOString().slice(0, 10);
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const link = (p) => BASE + p.replace(/^\//, "");
 const md = (s) => marked.parse(s, { async: false });
+/** Markdown whose shallowest heading becomes <h{top}>, so the page outline has no gaps. */
+function mdAt(s, top) {
+  const html = md(s);
+  const levels = [...html.matchAll(/<h([1-6])[\s>]/g)].map((m) => Number(m[1]));
+  if (levels.length === 0) return html;
+  const shift = top - Math.min(...levels);
+  return html.replace(/<(\/?)h([1-6])([\s>])/g, (_, slash, n, after) => `<${slash}h${Math.min(6, Math.max(1, Number(n) + shift))}${after}`);
+}
 /** Plain-text summary of Markdown, cut at a word boundary. */
 function summary(text, max = 155) {
   const plain = text
@@ -126,7 +134,7 @@ for (const m of content.modules) {
       body: `<nav aria-label="Breadcrumb"><a href="${link("/learn")}">Learn</a> › ${esc(m.phase)} › ${esc(m.title)}</nav>
 <p>Step ${i + 1} of ${m.steps.length}</p>
 <h1>${esc(s.title)}</h1>
-${md(s.text)}
+${mdAt(s.text, 2)}
 <p>${prev} ${next}</p>`,
     });
   });

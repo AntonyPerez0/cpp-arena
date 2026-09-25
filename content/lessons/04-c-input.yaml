@@ -7,16 +7,38 @@ steps:
   - title: Read a number
     id: c-input-1
     text: |
-      `scanf` is the mirror image of `printf`: it reads values from input (stdin) into variables.
+      Until now every program printed the same thing each time it ran. To make a program useful, it needs **input**: data that comes from outside, usually typed by the user. In C, keyboard input arrives on a channel called **standard input** (stdin), and the easiest way to read from it is `scanf`.
 
-      ```c
-      int n;
-      scanf("%d", &n);
+      `scanf` is the mirror image of `printf`. It uses the same kind of format string, but instead of printing values, it reads text, converts it, and **stores** the result in your variables.
+
+      ```c run
+      #include <stdio.h>
+
+      int main(void) {
+          int age;
+          scanf("%d", &age);
+          printf("Next year you'll be %d\n", age + 1);
+          return 0;
+      }
       ```
 
-      The `&` means "the address of `n`". scanf needs to know *where* to store the value, not what's currently in it. Forgetting `&` is the #1 scanf bug.
+      ```input
+      29
+      ```
 
-      On this site, each test feeds the program some input. Use **Run with my input** to try your own.
+      ```output
+      Next year you'll be 30
+      ```
+
+      ### Why the `&`?
+
+      `printf` only needs a variable's **value**, so you pass `age`. `scanf` needs to change the variable, so it needs to know **where** the variable lives in memory. `&age` means "the address of `age`". Think of it as giving `scanf` the location of the box so it can put the number inside.
+
+      Forgetting the `&` is the most common `scanf` bug. The compiler warns (`format '%d' expects argument of type 'int *'`) and the program usually crashes when it runs, because `scanf` treats the garbage value as an address. You'll understand addresses fully in the pointers module; for now, remember: **`scanf` needs `&` before number and character variables.**
+
+      ### Input on this site
+
+      Programs here can't pause and wait for you to type. Each test gives the program its input in advance, as if it had been typed. To try your own input, press **Run with my input**, type into the box, and run.
 
       **Your turn:** read an int and print it doubled. Input `21` prints `42`.
     fill: |
@@ -39,12 +61,37 @@ steps:
   - title: Several values at once
     id: c-input-2
     text: |
-      One `scanf` can read several values. Whitespace (spaces, newlines) between them is skipped automatically for numbers.
+      One `scanf` call can read several values. List one format specifier per value, and one address per variable, in the same order:
 
-      ```c
-      int a, b;
-      scanf("%d %d", &a, &b);
+      ```c run
+      #include <stdio.h>
+
+      int main(void) {
+          int width, height;
+          scanf("%d %d", &width, &height);
+          printf("Area: %d\n", width * height);
+          return 0;
+      }
       ```
+
+      ```input
+      12
+      5
+      ```
+
+      ```output
+      Area: 60
+      ```
+
+      ### Whitespace is flexible
+
+      When reading numbers, `scanf` skips any **whitespace** (spaces, tabs and newlines) before each one. So the program above reads the same values whether they're typed as `12 5` on one line or on two separate lines like in the example. A space in the format string also means "skip any amount of whitespace here", so `"%d %d"` and `"%d%d"` behave the same for numbers.
+
+      Other characters in the format string must match the input exactly. With `"%d,%d"` the input has to be `12,5`; if a comma isn't there, reading stops early.
+
+      ### How scanf reads
+
+      Think of the input as a stream of characters with a reading position. Each `%d` skips whitespace, reads digits (and an optional sign) as far as they go, converts them to an int, and moves the position forward. The next `scanf` call continues from there. Reading is always left to right; nothing is read twice.
 
       **Your turn:** read a player's kills and deaths and print their difference.
 
@@ -80,13 +127,39 @@ steps:
   - title: Reading doubles
     id: c-input-3
     text: |
-      Here's a quirk: `printf` uses `%f` for a double, but `scanf` needs **`%lf`** ("long float") to read into a `double`.
+      Here's a quirk you just have to memorize: `printf` uses `%f` to print a `double`, but `scanf` needs **`%lf`** ("long float") to read one.
 
-      ```c
-      double price;
-      scanf("%lf", &price);
-      printf("%.2f\n", price);
+      | Type | print with | read with |
+      |---|---|---|
+      | `int` | `%d` | `%d` |
+      | `double` | `%f` | `%lf` |
+      | `char` | `%c` | `%c` |
+
+      The reason is history: when you pass a value to `printf`, a `float` is automatically converted to `double`, so `%f` works for both. `scanf` receives an address instead, and it must know whether the box at that address is a 4-byte `float` or an 8-byte `double`. Using `%f` with a `double` writes the wrong number of bytes and gives nonsense.
+
+      ```c run
+      #include <stdio.h>
+
+      int main(void) {
+          double km;
+          scanf("%lf", &km);
+          double miles = km * 0.621371;
+          printf("%.2f km = %.2f miles\n", km, miles);
+          return 0;
+      }
       ```
+
+      ```input
+      42.195
+      ```
+
+      ```output
+      42.20 km = 26.22 miles
+      ```
+
+      ### Formulas with doubles
+
+      When a formula mixes a `double` with int literals, like `km * 0.621371` or `c * 9 / 5 + 32`, C works left to right with precedence: `c * 9` is a double (because `c` is), so `/ 5` is a real division too. The integer-division trap only bites when **both** sides of `/` are ints. If you wrote `9 / 5 * c`, the `9 / 5` would be done first as ints and give 1, which is wrong.
 
       **Your turn:** read a temperature in Celsius and print it in Fahrenheit with one decimal. The formula is `f = c * 9 / 5 + 32`.
 
@@ -121,13 +194,41 @@ steps:
   - title: Characters and words
     id: c-input-4
     text: |
-      - `%c` reads **one character**, and it does *not* skip whitespace. Write `" %c"` (with a leading space) to skip spaces and newlines first.
-      - `%s` reads a **word** (up to the next space) into a char array. Arrays don't need `&`. You'll learn why in the pointers module.
+      ### Reading one character
 
-      ```c
-      char name[32];
-      scanf("%31s", name);   // 31 = max chars, leaving room for the terminator
+      `%c` reads exactly **one** character, and unlike `%d` it does **not** skip whitespace first. If the input is `5 x`, reading `%d` then `%c` gives you the space, not the `x`. The fix is a space in the format string before `%c`: `" %c"` means "skip whitespace, then read one character".
+
+      ### Reading a word
+
+      `%s` skips whitespace, then reads characters until the next whitespace. The characters go into a **char array** (a row of chars, which is how C stores text):
+
+      ```c run
+      #include <stdio.h>
+
+      int main(void) {
+          char city[20];
+          int year;
+          char grade;
+          scanf("%19s %d %c", city, &year, &grade);
+          printf("%s, %d, grade %c\n", city, year, grade);
+          return 0;
+      }
       ```
+
+      ```input
+      Lisbon 2019 A
+      ```
+
+      ```output
+      Lisbon, 2019, grade A
+      ```
+
+      Two things to notice:
+
+      - `city` has **no `&`**. An array's name already acts as the address of its first element, so it's passed as is. You'll see why in the arrays and pointers modules.
+      - `%19s` limits the read to 19 characters. An array of 20 chars can hold 19 letters plus the invisible end marker C adds after text. Without a limit, a long word would write past the end of the array, which is a serious bug (a **buffer overflow**) and a classic security hole. Always give `%s` a width.
+
+      `%s` stops at spaces, so it reads one word, not a whole sentence. Reading whole lines uses `fgets`, which you'll meet in the files module.
 
       **Your turn:** the input is a name followed by a team letter, like `s1mple T`. Print `s1mple plays on T`.
     fill: |
@@ -153,16 +254,42 @@ steps:
   - title: Did the read work?
     id: c-input-5
     text: |
-      `scanf` returns how many values it successfully read. If the input isn't a number, reading `%d` fails and returns 0. At the end of input it returns `EOF` (a negative number).
+      Input comes from people, and people type unexpected things. A robust program checks that each read actually worked.
 
-      ```c
-      int n;
-      if (scanf("%d", &n) == 1) {
-          // n is valid
+      `scanf` **returns** a number: how many values it successfully read and stored. With `scanf("%d %d", &a, &b)`:
+
+      - `2` means both worked.
+      - `1` means the first worked but the second didn't.
+      - `0` means the input didn't match at all (for example, letters where a number was expected). Nothing was stored.
+      - `EOF` (a negative value) means the input ended before anything could be read.
+
+      When a read fails, the variable keeps whatever it had before, which for an uninitialized variable is garbage. Using it anyway is a bug. So compare the return value with how many values you asked for:
+
+      ```c run
+      #include <stdio.h>
+
+      int main(void) {
+          int a, b;
+          int got = scanf("%d %d", &a, &b);
+          printf("read %d value(s)\n", got);
+          if (got == 2) {
+              printf("sum %d\n", a + b);
+          }
+          return 0;
       }
       ```
 
-      You'll learn `if` properly in the next module; for now just follow the pattern.
+      ```input
+      7 seven
+      ```
+
+      ```output
+      read 1 value(s)
+      ```
+
+      `if` runs its block only when the condition in parentheses is true; you'll learn it properly in the next module. For now, the pattern `if (scanf(...) == N)` is all you need.
+
+      A failed read also leaves the bad characters in the input, so the next `%d` fails on them too. Real programs usually read a whole line and then parse it, which avoids that trap.
 
       **Your turn:** read one int. If it worked, print `Got N`. Otherwise print `Not a number`.
     seed: |

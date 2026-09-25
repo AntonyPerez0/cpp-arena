@@ -65,7 +65,7 @@ export default function StepPage() {
             {done && <span className="done-chip">✓ done</span>}
           </div>
           <h1>{step.title}</h1>
-          <Markdown text={step.text} />
+          <Markdown text={step.text} top={2} />
           {visualsForStep(step.id).map((v) => (
             <Link key={v.id} to={`/visualize/${v.id}`} className="watch-card">
               <span className="watch-icon" aria-hidden="true">

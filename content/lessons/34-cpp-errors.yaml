@@ -7,10 +7,42 @@ steps:
   - title: Bugs vs expected failures
     id: cpp-errors-1
     text: |
-      Two very different things can go wrong:
+      Every real program meets failure. The first skill is telling apart two very different kinds:
 
-      1. **Bugs** (a broken assumption in *your* code, like a negative array size). Use `assert(condition)` from `<cassert>`. If the condition is false, the program stops immediately and tells you where. It's a tripwire for programmers.
-      2. **Expected failures** (bad user input, a missing file, a player not found). These aren't bugs, so the code must handle them and keep going.
+      1. **Bugs**: a broken assumption in *your own* code. A function that requires a positive size gets a negative one; an index that "can't" be out of range is. Nothing sensible can happen next, and the fix is to change the code.
+      2. **Expected failures**: things that go wrong in normal use. The user types letters where a number goes, a file is missing, a player isn't found. These aren't bugs, so the program must **handle** them and keep going.
+
+      ### assert: tripwires for bugs
+
+      `assert(condition)` from `<cassert>` checks something that must **always** be true. If it's false, the program stops immediately and prints the file, line and condition that failed, which points you straight at the bug.
+
+      ```cpp run
+      #include <cassert>
+      #include <iostream>
+      #include <vector>
+
+      int middle(const std::vector<int>& sorted) {
+          assert(!sorted.empty());          // callers must never pass an empty vector
+          return sorted[sorted.size() / 2];
+      }
+
+      int main() {
+          std::cout << middle({1, 3, 7, 9, 12}) << "\n";
+          std::cout << middle({4}) << "\n";
+          // middle({});  would stop the program with something like:
+          //   main.cpp:6: int middle(...): Assertion `!sorted.empty()' failed.
+      }
+      ```
+
+      ```output
+      7
+      4
+      ```
+
+      - Asserts are for **programmer** mistakes. Never use them to check user input: a user typing a bad value shouldn't crash the program.
+      - Release builds often define `NDEBUG`, which removes every `assert`. So never put code with side effects inside one: `assert(v.pop_back(), ...)` would vanish in release.
+
+      ### Exceptions, and why this site doesn't use them
 
       **Exceptions** (`throw`/`try`/`catch`) are standard C++'s general tool for failure: a `throw` unwinds the stack to the nearest matching `catch`, running destructors on the way (RAII again!).
 
@@ -45,17 +77,51 @@ steps:
   - title: Status codes
     id: cpp-errors-2
     text: |
-      The C-style approach: return a status (success or failure), and deliver the actual result through a reference parameter.
+      The oldest approach, straight from C: the function **returns a status** (did it work?), and delivers the actual result through a **reference parameter**.
 
-      ```cpp
-      bool try_buy(int& money, int price) {
-          if (price > money) return false;
-          money -= price;
+      ```cpp run
+      #include <iostream>
+      #include <string>
+
+      [[nodiscard]] bool withdraw(int& balance, int amount) {
+          if (amount <= 0 || amount > balance) return false;   // refuse, change nothing
+          balance -= amount;
           return true;
+      }
+
+      int main() {
+          int balance = 100;
+          for (int amount : {30, 500, -5, 70}) {
+              if (withdraw(balance, amount)) {
+                  std::cout << "took " << amount << ", left " << balance << "\n";
+              } else {
+                  std::cout << "refused " << amount << "\n";
+              }
+          }
+          // withdraw(balance, 10);   // warning: ignoring return value declared with 'nodiscard'
       }
       ```
 
-      Simple and fast, but it's easy for callers to ignore the returned status. `[[nodiscard]]` makes the compiler warn when they do.
+      ```output
+      took 30, left 70
+      refused 500
+      refused -5
+      took 70, left 0
+      ```
+
+      ### How it works
+
+      - The return value answers "did it work?". The **real** output (the new balance here) goes through the `int&` parameter.
+      - On failure, the function changes **nothing**. Callers can rely on that: a failed withdrawal leaves the balance intact.
+      - `[[nodiscard]]` makes the compiler warn if a caller ignores the result. Without it, `withdraw(balance, 500);` would silently fail, and the caller would carry on believing the money was taken.
+
+      ### Strengths and weaknesses
+
+      It's simple, fast and works everywhere, including C. But the caller must remember to check, the result has to be declared before the call, and a plain `bool` can't say **why** it failed. The next steps improve on each of those.
+
+      ### Your task
+
+      Division by zero is the failure case: return `false` and leave `out` alone. Otherwise store `a / b` in `out` and return `true`. Add `[[nodiscard]]` before the return type.
 
       **Your turn:** write `[[nodiscard]] bool divide(int a, int b, int& out)` that returns false for division by zero and otherwise stores `a / b` in `out`.
     seed: |
@@ -84,7 +150,47 @@ steps:
   - title: optional for "maybe"
     id: cpp-errors-3
     text: |
-      When the only failure is "no result", `std::optional` says it clearly in the return type and forces the caller to check.
+      When the only possible failure is "there's no result", `std::optional` says it right in the return type: the function returns **either** a value **or** nothing. There's no separate out-parameter, and the caller can't use the value without facing the empty case.
+
+      ```cpp run
+      #include <iostream>
+      #include <map>
+      #include <optional>
+      #include <string>
+
+      std::optional<std::string> phone_of(const std::map<std::string, std::string>& book, const std::string& name) {
+          auto it = book.find(name);
+          if (it == book.end()) return std::nullopt;
+          return it->second;
+      }
+
+      int main() {
+          std::map<std::string, std::string> book = {{"ada", "555-0101"}, {"alan", "555-0199"}};
+          for (const char* who : {"alan", "grace"}) {
+              auto p = phone_of(book, who);
+              std::cout << who << ": " << p.value_or("unknown") << "\n";
+          }
+      }
+      ```
+
+      ```output
+      alan: 555-0199
+      grace: unknown
+      ```
+
+      ### Compared with a status code
+
+      | | status code | `std::optional` |
+      |---|---|---|
+      | Result delivered | out-parameter | return value |
+      | Caller forgets to check | wrong data used silently | the value simply isn't there to use |
+      | Says why it failed | no | no |
+
+      ### Why not return -1?
+
+      For an index, `-1` is the classic "not found" value, but the return type `std::size_t` is **unsigned**, so `-1` would become a huge number that looks like a valid index. `std::optional<std::size_t>` avoids the whole problem.
+
+      For your search: loop over the indexes, return `i` on a match, and return `std::nullopt` after the loop.
 
       **Your turn:** write `std::optional<std::size_t> find_player(const std::vector<std::string>& team, const std::string& name)` returning the index or `std::nullopt`.
     seed: |
@@ -122,15 +228,55 @@ steps:
   - title: A Result type
     id: cpp-errors-4
     text: |
-      Sometimes the caller needs to know **why** it failed. A small `Result` type carries either a value or an error message. (C++23 standardizes this idea as `std::expected<T, E>`.)
+      `optional` says **that** something failed, but not **why**. When there are several ways to fail, the caller (and the user reading an error message) needs to know which one happened. A small **Result** type carries either a value or an error description. C++23 standardizes the idea as `std::expected<T, E>`; you'll often see hand-written versions like this one.
 
-      ```cpp
-      struct Result {
+      ```cpp run
+      #include <iostream>
+      #include <optional>
+      #include <string>
+
+      struct AgeResult {
           std::optional<int> value;
           std::string error;
           bool ok() const { return value.has_value(); }
       };
+
+      AgeResult parse_age(const std::string& s) {
+          if (s.empty()) return {std::nullopt, "empty"};
+          int v = 0;
+          for (char c : s) {
+              if (c < '0' || c > '9') return {std::nullopt, "not a number"};
+              v = v * 10 + (c - '0');
+              if (v > 150) return {std::nullopt, "unrealistic"};
+          }
+          return {v, ""};
+      }
+
+      int main() {
+          for (const char* in : {"42", "", "4x", "999"}) {
+              AgeResult r = parse_age(in);
+              if (r.ok()) std::cout << "'" << in << "' -> " << *r.value << "\n";
+              else std::cout << "'" << in << "' -> error: " << r.error << "\n";
+          }
+      }
       ```
+
+      ```output
+      '42' -> 42
+      '' -> error: empty
+      '4x' -> error: not a number
+      '999' -> error: unrealistic
+      ```
+
+      ### How it works
+
+      - Each failure returns immediately with its own message. The checks run **in order**, so decide which error wins when several apply. Here an empty string is reported as "empty", not "not a number".
+      - `return {v, ""};` builds the struct from braces: first the optional, then the error.
+      - `v > 150` is checked **inside** the loop, as soon as the number gets too big. Checking only at the end could overflow `int` on a very long string of digits first.
+
+      ### Your task: money
+
+      The same structure, in this order: check the leading `$` (also catches the empty string), then check there's at least one character after it, then check that every character after it is a digit while building the value, then compare with the cap. Checking the cap inside the loop protects you from overflow on inputs like `$99999999999`.
 
       **Your turn:** write `Result parse_money(const std::string& s)` for amounts like `"$2700"`:
 
@@ -194,16 +340,69 @@ steps:
     text: |
       Real programs are layers: `main` calls `load_config`, which calls `parse_line`, which calls `parse_int`. When the bottom layer fails, each layer above has two honest choices:
 
-      1. **Handle it** (use a default, retry, skip the item), or
+      1. **Handle it**: use a default, retry, skip the item, tell the user.
       2. **Pass it up** unchanged, usually with an early `return`.
 
-      The one dishonest choice is swallowing it: returning a made-up value as if nothing went wrong. That's how bugs travel far from where they started.
+      The one dishonest choice is **swallowing** it: returning a made-up value as if nothing went wrong. That's how bugs travel far from where they started.
+
+      ```cpp run
+      #include <iostream>
+      #include <optional>
+      #include <string_view>
+
+      std::optional<int> digit(char c) {
+          if (c < '0' || c > '9') return std::nullopt;
+          return c - '0';
+      }
+
+      // Sum of the digits in a code like "4-7-1". Any bad character fails the whole thing.
+      std::optional<int> checksum(std::string_view code) {
+          int total = 0;
+          for (std::size_t i = 0; i < code.size(); i += 2) {
+              auto d = digit(code[i]);
+              if (!d) return std::nullopt;             // pass the failure up
+              total += *d;
+              if (i + 1 < code.size() && code[i + 1] != '-') return std::nullopt;
+          }
+          return total;
+      }
+
+      int main() {
+          for (std::string_view c : {"4-7-1", "4-x-1", "9"}) {
+              auto sum = checksum(c);
+              if (sum) std::cout << c << " -> " << *sum << "\n";
+              else std::cout << c << " -> invalid\n";   // main handles it: tell the user
+          }
+      }
+      ```
+
+      ```output
+      4-7-1 -> 12
+      4-x-1 -> invalid
+      9 -> 9
+      ```
+
+      ### Reading the layers
+
+      - `digit` knows **what** failed but not what to do about it, so it just reports.
+      - `checksum` can't produce a meaningful sum from a bad digit, so it passes the failure up with `return std::nullopt;` as soon as it sees one.
+      - `main` is where a decision can be made: it tells the user.
+
+      ### Your task: summing comma-separated values
+
+      Split the view at each comma. A loop with `find(',')` works well:
 
       ```cpp
-      auto n = parse_int(part);
-      if (!n) return std::nullopt;   // pass it up
-      total += *n;
+      while (true) {
+          auto comma = s.find(',');
+          std::string_view part = s.substr(0, comma);   // up to the comma, or everything
+          // ... parse part, pass failure up ...
+          if (comma == std::string_view::npos) break;
+          s.remove_prefix(comma + 1);
+      }
       ```
+
+      An empty part (as in `"3,,4"` or `""`) fails in `parse_int`, which is correct: pass it up.
 
       **Your turn:** `parse_int` is written for you. Write `std::optional<int> sum_csv(std::string_view s)` that sums comma-separated integers like `"3,4,-2"`. If **any** part fails to parse, the whole sum fails.
     seed: |
@@ -272,7 +471,68 @@ steps:
   - title: "Challenge: load a config"
     id: cpp-errors-6
     text: |
-      Put the pieces together in the kind of code every service has: a config loader that reports **precise** errors, because "invalid config" with no line number wastes everyone's time.
+      Now put the pieces together in the kind of code every service has: a config loader. It must report **precise** errors, because "invalid config" with no line number wastes everyone's time. Good error messages say **where** and **what**.
+
+      Here's a smaller loader for a shopping list with `item: qty` lines, using the same techniques you'll need:
+
+      ```cpp run
+      #include <iostream>
+      #include <map>
+      #include <sstream>
+      #include <string>
+
+      struct ListResult {
+          std::map<std::string, int> items;
+          std::string error;                     // empty means success
+      };
+
+      ListResult load_list(const std::string& text) {
+          ListResult r;
+          std::istringstream in(text);
+          std::string line;
+          int n = 0;
+          while (std::getline(in, line)) {
+              n++;                               // count every line, even skipped ones
+              if (line.empty()) continue;
+              auto colon = line.find(':');
+              if (colon == std::string::npos) {
+                  r.error = "line " + std::to_string(n) + ": missing :";
+                  return r;
+              }
+              std::string item = line.substr(0, colon);
+              if (r.items.contains(item)) {
+                  r.error = "line " + std::to_string(n) + ": " + item + " listed twice";
+                  return r;
+              }
+              r.items[item] = std::stoi(line.substr(colon + 1));
+          }
+          return r;
+      }
+
+      int main() {
+          ListResult ok = load_list("eggs: 12\n\nmilk: 2\n");
+          std::cout << ok.items.size() << " items, eggs " << ok.items["eggs"] << "\n";
+
+          std::cout << load_list("eggs: 12\nmilk 2\n").error << "\n";
+          std::cout << load_list("tea: 1\n\ntea: 3\n").error << "\n";
+      }
+      ```
+
+      ```output
+      2 items, eggs 12
+      line 2: missing :
+      line 3: tea listed twice
+      ```
+
+      ### Details that matter
+
+      - The line counter increases for **every** line, including skipped blank ones. Otherwise the reported number wouldn't match what the user sees in their editor. The third example reports line 3, not 2.
+      - The function **stops at the first error** and returns. Carrying on after a broken line tends to produce confusing follow-up errors.
+      - The error text is built with `std::to_string(n)` and string concatenation.
+
+      ### Your task's extra rules
+
+      Your loader also skips lines starting with `#` (check `line[0] == '#'` after the empty check, so you never index an empty string), and rejects an **empty key**, which is what you get for a line like `=value` (the `=` is at index 0). Check the rules in the order listed.
 
       **Your turn:** write `ConfigResult load_config(const std::string& text)`. The text has one `key=value` per line:
 

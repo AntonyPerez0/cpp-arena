@@ -7,14 +7,42 @@ steps:
   - title: The null terminator
     id: c-strings-1
     text: |
-      C has no built-in string type. A string is a **char array** that ends with the special character `'\0'` (value 0), called the **null terminator**.
+      You've been printing strings since the first lesson. Now it's time to see what they really are, because C strings behave very differently from strings in most other languages.
 
-      ```c
-      char name[] = "dust";
-      // stored as: 'd' 'u' 's' 't' '\0'   (5 chars!)
+      C has **no string type**. A string is just a `char` array, and the end of the text is marked by a special character with the value 0, written `'\0'` and called the **null terminator**.
+
+      ```c run
+      #include <stdio.h>
+
+      int main(void) {
+          char word[] = "map";
+          printf("%s\n", word);
+          printf("%zu bytes\n", sizeof(word));
+          printf("codes: %d %d %d %d\n", word[0], word[1], word[2], word[3]);
+          word[0] = 'c';
+          printf("%s\n", word);
+          return 0;
+      }
       ```
 
-      Functions like `printf("%s")` print characters until they hit `'\0'`. Forget it, and they keep reading random memory.
+      ```output
+      map
+      4 bytes
+      codes: 109 97 112 0
+      cap
+      ```
+
+      `"map"` has 3 letters but takes **4** bytes: `'m'`, `'a'`, `'p'` and `'\0'`. When you write a string in double quotes, the compiler adds the terminator for you.
+
+      ### Why a terminator?
+
+      A plain array doesn't know its own length. Functions like `printf("%s", ...)` need to know where the text ends, so they print characters one by one **until they reach `'\0'`**. Every string function in C relies on this rule.
+
+      If the terminator is missing, those functions keep going past the end of the array, printing or copying whatever bytes happen to follow in memory, until they happen to hit a zero. That's a bug, and a common source of crashes and security problems.
+
+      ### Strings are editable arrays
+
+      Because a string is a char array, you can change individual characters with an index, as the example does with `word[0] = 'c'`. When you build a string by hand, character by character, you must put the `'\0'` at the end yourself.
 
       **Your turn:** build the string `"ak"` by hand and print it.
     fill: |
@@ -36,16 +64,46 @@ steps:
   - title: strlen and friends
     id: c-strings-2
     text: |
-      `<string.h>` has the standard string functions:
+      Since strings are arrays, you can't combine or copy them with `=` or `+` like in other languages. `char a[10]; a = "hi";` doesn't compile: arrays can't be assigned. Instead, the standard library `<string.h>` provides functions:
 
-      | Function | Does |
+      | Function | What it does |
       |---|---|
-      | `strlen(s)` | number of chars before `'\0'` |
-      | `strcpy(dst, src)` | copy src into dst |
-      | `strcat(dst, src)` | append src to dst |
-      | `strcmp(a, b)` | 0 if equal, negative/positive otherwise |
+      | `strlen(s)` | counts characters before the `'\0'` |
+      | `strcpy(dst, src)` | copies `src` into `dst`, including the terminator |
+      | `strcat(dst, src)` | appends `src` to the end of the text already in `dst` |
+      | `strcmp(a, b)` | compares two strings (next steps) |
 
-      `dst` must be big enough, including room for the `'\0'`.
+      ```c run
+      #include <stdio.h>
+      #include <string.h>
+
+      int main(void) {
+          char greeting[40];
+          strcpy(greeting, "Hello");
+          strcat(greeting, ", ");
+          strcat(greeting, "Ada");
+          printf("%s (%zu chars)\n", greeting, strlen(greeting));
+          return 0;
+      }
+      ```
+
+      ```output
+      Hello, Ada (10 chars)
+      ```
+
+      ### The destination must be big enough
+
+      `strcpy` and `strcat` don't know how big `dst` is. They copy until they reach the source's terminator, and if `dst` is too small they write past its end: a **buffer overflow**. Always size the destination for the longest possible result, **plus one** for the `'\0'`. Here `greeting` has room for 40, and we use 11.
+
+      For text built from several pieces, `snprintf` is often safer: it works like `printf` but writes into an array and never writes more than the size you give it:
+
+      ```c
+      snprintf(greeting, sizeof greeting, "%s, %s", "Hello", "Ada");
+      ```
+
+      ### strlen vs sizeof
+
+      `strlen` counts the characters of text currently stored (10 here). `sizeof greeting` is the size of the whole array (40), no matter what's in it.
 
       **Your turn:** read two words and print them joined with a `-` between, followed by the total length. Input `de dust2` prints `de-dust2 8`.
     seed: |
@@ -88,11 +146,48 @@ steps:
   - title: Write your own strlen
     id: c-strings-3
     text: |
-      Knowing how the library works makes you dangerous (in a good way). A string's length is the number of chars before `'\0'`.
+      Library functions aren't magic. `strlen` is a short loop, and writing it yourself is the best way to really understand how C strings work.
+
+      The idea: start at index 0 and move forward one character at a time until you find `'\0'`. The index where you stop **is** the length, because indexes start at 0. Here's the same kind of loop counting something else, the number of spaces:
+
+      ```c run
+      #include <stdio.h>
+
+      int count_spaces(const char s[]) {
+          int count = 0;
+          for (int i = 0; s[i] != '\0'; i++) {
+              if (s[i] == ' ') {
+                  count++;
+              }
+          }
+          return count;
+      }
+
+      int main(void) {
+          printf("%d\n", count_spaces("to be or not to be"));
+          printf("%d\n", count_spaces(""));
+          return 0;
+      }
+      ```
+
+      ```output
+      5
+      0
+      ```
+
+      ### The loop condition is the key
+
+      `s[i] != '\0'` is the standard way to walk a string: the loop body runs for every real character and stops at the terminator. You don't need the length in advance, which is the whole point of the terminator. (Since `'\0'` is 0 and 0 is false, you'll often see the shorter `for (int i = 0; s[i]; i++)`.)
+
+      ### Empty strings
+
+      `""` is a string whose very first character is `'\0'`. A correct loop handles it naturally: the condition is false immediately, the body never runs, and the result is 0. Always check your string functions against the empty string.
+
+      ### const
+
+      `const char s[]` promises that the function only **reads** the string. If the body tried `s[0] = 'x'`, the compiler would refuse. It also lets callers pass string literals like `"hello"`, which must never be modified.
 
       **Your turn:** write `int my_strlen(const char s[])` without using `<string.h>`.
-
-      `const` here promises the function won't modify the string.
     seed: |
       int my_strlen(const char s[]) {
 
@@ -122,11 +217,54 @@ steps:
   - title: Compare strings correctly
     id: c-strings-4
     text: |
-      `a == b` on two strings compares their **addresses**, not their contents. To compare text, use `strcmp`:
+      Comparing two strings with `==` is one of the most common C bugs:
 
       ```c
-      if (strcmp(map, "mirage") == 0) { ... }   // equal
+      char cmd[20] = "quit";
+      if (cmd == "quit") { ... }   // wrong: compares addresses
       ```
+
+      A string in C is an array, and using an array's name gives the **address** of its first character. So `==` asks "are these the same place in memory?", not "do they contain the same text?". They're different arrays, so it's false even though the letters match. The compiler warns: `comparison with string literal results in unspecified behavior`.
+
+      To compare **contents**, use `strcmp(a, b)` from `<string.h>`. It compares character by character and returns:
+
+      - `0` if the strings are equal,
+      - a **negative** number if `a` comes first alphabetically (by character codes),
+      - a **positive** number if `a` comes after `b`.
+
+      ```c run
+      #include <stdio.h>
+      #include <string.h>
+
+      int main(void) {
+          char answer[20];
+          scanf("%19s", answer);
+          if (strcmp(answer, "yes") == 0) {
+              printf("confirmed\n");
+          } else if (strcmp(answer, "no") == 0) {
+              printf("cancelled\n");
+          } else {
+              printf("please answer yes or no\n");
+          }
+          printf("%d\n", strcmp("apple", "banana") < 0);
+          return 0;
+      }
+      ```
+
+      ```input
+      no
+      ```
+
+      ```output
+      cancelled
+      1
+      ```
+
+      ### Read it carefully
+
+      `strcmp` returns 0 for **equal**, and 0 means false in C. So `if (strcmp(a, b))` runs when they're **different**, the opposite of what it looks like. Always write the comparison out: `strcmp(a, b) == 0`.
+
+      The comparison is exact and case sensitive: `"Yes"` and `"yes"` are different, because `'Y'` and `'y'` have different codes.
 
       **Your turn:** read a command word. Print `planting` for `plant`, `defusing` for `defuse`, and `unknown command` for anything else.
     seed: |
@@ -170,9 +308,45 @@ steps:
   - title: Characters are numbers
     id: c-strings-5
     text: |
-      Because chars are small numbers, you can do math on them. Letters `'a'` to `'z'` are consecutive, so `'a' + 2` is `'c'`, and `c - 'a'` gives a letter's position in the alphabet.
+      A `char` is a small integer holding a character code, so you can do arithmetic and comparisons on characters. In ASCII, the letters `'a'` to `'z'` have consecutive codes (97 to 122), and so do `'A'` to `'Z'` (65 to 90) and the digits `'0'` to `'9'` (48 to 57). That makes several tricks possible:
 
-      `<ctype.h>` has helpers: `isdigit(c)`, `isalpha(c)`, `isupper(c)`, `toupper(c)`, `tolower(c)`.
+      - `c >= 'a' && c <= 'z'` checks for a lowercase letter.
+      - `c - 'a'` gives a letter's position in the alphabet (`'c' - 'a'` is 2).
+      - `c - '0'` turns a digit character into its number (`'7' - '0'` is 7).
+      - The gap between lowercase and uppercase is the same for every letter: `'a' - 'A'` is 32.
+
+      ```c run
+      #include <stdio.h>
+
+      int digit_sum(const char s[]) {
+          int sum = 0;
+          for (int i = 0; s[i] != '\0'; i++) {
+              if (s[i] >= '0' && s[i] <= '9') {
+                  sum += s[i] - '0';
+              }
+          }
+          return sum;
+      }
+
+      int main(void) {
+          printf("%d\n", digit_sum("a1b2c3"));
+          printf("%c%c\n", 'a' + 7, 'A' + ('e' - 'a'));
+          return 0;
+      }
+      ```
+
+      ```output
+      6
+      hE
+      ```
+
+      ### The `<ctype.h>` helpers
+
+      The standard library has ready-made, readable versions of these checks: `isdigit(c)`, `isalpha(c)`, `islower(c)`, `isupper(c)`, `isspace(c)`, and converters `toupper(c)` and `tolower(c)`, which return the converted character (or the same character if there's nothing to convert). They're clearer than hand-written ranges, so prefer them in real code.
+
+      ### Changing a string in place
+
+      To modify a string, loop over it and assign to `s[i]`. Only change the characters that need changing; everything else, including spaces, digits and the terminator, must stay as it was.
 
       **Your turn:** write `void to_upper(char s[])` that converts every lowercase letter in the string to uppercase **in place**. Leave other characters alone.
     seed: |
@@ -210,7 +384,51 @@ steps:
   - title: "Challenge: palindromes"
     id: c-strings-6
     text: |
-      A palindrome reads the same forwards and backwards, like `level` or `racecar`.
+      This challenge combines what you've learned about strings with the two-index technique from reversing an array.
+
+      A **palindrome** reads the same forwards and backwards: `level`, `racecar`, `noon`. To check, compare the first character with the last, the second with the second-to-last, and so on toward the middle. If any pair differs, it's not a palindrome, and you can return 0 immediately. If every pair matches, return 1.
+
+      ### Finding the last character
+
+      The last real character of `s` is at index `strlen(s) - 1` (the terminator is at `strlen(s)`). Start one index there and one at 0, and move them toward each other while the left one is still before the right one.
+
+      Here's the same two-index walk used to check whether a string is "mirrored" by another rule, every character matching its partner from the other end with the case ignored:
+
+      ```c run
+      #include <stdio.h>
+      #include <string.h>
+      #include <ctype.h>
+
+      int same_ignoring_case(const char a[], const char b[]) {
+          size_t n = strlen(a);
+          if (strlen(b) != n) {
+              return 0;
+          }
+          for (size_t i = 0; i < n; i++) {
+              if (tolower((unsigned char)a[i]) != tolower((unsigned char)b[i])) {
+                  return 0;
+              }
+          }
+          return 1;
+      }
+
+      int main(void) {
+          printf("%d %d\n", same_ignoring_case("Hello", "hELLO"), same_ignoring_case("cat", "car"));
+          return 0;
+      }
+      ```
+
+      ```output
+      1 0
+      ```
+
+      ### Edge cases to think through
+
+      - The empty string `""`: nothing to compare, so it counts as a palindrome.
+      - A single character: also a palindrome.
+      - Even and odd lengths: with `left < right` as the loop condition, the middle character of an odd-length string is never compared with itself, which is fine.
+
+      (The `(unsigned char)` cast before `tolower` is a C detail: the `ctype` functions require values that fit in an unsigned char, and some systems' `char` can be negative for non-English letters.)
 
       **Your turn:** write `int is_palindrome(const char s[])` returning 1 or 0. Compare characters from both ends moving inward, like reversing an array.
     seed: |

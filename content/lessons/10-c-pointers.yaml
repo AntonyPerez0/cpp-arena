@@ -7,19 +7,48 @@ steps:
   - title: Addresses and pointers
     id: c-pointers-1
     text: |
-      Every variable lives at an **address** in memory. `&x` gives you that address. A **pointer** is a variable that stores an address.
+      Pointers are the idea that makes C, C. They're also the topic most beginners find hardest, so take this module slowly and use the **Watch it run** links: seeing the arrows helps enormously.
 
-      ```c
-      int hp = 100;
-      int *p = &hp;     // p points at hp
-      printf("%d\n", *p);   // 100: *p means "the value p points at"
-      *p = 75;              // changes hp itself!
-      printf("%d\n", hp);   // 75
+      ### Memory is a long row of numbered bytes
+
+      Your computer's memory is like a very long street of mailboxes, each holding one byte and each with a number: its **address**. When you declare `int hp = 100;`, the compiler reserves 4 bytes somewhere on that street for `hp`. The variable's name is for you; the machine only knows the address.
+
+      The `&` operator gives you a variable's address: `&hp` means "where `hp` lives". You've already used it with `scanf`.
+
+      ### A pointer is a variable that holds an address
+
+      ```c run
+      #include <stdio.h>
+
+      int main(void) {
+          int hp = 100;
+          int *p = &hp;
+          printf("%d\n", *p);
+          *p = 75;
+          printf("%d\n", hp);
+          hp = 20;
+          printf("%d\n", *p);
+          return 0;
+      }
       ```
 
-      - `int *p` declares "p is a pointer to int".
-      - `&hp` is "address of hp".
-      - `*p` (the **dereference** operator) is "the thing at that address".
+      ```output
+      100
+      75
+      20
+      ```
+
+      - `int *p` declares `p` as a **pointer to int**: a variable whose value is the address of an int.
+      - `p = &hp` stores `hp`'s address in `p`. We say "`p` points at `hp`".
+      - `*p` **dereferences** the pointer: it means "the int at the address stored in `p`". Reading `*p` reads `hp`; writing `*p = 75` writes into `hp`.
+
+      `p` and `hp` are two separate variables. Changing `hp` is visible through `*p`, and changing `*p` changes `hp`, because they refer to the same memory.
+
+      ### Two meanings of `*`
+
+      In a **declaration** (`int *p`), `*` means "p is a pointer". In an **expression** (`*p = 75`), `*` means "follow the pointer". Same symbol, two jobs; it's the main thing that makes pointer code look confusing at first.
+
+      (The actual numbers stored in pointers vary from run to run and machine to machine, so you rarely print them. You can with `%p` if you're curious.)
 
       **Your turn:** make `p` point at `armor`, then use `p` (not `armor` directly) to set it to `50`.
     fill: |
@@ -41,18 +70,41 @@ steps:
   - title: Change the caller's variable
     id: c-pointers-2
     text: |
-      Remember that C passes arguments by value, so a function can't change your variables... unless you pass their **address**:
+      Remember from the functions module: C passes arguments **by value**. A function gets copies, so it can't change the caller's variables. Pointers are the way around that. If you pass a variable's **address**, the function gets a copy of the address, and a copy of an address still points at the original variable.
 
-      ```c
-      void damage(int *hp, int amount) {
-          *hp -= amount;
+      ```c run
+      #include <stdio.h>
+
+      void add_points(int *score, int points) {
+          *score += points;
       }
 
-      int hp = 100;
-      damage(&hp, 30);   // hp is now 70
+      int main(void) {
+          int score = 10;
+          add_points(&score, 5);
+          add_points(&score, 20);
+          printf("%d\n", score);
+          return 0;
+      }
       ```
 
-      That's why `scanf` needs `&x`: it writes into your variable through a pointer.
+      ```output
+      35
+      ```
+
+      Follow the data:
+
+      1. `main` calls `add_points(&score, 5)`. The parameter `score` inside the function receives the **address** of `main`'s `score`.
+      2. `*score += points` follows that address and changes `main`'s variable.
+      3. When the function returns, its own variables disappear, but the change it made through the pointer stays.
+
+      This is exactly how `scanf("%d", &x)` works: you give it the address, and it writes the number there.
+
+      ### Swapping
+
+      A swap function is the classic example: it must change **two** of the caller's variables, which `return` can't do. The body is the same three-step swap you used with arrays (save one value in a temporary, copy the other over it, put the saved value in the second), just done through `*a` and `*b`.
+
+      Calling it requires addresses: `swap(&x, &y)`. Passing `x` and `y` without `&` is a compile error, because an `int` isn't an `int *`.
 
       **Your turn:** write `void swap(int *a, int *b)` that exchanges the two values.
     seed: |
@@ -83,11 +135,46 @@ steps:
   - title: Returning two results
     id: c-pointers-3
     text: |
-      A function can only `return` one value. Pointer parameters let it hand back more ("out parameters"):
+      A function can only `return` one value. When it naturally produces several results, a common C pattern is **out parameters**: the caller passes the addresses of variables, and the function fills them in.
 
-      ```c
-      void minmax(int a[], int n, int *min, int *max);
+      ```c run
+      #include <stdio.h>
+
+      void min_max(const int a[], int n, int *min, int *max) {
+          *min = a[0];
+          *max = a[0];
+          for (int i = 1; i < n; i++) {
+              if (a[i] < *min) {
+                  *min = a[i];
+              }
+              if (a[i] > *max) {
+                  *max = a[i];
+              }
+          }
+      }
+
+      int main(void) {
+          int data[] = {7, -2, 15, 4};
+          int lo, hi;
+          min_max(data, 4, &lo, &hi);
+          printf("min %d, max %d\n", lo, hi);
+          return 0;
+      }
       ```
+
+      ```output
+      min -2, max 15
+      ```
+
+      ### Reading the pattern
+
+      - The parameters `int *min` and `int *max` are "where to put the answers".
+      - Inside, the function writes through them: `*min = ...`.
+      - The caller creates the variables (`lo`, `hi`), then passes their addresses.
+
+      Out parameters show up all over real C code, including the standard library. A frequent combination is to `return` a success or error code while delivering the actual results through pointers, so the caller can check whether it worked.
+
+      Name out parameters clearly and write to every one of them on every path, so the caller never reads an unset variable.
 
       **Your turn:** write `void divmod(int a, int b, int *q, int *r)` that stores `a / b` in `*q` and `a % b` in `*r`.
     seed: |
@@ -116,15 +203,41 @@ steps:
   - title: Pointer arithmetic and arrays
     id: c-pointers-4
     text: |
-      An array's name turns into a pointer to its first element when you use it ("decays"). Adding 1 to a pointer moves it to the **next element** (not the next byte):
+      Here's the secret behind arrays. In most expressions, an array's name automatically turns into a **pointer to its first element**. This is called **decay**. So after `int a[3];`, writing `a` gives the same thing as `&a[0]`.
 
-      ```c
-      int a[3] = {10, 20, 30};
-      int *p = a;          // same as &a[0]
-      printf("%d\n", *(p + 1));   // 20
+      ### Pointer arithmetic
+
+      Adding an integer to a pointer moves it by that many **elements**, not bytes. If `p` points at an `int`, `p + 1` points at the next `int` (4 bytes further on), and `p + 2` two ints on. The compiler multiplies by the element size for you.
+
+      ```c run
+      #include <stdio.h>
+
+      int main(void) {
+          double prices[] = {1.5, 2.25, 4.0};
+          double *p = prices;
+          printf("%.2f\n", *p);
+          printf("%.2f\n", *(p + 2));
+          p++;
+          printf("%.2f\n", *p);
+          printf("%d\n", prices[1] == *(prices + 1));
+          return 0;
+      }
       ```
 
-      In fact `a[i]` is defined as `*(a + i)`. That's why arrays passed to functions can be modified: the function receives a pointer to the original elements.
+      ```output
+      1.50
+      4.00
+      2.25
+      1
+      ```
+
+      ### `a[i]` is `*(a + i)`
+
+      The indexing you've been using is defined in terms of pointers: `a[i]` literally means "start at `a`, move `i` elements, and dereference". That's why array indexes start at 0 (`*(a + 0)` is the first element), and why a function that receives an array can change the caller's elements: it received a pointer to them.
+
+      ### Walking with a pointer
+
+      Instead of an index, you can move a pointer along the array. The loop needs to know when to stop: either count down `n`, or compute an **end pointer** one past the last element (`a + n`) and loop while the moving pointer hasn't reached it. Pointing one past the end is allowed; dereferencing it is not.
 
       **Your turn:** write `int sum(const int *p, int n)` using pointer arithmetic instead of `[]`.
     seed: |
@@ -158,15 +271,47 @@ steps:
   - title: NULL
     id: c-pointers-5
     text: |
-      `NULL` is a special pointer value meaning "points at nothing". Dereferencing NULL crashes the program (on a normal OS it's the famous *segmentation fault*).
+      Sometimes a pointer needs to say "I'm not pointing at anything right now". For that, C has **`NULL`**: a special pointer value guaranteed not to be the address of any real object. It's defined in `<stddef.h>` (and several other headers).
 
-      Always check a pointer that might be NULL before using it:
+      Typical uses:
 
-      ```c
-      if (p != NULL) {
-          printf("%d\n", *p);
+      - A search function returns `NULL` when it finds nothing.
+      - An optional parameter can be `NULL` to mean "not provided".
+      - The last node of a linked list has a `next` pointer of `NULL`.
+      - A pointer that has been freed is set to `NULL` so nobody uses it by accident.
+
+      ### Never dereference NULL
+
+      Following a `NULL` pointer is undefined behavior. On desktop operating systems it immediately crashes the program with a **segmentation fault** (in the browser you'll see a crash message). So whenever a pointer **might** be `NULL`, check it before using it:
+
+      ```c run
+      #include <stdio.h>
+      #include <stddef.h>
+
+      void print_score(const int *score) {
+          if (score == NULL) {
+              printf("no score yet\n");
+              return;
+          }
+          printf("score %d\n", *score);
+      }
+
+      int main(void) {
+          int s = 42;
+          print_score(&s);
+          print_score(NULL);
+          return 0;
       }
       ```
+
+      ```output
+      score 42
+      no score yet
+      ```
+
+      ### Style
+
+      `if (p != NULL)` and `if (p)` mean the same thing, because `NULL` compares equal to 0 (false). Many C programmers write the short form. Checking early and returning (a **guard clause**) keeps the rest of the function simple, since it can assume the pointer is valid.
 
       **Your turn:** write `int safe_get(const int *p, int fallback)` that returns `*p`, or `fallback` if `p` is `NULL`.
     seed: |
@@ -196,13 +341,43 @@ steps:
   - title: Strings through pointers
     id: c-pointers-6
     text: |
-      Since strings are char arrays, `char *` is the usual way to walk through one:
+      Strings are char arrays, and a string passed to a function arrives as a `char *` pointing at its first character. Walking a string with a pointer is the most common pointer code in C, so it's worth getting fluent with it.
 
-      ```c
-      for (const char *c = s; *c != '\0'; c++) {
-          // *c is the current character
+      ```c run
+      #include <stdio.h>
+
+      int count_vowels(const char *s) {
+          int count = 0;
+          for (const char *c = s; *c != '\0'; c++) {
+              if (*c == 'a' || *c == 'e' || *c == 'i' || *c == 'o' || *c == 'u') {
+                  count++;
+              }
+          }
+          return count;
+      }
+
+      int main(void) {
+          printf("%d\n", count_vowels("programming in c"));
+          return 0;
       }
       ```
+
+      ```output
+      4
+      ```
+
+      ### Reading the loop
+
+      - `const char *c = s` starts a pointer at the first character.
+      - `*c != '\0'` keeps going until the terminator.
+      - `c++` moves to the next character.
+      - Inside, `*c` is the current character.
+
+      It does the same thing as `for (int i = 0; s[i] != '\0'; i++)` with `s[i]`. Both styles are common; the pointer version is idiomatic C and shows up in the standard library's own code.
+
+      ### String literals are read-only
+
+      A literal like `"programming in c"` is stored in read-only memory. You can point at it with a `const char *`, but you must never write through that pointer. Declaring parameters as `const char *` lets callers pass literals safely, and the compiler will stop you if the function tries to modify them.
 
       **Your turn:** write `int count_char(const char *s, char ch)` that returns how many times `ch` appears in `s`.
     seed: |
@@ -231,15 +406,46 @@ steps:
   - title: Pointers to pointers
     id: c-pointers-7
     text: |
-      A pointer is a variable too, so it has an address. `int **pp` is a pointer to a pointer to int. You need one when a function must change **which address** a pointer holds.
+      A pointer is itself a variable, so it has an address too. A **pointer to a pointer** (`int **pp`, read "pointer to pointer to int") stores that address. It sounds abstract, but there's one very practical reason to use it:
 
-      ```c
-      void point_at_max(int *a, int n, int **out) {
-          *out = &a[0];
-          for (int i = 1; i < n; i++)
-              if (a[i] > **out) *out = &a[i];
+      **When a function must change which address the caller's pointer holds**, it needs the address of that pointer, for the same reason a function needs `&x` to change an `int`.
+
+      ```c run
+      #include <stdio.h>
+
+      void skip_digits(const char **p) {
+          while (**p >= '0' && **p <= '9') {
+              (*p)++;
+          }
+      }
+
+      int main(void) {
+          const char *text = "2024 was a leap year";
+          skip_digits(&text);
+          printf("[%s]\n", text);
+          return 0;
       }
       ```
+
+      ```output
+      [ was a leap year]
+      ```
+
+      ### Unpacking the stars
+
+      Inside `skip_digits`, `p` has type `const char **`:
+
+      - `p` is the address of `main`'s `text` variable.
+      - `*p` **is** `main`'s `text` (a `const char *`), so `(*p)++` moves the caller's pointer forward.
+      - `**p` is the character that `text` currently points at.
+
+      The parentheses in `(*p)++` matter. `*p++` would move `p` itself (the local copy of the address) instead of the caller's pointer, because `++` binds tighter than `*`.
+
+      After the call, `main`'s `text` points into the middle of the same string. Nothing was copied; only the pointer moved.
+
+      ### Where you'll see this
+
+      Functions that allocate memory and hand it back through a parameter, functions that parse text and advance the caller's position, and linked-list code that changes the head pointer all use double pointers.
 
       **Your turn:** write `void advance(const char **s)` that moves the caller's string pointer past any leading spaces. After `advance(&p)` with `p` pointing at `"   go"`, `p` should point at `"go"`.
     seed: |
@@ -272,19 +478,53 @@ steps:
   - title: const and pointers
     id: c-pointers-8
     text: |
-      `const` can protect two different things, depending on where you put it:
+      `const` can protect two different things when pointers are involved: the **data being pointed at**, or the **pointer itself**. Where you put `const` decides which.
 
-      | Declaration | Can change `*p`? | Can re-point `p`? |
+      | Declaration | Can change `*p`? | Can move `p`? |
       |---|---|---|
       | `const int *p` | no | yes |
       | `int *const p` | yes | no |
       | `const int *const p` | no | no |
 
-      Read it right to left: `const int *p` is "p is a pointer to an int that is const".
+      The trick is to read the declaration **right to left**: `const int *p` is "p is a pointer to an int that is const". `int *const p` is "p is a const pointer to an int".
 
-      Professional C code marks every pointer parameter it only reads as `const int *`. It documents the promise ("I won't change your data") and the compiler enforces it.
+      ### Why professionals use it everywhere
 
-      A function can also **return** a pointer into the caller's array. If the array was `const`, the returned pointer must be `const` too.
+      When a function takes `const int *a`, it promises not to change the caller's data, and the compiler enforces the promise. Readers learn from the signature alone that the function only reads. It also allows passing data that genuinely can't change, like string literals.
+
+      ```c run
+      #include <stdio.h>
+      #include <stddef.h>
+
+      const char *first_upper(const char *s) {
+          for (; *s != '\0'; s++) {
+              if (*s >= 'A' && *s <= 'Z') {
+                  return s;
+              }
+          }
+          return NULL;
+      }
+
+      int main(void) {
+          const char *hit = first_upper("hello World");
+          if (hit != NULL) {
+              printf("%s\n", hit);
+          }
+          printf("%d\n", first_upper("quiet") == NULL);
+          return 0;
+      }
+      ```
+
+      ```output
+      World
+      1
+      ```
+
+      ### Returning a pointer into the input
+
+      A search can return a **pointer to the element it found**, instead of an index, and `NULL` for "not found". If the input was `const`, the returned pointer must be `const` too; otherwise the caller could use it to modify data that was promised to be read-only, and the compiler rejects that (`discards 'const' qualifier`).
+
+      Note that `s++` is allowed above: `s` is a pointer to const chars, and moving the pointer doesn't change any chars.
 
       **Your turn:** write `const int *find(const int *a, int n, int target)` that returns a pointer to the first element equal to `target`, or `NULL` if there is none.
     seed: |
@@ -319,18 +559,45 @@ steps:
   - title: Two pointers from both ends
     id: c-pointers-9
     text: |
-      A very common pattern: one pointer starts at the front, one at the back, and they walk toward each other until they meet.
+      The **two-pointer** technique comes up constantly, in interviews and in real code. One pointer starts at the front, another at the back, and they move toward each other, doing some work at each step, until they meet.
 
-      ```c
-      int *lo = a, *hi = a + n - 1;
-      while (lo < hi) {
-          /* work with *lo and *hi */
-          lo++;
-          hi--;
+      ```c run
+      #include <stdio.h>
+
+      int is_mirror(const int *a, int n) {
+          const int *lo = a;
+          const int *hi = a + n - 1;
+          while (lo < hi) {
+              if (*lo != *hi) {
+                  return 0;
+              }
+              lo++;
+              hi--;
+          }
+          return 1;
+      }
+
+      int main(void) {
+          int x[] = {1, 4, 9, 4, 1};
+          int y[] = {1, 2, 3};
+          printf("%d %d\n", is_mirror(x, 5), is_mirror(y, 3));
+          return 0;
       }
       ```
 
-      Comparing two pointers with `<` is fine when both point into the same array.
+      ```output
+      1 0
+      ```
+
+      ### The details that matter
+
+      - `a + n - 1` points at the **last** element. `a + n` would be one past the end.
+      - `lo < hi` compares positions. Comparing pointers with `<` is valid when both point into the same array. The loop stops when they meet (odd length, middle element) or cross (even length).
+      - Each pass moves `lo` forward and `hi` backward, so the loop always finishes.
+
+      The example checks whether the array reads the same from both ends. Reversing uses the same walk, but instead of comparing, it **swaps** the two values the pointers point at. You already know how to swap through pointers from step 2.
+
+      Try it on paper with 4 and 5 elements before coding, to see exactly which pairs get touched.
 
       **Your turn:** write `void reverse(int *a, int n)` that reverses the array **in place** using two pointers (no `[ ]`).
     seed: |
@@ -375,14 +642,48 @@ steps:
   - title: "Challenge: squeeze out spaces"
     id: c-pointers-10
     text: |
-      Another two-pointer classic: a **read** pointer scans every character, while a **write** pointer only advances when a character is kept. Everything happens in the same buffer, no extra memory.
+      Another two-pointer classic, with both pointers moving in the **same** direction at different speeds:
 
-      ```
-      "a b  c"      read ->  a _ b _ _ c
-      "abc"         write -> a b c \0
+      - A **read** pointer visits every character.
+      - A **write** pointer marks where the next character we keep should go. It only advances when something is kept.
+
+      Because the write pointer never gets ahead of the read pointer, you can filter a string **in place**, in the same buffer, without allocating anything.
+
+      ```c run
+      #include <stdio.h>
+
+      void keep_digits(char *s) {
+          char *write = s;
+          for (const char *read = s; *read != '\0'; read++) {
+              if (*read >= '0' && *read <= '9') {
+                  *write = *read;
+                  write++;
+              }
+          }
+          *write = '\0';
+      }
+
+      int main(void) {
+          char phone[] = "(555) 123-4567";
+          keep_digits(phone);
+          printf("%s\n", phone);
+          return 0;
+      }
       ```
 
-      Don't forget to write the `'\0'` terminator at the final write position.
+      ```output
+      5551234567
+      ```
+
+      ### Trace a few steps
+
+      For `"(555) 1"`: the read pointer sees `(`, which isn't kept, so write stays at index 0. Then `5`, kept: written at index 0, write moves to 1. Then `5` to index 1, `5` to index 2. Then `)` and the space are skipped, and `1` goes to index 3. The kept characters slide left over the ones that were dropped.
+
+      ### Don't forget the terminator
+
+      When the read pointer reaches the end, the characters after the write position are leftovers from the original string. Writing `'\0'` at the write position cuts them off. Forgetting it is the classic bug: the result would print with junk on the end.
+
+      `phone` is declared as an **array** (`char phone[] = "..."`), which makes a writable copy of the text. Modifying a string literal directly through a pointer would be undefined behavior.
 
       **Your turn:** write `void squeeze(char *s)` that removes every space from `s` in place.
     seed: |

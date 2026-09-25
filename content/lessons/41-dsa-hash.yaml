@@ -7,9 +7,11 @@ steps:
   - title: Buckets and chaining
     id: dsa-hash-1
     text: |
-      A **hash table** stores items in an array of *buckets*. A **hash function** turns a key into a number, and `hash % bucket_count` picks the bucket. Looking up a key only searches **one bucket**, so with a good hash and enough buckets, lookup is O(1) on average.
+      You've used `std::unordered_map` and `std::unordered_set` for O(1) lookups. This module builds one yourself, so you know what's going on inside, why it's fast, and when it isn't.
 
-      Two keys can land in the same bucket (a *collision*). **Separate chaining** handles that by making each bucket a small list:
+      A **hash table** stores items in an array of **buckets**. A **hash function** turns a key into a number, and `hash % bucket_count` picks the bucket. To look up a key, you compute its bucket and search **only that bucket**. With a good hash and enough buckets, each bucket holds just a few items, so lookup is O(1) on average.
+
+      Two keys can land in the same bucket: a **collision**. **Separate chaining** handles that by making each bucket a small list:
 
       ```
       bucket 0: [16] -> [48]
@@ -17,7 +19,60 @@ steps:
       bucket 2: [2] -> [34]
       ```
 
-      `std::hash<int>{}(key)` gives a hash for built-in types. For ints it's often just the value itself.
+      ```cpp run
+      #include <iostream>
+      #include <list>
+      #include <string>
+      #include <vector>
+
+      int main() {
+          const std::size_t buckets = 5;
+          std::vector<std::list<std::string>> table(buckets);
+
+          auto bucket_of = [&](const std::string& word) {
+              std::size_t h = 0;
+              for (char c : word) h = h * 31 + (unsigned char)c;   // a simple string hash
+              return h % buckets;
+          };
+
+          for (const char* w : {"cat", "dog", "owl", "bee", "ant", "yak"}) {
+              table[bucket_of(w)].push_back(w);
+          }
+          for (std::size_t b = 0; b < buckets; b++) {
+              std::cout << "bucket " << b << ":";
+              for (const auto& w : table[b]) std::cout << " " << w;
+              std::cout << "\n";
+          }
+          std::cout << "owl is in bucket " << bucket_of("owl") << "\n";
+      }
+      ```
+
+      ```output
+      bucket 0: bee yak
+      bucket 1:
+      bucket 2: cat
+      bucket 3: owl ant
+      bucket 4: dog
+      owl is in bucket 3
+      ```
+
+      ### How it works
+
+      - The hash function mixes every character into one number. Any function works as long as the **same key always gives the same hash**; a good one also spreads different keys evenly across the buckets.
+      - `% buckets` turns that big number into a valid bucket index.
+      - To look up `"owl"`, you hash it, go to its bucket, and search only that short list, never the whole table.
+      - Two words sharing a bucket, like `bee` and `yak`, is fine: the list holds both, and lookups compare the actual keys. Bucket 1 being empty is fine too.
+
+      For built-in types, `std::hash<T>{}(key)` gives you a ready-made hash. For `int` it's often just the value itself.
+
+      ### Your task
+
+      `IntSet` has 16 buckets, each a `std::list<int>`.
+
+      - `insert`: find the bucket with `std::hash<int>{}(key) % buckets_.size()`. If the key is already in that list, return `false`; otherwise `push_back` it, increase `size_`, and return `true`.
+      - `contains`: search the same bucket.
+
+      `std::find(list.begin(), list.end(), key)` from `<algorithm>` searches a list for you.
 
       **Your turn:** write `IntSet` with 16 buckets (a `std::vector<std::list<int>>`): `bool insert(int)` (false if already present), `bool contains(int) const`, and `std::size_t size() const`.
     seed: |
@@ -89,9 +144,55 @@ steps:
   - title: Load factor and rehashing
     id: dsa-hash-2
     text: |
-      With a fixed 16 buckets, a million keys means about 62,500 per bucket, and "O(1)" becomes a slow linear search. The **load factor** is `size / bucket_count`. When it passes a threshold (0.75 is common; `std::unordered_map` uses 1.0), the table **rehashes**: it allocates about twice as many buckets and reinserts every key, because each key's bucket depends on the bucket count.
+      A hash table's speed depends on keeping the buckets short. With a fixed 16 buckets, a million keys means about 62,500 per bucket, and "O(1)" becomes a slow linear search.
 
-      Rehashing is O(n), but it happens so rarely (each time the size doubles) that insertion stays **O(1) amortized**, the same argument as `std::vector` growth.
+      The **load factor** is `size / bucket_count`, the average number of keys per bucket. When it passes a threshold (0.75 is common; `std::unordered_map` uses 1.0), the table **rehashes**: it allocates about twice as many buckets and reinserts every key. Every key has to move, because its bucket, `hash % bucket_count`, depends on the bucket count.
+
+      You can watch `std::unordered_set` do exactly this:
+
+      ```cpp run
+      #include <iostream>
+      #include <unordered_set>
+
+      int main() {
+          std::unordered_set<int> s;
+          std::size_t start = s.bucket_count();
+          int rehashes = 0;
+          std::size_t last = start;
+          for (int i = 0; i < 1000; i++) {
+              s.insert(i);
+              if (s.bucket_count() != last) {
+                  rehashes++;
+                  last = s.bucket_count();
+              }
+          }
+          std::cout << "grew several times: " << (rehashes >= 3) << "\n";
+          std::cout << "at least one bucket per key: " << (s.bucket_count() >= s.size()) << "\n";
+          std::cout << "load factor within the limit: " << (s.load_factor() <= s.max_load_factor()) << "\n";
+      }
+      ```
+
+      ```output
+      grew several times: 1
+      at least one bucket per key: 1
+      load factor within the limit: 1
+      ```
+
+      The exact bucket counts differ between standard library implementations (some use prime numbers, some powers of two), so the example checks the rules rather than printing the sizes. With GCC's library, the set grows to 13, 29, 59, 127 buckets and so on, roughly doubling each time, and never lets the load factor pass 1.0.
+
+      ### Why growing keeps inserts O(1)
+
+      A rehash costs O(n), since every key moves. But it only happens when the size doubles. Add up all the rehash work while inserting n keys: n/2 + n/4 + n/8 + ... which is less than n. Spread over n inserts, that's O(1) extra per insert: **O(1) amortized**, the same argument as `std::vector` growth.
+
+      ### Your task
+
+      After inserting, check `size_ > 0.75 * buckets_.size()`. If so:
+
+      1. Create a new vector of lists with twice as many buckets.
+      2. Move every key from every old bucket into its **new** bucket, computed with the **new** bucket count.
+      3. Replace `buckets_` with the new vector.
+
+      Since `bucket_of` uses `buckets_.size()`, compute the new bucket index directly with the new size while moving (or swap first and then reinsert from the old table).
 
       **Your turn:** extend `IntSet` so that after an insert makes `size > 0.75 * bucket_count`, it rehashes into twice as many buckets. The test inserts 200,000 keys, which is only fast if the table grows.
     seed: |
@@ -182,9 +283,64 @@ steps:
   - title: A string-keyed map with erase
     id: dsa-hash-3
     text: |
-      A map stores **key/value pairs** in the buckets instead of bare keys. Erasing finds the pair in its bucket and removes it from the list.
+      A **map** is a set that carries a value with each key. The buckets store **key/value pairs** instead of bare keys, and every operation hashes the key, goes to one bucket, and works on that one short list.
 
-      `std::hash<std::string>` hashes strings. (Under the hood it runs something like the FNV or MurmurHash functions over the bytes.)
+      ```cpp run
+      #include <functional>
+      #include <iostream>
+      #include <list>
+      #include <string>
+      #include <utility>
+      #include <vector>
+
+      int main() {
+          using Bucket = std::list<std::pair<std::string, double>>;
+          std::vector<Bucket> table(8);
+          auto bucket_for = [&](const std::string& k) -> Bucket& {
+              return table[std::hash<std::string>{}(k) % table.size()];
+          };
+
+          // put: overwrite if the key exists, else append
+          auto put = [&](const std::string& k, double v) {
+              for (auto& [key, val] : bucket_for(k)) {
+                  if (key == k) { val = v; return; }
+              }
+              bucket_for(k).emplace_back(k, v);
+          };
+          // erase: find the pair's position in its list and remove it
+          auto erase = [&](const std::string& k) {
+              Bucket& b = bucket_for(k);
+              for (auto it = b.begin(); it != b.end(); ++it) {
+                  if (it->first == k) { b.erase(it); return true; }
+              }
+              return false;
+          };
+
+          put("gold", 1900.5);
+          put("silver", 23.1);
+          put("gold", 1950.0);                       // overwrite
+          std::cout << erase("silver") << erase("copper") << "\n";
+          for (const auto& b : table)
+              for (const auto& [k, v] : b) std::cout << k << " = " << v << "\n";
+      }
+      ```
+
+      ```output
+      10
+      gold = 1950
+      ```
+
+      ### How it works
+
+      - `put` searches the key's bucket. If the key is already there, it **overwrites** the value through a reference (`auto& [key, val]`); otherwise it appends a new pair.
+      - `erase` walks the bucket with an **iterator**, because `list::erase` needs one. It returns right after erasing, so the now-invalid iterator is never used again.
+      - Iterating over the whole table visits every pair, in no meaningful order. That's why `unordered_map` has "unordered" in its name.
+
+      ### Returning "maybe a value" as a pointer
+
+      Your `get` returns `const int*`: a pointer to the value inside the table if the key exists, or `nullptr` if it doesn't. It avoids copying and signals "missing" without a separate flag, which is how many C-style APIs work. `&pair.second` gives the pointer. Remember to adjust `size_` in `put` (only for new keys) and in `erase`.
+
+      `std::hash<std::string>` hashes strings for you. (Under the hood it runs something like the FNV or MurmurHash functions over the bytes.)
 
       **Your turn:** write `StrMap` (a fixed 64 buckets is fine here) with:
 
@@ -288,19 +444,53 @@ steps:
   - title: Hashing your own keys
     id: dsa-hash-4
     text: |
-      `std::unordered_map<Point, int>` doesn't compile until you tell it how to **hash** a `Point` (and how to compare two for equality). Give it a hasher struct:
+      `std::unordered_map<std::string, int>` works out of the box because the standard library ships `std::hash<std::string>`. For your own key types, like a `Point`, it doesn't compile until you provide two things:
 
-      ```cpp
-      struct PointHash {
-          std::size_t operator()(const Point& p) const {
-              std::size_t h = std::hash<int>{}(p.x);
-              return h ^ (std::hash<int>{}(p.y) + 0x9e3779b9 + (h << 6) + (h >> 2));   // hash_combine
+      1. **Equality**: how to tell whether two keys are the same. `bool operator==(const Point&) const = default;` generates a member-by-member comparison.
+      2. **A hash**: a struct whose `operator()` turns a key into a `std::size_t`, passed as an extra template argument.
+
+      ```cpp run
+      #include <functional>
+      #include <iostream>
+      #include <string>
+      #include <unordered_map>
+
+      struct Cell {
+          int row, col;
+          bool operator==(const Cell&) const = default;
+      };
+
+      struct CellHash {
+          std::size_t operator()(const Cell& c) const {
+              std::size_t h = std::hash<int>{}(c.row);
+              return h ^ (std::hash<int>{}(c.col) + 0x9e3779b9 + (h << 6) + (h >> 2));
           }
       };
-      std::unordered_map<Point, int, PointHash> visits;
+
+      int main() {
+          std::unordered_map<Cell, std::string, CellHash> sheet;
+          sheet[{0, 0}] = "Name";
+          sheet[{0, 1}] = "Score";
+          sheet[{1, 0}] = "Ada";
+          std::cout << sheet[{0, 1}] << " " << sheet.size() << " " << sheet.contains({1, 1}) << "\n";
+
+          CellHash h;
+          std::cout << (h({1, 2}) != h({2, 1})) << "\n";   // order matters to this hash
+      }
       ```
 
-      The `hash_combine` formula (from Boost) mixes the second hash in so that `(1, 2)` and `(2, 1)` land in different buckets. A lazy `x ^ y` would make them collide, and all points with `x == y` hash to 0.
+      ```output
+      Score 3 0
+      1
+      ```
+
+      ### Combining hashes
+
+      The formula is **hash_combine** from the Boost library: it mixes the second hash into the first with shifts and a constant, so that `(1, 2)` and `(2, 1)` land in different buckets. A lazy `x ^ y` would make those two collide, and every point with `x == y` would hash to 0. A hash that sends many keys to the same bucket still gives **correct** answers, but lookups degrade toward O(n).
+
+      ### Your task
+
+      Write `PointHash` the same way. In `revisits`, keep a `std::unordered_set<Point, PointHash>` of visited points, starting with `{0, 0}`. For each move, update the position; if `insert(...).second` is `false`, the point was already visited, so count it.
 
       **Your turn:** write `PointHash` and `int revisits(const std::string& moves)`: starting at (0,0), apply moves `U`/`D`/`L`/`R` and count how many moves land on a point **already visited** (the start counts as visited).
     seed: |
@@ -370,12 +560,48 @@ steps:
   - title: "Challenge: an LRU cache"
     id: dsa-hash-5
     text: |
-      A **least-recently-used cache** keeps the `capacity` most recently used items and evicts the stalest one when full. It sits in front of databases, file systems and web servers everywhere, and it's one of the most common interview questions because it combines two structures:
+      A **least-recently-used (LRU) cache** keeps the `capacity` most recently used items and evicts the stalest one when full. It sits in front of databases, file systems and web servers everywhere, and it's one of the most common interview questions because it combines two data structures, each covering the other's weakness:
 
-      - a `std::list` of `(key, value)` pairs ordered by recency (front = most recent),
-      - a `std::unordered_map` from key to the **list iterator**, for O(1) lookup.
+      - a `std::list` of `(key, value)` pairs **ordered by recency** (front = most recent). Moving an element or removing the back is O(1), but finding a key would be O(n).
+      - a `std::unordered_map` from key to the **list iterator**, which finds any element in O(1).
 
-      `list.splice(list.begin(), list, it)` moves an element to the front in O(1) **without invalidating** any iterators, so the map stays correct.
+      The key tool is `list.splice(list.begin(), list, it)`: it moves the element at `it` to the front in O(1), **without invalidating** any iterators, so the map stays correct.
+
+      ```cpp run
+      #include <iostream>
+      #include <list>
+      #include <string>
+
+      int main() {
+          std::list<std::string> recent = {"a.txt", "b.txt", "c.txt"};   // front = most recent
+          auto it = std::next(recent.begin(), 2);                        // points at c.txt
+
+          recent.splice(recent.begin(), recent, it);                     // c.txt used again
+          for (const auto& f : recent) std::cout << f << " ";
+          std::cout << "| still valid: " << *it << "\n";
+
+          recent.push_front("d.txt");                                    // a new file opened
+          if (recent.size() > 3) {
+              std::cout << "evict " << recent.back() << "\n";            // least recent
+              recent.pop_back();
+          }
+          for (const auto& f : recent) std::cout << f << " ";
+          std::cout << "\n";
+      }
+      ```
+
+      ```output
+      c.txt a.txt b.txt | still valid: c.txt
+      evict b.txt
+      d.txt c.txt a.txt 
+      ```
+
+      ### Putting it together
+
+      - **get(key)**: look it up in the map. Missing: return `std::nullopt`. Found: `splice` its list node to the front (it's now the most recent), and return the value.
+      - **put(key, value)**: if the key exists, update the value in its node and splice it to the front. Otherwise `push_front` a new pair, store `items_.begin()` in the map, and if the size is now over capacity, **erase the back key from the map first** (read `items_.back().first`), then `pop_back()`.
+
+      The order in that eviction matters: after `pop_back()`, the key you needed to erase from the map is gone.
 
       **Your turn:** write `LruCache` with `std::optional<int> get(int key)` (a hit makes the key most recent) and `void put(int key, int value)` (insert or update, making it most recent; evict the least recent if over capacity). Both O(1).
     seed: |

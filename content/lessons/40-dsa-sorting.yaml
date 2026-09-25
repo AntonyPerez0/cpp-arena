@@ -7,11 +7,9 @@ steps:
   - title: Insertion sort
     id: dsa-sorting-1
     text: |
-      **Insertion sort** grows a sorted prefix: take the next element and shift larger ones right until its spot opens up. Like sorting cards in your hand.
+      You'll almost always sort with `std::sort` in real code. But knowing **how** sorting works teaches the core ideas of algorithm design (growing a solved part, divide and conquer, partitioning), and interviewers love asking about it. This module builds the classic algorithms yourself.
 
-      - O(n²) in general, but O(n) on data that's already *almost* sorted.
-      - Stable (equal elements keep their order) and in-place.
-      - Fastest of all for tiny arrays. Real `std::sort` implementations switch to it for ranges below about 16 elements.
+      **Insertion sort** grows a sorted prefix, like sorting cards in your hand: take the next card and slide it left past every larger card until its spot opens up.
 
       ```
       for i in 1..n-1:
@@ -19,6 +17,55 @@ steps:
           while j >= 0 and v[j] > key: v[j + 1] = v[j]; j--
           v[j + 1] = key
       ```
+
+      ```cpp run
+      #include <iostream>
+      #include <string>
+      #include <vector>
+
+      void show(const std::vector<std::string>& v) {
+          for (const auto& s : v) std::cout << s << " ";
+          std::cout << "\n";
+      }
+
+      int main() {
+          std::vector<std::string> hand = {"7", "3", "9", "2"};
+          show(hand);
+          for (std::size_t i = 1; i < hand.size(); i++) {
+              std::string key = hand[i];
+              int j = (int)i - 1;
+              while (j >= 0 && std::stoi(hand[j]) > std::stoi(key)) {
+                  hand[j + 1] = hand[j];          // shift the bigger card right
+                  j--;
+              }
+              hand[j + 1] = key;                  // drop the key into the gap
+              show(hand);
+          }
+      }
+      ```
+
+      ```output
+      7 3 9 2 
+      3 7 9 2 
+      3 7 9 2 
+      2 3 7 9 
+      ```
+
+      ### Reading the trace
+
+      - Step 1: `3` is smaller than `7`, so `7` shifts right and `3` goes first.
+      - Step 2: `9` is bigger than everything before it, so nothing moves.
+      - Step 3: `2` is smaller than all three, so all three shift and `2` lands at the front.
+
+      The part to the left of `i` is always sorted, and each step makes it one longer.
+
+      ### Properties
+
+      - O(n²) in general, but O(n) on data that's already **almost sorted**, because each element only shifts a little.
+      - **Stable** (equal elements keep their order) and **in place** (no extra array).
+      - Fastest of all for tiny arrays. Real `std::sort` implementations switch to it for ranges below about 16 elements.
+
+      The number of shifts equals the number of pairs that are out of order (called **inversions**), which is why it measures how unsorted the input was.
 
       **Your turn:** implement `insertion_sort` and return how many element **shifts** it performed (a measure of how unsorted the input was).
     seed: |
@@ -68,13 +115,65 @@ steps:
   - title: Merge sort
     id: dsa-sorting-2
     text: |
-      **Merge sort** splits the array in half, sorts each half recursively, then **merges** the two sorted halves by repeatedly taking the smaller front element.
+      **Merge sort** is the classic **divide and conquer** algorithm:
 
-      - Always O(n log n), even in the worst case.
-      - Stable, which is why `std::stable_sort` is usually a merge sort.
+      1. **Divide**: split the array into two halves.
+      2. **Conquer**: sort each half, recursively. An array of 0 or 1 elements is already sorted: that's the base case.
+      3. **Combine**: **merge** the two sorted halves into one sorted array.
+
+      The merge is the heart of it. With two sorted lists, the smallest remaining element is always at the front of one of them, so you repeatedly take the smaller front:
+
+      ```cpp run
+      #include <iostream>
+      #include <vector>
+
+      std::vector<int> merge(const std::vector<int>& a, const std::vector<int>& b) {
+          std::vector<int> out;
+          out.reserve(a.size() + b.size());
+          std::size_t i = 0, j = 0;
+          while (i < a.size() && j < b.size()) {
+              if (a[i] <= b[j]) out.push_back(a[i++]);    // <= keeps it stable
+              else out.push_back(b[j++]);
+          }
+          while (i < a.size()) out.push_back(a[i++]);     // copy whatever is left
+          while (j < b.size()) out.push_back(b[j++]);
+          return out;
+      }
+
+      int main() {
+          for (int x : merge({1, 4, 9, 10}, {2, 3, 9, 20, 21})) std::cout << x << " ";
+          std::cout << "\n";
+      }
+      ```
+
+      ```output
+      1 2 3 4 9 9 10 20 21 
+      ```
+
+      ### Why O(n log n)
+
+      Halving repeatedly gives about log₂ n **levels** of recursion. At each level, the merges together touch every element once, which is O(n) work per level. So the total is O(n log n), and unlike quicksort that's true **even in the worst case**.
+
+      ```
+      [5 2 8 1 9 3]
+      [5 2 8] [1 9 3]          split
+      [5] [2 8] [1] [9 3]      split
+      ...                      single elements are sorted
+      [2 5 8] [1 3 9]          merge
+      [1 2 3 5 8 9]            merge
+      ```
+
+      ### Properties
+
+      - Always O(n log n).
+      - Stable, as long as the merge takes from the **left** half on ties (`<=`). That's why `std::stable_sort` is usually a merge sort.
       - Needs O(n) extra memory for merging.
 
-      The merge step is the heart of it (you wrote one for strings in the STL module). **Your turn:** implement `merge_sort(std::vector<int>& v)`. The test sorts 200,000 numbers, so an O(n²) sort won't finish in time.
+      ### Your task
+
+      Write a recursive helper that sorts `v[lo..hi)`: if the range has fewer than 2 elements, return; otherwise sort both halves and merge them through a temporary vector, copying the result back. Allocating one temporary buffer up front and reusing it is faster than making new vectors at every level.
+
+      **Your turn:** implement `merge_sort(std::vector<int>& v)`. The test sorts 200,000 numbers, so an O(n²) sort won't finish in time.
     seed: |
       #include <vector>
 
@@ -131,10 +230,11 @@ steps:
   - title: Quicksort and partitioning
     id: dsa-sorting-3
     text: |
-      **Quicksort** picks a *pivot*, **partitions** the array so smaller elements come before it and larger after, then recursively sorts both sides. No merging needed.
+      **Quicksort** also divides and conquers, but does the hard work **before** recursing instead of after:
 
-      - O(n log n) on average, in place, and very fast in practice.
-      - O(n²) worst case with bad pivots (for example, always the last element of already-sorted data). That's why real implementations pick pivots carefully and `std::sort` falls back to heapsort when recursion gets too deep ("introsort").
+      1. Pick a **pivot** element.
+      2. **Partition**: rearrange so everything smaller than the pivot comes before it and everything else after. The pivot is now in its **final** position.
+      3. Recursively sort the part before the pivot and the part after it. No merge step is needed.
 
       The **Lomuto** partition, using the last element as the pivot:
 
@@ -145,6 +245,55 @@ steps:
       swap(v[i], v[hi])     // pivot lands at its final position i
       return i
       ```
+
+      Here's one partition step, printed, on letters:
+
+      ```cpp run
+      #include <iostream>
+      #include <string>
+      #include <utility>
+
+      int partition(std::string& s, int lo, int hi) {
+          char pivot = s[hi];
+          int i = lo;                              // s[lo..i) holds letters < pivot
+          for (int j = lo; j < hi; j++) {
+              if (s[j] < pivot) {
+                  std::swap(s[i], s[j]);
+                  i++;
+              }
+          }
+          std::swap(s[i], s[hi]);
+          return i;
+      }
+
+      int main() {
+          std::string s = "qjxbmae";
+          std::cout << s << "  pivot " << s.back() << "\n";
+          int p = partition(s, 0, (int)s.size() - 1);
+          std::cout << s << "  pivot now at " << p << "\n";
+      }
+      ```
+
+      ```output
+      qjxbmae  pivot e
+      baeqmjx  pivot now at 2
+      ```
+
+      ### Reading the result
+
+      After partitioning, `e` sits at index 2, with the smaller letters `b a` before it and the larger `q m j x` after it. Neither side is sorted yet, but `e` is exactly where it belongs in the final order. Quicksort now recurses on `[0, 1]` and `[3, 6]`.
+
+      The invariant that makes Lomuto work: everything in `s[lo..i)` is smaller than the pivot. Each time a smaller element is found, it's swapped to position `i` and the boundary moves right.
+
+      ### Properties
+
+      - O(n log n) on average, in place, and very fast in practice thanks to good cache behavior.
+      - O(n²) worst case with bad pivots, for example always taking the last element of already-sorted data: every partition then splits off just one element. That's why real implementations pick pivots carefully, and `std::sort` falls back to heapsort when recursion gets too deep ("introsort").
+      - Not stable.
+
+      ### Your task
+
+      `partition` is the loop above on a `std::vector<int>`. `quick_sort(v, lo, hi)` returns when `lo >= hi` (zero or one element); otherwise it partitions, getting `p`, and recurses on `lo..p-1` and `p+1..hi`. Note that the pivot itself is **excluded** from both recursive calls, which guarantees progress.
 
       **Your turn:** write `int partition(std::vector<int>& v, int lo, int hi)` (inclusive range) and `void quick_sort(std::vector<int>& v, int lo, int hi)`.
     seed: |
@@ -214,9 +363,50 @@ steps:
   - title: Counting sort
     id: dsa-sorting-4
     text: |
-      Comparison sorts can't beat O(n log n). But when the values are **small integers** in a known range `0..k`, you don't need comparisons at all: count how many times each value occurs, then write them back in order. That's O(n + k).
+      Comparison sorts, which only learn about the data by asking "is a < b?", can't beat O(n log n) in the worst case. That's a proven limit. But when the values are **small integers** in a known range `0..k`, you don't need comparisons at all: **count** how many times each value occurs, then write the values back in order. That's O(n + k).
 
-      It's the core of radix sort, and it's why sorting a million ages or exam scores is basically instant.
+      ```cpp run
+      #include <iostream>
+      #include <string>
+      #include <vector>
+
+      int main() {
+          std::vector<int> grades = {3, 1, 4, 1, 5, 3, 3, 0, 5};    // grades 0..5
+          std::vector<int> count(6, 0);
+          for (int g : grades) count[g]++;                        // tally
+
+          for (int g = 0; g <= 5; g++) {
+              std::cout << g << ": " << std::string(count[g], '#') << "\n";
+          }
+
+          std::size_t k = 0;
+          for (int g = 0; g <= 5; g++) {
+              for (int c = 0; c < count[g]; c++) grades[k++] = g;   // write back in order
+          }
+          for (int g : grades) std::cout << g << " ";
+          std::cout << "\n";
+      }
+      ```
+
+      ```output
+      0: #
+      1: ##
+      2: 
+      3: ###
+      4: #
+      5: ##
+      0 1 1 3 3 3 4 5 5 
+      ```
+
+      ### How it works
+
+      - The count array has one slot per possible value: `max_value + 1` slots, because the range includes both 0 and the maximum.
+      - The first pass tallies; the second writes each value back as many times as it was counted.
+      - No element is ever compared with another.
+
+      ### When to use it
+
+      It shines when the range `k` is small compared with n: ages, exam scores, bytes (0 to 255), days of the month. Sorting a million ages is basically instant. It's also the building block of **radix sort**, which sorts big numbers digit by digit with counting passes. If `k` is huge (say, arbitrary 32-bit ints), the count array would be enormous, and a comparison sort is the better choice.
 
       **Your turn:** write `void counting_sort(std::vector<int>& v, int max_value)` for values in `0..max_value`.
     seed: |
@@ -258,12 +448,47 @@ steps:
   - title: Stability and custom comparators
     id: dsa-sorting-5
     text: |
-      A sort is **stable** if equal elements keep their original relative order. It matters when sorting records by one key after another, or when the input order means something (like arrival time).
+      A sort is **stable** if equal elements keep their original relative order. It sounds like a detail, but it matters whenever the input order means something (arrival time, sign-up order) or when you sort by one key after another.
 
-      - `std::sort`: not stable, usually slightly faster
-      - `std::stable_sort`: stable
+      ```cpp run
+      #include <algorithm>
+      #include <iostream>
+      #include <string>
+      #include <vector>
 
-      A comparator must be a **strict weak ordering**: return true only when a should come *strictly* before b. Using `<=` instead of `<` breaks this rule and is undefined behavior; with `std::sort` it can even crash.
+      struct Order {
+          std::string id;
+          int priority;
+      };
+
+      int main() {
+          // Arrival order: a1 came first, then b2, and so on.
+          std::vector<Order> q = {{"a1", 2}, {"b2", 1}, {"c3", 2}, {"d4", 1}, {"e5", 2}};
+
+          std::stable_sort(q.begin(), q.end(), [](const Order& x, const Order& y) {
+              return x.priority < y.priority;          // strictly less: a valid comparator
+          });
+          for (const auto& o : q) std::cout << o.id << "(" << o.priority << ") ";
+          std::cout << "\n";
+      }
+      ```
+
+      ```output
+      b2(1) d4(1) a1(2) c3(2) e5(2) 
+      ```
+
+      Within each priority, orders are still in arrival order: `b2` before `d4`, and `a1`, `c3`, `e5` in sequence. `std::sort` might have mixed them up.
+
+      ### std::sort vs std::stable_sort
+
+      - `std::sort`: not stable, usually slightly faster.
+      - `std::stable_sort`: stable. Use it whenever ties must keep their order.
+
+      ### Comparators must be strict
+
+      A comparator answers "must `a` come **strictly** before `b`?". For equal elements it must return `false` both ways. So use `<` or `>`, never `<=` or `>=`. Breaking this rule is undefined behavior: results can be wrong, and with `std::sort` it can even read outside the array and crash.
+
+      For "highest score first", compare with `>`: `return a.score > b.score;`.
 
       **Your turn:** write `void rank(std::vector<Entry>& v)` that orders entries by score, highest first. Entries with equal scores must stay in their original (sign-up) order.
     seed: |
@@ -317,7 +542,58 @@ steps:
   - title: "Challenge: quickselect"
     id: dsa-sorting-6
     text: |
-      To find the k-th smallest element (a median, a percentile, "the 95th percentile latency"), you don't need to sort everything. **Quickselect** partitions like quicksort but only recurses into the side that contains position k, which gives **O(n) on average**. `std::nth_element` does exactly this.
+      To find the k-th smallest element (a median, a percentile, "the 95th percentile latency"), you don't need to sort everything. **Quickselect** partitions like quicksort, but then only continues into the **one side** that contains position k. The other side is never touched.
+
+      ```cpp run
+      #include <algorithm>
+      #include <iostream>
+      #include <vector>
+
+      int main() {
+          std::vector<int> latency_ms = {120, 35, 80, 300, 45, 60, 95, 40, 250, 55};
+
+          std::vector<int> v = latency_ms;
+          std::size_t mid = v.size() / 2;
+          std::nth_element(v.begin(), v.begin() + mid, v.end());
+          std::cout << "median-ish (index 5): " << v[mid] << "\n";
+
+          std::size_t p90 = v.size() * 9 / 10;
+          std::nth_element(v.begin(), v.begin() + p90, v.end());
+          std::cout << "90th percentile: " << v[p90] << "\n";
+
+          std::sort(latency_ms.begin(), latency_ms.end());      // check against a full sort
+          std::cout << latency_ms[mid] << " " << latency_ms[p90] << "\n";
+      }
+      ```
+
+      ```output
+      median-ish (index 5): 80
+      90th percentile: 300
+      80 300
+      ```
+
+      `std::nth_element` puts the element that **would** be at that position after sorting into place, with smaller ones before it and larger ones after, in no particular order. That's quickselect.
+
+      ### Why O(n) on average
+
+      Each partition costs time proportional to the current range, and with a decent pivot the range roughly halves: n + n/2 + n/4 + ... is about 2n, so O(n) on average. Sorting would be O(n log n).
+
+      ### The loop
+
+      ```
+      lo = 0, hi = n - 1
+      loop:
+          p = partition(v, lo, hi)
+          if p == k: return v[k]
+          if k < p: hi = p - 1
+          else: lo = p + 1
+      ```
+
+      No recursion is needed, since only one side continues.
+
+      ### Pivot choice
+
+      With the last element as the pivot, already-sorted input makes every partition split off just one element, which is O(n²). Taking the **middle** element as the pivot (swap it to the end, then partition as usual) fixes the common sorted and reverse-sorted cases.
 
       **Your turn:** write `int kth_smallest(std::vector<int> v, int k)` (k is 0-based; the vector is passed by value so you may rearrange it) using your own partition loop. Pick the **middle** element as the pivot (swap it to the end first) so already-sorted input stays fast.
     seed: |
