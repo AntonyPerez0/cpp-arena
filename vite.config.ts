@@ -15,11 +15,11 @@ function skipBrowserccWasm(): Plugin {
   };
 }
 
-// Pages live at real paths (/<repo>/learn/c-hello/1) so search engines can index
-// each one, which needs an absolute base. CI sets BASE_PATH from the repository
-// name, so the site still works under any repository name.
+// Pages live at real paths (/learn/c-hello/1) so search engines can index each
+// one, which needs an absolute base. The site is served from the root of its own
+// domain; CI sets BASE_PATH to /<repo>/ when publishing to a github.io project page.
 export default defineConfig({
-  base: process.env.BASE_PATH ?? "/cpp-arena/",
+  base: process.env.BASE_PATH ?? "/",
   plugins: [react(), skipBrowserccWasm()],
   worker: { format: "es", plugins: () => [skipBrowserccWasm()] },
   build: {

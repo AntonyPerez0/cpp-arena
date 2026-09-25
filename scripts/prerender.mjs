@@ -3,7 +3,7 @@
 // description and text. The React app replaces the pre-rendered content when
 // it starts. Also writes sitemap.xml, robots.txt and 404.html.
 //
-// Env: SITE_URL (default https://antonyperez0.github.io/cpp-arena), BASE_PATH (default /cpp-arena/).
+// Env: SITE_URL (default https://cpparena.com), BASE_PATH (default /).
 import fs from "node:fs";
 import path from "node:path";
 import { marked } from "marked";
@@ -11,10 +11,10 @@ import { marked } from "marked";
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const DIST = path.join(ROOT, "dist");
 // Host names are case-insensitive, but canonical links should match exactly what
-// GitHub Pages serves (a lowercase host), even though the owner name has capitals.
-const siteUrl = new URL(process.env.SITE_URL ?? "https://antonyperez0.github.io/cpp-arena");
+// GitHub Pages serves (a lowercase host), even when the owner name has capitals.
+const siteUrl = new URL(process.env.SITE_URL ?? "https://cpparena.com");
 const SITE = `${siteUrl.protocol}//${siteUrl.host.toLowerCase()}${siteUrl.pathname}`.replace(/\/$/, "");
-const BASE = process.env.BASE_PATH ?? "/cpp-arena/";
+const BASE = process.env.BASE_PATH ?? "/";
 const NAME = "C/C++ Arena";
 const content = JSON.parse(fs.readFileSync(path.join(ROOT, "src/generated/content.json"), "utf8"));
 const template = fs.readFileSync(path.join(DIST, "index.html"), "utf8");
@@ -217,8 +217,8 @@ fs.writeFileSync(
     indexed.map((p) => `  <url><loc>${p.route === "/" ? SITE + "/" : `${SITE}${p.route}/`}</loc><lastmod>${today}</lastmod></url>`).join("\n") +
     `\n</urlset>\n`,
 );
-// Search engines only read robots.txt at the domain root, so this one matters when the
-// site is served from its own domain; on a github.io project page, submit the sitemap
-// in Google Search Console instead.
+// Search engines only read robots.txt at the domain root, so this one only counts when
+// the site has its own domain; on a github.io project page, submit the sitemap in
+// Google Search Console instead.
 fs.writeFileSync(path.join(DIST, "robots.txt"), `User-agent: *\nAllow: /\n\nSitemap: ${SITE}/sitemap.xml\n`);
 console.log(`prerender: ${written} pages, ${indexed.length} in sitemap.xml, 404.html, robots.txt`);
