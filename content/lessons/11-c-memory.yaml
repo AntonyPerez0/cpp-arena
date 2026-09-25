@@ -9,7 +9,7 @@ steps:
     text: |
       Every variable you've made so far lives on the **stack**. The stack is fast and automatic: a function's local variables are created when it's called and destroyed when it returns. But it has two big limits:
 
-      1. **Sizes are fixed at compile time.** `int scores[100]` is always 100, even if you only need 3, or need 1,000.
+      1. **Sizes are fixed when you write the code.** `int scores[100]` is always 100, even if you only need 3, or need 1,000. (C99 added variable-length arrays whose size is chosen at run time, but they're optional in newer standards and a large one can overflow the stack, which is small: typically 1 to 8 MB.)
       2. **Lifetimes are tied to the function.** When a function returns, its locals are gone, so it can't create data that outlives it.
 
       The **heap** removes both limits. It's a large pool of memory you request while the program runs, of any size, and it stays yours until **you** give it back.
@@ -181,7 +181,7 @@ steps:
       }
       ```
 
-      The caller gets a **dangling pointer**: an address that used to hold the array but now belongs to whatever the program does next. It may look fine at first and then show garbage later. Compilers warn: `function returns address of local variable`.
+      The caller gets a **dangling pointer**: an address that used to hold the array but now belongs to whatever the program does next. It may look fine at first and then show garbage later. Compilers warn: `address of stack memory associated with local variable 'a' returned`.
 
       Heap memory doesn't have this problem. It lives until someone calls `free`, so a function can create it and return it safely:
 
@@ -258,7 +258,7 @@ steps:
     text: |
       ### calloc
 
-      `calloc(count, size)` allocates room for `count` elements of `size` bytes each, and **sets every byte to zero**. Use it when you want a clean starting state, like counters or a grid. It also checks that `count * size` doesn't overflow, which `malloc(count * size)` doesn't.
+      `calloc(count, size)` allocates room for `count` elements of `size` bytes each, and **sets every byte to zero**. Use it when you want a clean starting state, like counters or a grid. Standard libraries also check that `count * size` doesn't overflow (returning `NULL` if it would), which `malloc(count * size)` can't do for you.
 
       ### Copying a string onto the heap
 
@@ -389,7 +389,7 @@ steps:
 
       ### Why double?
 
-      Growing by one element each time would copy the whole array on every push, which gets very slow for big arrays. **Doubling** the capacity means copies become rarer as the array grows, so on average each push is cheap (this is called **amortized O(1)**). C++'s `std::vector` and almost every dynamic array in other languages work this way.
+      Growing by one element each time would copy the whole array on every push, which gets very slow for big arrays. **Doubling** the capacity means copies become rarer as the array grows, so on average each push is cheap (this is called **amortized O(1)**). C++'s `std::vector` and almost every dynamic array in other languages work this way, growing by a constant factor (usually 1.5 or 2) each time.
 
       Keep two numbers: **length** (how many are used) and **capacity** (how many fit). Grow only when length reaches capacity.
 
@@ -465,7 +465,7 @@ steps:
 
       - Compute sizes carefully: for strings, **length + 1**.
       - Free temporaries as soon as you're done with them, on every path through the function.
-      - Set a pointer to `NULL` right after freeing it. `free(NULL)` does nothing, so a second free becomes harmless, and an accidental use crashes immediately instead of corrupting memory.
+      - Set a pointer to `NULL` right after freeing it. `free(NULL)` does nothing, so a second free becomes harmless, and on most systems an accidental use crashes immediately instead of quietly corrupting memory.
       - Use tools: compile with `-fsanitize=address` (AddressSanitizer) or run under Valgrind on your own machine, and they report the exact line.
 
       ```c run
@@ -474,7 +474,7 @@ steps:
       #include <string.h>
 
       char *label(const char *name, int number) {
-          size_t n = strlen(name) + 1 + 10 + 1;
+          size_t n = strlen(name) + 1 + 11 + 1;
           char *out = malloc(n);
           if (out == NULL) {
               return NULL;
@@ -498,7 +498,7 @@ steps:
       player#42
       ```
 
-      `label` sizes its buffer for the name, the `#`, up to 10 digits, and the terminator, and `snprintf` can never write past `n` bytes. The second `free(a)` is harmless because `a` was set to `NULL`.
+      `label` sizes its buffer for the name, the `#`, up to 11 characters for the number (an `int` has at most 10 digits, plus a possible minus sign), and the terminator, and `snprintf` can never write past `n` bytes. The second `free(a)` is harmless because `a` was set to `NULL`.
 
       **Your turn:** this function should build a message but it has two memory bugs (a missing `+ 1` for the terminator, and a leak of `tmp`). Fix both so it returns `"gg wp"` correctly.
     seed: |

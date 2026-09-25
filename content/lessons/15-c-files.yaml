@@ -42,7 +42,7 @@ steps:
       - `fopen(name, mode)` opens a file and returns a `FILE *`, a handle you pass to the other functions. It returns `NULL` if it fails.
       - The **mode** says what you intend: `"r"` read (the file must exist), `"w"` write (creates the file, or **erases** it if it already exists), `"a"` append (adds to the end).
       - `fprintf(f, ...)` works exactly like `printf`, but writes to the file. `fscanf(f, ...)` is `scanf` for files, and `fgetc(f)` reads one character (or returns `EOF` at the end).
-      - `fclose(f)` closes the file. Writes are **buffered** (collected in memory and written in chunks for speed), and closing flushes the buffer to disk. Forgetting `fclose` can lose the end of your output.
+      - `fclose(f)` closes the file. Writes are **buffered** (collected in memory and written in chunks for speed), and closing flushes the buffer to disk. Until then, the last writes may still be sitting in memory, so reading the file back before closing it, or a crash, can lose the end of your output. Close every file when you're done with it.
 
       In fact `printf` is just `fprintf(stdout, ...)`: the screen is treated as a file called `stdout`.
 
@@ -185,7 +185,7 @@ steps:
     text: |
       Files are the first thing in this course that can fail for reasons outside your program: the file doesn't exist, you don't have permission, the disk is full, another program has it locked. Code that works with files must expect failure.
 
-      `fopen` returns `NULL` when it can't open the file, and sets the global `errno` to a code describing why. `perror(message)` prints your message plus a readable description of `errno` to **stderr** (the error output stream):
+      `fopen` returns `NULL` when it can't open the file, and on common systems it also sets the global `errno` to a code describing why. `perror(message)` prints your message plus a readable description of `errno` to **stderr** (the error output stream):
 
       ```c
       FILE *f = fopen("config.txt", "r");

@@ -185,7 +185,7 @@ steps:
 
       ### const
 
-      `const char s[]` promises that the function only **reads** the string. If the body tried `s[0] = 'x'`, the compiler would refuse. It also lets callers pass string literals like `"hello"`, which must never be modified.
+      `const char s[]` promises that the function only **reads** the string. If the body tried `s[0] = 'x'`, the compiler would refuse. It also tells callers it's safe to pass string literals like `"hello"`, which must never be modified.
 
       **Your turn:** write `int my_strlen(const char s[])` without using `<string.h>`.
     seed: |
@@ -224,7 +224,7 @@ steps:
       if (cmd == "quit") { ... }   // wrong: compares addresses
       ```
 
-      A string in C is an array, and using an array's name gives the **address** of its first character. So `==` asks "are these the same place in memory?", not "do they contain the same text?". They're different arrays, so it's false even though the letters match. The compiler warns: `comparison with string literal results in unspecified behavior`.
+      A string in C is an array, and using an array's name gives the **address** of its first character. So `==` asks "are these the same place in memory?", not "do they contain the same text?". They're different arrays, so it's false even though the letters match. The compiler warns: `result of comparison against a string literal is unspecified`.
 
       To compare **contents**, use `strcmp(a, b)` from `<string.h>`. It compares character by character and returns:
 
@@ -392,7 +392,7 @@ steps:
 
       The last real character of `s` is at index `strlen(s) - 1` (the terminator is at `strlen(s)`). Start one index there and one at 0, and move them toward each other while the left one is still before the right one.
 
-      Here's the same two-index walk used to check whether a string is "mirrored" by another rule, every character matching its partner from the other end with the case ignored:
+      Here's a related loop that compares two strings character by character, ignoring upper and lower case. A palindrome check is similar, except it compares one string with **itself**, using one index from the front and one from the back:
 
       ```c run
       #include <stdio.h>
@@ -427,6 +427,7 @@ steps:
       - The empty string `""`: nothing to compare, so it counts as a palindrome.
       - A single character: also a palindrome.
       - Even and odd lengths: with `left < right` as the loop condition, the middle character of an odd-length string is never compared with itself, which is fine.
+      - Keep the indexes in `int` variables. `strlen` returns an unsigned `size_t`, and in unsigned arithmetic `0 - 1` wraps around to a huge number, so with a `size_t` index the empty string would make the loop run far past the end.
 
       (The `(unsigned char)` cast before `tolower` is a C detail: the `ctype` functions require values that fit in an unsigned char, and some systems' `char` can be negative for non-English letters.)
 

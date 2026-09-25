@@ -122,7 +122,7 @@ steps:
 
       ### Every path must return
 
-      If a function promises to return an `int`, every way through it must reach a `return`. If one path falls off the end without returning, the result is garbage; the compiler warns `control reaches end of non-void function`.
+      If a function promises to return an `int`, every way through it must reach a `return`. If one path falls off the end without returning, the caller gets garbage (formally, undefined behavior); the compiler warns `non-void function does not return a value in all control paths`.
 
       **Your turn:** write `int max3(int a, int b, int c)` that returns the largest of three numbers.
     seed: |
@@ -185,7 +185,7 @@ steps:
 
       - A `void` function doesn't need a `return` statement; it ends when it reaches the closing brace. You can still write `return;` (with no value) to leave early.
       - You can't use its result: `int x = banner();` is a compile error, because there is no result.
-      - `(void)` in the parameter list means "takes no arguments". Call it with empty parentheses: `banner()`. Forgetting the parentheses (`banner;`) doesn't call it at all; the compiler warns that the statement has no effect.
+      - `(void)` in the parameter list means "takes no arguments". Call it with empty parentheses: `banner()`. Forgetting the parentheses (`banner;`) doesn't call it at all; the compiler warns `expression result unused`.
 
       ### Why bother?
 
@@ -222,7 +222,7 @@ steps:
   - title: Prototypes
     id: c-funcs-4
     text: |
-      The compiler reads your file **once, from top to bottom**. When it reaches a call like `half(10)`, it needs to already know what `half` is: its return type and the types of its parameters. If the definition comes further down the file, the compiler hasn't seen it yet and reports an error such as `implicit declaration of function 'half'`.
+      The compiler reads your file **once, from top to bottom**. When it reaches a call like `half(10)`, it needs to already know what `half` is: its return type and the types of its parameters. If the definition comes further down the file, the compiler hasn't seen it yet and reports an error such as `call to undeclared function 'half'`.
 
       You have two options:
 
@@ -449,7 +449,7 @@ steps:
 
       If `n` has a divisor bigger than its square root, it must also have one smaller than the square root (because they multiply to `n`: for 91, 7 x 13, and 7 is below the square root, about 9.5). So once you've tried every `d` with `d * d <= n` and found nothing, there's nothing left to find. For a number around a million, that's about 1,000 checks instead of 1,000,000.
 
-      Writing the loop condition as `d * d <= n` avoids needing a square-root function and floating-point numbers.
+      Writing the loop condition as `d * d <= n` avoids needing a square-root function and floating-point numbers. (For `n` very close to the largest `int`, about 2.1 billion, `d * d` itself can overflow; `d <= n / d` is the fully safe form. The tests here stay well below that.)
 
       Here's the same "try divisors" pattern used for a different job, counting how many divisors a number has:
 

@@ -47,7 +47,7 @@ steps:
       ### Common mistakes
 
       - **Using a variable before declaring it:** the compiler says `'score' undeclared`.
-      - **Forgetting to initialize:** `int score;` holds garbage (whatever was in that memory before) until you assign a value. Always give variables a starting value.
+      - **Forgetting to initialize:** a variable declared inside a function with no value, like `int score;`, holds garbage (whatever was in that memory before) until you assign one. Using it before then is a bug the compiler often warns about. Always give variables a starting value.
 
       **Your turn:** declare an `int` named `score` with the value `42`.
     fill: |
@@ -89,7 +89,7 @@ steps:
 
       ### The list must match
 
-      `printf` trusts you. It doesn't check that the number of `%d`s matches the number of values, or that the values really are `int`s. If they don't match, the output is garbage or the program misbehaves. The compiler warns about it (`format '%d' expects a matching 'int' argument`), which is one reason to always read warnings.
+      `printf` trusts you. It doesn't check that the number of `%d`s matches the number of values, or that the values really are `int`s. If they don't match, the output is garbage or the program misbehaves. The compiler usually warns about it (for example `more '%' conversions than data arguments`), which is one reason to always read warnings.
 
       - Two `%d` need two values, in the order you want them to appear.
       - Swapping the values swaps the output: `printf("%d-%d\n", losses, wins)` prints `3-7`.
@@ -204,7 +204,7 @@ steps:
 
       ### Controlling decimals
 
-      Plain `%f` always shows six digits after the decimal point. Put `.N` between the `%` and the `f` to choose how many: `%.2f` shows two, `%.0f` shows none. The value is **rounded** for printing (0.625 can print as 0.62 or 0.63 depending on how it's stored exactly); the variable itself isn't changed.
+      Plain `%f` always shows six digits after the decimal point. Put `.N` between the `%` and the `f` to choose how many: `%.2f` shows two, `%.0f` shows none. The value is **rounded** for printing; the variable itself isn't changed. 0.625 is exactly halfway between 0.62 and 0.63, and for exact ties like this `printf` rounds to the **even** last digit, so it prints 0.62 (and `%.0f` prints 2.5 as 2 but 3.5 as 4). Values that aren't exact ties round the way you'd expect.
 
       ### How exact are doubles?
 

@@ -20,7 +20,7 @@ steps:
 
       ### How it's built
 
-      The compiler turns each `.c` file into an **object file** separately, knowing only what its includes declared. Then the **linker** joins all the object files, connecting each call to the matching definition. If a definition is missing, the linker reports `undefined reference to 'kd_ratio'`; if something is defined twice, `multiple definition`.
+      The compiler turns each `.c` file into an **object file** separately, knowing only what its includes declared. Then the **linker** joins all the object files, connecting each call to the matching definition. If a definition is missing, the linker reports an error like `undefined reference to 'kd_ratio'` (or `undefined symbol: kd_ratio`); if something is defined twice, `multiple definition` (or `duplicate symbol`).
 
       ### Include guards
 
@@ -252,7 +252,7 @@ steps:
       ### Why it matters
 
       - **Readers** can tell which functions have side effects without reading the bodies.
-      - **Callers** holding `const` data (a read-only table, a string literal) can pass it only to functions that promise not to modify it. Without `const` on the parameter, the call doesn't compile, or requires an ugly cast.
+      - **Callers** holding `const` data (a read-only table, a string literal) should pass it only to functions that promise not to modify it. Without `const` on the parameter, the compiler warns that the call `discards qualifiers` (in C++ it's an outright error), and silencing it takes an ugly cast.
       - **The compiler** enforces the promise: a body that tries to write through a `const` pointer is an error.
 
       ```c run
@@ -287,7 +287,7 @@ steps:
       13 3
       ```
 
-      `total_stock` accepts both the modifiable `shop` and the read-only `catalog`, because it promises not to change either. `restock(catalog, ...)` would not compile.
+      `total_stock` accepts both the modifiable `shop` and the read-only `catalog`, because it promises not to change either. `restock(catalog, ...)` gets a warning, and for good reason: it would write to data declared `const`, which is undefined behavior.
 
       ### Get it right early
 

@@ -106,7 +106,7 @@ steps:
 
       ### Guarding a division
 
-      A ratio like kills per death needs care when the bottom is 0: dividing an int by zero crashes, and dividing a double by zero gives infinity. Check for the special case first and return the fallback the task asks for. Remember to convert to `double` before dividing, or the fraction is lost.
+      A ratio like kills per death needs care when the bottom is 0: dividing an int by zero is undefined behavior and usually crashes, and dividing a double by zero gives infinity (or "not a number" for 0.0 / 0.0). Check for the special case first and return the fallback the task asks for. Remember to convert to `double` before dividing, or the fraction is lost.
 
       **Your turn:** write `double kd(struct Player p)` that returns kills divided by deaths as a double. If deaths is 0, return the kills.
     seed: |
@@ -183,7 +183,7 @@ steps:
       - A struct **variable**: use `.` (`acc.balance`).
       - A **pointer** to a struct: use `->` (`a->balance`).
 
-      The compiler tells you if you mix them up: `request for member 'balance' in something not a structure` usually means you used `.` on a pointer.
+      The compiler tells you if you mix them up: `member reference type 'struct Account *' is a pointer; did you mean to use '->'?` means you used `.` on a pointer.
 
       ### Conventions
 
