@@ -7,7 +7,61 @@ steps:
   - title: "Review: pagination"
     id: cpp-review-1
     text: |
-      Reading other people's code critically is half of a professional developer's job. In a code review, ask of every line: **what inputs break this?** Empty input, the first and last item, zero, negative numbers, huge numbers.
+      Reading other people's code critically is half of a professional developer's job. Before code is merged, a teammate **reviews** it: they read the change line by line, looking for bugs the author missed. The tests in these steps are the reviewer's edge cases. Your job is to find what breaks and fix it.
+
+      ### How to review
+
+      For every line, ask: **what inputs break this?** Try the edge cases in your head:
+
+      - empty input, one element, exactly full
+      - the first and the last item
+      - zero, negative numbers, huge numbers
+      - values right at a boundary (the spec's "1-based", "inclusive", "at most")
+
+      Then compare the code with the **spec**, word by word. Many bugs are code that works, but does something slightly different from what was asked.
+
+      ### A worked review
+
+      This function should return the last `n` messages of a chat (fewer if there aren't that many). Here's the fixed version, with comments on what the review caught:
+
+      ```cpp run
+      #include <iostream>
+      #include <string>
+      #include <vector>
+
+      std::vector<std::string> last_n(const std::vector<std::string>& msgs, int n) {
+          std::vector<std::string> out;
+          if (n <= 0) return out;                          // caught: negative n
+          // caught: msgs.size() - n underflowed (size_t is unsigned) when n > size
+          std::size_t start = msgs.size() > (std::size_t)n ? msgs.size() - n : 0;
+          for (std::size_t i = start; i < msgs.size(); i++) out.push_back(msgs[i]);
+          return out;
+      }
+
+      int main() {
+          std::vector<std::string> chat = {"hi", "gg", "wp", "rematch?"};
+          for (int n : {2, 10, 0, -1}) {
+              std::cout << n << ":";
+              for (const auto& m : last_n(chat, n)) std::cout << " " << m;
+              std::cout << "\n";
+          }
+          std::cout << "empty: " << last_n({}, 3).size() << "\n";
+      }
+      ```
+
+      ```output
+      2: wp rematch?
+      10: hi gg wp rematch?
+      0:
+      -1:
+      empty: 0
+      ```
+
+      The original version passed the author's one test (`n = 2`) and crashed on the other four.
+
+      ### For this pull request
+
+      Check the arithmetic for "page 1 is the first page" with a concrete example: with 10 items, 3 per page, page 1 is items 0 to 2 and page 4 holds just item 9. Then ask what happens for page 5, and for page 0.
 
       A teammate opened this pull request for the leaderboard API. The spec says:
 
@@ -61,13 +115,55 @@ steps:
   - title: "Review: dangling references"
     id: cpp-review-2
     text: |
-      `std::string_view` and references are cheap *views* of data owned by someone else. The classic review catch: a view that **outlives** what it points at. It compiles cleanly, often seems to work in testing, and then prints garbage in production.
+      `std::string_view` and references are cheap **views** of data owned by someone else. The classic review catch is a view that **outlives** what it points at. It compiles cleanly, often seems to work in testing (the freed memory still holds the old bytes for a while), and then prints garbage in production.
 
       Red flags to look for:
 
       - returning a `string_view` or a reference to a **local** or a **temporary**
       - storing a `string_view` member initialized from a temporary `std::string`
       - keeping a reference into a container that later grows
+
+      ### Who owns the characters?
+
+      For every view, find the `std::string` (or literal) that owns its characters, and check that the owner lives **at least as long** as the view.
+
+      ```cpp run
+      #include <iostream>
+      #include <string>
+      #include <string_view>
+      #include <utility>
+
+      std::string_view first_word(std::string_view s) {      // fine: points into the caller's text
+          return s.substr(0, s.find(' '));
+      }
+
+      struct Label {
+          std::string text;                                   // owns its characters
+          explicit Label(std::string t) : text(std::move(t)) {}
+      };
+
+      Label make_label(int n) {
+          return Label("item " + std::to_string(n));          // the temporary is moved into the member
+      }
+
+      int main() {
+          std::string line = "hello big world";
+          std::cout << first_word(line) << "\n";              // line outlives the view: safe
+
+          Label l = make_label(7);
+          std::cout << l.text << "\n";
+      }
+      ```
+
+      ```output
+      hello
+      item 7
+      ```
+
+      - `first_word` is safe because it returns a view into the **caller's** string, which is still alive when the view is used.
+      - `Label` stores a `std::string`, not a view. The temporary `"item " + ...` would die at the end of the statement, so a `string_view` member would dangle; an owning member takes the characters with it.
+
+      The rule of thumb: views for **parameters**, owning strings for **members** and for **return values built inside the function**.
 
       **Your turn:** this pull request adds a greeting helper and a `Tag` type. Both have lifetime bugs. Fix them by making each owner hold its own `std::string`. (The checks inspect the types too, since dangling-view bugs can seem to work by luck.)
     seed: |
@@ -131,7 +227,63 @@ steps:
     text: |
       In C-style code, every early `return` is a chance to leak. Reviewers trace **each exit path** and check that everything acquired before it gets released.
 
-      This codebase wraps `malloc`/`free` in `xmalloc`/`xfree`, which count live allocations. (Real projects do the same to find leaks in tests.) The function parses `count` numbers from a string into a heap buffer, then copies them into a second buffer with duplicates removed.
+      ### Tracing exit paths
+
+      Go through the function top to bottom and keep a list of what's currently held. At every `return`, check the list:
+
+      ```
+      values = xmalloc(...)      held: values
+        return -1 (bad number)   still held: values        <- must free here
+      unique = xmalloc(...)      held: values, unique
+        return -1 (n == 0)       still held: both          <- must free here
+      xfree(unique); xfree(values)
+      return n                   held: nothing             ok
+      ```
+
+      ### The single cleanup label
+
+      C code commonly handles this with one exit point: every error sets a result and jumps to a label that frees everything. Freeing a null pointer does nothing, so it's safe even when some allocations never happened.
+
+      ```cpp run
+      #include <cstdio>
+      #include <cstdlib>
+
+      int live = 0;
+      void* xmalloc(std::size_t n) { void* p = std::malloc(n); if (p) live++; return p; }
+      void xfree(void* p) { if (p) live--; std::free(p); }
+
+      int sum_positive(const int* in, int n) {
+          int result = -1;
+          int* a = nullptr;
+          int* b = static_cast<int*>(xmalloc(sizeof(int) * n));
+          if (!b) goto cleanup;
+          a = static_cast<int*>(xmalloc(sizeof(int) * n));
+          if (!a) goto cleanup;
+          result = 0;
+          for (int i = 0; i < n; i++) {
+              if (in[i] < 0) { result = -1; goto cleanup; }   // error path: no leak
+              a[i] = b[i] = in[i];
+              result += a[i];
+          }
+      cleanup:
+          xfree(a);
+          xfree(b);
+          return result;
+      }
+
+      int main() {
+          int good[] = {1, 2, 3}, bad[] = {1, -2, 3};
+          int a = sum_positive(good, 3);
+          int b = sum_positive(bad, 3);
+          std::printf("%d %d, live allocations: %d\n", a, b, live);
+      }
+      ```
+
+      ```output
+      6 -1, live allocations: 0
+      ```
+
+      Every path, success or failure, ends at `cleanup`, so both blocks are always released. (In real C++ you'd use `std::vector` or `std::unique_ptr` and let destructors do this; this pull request stays in C style, which is common in code that talks to C libraries.)
 
       **Your turn:** the happy path is fine, but some error paths leak. Make every path leave `live_allocations` where it started. There are two leaks. Staying in this C style is fine; a common tidy fix is a single cleanup label (`goto cleanup;`) or freeing before each return.
     seed: |
@@ -224,11 +376,56 @@ steps:
   - title: "Review: modifying while iterating"
     id: cpp-review-4
     text: |
-      Another classic: changing a container while looping over it.
+      Another classic: changing a container **while looping over it**.
 
       - erasing index `i` shifts the next element into position `i`, and then `i++` **skips** it
       - `push_back` during a range-for can reallocate, invalidating the loop's hidden iterators
       - a reference taken before a `push_back` can dangle afterwards
+
+      ### Spotting the skip
+
+      Run the erase loop by hand on an input with two matches **next to each other**, like `{a, X, X, b}` where X should be removed:
+
+      ```
+      i = 1: erase X  -> {a, X, b}   then i++ -> i = 2
+      i = 2: b                       the second X, now at index 1, was never checked
+      ```
+
+      The safe patterns: only increment when nothing was erased, use `std::erase_if`, or build a new vector of the items you keep.
+
+      ```cpp run
+      #include <iostream>
+      #include <string>
+      #include <vector>
+
+      int main() {
+          std::vector<std::string> queue = {"ok", "spam", "spam", "ok", "spam"};
+          for (std::size_t i = 0; i < queue.size(); ) {
+              if (queue[i] == "spam") queue.erase(queue.begin() + i);   // don't advance
+              else i++;                                                  // advance only when keeping
+          }
+          for (const auto& m : queue) std::cout << m << " ";
+          std::cout << "(" << queue.size() << ")\n";
+
+          std::vector<int> v = {1, 2, 3};
+          int first = v.front();                // a copy, not a reference: safe after growth
+          for (int i = 0; i < 100; i++) v.push_back(i);
+          std::cout << first << "\n";
+      }
+      ```
+
+      ```output
+      ok ok (2)
+      1
+      ```
+
+      ### Adding while looping
+
+      A range-for over `roster` that calls `roster.push_back` is undefined behavior: the loop's hidden iterators point into the old buffer after a reallocation. If you need to add a number of items, compute the count first, then add them in a separate plain loop that doesn't iterate over the container.
+
+      ### The dangling reference
+
+      `const std::string& captain = roster.front();` refers to an element **inside** the vector. After `push_back` reallocates, it refers to freed memory. Copy the value (`std::string captain = ...`) when you need it to survive changes to the container.
 
       **Your turn:** this pull request enforces bans and fills the roster back up with substitutes. Fix it so that every banned player is removed (including when two are adjacent), one substitute is added per removed player, and `captain` returns the right name. There are three bugs.
     seed: |
@@ -302,7 +499,53 @@ steps:
   - title: "Review: integer math"
     id: cpp-review-5
     text: |
-      Numeric code gets reviewed for four things: **overflow**, **division by zero**, **signed/unsigned mix-ups**, and **empty input**.
+      Numeric code gets reviewed for four things: **overflow**, **division by zero**, **signed/unsigned mix-ups**, and **empty input**. None of them shows up with small, friendly test values, which is exactly why reviewers try unfriendly ones.
+
+      ### The four checks
+
+      - **Overflow**: can an intermediate result exceed the type's range? An `int` holds about ±2.1 billion. `a * 100` overflows when `a` is only 22 million. Signed overflow is undefined behavior, not just a wrong number. Do the math in a wider type (`long long`) **before** the operation, not after.
+      - **Division by zero**: is the divisor ever 0? For `int` it's undefined behavior (often a crash); for `double` it gives `inf` or `nan`.
+      - **Unsigned wraparound**: `size_t` can't be negative. `v.size() - n` with `n > v.size()` wraps to a gigantic number.
+      - **Empty input**: what does the function return for no data? The spec usually says.
+
+      ```cpp run
+      #include <cstdint>
+      #include <iostream>
+      #include <vector>
+
+      // Percentage of bytes used, rounded down; 0 for a zero-size disk.
+      int percent_used(std::int64_t used, std::int64_t total) {
+          if (total == 0) return 0;                            // division by zero
+          return static_cast<int>(used * 100 / total);         // 64-bit math: no overflow
+      }
+
+      // Sum of the first n readings (all of them if fewer).
+      long long first_n(const std::vector<int>& r, std::size_t n) {
+          long long sum = 0;                                   // wide accumulator
+          for (std::size_t i = 0; i < n && i < r.size(); i++) sum += r[i];
+          return sum;
+      }
+
+      int main() {
+          std::cout << percent_used(3'000'000'000LL, 4'000'000'000LL) << "\n";
+          std::cout << percent_used(0, 0) << "\n";
+          std::cout << first_n({2'000'000'000, 2'000'000'000}, 5) << "\n";
+          std::cout << first_n({}, 3) << "\n";
+      }
+      ```
+
+      ```output
+      75
+      0
+      4000000000
+      0
+      ```
+
+      Every line handles one of the four checks: the zero guard, 64-bit multiplication, a `long long` sum that can hold two billion plus two billion, and a loop bound that respects both `n` and the real size.
+
+      ### Where the conversion goes
+
+      `static_cast<long long>(a) * 100` widens **before** multiplying. `static_cast<long long>(a * 100)` multiplies in `int` first, overflows, and only then widens the already wrong value. The same applies to sums: the accumulator's type must be wide from the start.
 
       **Your turn:** this pull request adds stats for the match history page. The specification:
 
@@ -370,11 +613,63 @@ steps:
   - title: "Review: class design"
     id: cpp-review-6
     text: |
-      Design bugs in class hierarchies are invisible in small tests and expensive in production:
+      Design bugs in class hierarchies are invisible in small tests and expensive in production. Three are common enough that experienced reviewers check for them on sight:
 
       - a base class used polymorphically **without a virtual destructor**: deleting through a base pointer skips the derived destructor (leaking whatever it owns)
       - storing derived objects **by value** in a container of the base type **slices** them: only the base part is copied, and virtual calls go to the base version
       - an intended override with a **slightly different signature** (missing `const`) silently creates a new function instead. `override` turns that into a compile error
+
+      ### A correct hierarchy, for comparison
+
+      ```cpp run
+      #include <iostream>
+      #include <memory>
+      #include <string>
+      #include <vector>
+
+      class Sensor {
+      public:
+          virtual ~Sensor() = default;                       // 1. virtual destructor
+          virtual std::string read() const { return "?"; }
+      };
+
+      class Thermo : public Sensor {
+      public:
+          std::string read() const override { return "21C"; }   // 2. override checks the signature
+      };
+
+      class Humidity : public Sensor {
+      public:
+          std::string read() const override { return "40%"; }
+      };
+
+      int main() {
+          std::vector<std::unique_ptr<Sensor>> sensors;      // 3. pointers, so nothing is sliced
+          sensors.push_back(std::make_unique<Thermo>());
+          sensors.push_back(std::make_unique<Humidity>());
+          for (const auto& s : sensors) std::cout << s->read() << " ";
+          std::cout << "\n";
+
+          Thermo t;
+          Sensor copy = t;                                   // slicing: only the Sensor part is copied
+          std::cout << copy.read() << "\n";
+      }
+      ```
+
+      ```output
+      21C 40% 
+      ?
+      ```
+
+      The last two lines show slicing on purpose: copying a `Thermo` into a plain `Sensor` keeps only the base part, so `read()` gives the base answer. A `std::vector<Sensor>` does exactly that to every element pushed into it.
+
+      ### Reviewing a hierarchy
+
+      1. Does the base have a virtual destructor? If any function is virtual, it needs one.
+      2. Does every derived function that's meant to override say `override`? Add it, and let the compiler tell you about signature mismatches such as a missing `const`.
+      3. Are derived objects ever stored or passed **by value** as the base type? Switch to references, pointers, or `std::unique_ptr<Base>`.
+
+      Changing a function's parameter type (like the container in `names`) is a legitimate review fix when the old signature forces a bug.
 
       **Your turn:** this pull request adds weapon logging. Find and fix all three problems so the tests pass.
     seed: |

@@ -7,7 +7,9 @@ steps:
   - title: Binary trees and recursion
     id: dsa-trees-1
     text: |
-      A **binary tree** node holds a value and up to two children. Ownership is naturally a tree too, so `std::unique_ptr` children mean the whole tree frees itself:
+      Lists and arrays are **linear**: each element has one next element. A **tree** branches: each node can have several children, and every node except the top one (the **root**) has exactly one parent. File systems, HTML pages, company org charts and the `std::map` you've been using are all trees.
+
+      In a **binary tree**, each node has at most two children, called `left` and `right`. Ownership is naturally a tree too, so `std::unique_ptr` children mean the whole tree frees itself when the root goes away:
 
       ```cpp
       struct Node {
@@ -16,14 +18,65 @@ steps:
       };
       ```
 
-      Almost every tree algorithm has the same recursive shape: handle the empty tree (`nullptr`), then combine the answers from the two subtrees.
+      ### Thinking recursively
 
-      ```cpp
+      A tree is either **empty**, or a node whose left and right children are **smaller trees**. So almost every tree algorithm has the same shape:
+
+      1. Handle the empty tree (`nullptr`). This is the base case.
+      2. Ask the same question of the left and right subtrees.
+      3. Combine their answers with the current node.
+
+      ```cpp run
+      #include <algorithm>
+      #include <iostream>
+      #include <memory>
+
+      struct Node {
+          int value;
+          std::unique_ptr<Node> left, right;
+      };
+
+      std::unique_ptr<Node> leaf(int v) { return std::make_unique<Node>(Node{v, nullptr, nullptr}); }
+
       int count(const Node* n) {
-          if (!n) return 0;
-          return 1 + count(n->left.get()) + count(n->right.get());
+          if (!n) return 0;                                         // empty tree
+          return 1 + count(n->left.get()) + count(n->right.get());  // me + both sides
+      }
+
+      int max_value(const Node* n) {
+          int best = n->value;                                      // assumes n isn't null
+          if (n->left) best = std::max(best, max_value(n->left.get()));
+          if (n->right) best = std::max(best, max_value(n->right.get()));
+          return best;
+      }
+
+      int main() {
+          /*        4
+                   / \
+                  9   2
+                     /
+                    7        */
+          auto root = leaf(4);
+          root->left = leaf(9);
+          root->right = leaf(2);
+          root->right->left = leaf(7);
+          std::cout << count(root.get()) << " nodes, max " << max_value(root.get()) << "\n";
       }
       ```
+
+      ```output
+      4 nodes, max 9
+      ```
+
+      ### How it works
+
+      - `count(nullptr)` is 0. For a real node, it's 1 (the node itself) plus the counts of both subtrees. Trust the recursion: you don't need to trace every call to know it's right.
+      - `.get()` turns a `unique_ptr` into a plain `const Node*` for reading. Functions that only look at a tree take raw pointers; ownership stays with the `unique_ptr`s.
+
+      ### Your task
+
+      - **height**: an empty tree has height 0. A node's height is 1 plus the **larger** of its two subtrees' heights (`std::max` from `<algorithm>`).
+      - **sum**: like `count`, but add `n->value` instead of 1. Return `long` so big trees don't overflow.
 
       **Your turn:** write `height` (an empty tree has height 0, a single node 1) and `sum`.
     seed: |
@@ -81,17 +134,68 @@ steps:
   - title: Binary search trees
     id: dsa-trees-2
     text: |
-      A **binary search tree** (BST) keeps everything in a node's left subtree **smaller** than the node, and everything in its right subtree **larger**. Search then walks one path from the root, discarding half of a balanced tree at each step: O(log n).
+      A **binary search tree** (BST) adds one rule to a binary tree: everything in a node's left subtree is **smaller** than the node, and everything in its right subtree is **larger**. That rule makes searching fast: at each node, you know which side the key must be on, so you walk **one path** from the root and ignore the rest.
 
-      `std::map` and `std::set` are balanced BSTs (red-black trees), which rebalance themselves so the height stays O(log n) even for sorted input. A plain BST can degrade into a linked list.
-
-      Insertion walks down to the empty spot where the key belongs. With a `std::unique_ptr<Node>&` you can follow the path **by reference** and assign into the right slot:
-
-      ```cpp
-      std::unique_ptr<Node>* slot = &root_;
-      while (*slot) slot = key < (*slot)->key ? &(*slot)->left : &(*slot)->right;
-      *slot = std::make_unique<Node>(key);
       ```
+              8
+             / \
+            3   10
+           / \    \
+          1   6    14
+      ```
+
+      To find 6: 6 < 8, go left; 6 > 3, go right; found. Three steps instead of checking all six nodes.
+
+      ```cpp run
+      #include <iostream>
+      #include <memory>
+
+      struct Node {
+          int key;
+          std::unique_ptr<Node> left, right;
+          explicit Node(int k) : key(k) {}
+      };
+
+      void insert(std::unique_ptr<Node>& root, int key) {
+          std::unique_ptr<Node>* slot = &root;          // a pointer to "the link we might fill"
+          while (*slot) {
+              slot = key < (*slot)->key ? &(*slot)->left : &(*slot)->right;
+          }
+          *slot = std::make_unique<Node>(key);          // fill the empty link
+      }
+
+      int depth_of(const Node* n, int key) {
+          int depth = 0;
+          while (n) {
+              if (key == n->key) return depth;
+              n = key < n->key ? n->left.get() : n->right.get();
+              depth++;
+          }
+          return -1;
+      }
+
+      int main() {
+          std::unique_ptr<Node> root;
+          for (int k : {8, 3, 10, 1, 6, 14}) insert(root, k);
+          std::cout << depth_of(root.get(), 6) << " " << depth_of(root.get(), 14) << " " << depth_of(root.get(), 5) << "\n";
+      }
+      ```
+
+      ```output
+      2 2 -1
+      ```
+
+      ### How insertion works
+
+      A new key always goes into an **empty spot** at the bottom: walk down as if searching, and when you reach a null link, put the new node there. The trick is `slot`: a pointer to the `unique_ptr` link itself, not to a node. Following it down the tree, you end up pointing at exactly the link to fill, whether that's `root` or some node's `left` or `right`.
+
+      ### Balance
+
+      On a **balanced** tree, each step discards about half the nodes, so search and insert are O(log n). But insert the keys in sorted order (1, 2, 3, 4, ...) and every node goes to the right: the "tree" becomes a linked list, and operations become O(n). `std::map` and `std::set` are **self-balancing** BSTs (red-black trees) that rotate nodes to keep the height O(log n) no matter the insertion order.
+
+      ### Your task
+
+      `insert` is the loop above, plus a duplicate check (if the key equals the node's key, return `false`) and `size_++` on success. `contains` walks down the same way with a plain `const Node*`.
 
       **Your turn:** write `Bst::insert` (returns false for duplicates) and `Bst::contains`, both iterative.
     seed: |
@@ -176,13 +280,73 @@ steps:
   - title: Traversals and validation
     id: dsa-trees-3
     text: |
-      Three classic depth-first orders visit every node:
+      To visit every node of a tree, you choose an **order**. The three classic depth-first orders differ only in **when** the node itself is handled relative to its subtrees:
 
       - **pre-order**: node, left, right (copying a tree, serializing it)
       - **in-order**: left, node, right (a BST comes out **sorted**)
       - **post-order**: left, right, node (deleting a tree, evaluating an expression tree)
 
-      In-order gives a neat BST check, but there's a subtler direct one: every node must lie within a **range** inherited from its ancestors. Checking only that each child is on the correct side of its parent is a classic wrong answer: a node can be right of its parent but still too big for its grandparent.
+      ```cpp run
+      #include <iostream>
+      #include <memory>
+      #include <string>
+
+      struct Node {
+          std::string v;
+          std::unique_ptr<Node> left, right;
+      };
+
+      std::unique_ptr<Node> mk(std::string v, std::unique_ptr<Node> l = nullptr, std::unique_ptr<Node> r = nullptr) {
+          return std::make_unique<Node>(Node{std::move(v), std::move(l), std::move(r)});
+      }
+
+      void pre(const Node* n)  { if (!n) return; std::cout << n->v << " "; pre(n->left.get()); pre(n->right.get()); }
+      void in(const Node* n)   { if (!n) return; in(n->left.get()); std::cout << n->v << " "; in(n->right.get()); }
+      void post(const Node* n) { if (!n) return; post(n->left.get()); post(n->right.get()); std::cout << n->v << " "; }
+
+      int main() {
+          /* The expression (2 + 3) * 4 as a tree:  *
+                                                   / \
+                                                  +   4
+                                                 / \
+                                                2   3     */
+          auto root = mk("*", mk("+", mk("2"), mk("3")), mk("4"));
+          std::cout << "pre:  "; pre(root.get());  std::cout << "\n";
+          std::cout << "in:   "; in(root.get());   std::cout << "\n";
+          std::cout << "post: "; post(root.get()); std::cout << "\n";
+      }
+      ```
+
+      ```output
+      pre:  * + 2 3 4 
+      in:   2 + 3 * 4 
+      post: 2 3 + 4 * 
+      ```
+
+      The three functions are identical except for where the `std::cout` line sits. Post-order gives **reverse Polish notation**, the order a calculator (or your stack evaluator from the containers module) needs: both operands before the operator.
+
+      ### Checking that a tree is a valid BST
+
+      A tempting check is "each left child is smaller than its parent and each right child is larger". It's a classic **wrong answer**:
+
+      ```
+            10
+           /  \
+          5    15
+              /
+             6        6 is left of 15 (fine locally), but it's in 10's RIGHT subtree, so it must be > 10
+      ```
+
+      The correct check passes an allowed **range** down the tree. The root may be anything. Going left, the node's key becomes the new upper limit; going right, it becomes the new lower limit. Every node must lie strictly inside the range it inherited from **all** its ancestors:
+
+      ```
+      is_bst(n, lo, hi):
+          if n is empty: true
+          if not (lo < n.key < hi): false
+          return is_bst(n.left, lo, n.key) and is_bst(n.right, n.key, hi)
+      ```
+
+      The limits are `long` so that `LONG_MIN` and `LONG_MAX` can stand for "no limit" without clashing with any `int` key.
 
       **Your turn:** write `void in_order(const Node* n, std::vector<int>& out)` and `bool is_bst(const Node* n, long lo, long hi)` that checks all keys lie strictly between lo and hi (the test calls it with `LONG_MIN`, `LONG_MAX`).
     seed: |
@@ -250,16 +414,68 @@ steps:
   - title: Level order with a queue
     id: dsa-trees-4
     text: |
-      **Breadth-first** traversal visits a tree level by level. Instead of recursion it uses a **queue**: take a node from the front, record it, push its children to the back. The same technique finds shortest paths in graphs (next module).
+      Depth-first orders dive down one branch before trying the next. **Breadth-first** traversal instead visits a tree **level by level**: the root, then all its children, then all their children. Instead of recursion it uses a **queue**:
 
-      To separate the levels, process the queue in batches: at the start of each level, the queue holds exactly that level's nodes.
+      1. Put the root in the queue.
+      2. Take the node at the front, handle it, and push its children to the back.
+      3. Repeat until the queue is empty.
 
-      ```cpp
-      while (!q.empty()) {
-          std::size_t n = q.size();      // nodes on this level
-          for (std::size_t i = 0; i < n; i++) { ... q.pop(); push children ... }
+      Because children join at the **back**, every node of one level is handled before any node of the next.
+
+      To separate the levels, process the queue in **batches**: at the start of each round, the queue holds exactly one level's nodes, so remember `q.size()` and pop exactly that many.
+
+      ```cpp run
+      #include <iostream>
+      #include <memory>
+      #include <queue>
+      #include <string>
+      #include <vector>
+
+      struct Emp {
+          std::string name;
+          std::vector<std::unique_ptr<Emp>> reports;    // any number of children
+      };
+
+      std::unique_ptr<Emp> emp(std::string n) { return std::make_unique<Emp>(Emp{std::move(n), {}}); }
+
+      int main() {
+          auto ceo = emp("Ava");
+          ceo->reports.push_back(emp("Ben"));
+          ceo->reports.push_back(emp("Cy"));
+          ceo->reports[0]->reports.push_back(emp("Dee"));
+          ceo->reports[1]->reports.push_back(emp("Eli"));
+          ceo->reports[1]->reports.push_back(emp("Fay"));
+
+          std::queue<const Emp*> q;
+          q.push(ceo.get());
+          int level = 0;
+          while (!q.empty()) {
+              std::size_t n = q.size();                  // everyone on this level
+              std::cout << "level " << level++ << ":";
+              for (std::size_t i = 0; i < n; i++) {
+                  const Emp* e = q.front();
+                  q.pop();
+                  std::cout << " " << e->name;
+                  for (const auto& r : e->reports) q.push(r.get());
+              }
+              std::cout << "\n";
+          }
       }
       ```
+
+      ```output
+      level 0: Ava
+      level 1: Ben Cy
+      level 2: Dee Eli Fay
+      ```
+
+      ### Details
+
+      - The queue holds plain `const Emp*` pointers. It doesn't own anything; the tree does.
+      - Children are pushed while the current level is being processed, but they sit **behind** the current level's nodes, and the saved count `n` stops the inner loop before reaching them.
+      - An empty tree (a null root) should return an empty result, so check before pushing it.
+
+      The same technique finds **shortest paths** in graphs, as you'll see in the next module: breadth-first order reaches every node by the fewest possible steps.
 
       **Your turn:** write `std::vector<std::vector<int>> levels(const Node* root)`.
     seed: |
@@ -327,19 +543,66 @@ steps:
   - title: A binary heap by hand
     id: dsa-trees-5
     text: |
-      A **binary heap** is a complete binary tree stored in a plain array. No pointers at all:
+      A **binary heap** is a tree with a clever trick: it's stored in a plain array, with no pointers at all. The tree is always **complete** (every level full except possibly the last, which fills from the left), so the nodes can be numbered level by level, and the parent/child links are just arithmetic:
 
       ```
       index:    0   1   2   3   4   5
       parent(i) = (i - 1) / 2      children(i) = 2i + 1, 2i + 2
       ```
 
-      In a **min-heap**, every parent is ≤ its children, so the minimum is always at index 0.
+      ```
+                 2                a = [2, 5, 3, 9, 6, 4]
+               /   \
+              5     3             children of index 1 (the 5): indexes 3 and 4 (9 and 6)
+             / \   /              parent of index 5 (the 4): index 2 (the 3)
+            9   6 4
+      ```
 
-      - **push**: append at the end, then *sift up*: swap with the parent while smaller.
-      - **pop**: move the last element to the root, then *sift down*: swap with the smaller child while larger.
+      In a **min-heap**, every parent is ≤ its children, so the minimum is always at index 0. (The tree is not sorted beyond that: 9 and 4 are on different branches, in no particular order.)
 
-      Both are O(log n). This is what's inside `std::priority_queue`.
+      - **push**: append at the end, then **sift up**: swap with the parent while smaller.
+      - **pop**: move the last element to the root, then **sift down**: swap with the smaller child while larger.
+
+      Here's sift up, printed step by step:
+
+      ```cpp run
+      #include <iostream>
+      #include <utility>
+      #include <vector>
+
+      void print(const std::vector<int>& a) {
+          for (int x : a) std::cout << x << " ";
+          std::cout << "\n";
+      }
+
+      int main() {
+          std::vector<int> a = {2, 5, 3, 9, 6, 4};
+          a.push_back(1);                             // new element at index 6
+          print(a);
+          std::size_t i = a.size() - 1;
+          while (i > 0 && a[i] < a[(i - 1) / 2]) {    // smaller than its parent?
+              std::swap(a[i], a[(i - 1) / 2]);
+              i = (i - 1) / 2;
+              print(a);
+          }
+          std::cout << "min is " << a[0] << "\n";
+      }
+      ```
+
+      ```output
+      2 5 3 9 6 4 1 
+      2 5 1 9 6 4 3 
+      1 5 2 9 6 4 3 
+      min is 1
+      ```
+
+      ### Why it's O(log n)
+
+      A complete tree with n nodes has about log₂ n levels. Sift up moves one level per swap, and so does sift down, so both operations do at most log n swaps. This is exactly what's inside `std::priority_queue`.
+
+      ### Sift down for pop
+
+      After moving the last element to index 0 (and removing the last slot), repeat: find the **smaller** of the node's children (check that each child index is `< size`); if it's smaller than the node, swap and continue from there; otherwise stop. Swapping with the smaller child is what keeps the heap rule true for both branches.
 
       **Your turn:** implement `MinHeap::push`, `MinHeap::pop` (assume non-empty) and `top`.
     seed: |
@@ -436,7 +699,74 @@ steps:
   - title: "Challenge: a trie for autocomplete"
     id: dsa-trees-6
     text: |
-      A **trie** (prefix tree) stores strings character by character: each node has up to 26 children, one per letter, and a flag marking where a word ends. Every word sharing a prefix shares that path, so "how many words start with `de_`?" takes O(length of the prefix), no matter how many words there are. Search boxes, spell checkers and routers use tries.
+      A **trie** (from re**trie**val, often said "try") stores strings character by character. Each node has up to 26 children, one per letter, and a flag marking where a complete word ends. Words that share a prefix share the path for it:
+
+      ```
+      root
+       └ c
+         └ a
+           ├ r *        "car"
+           │ └ t *      "cart"
+           └ t *        "cat"
+      ```
+
+      So "which words start with `ca`?" only needs to walk two nodes, then look below, no matter how many other words the trie holds. Search boxes, spell checkers and network routers use tries.
+
+      ```cpp run
+      #include <array>
+      #include <iostream>
+      #include <memory>
+      #include <string>
+
+      struct Node {
+          std::array<std::unique_ptr<Node>, 26> next;   // one slot per letter
+          bool end = false;
+      };
+
+      void insert(Node& root, const std::string& w) {
+          Node* n = &root;
+          for (char c : w) {
+              auto& child = n->next[c - 'a'];
+              if (!child) child = std::make_unique<Node>();
+              n = child.get();
+          }
+          n->end = true;
+      }
+
+      void print_all(const Node& n, std::string& prefix) {
+          if (n.end) std::cout << prefix << " ";
+          for (int i = 0; i < 26; i++) {                 // 'a' to 'z': alphabetical order
+              if (n.next[i]) {
+                  prefix.push_back(char('a' + i));
+                  print_all(*n.next[i], prefix);
+                  prefix.pop_back();                     // undo before trying the next letter
+              }
+          }
+      }
+
+      int main() {
+          Node root;
+          for (const char* w : {"cat", "car", "cart", "dog", "do"}) insert(root, w);
+          std::string prefix;
+          print_all(root, prefix);
+          std::cout << "\n";
+      }
+      ```
+
+      ```output
+      car cart cat do dog 
+      ```
+
+      ### How it works
+
+      - `c - 'a'` turns a lowercase letter into an index from 0 to 25.
+      - `insert` walks down, **creating** missing nodes on the way, and marks the last one as a word end. `"do"` and `"dog"` share nodes; only the `end` flags differ.
+      - `print_all` is a depth-first walk that builds the current word in `prefix`, adding a letter before going down and removing it after coming back. Visiting children from `'a'` to `'z'` prints the words **sorted**.
+
+      ### Your task's extras
+
+      - **count_prefix**: add an `int pass` counter to each node, and increment it on every node you pass through during insert. Then the answer is the counter of the node at the end of the prefix. To count a repeated word only once, check `contains` first and skip the insert.
+      - **complete**: walk to the prefix's node (no node means no words), then do the depth-first walk above from there, collecting words into a vector, and stop once you have `limit`.
 
       **Your turn:** write class `Trie` for lowercase words:
 

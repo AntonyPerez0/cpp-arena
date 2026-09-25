@@ -66,7 +66,7 @@ export default function ProjectPage() {
           <h2 className="ms-title">
             Milestone {cur + 1}: {ms.title}
           </h2>
-          <Markdown text={ms.text} />
+          <Markdown text={ms.text} top={3} />
         </aside>
         <section className="step-work">
           {allDone && !passed && <div className="banner banner-pass">🏆 Project complete. Keep polishing, or start another one.</div>}

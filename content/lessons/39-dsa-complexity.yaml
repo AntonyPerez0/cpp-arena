@@ -7,7 +7,7 @@ steps:
   - title: Big-O in practice
     id: dsa-complexity-1
     text: |
-      **Big-O** describes how running time grows with the input size n, ignoring constant factors:
+      Two programs can give the same answer and still differ enormously: one finishes instantly, the other takes hours. The difference is usually not the language or the computer, but **how the amount of work grows** as the input gets bigger. **Big-O** notation describes exactly that growth, ignoring constant factors:
 
       | Complexity | n = 1,000 | n = 1,000,000 | Typical example |
       |---|---|---|---|
@@ -19,7 +19,64 @@ steps:
 
       A computer does roughly 10⁸ to 10⁹ simple operations per second. So at a million items, O(n²) takes **hours** while O(n log n) takes milliseconds. Interviews test this, and so does production traffic.
 
-      The most common fix for O(n²) is trading memory for time: remember what you've seen in a hash set, which has O(1) average lookup.
+      ### Counting the work
+
+      To find a function's complexity, ask how many times the innermost statement runs for an input of size n:
+
+      - One loop over the data: n times, so O(n).
+      - A loop inside a loop over the same data: about n × n / 2 times, so O(n²). The `/ 2` is a constant factor, and Big-O drops it.
+      - A loop that halves the range each time: log₂ n times, so O(log n).
+
+      Here the same question, "which numbers appear in both lists?", is answered both ways:
+
+      ```cpp run
+      #include <iostream>
+      #include <unordered_set>
+      #include <vector>
+
+      long ops = 0;
+
+      int common_slow(const std::vector<int>& a, const std::vector<int>& b) {
+          int n = 0;
+          for (int x : a) {
+              for (int y : b) {
+                  ops++;
+                  if (x == y) { n++; break; }
+              }
+          }
+          return n;
+      }
+
+      int common_fast(const std::vector<int>& a, const std::vector<int>& b) {
+          std::unordered_set<int> in_b(b.begin(), b.end());   // O(n) to build
+          int n = 0;
+          for (int x : a) {
+              ops++;
+              if (in_b.contains(x)) n++;                      // O(1) average each
+          }
+          return n;
+      }
+
+      int main() {
+          std::vector<int> a, b;
+          for (int i = 0; i < 2000; i++) { a.push_back(i * 2); b.push_back(i * 3); }
+          ops = 0;
+          std::cout << common_slow(a, b) << " common, " << ops << " steps\n";
+          ops = 0;
+          std::cout << common_fast(a, b) << " common, " << ops << " steps\n";
+      }
+      ```
+
+      ```output
+      667 common, 3110889 steps
+      667 common, 2000 steps
+      ```
+
+      With 2,000 numbers the nested loop already does over 3 million steps. With 200,000 it would do tens of billions, while the hash set version would do 200,000.
+
+      ### Trading memory for time
+
+      The most common fix for O(n²) is to **remember what you've seen** in a structure with fast lookup. A hash set uses extra memory, but checks membership in O(1) on average, so one pass over the data is enough.
 
       **Your turn:** write `bool has_duplicate(const std::vector<int>& v)` in O(n). The hidden test uses 200,000 numbers, so comparing every pair will run out of time.
     seed: |
@@ -62,7 +119,7 @@ steps:
   - title: Binary search
     id: dsa-complexity-2
     text: |
-      In a **sorted** array, binary search finds a value in O(log n) by halving the search range each step. A million elements takes at most 20 steps.
+      Looking for a word in a dictionary, you don't start at page 1. You open the middle, see whether your word comes before or after, and throw away the half it can't be in. After about 20 halvings, a million pages are down to one. That's **binary search**, and it only works on **sorted** data.
 
       ```
       lo = 0, hi = n - 1
@@ -73,7 +130,56 @@ steps:
           else: hi = mid - 1
       ```
 
-      Binary search is famously easy to get subtly wrong. Off-by-one errors in `lo`/`hi` cause infinite loops or missed elements. Write it carefully once and understand every `+ 1` and `- 1`.
+      Here it is on a sorted list of words, printing each step so you can watch the range shrink:
+
+      ```cpp run
+      #include <iostream>
+      #include <string>
+      #include <vector>
+
+      int find_word(const std::vector<std::string>& words, const std::string& target) {
+          int lo = 0, hi = (int)words.size() - 1;
+          while (lo <= hi) {
+              int mid = lo + (hi - lo) / 2;
+              std::cout << "  look at [" << lo << ", " << hi << "] middle " << words[mid] << "\n";
+              if (words[mid] == target) return mid;
+              if (words[mid] < target) lo = mid + 1;    // target is to the right
+              else hi = mid - 1;                        // target is to the left
+          }
+          return -1;
+      }
+
+      int main() {
+          std::vector<std::string> w = {"ant", "bee", "cat", "dog", "eel", "fox", "gnu", "hen"};
+          int fox = find_word(w, "fox");
+          std::cout << "fox at " << fox << "\n";
+          int cow = find_word(w, "cow");
+          std::cout << "cow at " << cow << "\n";
+      }
+      ```
+
+      ```output
+        look at [0, 7] middle dog
+        look at [4, 7] middle fox
+      fox at 5
+        look at [0, 7] middle dog
+        look at [0, 2] middle bee
+        look at [2, 2] middle cat
+      cow at -1
+      ```
+
+      ### Why it's fast
+
+      Each step halves the range: 8, 4, 2, 1. A million elements need at most 20 steps, a billion about 30. That's O(log n).
+
+      ### The details that matter
+
+      - `lo <= hi`, not `lo < hi`: when `lo == hi` there's still one element left to check.
+      - `lo = mid + 1` and `hi = mid - 1`: `mid` was already checked, so exclude it. Writing `lo = mid` can loop forever when `hi == lo + 1`.
+      - `lo + (hi - lo) / 2` instead of `(lo + hi) / 2`: for huge arrays, `lo + hi` can overflow an `int`. This exact bug sat in Java's standard library for nine years.
+      - When the loop ends without finding it, `lo > hi` and the target isn't there. Also note `lo` is where the target **would** be inserted, which is the idea behind `lower_bound` in the next step.
+
+      Binary search is famously easy to get subtly wrong. Write it carefully once and understand every `+ 1` and `- 1`.
 
       **Your turn:** write `int find_index(const std::vector<int>& v, int target)` returning the index of `target` in the sorted vector `v`, or -1. Don't use the standard library's search functions.
     seed: |
@@ -121,13 +227,61 @@ steps:
   - title: lower_bound and upper_bound
     id: dsa-complexity-3
     text: |
-      In real code, use the standard library's binary searches on sorted ranges:
+      In real code, use the standard library's binary searches on sorted ranges. They're correct, fast, and answer more useful questions than "is it there?":
 
       - `std::lower_bound(b, e, x)`: first element **not less than** x (where x would be inserted)
       - `std::upper_bound(b, e, x)`: first element **greater than** x
       - `std::binary_search(b, e, x)`: just yes or no
 
-      So the elements equal to x are exactly `[lower_bound, upper_bound)`, and the count of values in a range `[lo, hi]` is `upper_bound(hi) - lower_bound(lo)`, in O(log n) no matter how many there are.
+      ```cpp run
+      #include <algorithm>
+      #include <iostream>
+      #include <vector>
+
+      int main() {
+          std::vector<int> ages = {12, 15, 15, 15, 18, 21, 30, 42};
+
+          auto lo = std::lower_bound(ages.begin(), ages.end(), 15);
+          auto hi = std::upper_bound(ages.begin(), ages.end(), 15);
+          std::cout << "15 appears " << (hi - lo) << " times, first at index " << (lo - ages.begin()) << "\n";
+
+          auto adults = ages.end() - std::lower_bound(ages.begin(), ages.end(), 18);
+          std::cout << adults << " are 18 or older\n";
+
+          auto pos = std::lower_bound(ages.begin(), ages.end(), 20);
+          std::cout << "20 would go at index " << (pos - ages.begin()) << ", before " << *pos << "\n";
+          std::cout << std::binary_search(ages.begin(), ages.end(), 21) << std::binary_search(ages.begin(), ages.end(), 22) << "\n";
+      }
+      ```
+
+      ```output
+      15 appears 3 times, first at index 1
+      4 are 18 or older
+      20 would go at index 5, before 21
+      10
+      ```
+
+      ### Picture it
+
+      For the value 15 in `12 15 15 15 18`:
+
+      ```
+       12  15  15  15  18
+           ^           ^
+      lower_bound   upper_bound
+      ```
+
+      The elements equal to x are exactly `[lower_bound, upper_bound)`. Subtracting the iterators counts them.
+
+      ### Counting a range
+
+      The number of values `v` with `lo <= v <= hi` is:
+
+      ```
+      upper_bound(hi) - lower_bound(lo)
+      ```
+
+      `lower_bound(lo)` is the first value that's at least `lo`; `upper_bound(hi)` is the first value past `hi`. Everything between them is in range. Two binary searches, O(log n), no matter how many values match. If `lo > hi`, the result would be negative, so return 0 in that case.
 
       **Your turn:** write `long count_in_range(const std::vector<int>& sorted, int lo, int hi)` counting values `v` with `lo <= v <= hi`.
     seed: |
@@ -171,13 +325,49 @@ steps:
   - title: Two pointers
     id: dsa-complexity-4
     text: |
-      On sorted data, two indexes moving toward each other often replace a nested loop. To find a pair summing to a target:
+      On sorted data, two indexes moving toward each other can often replace a nested loop. Each comparison lets you **rule out one element for good**, so the whole scan is O(n) instead of O(n²).
 
-      - start with `i` at the smallest and `j` at the largest,
-      - if the sum is too small, the only way to grow it is `i++`,
-      - if it's too big, `j--`.
+      Here's the idea on a different problem: is a string a palindrome (the same forwards and backwards), ignoring non-letters?
 
-      Each step discards one element for good, so it's O(n) instead of O(n²).
+      ```cpp run
+      #include <cctype>
+      #include <iostream>
+      #include <string>
+
+      bool is_palindrome(const std::string& s) {
+          int i = 0, j = (int)s.size() - 1;
+          while (i < j) {
+              if (!std::isalpha((unsigned char)s[i])) { i++; continue; }
+              if (!std::isalpha((unsigned char)s[j])) { j--; continue; }
+              if (std::tolower((unsigned char)s[i]) != std::tolower((unsigned char)s[j])) return false;
+              i++;
+              j--;
+          }
+          return true;
+      }
+
+      int main() {
+          std::cout << is_palindrome("Never odd or even") << is_palindrome("A man, a plan, a canal: Panama")
+                    << is_palindrome("two pointers") << "\n";
+      }
+      ```
+
+      ```output
+      110
+      ```
+
+      ### Two pointers for a target sum
+
+      For "do two numbers in a sorted list add up to `target`?":
+
+      - start with `i` at the smallest value and `j` at the largest,
+      - if `v[i] + v[j]` is **too small**, the only way to grow the sum is to move `i` right (`j` is already the biggest),
+      - if it's **too big**, move `j` left,
+      - if it's equal, you've found a pair.
+
+      Every step discards one value that can't be part of any answer, so the loop runs at most n times. Stop when `i` meets `j`, because the two positions must be different.
+
+      Watch the types: `target` is a `long`, and two big `int`s can overflow when added. Add them as `long`: `(long)v[i] + v[j]`.
 
       **Your turn:** write `bool pair_sum(const std::vector<int>& sorted, long target)` that says whether two **different positions** hold values summing to `target`.
     seed: |
@@ -220,13 +410,44 @@ steps:
   - title: Prefix sums
     id: dsa-complexity-5
     text: |
-      If you'll ask "what's the sum of elements l..r?" many times, precompute **prefix sums** once: `pre[i]` is the sum of the first i elements. Then any range sum is one subtraction:
+      If you'll ask "what's the sum of elements l..r?" many times, adding them up each time costs O(n) per question. Instead, precompute **prefix sums** once: `pre[i]` is the sum of the first `i` elements. Then any range sum is one subtraction.
 
       ```
-      sum(l..r) = pre[r + 1] - pre[l]
+      v   =     3   1   4   1   5
+      pre = 0   3   4   8   9  14
+
+      sum(1..3) = pre[4] - pre[1] = 9 - 3 = 6     (1 + 4 + 1)
       ```
 
-      O(n) setup, then O(1) per query, instead of O(n) per query. The same trick works for counts, 2D grids ("summed-area tables") and time series.
+      ```cpp run
+      #include <iostream>
+      #include <vector>
+
+      int main() {
+          std::vector<int> rain = {3, 0, 12, 5, 0, 7, 2};       // mm per day
+          std::vector<long long> pre(rain.size() + 1, 0);
+          for (std::size_t i = 0; i < rain.size(); i++) pre[i + 1] = pre[i] + rain[i];
+
+          auto total = [&pre](int l, int r) { return pre[r + 1] - pre[l]; };   // inclusive
+          std::cout << "days 0-6: " << total(0, 6) << "\n";
+          std::cout << "days 2-3: " << total(2, 3) << "\n";
+          std::cout << "day 4: " << total(4, 4) << "\n";
+      }
+      ```
+
+      ```output
+      days 0-6: 29
+      days 2-3: 17
+      day 4: 0
+      ```
+
+      ### How it works
+
+      - `pre` has **one more** entry than the data, with `pre[0] = 0`. That extra zero means a range starting at index 0 needs no special case.
+      - `pre[r + 1]` is the sum of everything up to and including `r`; subtracting `pre[l]` removes everything before `l`.
+      - Use `long long` for the sums: 200,000 values can easily add up past the `int` limit.
+
+      O(n) setup, then O(1) per query. The same trick works for counts ("how many errors between 9:00 and 9:15?"), 2D grids (summed-area tables, used in image processing) and time series.
 
       **Your turn:** write class `RangeSum` with a constructor taking the values and `long long sum(int l, int r) const` for the inclusive range. The test runs 200,000 queries on 200,000 values.
     seed: |
@@ -280,7 +501,53 @@ steps:
   - title: "Challenge: sliding window"
     id: dsa-complexity-6
     text: |
-      A **sliding window** keeps a range `[left, right]` that only ever moves forward. Each element enters once and leaves once, so the whole scan is O(n), even though it looks at many ranges.
+      A **sliding window** keeps a range `[left, right]` of the data that only ever moves forward. Each element enters the window once and leaves once, so the whole scan is O(n), even though it effectively examines a huge number of ranges.
+
+      Here's a window that grows and shrinks: the shortest stretch of days whose rainfall reaches a target.
+
+      ```cpp run
+      #include <iostream>
+      #include <vector>
+
+      int shortest_reaching(const std::vector<int>& v, int target) {
+          int best = 0, sum = 0, left = 0;
+          for (int right = 0; right < (int)v.size(); right++) {
+              sum += v[right];                        // grow: v[right] enters
+              while (sum >= target) {                 // shrink while still valid
+                  int len = right - left + 1;
+                  if (best == 0 || len < best) best = len;
+                  sum -= v[left];                     // v[left] leaves
+                  left++;
+              }
+          }
+          return best;                                // 0 means never reached
+      }
+
+      int main() {
+          std::vector<int> rain = {2, 1, 5, 1, 3, 2, 8};
+          std::cout << shortest_reaching(rain, 8) << "\n";    // just the 8 at the end
+          std::cout << shortest_reaching(rain, 9) << "\n";    // 5 1 3, or 2 8
+          std::cout << shortest_reaching(rain, 100) << "\n";
+      }
+      ```
+
+      ```output
+      1
+      2
+      0
+      ```
+
+      ### The pattern
+
+      1. Move `right` forward one step, adding the new element to the window's state.
+      2. While the window breaks (or satisfies) the condition, move `left` forward, removing elements from the state.
+      3. Record the answer at the right moment.
+
+      `left` never moves backwards, and `right` goes through the data once, so the total work is O(n).
+
+      ### Your task: longest substring with no repeats
+
+      The window's state is "the last position where each character was seen", kept in an array of 256 ints set to -1. When `s[right]` was last seen **inside** the window (at a position `>= left`), jump `left` to one past that position. Then record `s[right]`'s new position and update the best length `right - left + 1`. Index the array with `(unsigned char)s[right]` so characters above 127 don't give a negative index.
 
       **Your turn:** write `int longest_unique(const std::string& s)`: the length of the longest substring with **no repeated characters**. For `"abcabcbb"` it's 3 (`"abc"`).
 
