@@ -1,0 +1,31 @@
+id: heap-string
+title: Returning heap memory from a function
+lang: c
+module: c-memory
+steps: [c-memory-3, c-memory-4, c-memory-8]
+summary: A heap block outlives the function that made it; the caller must free it.
+text: |
+  `repeat` builds a string on the heap and returns its address. Its own frame disappears when it returns, but the heap block stays, and now `main`'s `s` points at it.
+
+  That transfer is **ownership**: `main` now owns the block and must `free` it. A local array in `repeat` would have died with its frame.
+code: |
+  #include <stdio.h>
+  #include <stdlib.h>
+
+  char *repeat(char c, int n) {
+      char *s = malloc(n + 1);
+      if (!s) return NULL;
+      for (int i = 0; i < n; i++) {
+          s[i] = c;
+      }
+      s[n] = '\0';
+      return s;
+  }
+
+  int main(void) {
+      char *s = repeat('z', 3);
+      if (!s) return 1;
+      printf("%s\n", s);
+      free(s);
+      return 0;
+  }

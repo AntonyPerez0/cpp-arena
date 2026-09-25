@@ -43,7 +43,9 @@ const exe = process.env.CHROMIUM_PATH || (fs.existsSync("/opt/pw-browsers/chromi
 // default headless shell crashes the tab on the out-of-bounds-crash test, which full Chromium
 // (and Chrome) handle correctly by reporting the program's crash.
 const browser = await chromium.launch(exe ? { executablePath: exe } : { channel: "chromium" });
-const page = await browser.newPage({ viewport: { width: 1360, height: 900 } });
+// Service workers are tested on their own below; elsewhere they'd only add caching to reason about.
+const mainCtx = await browser.newContext({ viewport: { width: 1360, height: 900 }, serviceWorkers: "block" });
+const page = await mainCtx.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
 page.on("console", (m) => m.type() === "error" && errors.push("console: " + m.text()));
@@ -297,9 +299,10 @@ await test("pro track pages render, and the starter pack downloads", async () =>
 
 await test("pro pages fit a phone screen (no sideways scrolling)", async () => {
   const phone = await browser.newPage({ viewport: { width: 390, height: 844 } });
-  for (const hash of ["/pro", "/pro/toolchain", "/pro/performance", "/learn/c-types/1"]) {
+  for (const hash of ["/pro", "/pro/toolchain", "/pro/performance", "/learn/c-types/1", "/visualize/list-push", "/visualize/class-object", "/topics/c-pointers", "/topics/bitwise-operators", "/daily", "/placement", "/certificate", "/profile"]) {
     await phone.goto(BASE + hash.replace(/^\//, ""));
-    await phone.waitForSelector(".page-head, .step-grid", { timeout: 10000 });
+    await phone.waitForSelector("#main h1", { timeout: 10000 });
+    await phone.waitForTimeout(300);
     const overflow = await phone.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     if (overflow > 1) throw new Error(`${hash} is ${overflow}px wider than the screen`);
   }
@@ -321,10 +324,228 @@ await test("progress persisted in localStorage", async () => {
   if (!s.steps["c-hello-1"]?.done) throw new Error("step 1 not saved as done");
 });
 
+
+// ---------------------------------------------------------------- new features
+/** Answer whatever rep is showing correctly. */
+async function answerRep(pg, drillList = content.drills) {
+  const rep = pg.locator(".rep").first();
+  await rep.waitFor({ timeout: 15000 });
+  const id = await rep.getAttribute("data-drill");
+  const d = drillList.find((x) => x.id === id) ?? content.drills.find((x) => x.id === id);
+  if (!d) throw new Error("unknown drill id " + id);
+  if (d.type === "predict") {
+    await pg.locator(".answer-input").fill(d.answer.replace(/\n/g, " "));
+    await pg.keyboard.press("Enter");
+  } else if (d.type === "fill") {
+    await pg.locator(".rep input.blank").fill(d.answer);
+    await pg.keyboard.press("Enter");
+  } else if (d.type === "compiles") {
+    await pg.getByRole("button", { name: d.answer === "yes" ? /^Compiles/ : /^Compile error/ }).click();
+  } else if (d.type === "bug") {
+    await pg.locator(".bugline").nth(+d.answer - 1).click();
+  } else if (d.type === "choice") {
+    await pg.locator(`.choice[data-choice="${+d.answer - 1}"]`).click();
+  } else throw new Error("can't answer " + d.type);
+  return d;
+}
+
+await test("theme: the toggle switches to light and the choice is remembered", async () => {
+  await go("/");
+  const before = await page.evaluate(() => document.documentElement.dataset.theme);
+  const after = before === "dark" ? "light" : "dark";
+  await page.getByRole("button", { name: `Switch to ${after} theme` }).click();
+  if ((await page.evaluate(() => document.documentElement.dataset.theme)) !== after) throw new Error("theme did not change");
+  await page.waitForTimeout(400);
+  await go("/learn");
+  if ((await page.evaluate(() => document.documentElement.dataset.theme)) !== after) throw new Error("theme not remembered");
+  await go("/profile");
+  await page.getByLabel("Larger").check();
+  const size = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize));
+  if (size < 19) throw new Error("text size did not grow: " + size);
+  await page.getByLabel("Default").check();
+  await page.getByLabel("Match my device").check();
+  await page.waitForTimeout(400);
+});
+
+await test("symbol bar types into the editor and into blanks on a phone", async () => {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, serviceWorkers: "block" });
+  const ph = await ctx.newPage();
+  await ph.goto(BASE + "learn/c-hello/3");
+  await ph.locator(".cm-content").click();
+  await ph.keyboard.press("Control+End");
+  await ph.getByRole("button", { name: "braces" }).tap();
+  await ph.getByRole("button", { name: "semicolon" }).tap();
+  const text = await ph.locator(".cm-content").innerText();
+  if (!text.includes("{;}")) throw new Error("editor text doesn't end with {;}: " + JSON.stringify(text.slice(-20)));
+  await ph.goto(BASE + "learn/c-hello/1");
+  await ph.locator("input.blank").first().fill("printf");
+  await ph.getByRole("button", { name: "parentheses" }).tap();
+  const v = await ph.locator("input.blank").first().inputValue();
+  if (v !== "printf()") throw new Error("blank holds " + v);
+  await ctx.close();
+});
+
+await test("report a problem opens a pre-filled GitHub issue", async () => {
+  await go("/learn/c-pointers/2");
+  const link = page.getByRole("link", { name: /Report a problem/ }).first();
+  await link.hover();
+  const href = await link.getAttribute("href");
+  const u = new URL(href);
+  if (!/github\.com\/.+\/issues\/new$/.test(u.origin + u.pathname)) throw new Error("not an issue link: " + href);
+  if (!u.searchParams.get("body").includes("c-pointers-2") || !u.searchParams.get("title").includes("Lesson step")) throw new Error("issue is not pre-filled");
+});
+
+await test("placement quiz: all right skips every tested module", async () => {
+  const ctx = await browser.newContext({ serviceWorkers: "block" });
+  const pg = await ctx.newPage();
+  await pg.goto(BASE + "placement");
+  await pg.getByRole("button", { name: "Start the quiz" }).click();
+  for (let i = 0; i < content.placement.length; i++) {
+    await pg.getByRole("heading", { name: `Question ${i + 1} of ${content.placement.length}` }).waitFor();
+    await answerRep(pg, content.placement);
+  }
+  await pg.getByRole("heading", { name: "Your starting point" }).waitFor();
+  const last = content.modules.findIndex((m) => m.id === content.placement.at(-1).module);
+  await pg.getByText(`You got ${content.placement.length} of ${content.placement.length}`).waitFor();
+  await pg.getByRole("button", { name: /^Skip \d+ modules/ }).click();
+  await pg.getByRole("link", { name: `Go to ${content.modules[last + 1].title}` }).click();
+  await pg.waitForURL(new RegExp(`/learn/${content.modules[last + 1].id}/1$`));
+  await pg.waitForTimeout(300);
+  const placed = await pg.evaluate(() => JSON.parse(localStorage.getItem("cpp-arena-v1")).placed.length);
+  if (placed !== last + 1) throw new Error(`placed ${placed} modules, expected ${last + 1}`);
+  await pg.goto(BASE + "learn");
+  await pg.getByText("skipped by placement").first().waitFor();
+  await ctx.close();
+});
+
+await test("daily challenge: answer it, see the streak, and it stays done", async () => {
+  const ctx = await browser.newContext({ serviceWorkers: "block" });
+  const pg = await ctx.newPage();
+  await pg.goto(BASE + "daily");
+  await answerRep(pg);
+  await pg.getByText("Solved", { exact: true }).waitFor();
+  await pg.locator(".stat-n", { hasText: "1" }).waitFor();
+  await pg.waitForTimeout(300);
+  await pg.reload();
+  await pg.getByText("Solved", { exact: true }).waitFor();
+  await ctx.close();
+});
+
+await test("interview prep: open to everyone, all question types answer correctly", async () => {
+  const ctx = await browser.newContext({ serviceWorkers: "block" });
+  const pg = await ctx.newPage();
+  await pg.goto(BASE + "deathmatch");
+  await pg.getByRole("button", { name: "Try interview prep" }).click();
+  const types = new Set();
+  for (let k = 0; k < 14; k++) {
+    await pg.locator(".rep-topic", { hasText: "Interview prep" }).waitFor();
+    types.add((await answerRep(pg)).type);
+    if (await pg.locator(".death").count()) throw new Error("a correct answer was marked wrong");
+    await pg.waitForTimeout(80);
+  }
+  if (!types.has("choice")) throw new Error("no pick-one questions appeared: " + [...types]);
+  const streak = await pg.locator(".hud-n").innerText();
+  if (+streak !== 14) throw new Error("streak is " + streak);
+  await ctx.close();
+});
+
+await test("visualizer: steps through a linked list with arrows and keyboard control", async () => {
+  await go("/learn/c-lists/2");
+  await page.getByRole("link", { name: /Watch it run/ }).first().click();
+  await page.getByRole("heading", { name: /Building a linked list/ }).waitFor();
+  await page.locator(".vframe").first().waitFor();
+  for (let i = 0; i < 20; i++) await page.getByRole("button", { name: "Next step" }).click();
+  await page.locator(".viz-count", { hasText: "Step 21 of" }).waitFor();
+  const arrows = await page.locator(".varrows path").count();
+  const blocks = await page.locator(".vblock").count();
+  if (arrows < 3 || blocks < 2) throw new Error(`expected arrows and heap blocks, got ${arrows} arrows, ${blocks} blocks`);
+  await page.getByText(/points to heap block/).first().waitFor();
+  await page.getByRole("button", { name: "Next step" }).focus();
+  await page.keyboard.press("End");
+  const last = await page.locator(".viz-count").innerText();
+  const [, a, b] = last.match(/Step (\d+) of (\d+)/);
+  if (a !== b) throw new Error("End key did not go to the last step: " + last);
+  await page.getByText("sum = 6").first().waitFor();
+  await shot("visualizer");
+});
+
+await test("topic pages render with their tested example output", async () => {
+  await go("/topics");
+  await page.getByRole("link", { name: "Pointers in C explained" }).click();
+  await page.getByRole("heading", { name: "Pointers in C explained", level: 1 }).waitFor();
+  const t = content.topics.find((x) => x.slug === "c-pointers");
+  await page.locator("pre.console", { hasText: t.output.trim() }).waitFor();
+  await page.getByRole("link", { name: /Lesson: Pointers/ }).waitFor();
+});
+
+await test("sync: a transfer link moves progress to a fresh browser", async () => {
+  await go("/profile");
+  await page.getByRole("button", { name: "Make a transfer link" }).click();
+  const link = await page.getByRole("textbox", { name: "Transfer link" }).inputValue();
+  if (!link.includes("/profile#transfer=")) throw new Error("bad link " + link);
+  await page.locator(".qr svg").waitFor();
+  const ctx = await browser.newContext({ serviceWorkers: "block" });
+  const pg = await ctx.newPage();
+  await pg.goto(link);
+  await pg.getByRole("button", { name: "Merge into this device" }).click();
+  await pg.getByText(/Merged/).waitFor();
+  await pg.waitForTimeout(300);
+  const done = await pg.evaluate(() => JSON.parse(localStorage.getItem("cpp-arena-v1")).steps["c-hello-1"]?.done);
+  if (!done) throw new Error("progress did not arrive");
+  await ctx.close();
+});
+
+await test("certificate: appears when every step is done and its share link opens", async () => {
+  const ctx = await browser.newContext({ serviceWorkers: "block", permissions: ["clipboard-read", "clipboard-write"] });
+  const steps = Object.fromEntries(content.modules.flatMap((m) => m.steps.map((s) => [s.id, { done: true, hintsUsed: 0, clean: true, doneAt: Date.UTC(2026, 8, 1) }])));
+  await ctx.addInitScript((st) => {
+    if (!localStorage.getItem("cpp-arena-v1")) localStorage.setItem("cpp-arena-v1", JSON.stringify({ version: 1, steps: st, projects: {}, drills: {}, settings: { certName: "Ada Lovelace" } }));
+  }, steps);
+  const pg = await ctx.newPage();
+  await pg.goto(BASE + "certificate");
+  await pg.locator(".cert-name", { hasText: "Ada Lovelace" }).waitFor();
+  await pg.getByRole("button", { name: "Print or save as PDF" }).waitFor();
+  const download = pg.waitForEvent("download");
+  await pg.getByRole("button", { name: /Share image/ }).click();
+  const file = await download;
+  if (file.suggestedFilename() !== "cpparena-certificate-course.png") throw new Error("share image is " + file.suggestedFilename());
+  const size = fs.statSync(await file.path()).size;
+  if (size < 10000) throw new Error("share image is only " + size + " bytes");
+  await pg.getByRole("button", { name: "Copy link" }).click();
+  const url = await pg.evaluate(() => navigator.clipboard.readText());
+  if (!url.includes("/certificate#view=")) throw new Error("bad share link " + url);
+  const viewer = await browser.newContext({ serviceWorkers: "block" });
+  const vp = await viewer.newPage();
+  await vp.goto(url);
+  await vp.locator(".cert-name", { hasText: "Ada Lovelace" }).waitFor();
+  await vp.getByText(/can't be independently verified/).waitFor();
+  await viewer.close();
+  await ctx.close();
+});
+
+await test("offline: after one visit the site opens without a connection", async () => {
+  const ctx = await browser.newContext();
+  const pg = await ctx.newPage();
+  await pg.goto(BASE);
+  await pg.evaluate(() => navigator.serviceWorker.ready);
+  await pg.reload();
+  await pg.getByText("writing real code").waitFor();
+  await pg.waitForFunction(() => !!navigator.serviceWorker.controller);
+  await pg.goto(BASE + "learn/c-hello/1");
+  await pg.getByRole("heading", { name: "Your first program" }).waitFor();
+  await ctx.setOffline(true);
+  await pg.goto(BASE + "learn/c-hello/1");
+  await pg.getByRole("heading", { name: "Your first program" }).waitFor();
+  await pg.goto(BASE + "topics/recursion");
+  await pg.getByRole("heading", { name: "Recursion explained", level: 1 }).waitFor();
+  await ctx.close();
+});
+
 // ---------------------------------------------------------------- accessibility
 // axe-core checks WCAG 2.2 A/AA rules (plus best practices) on every kind of page,
 // including interactive states: results shown, a drill in progress, the death screen.
-const a11yCtx = await browser.newContext({ viewport: { width: 1360, height: 900 } });
+// The site follows the device's light or dark setting; these checks run in dark, and a later one forces light.
+const a11yCtx = await browser.newContext({ viewport: { width: 1360, height: 900 }, serviceWorkers: "block", colorScheme: "dark" });
 await a11yCtx.addInitScript(() => {
   if (!localStorage.getItem("cpp-arena-v1"))
     localStorage.setItem("cpp-arena-v1", JSON.stringify({ version: 1, steps: {}, projects: {}, drills: {}, settings: { sound: false, unlockAll: true, topics: null, boss: false, keys: true } }));
@@ -345,7 +566,7 @@ const apGo = async (route) => {
 };
 
 await test("accessibility: every page type passes axe (WCAG 2.2 AA)", async () => {
-  const routes = ["/", "/learn", "/learn/c-hello/1", "/learn/c-memory/7", "/learn/c-files/2", "/deathmatch", "/projects", "/projects/calculator", "/pro", "/pro/toolchain", "/pro/kvstore", "/profile", "/no-such-page"];
+  const routes = ["/", "/learn", "/learn/c-hello/1", "/learn/c-memory/7", "/learn/c-files/2", "/deathmatch", "/projects", "/projects/calculator", "/pro", "/pro/toolchain", "/pro/kvstore", "/profile", "/no-such-page", "/topics", "/topics/c-pointers", "/visualize", "/visualize/list-push", "/daily", "/placement", "/certificate"];
   const problems = [];
   for (const r of routes) {
     await apGo(r);
@@ -407,6 +628,58 @@ await test("accessibility: deathmatch reps and the death screen pass axe", async
   if (seen.size < 3) throw new Error("only saw rep types: " + [...seen].join(", "));
 });
 
+
+await test("accessibility: the light theme and new pages pass axe", async () => {
+  await ap.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem("cpp-arena-v1"));
+    s.settings.theme = "light";
+    localStorage.setItem("cpp-arena-v1", JSON.stringify(s));
+  });
+  const problems = [];
+  for (const r of ["/", "/learn", "/learn/c-lists/2", "/deathmatch", "/profile", "/topics/c-pointers", "/visualize/list-push", "/daily", "/placement", "/certificate"]) {
+    await apGo(r);
+    await ap.waitForTimeout(400);
+    if ((await ap.evaluate(() => document.documentElement.dataset.theme)) !== "light") problems.push(r + ": not in the light theme");
+    try {
+      await axe("light " + r);
+    } catch (e) {
+      problems.push(e.message);
+    }
+  }
+  await apGo("/learn/c-hello/2");
+  await ap.locator("input.blank").first().fill("wrong");
+  await ap.getByRole("button", { name: /^Check/ }).click();
+  await ap.locator(".t-fail").first().waitFor({ timeout: 240000 });
+  await ap.waitForTimeout(400);
+  try {
+    await axe("light failed step");
+  } catch (e) {
+    problems.push(e.message);
+  }
+  await apGo("/visualize/virtual-dispatch");
+  for (let i = 0; i < 4; i++) await ap.getByRole("button", { name: "Next step" }).click();
+  try {
+    await axe("light visualizer mid-run");
+  } catch (e) {
+    problems.push(e.message);
+  }
+  await apGo("/deathmatch");
+  await ap.getByRole("button", { name: /^Interview prep/ }).click();
+  await ap.locator(".rep").waitFor();
+  await ap.waitForTimeout(400);
+  try {
+    await axe("light interview rep");
+  } catch (e) {
+    problems.push(e.message);
+  }
+  await ap.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem("cpp-arena-v1"));
+    s.settings.theme = "dark";
+    localStorage.setItem("cpp-arena-v1", JSON.stringify(s));
+  });
+  if (problems.length) throw new Error(problems.join("\n"));
+});
+
 await test("keyboard: skip link, focus moves to the new page, editor can be left", async () => {
   await apGo("/learn");
   await ap.keyboard.press("Tab");
@@ -446,7 +719,12 @@ await test("SEO: real URLs, per-page metadata, sitemap and old hash links", asyn
   if (!/"@type":"Course"/.test(home)) throw new Error("home page has no Course structured data");
   const sitemap = await get("sitemap.xml");
   const urls = (sitemap.match(/<loc>/g) ?? []).length;
-  if (urls < 300) throw new Error("sitemap has only " + urls + " URLs");
+  if (urls < 380) throw new Error("sitemap has only " + urls + " URLs");
+  for (const p of ["/topics/c-pointers/", "/visualize/list-push/", "/daily/", "/placement/"]) if (!sitemap.includes(p)) throw new Error("sitemap is missing " + p);
+  const topicHtml = await get("topics/c-pointers/");
+  if (!/"@type":"TechArticle"/.test(topicHtml) || !/<h1>Pointers in C explained<\/h1>/.test(topicHtml)) throw new Error("topic page is not pre-rendered");
+  const manifest = await page.request.get(BASE + "manifest.webmanifest");
+  if (manifest.status() !== 200 || !(await manifest.json()).icons?.length) throw new Error("web app manifest missing");
   if (/profile/.test(sitemap)) throw new Error("the private profile page is in the sitemap");
   const titles = new Set();
   for (const m of content.modules.slice(0, 6)) titles.add((await get(`learn/${m.id}/1/`)).match(/<title>(.*?)<\/title>/)[1]);

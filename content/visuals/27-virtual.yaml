@@ -1,0 +1,31 @@
+id: virtual-dispatch
+title: Virtual functions pick the real type
+lang: cpp
+module: cpp-oop
+steps: [cpp-oop-2, cpp-oop-4, cpp-oop-5]
+summary: A base-class pointer calls the derived class's override.
+text: |
+  `shape` is a `Shape *`, but it points at a `Square` on the heap. Because `area` is `virtual`, the call runs `Square::area`. Watch which frame appears on the stack.
+
+  `delete shape;` also runs `Square`'s destructor, because the base destructor is virtual.
+code: |
+  #include <iostream>
+
+  struct Shape {
+      virtual ~Shape() = default;
+      virtual int area() const { return 0; }
+  };
+
+  struct Square : Shape {
+      int side;
+      explicit Square(int s) : side(s) {}
+      int area() const override { return side * side; }
+  };
+
+  int main() {
+      Shape *shape = new Square(5);
+      int a = shape->area();
+      std::cout << a << "\n";
+      delete shape;
+      return 0;
+  }

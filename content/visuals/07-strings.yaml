@@ -1,0 +1,27 @@
+id: strings
+title: A string ends at the null terminator
+lang: c
+module: c-strings
+steps: [c-strings-1, c-strings-3, c-strings-6]
+summary: Walk a pointer along a string until it hits '\0'.
+text: |
+  A C string is a `char` array with a `'\0'` (the null terminator) after the last letter. `"cat"` takes **four** boxes.
+
+  `my_strlen` moves the pointer `p` one box at a time. Watch its arrow slide along `word` until it lands on `'\0'`, then the length is how far it moved.
+code: |
+  #include <stdio.h>
+
+  int my_strlen(const char *s) {
+      const char *p = s;
+      while (*p != '\0') {
+          p++;
+      }
+      return (int)(p - s);
+  }
+
+  int main(void) {
+      char word[] = "cat";
+      int len = my_strlen(word);
+      printf("%s has %d letters\n", word, len);
+      return 0;
+  }

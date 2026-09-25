@@ -1,0 +1,31 @@
+id: class-object
+title: An object and its member functions
+lang: cpp
+module: cpp-classes
+steps: [cpp-classes-1, cpp-classes-2, cpp-classes-3, cpp-classes-7]
+summary: The constructor sets the fields; member functions act on this object.
+text: |
+  `Account acct{"Ada", 100};` runs the constructor, which fills in the private fields. When `deposit` runs, its frame has `this`, a pointer to `acct`: that's how a member function knows which object it's working on.
+code: |
+  #include <iostream>
+  #include <string>
+
+  class Account {
+  public:
+      Account(std::string owner, int balance) : owner_(owner), balance_(balance) {}
+      void deposit(int amount) {
+          balance_ += amount;
+      }
+      int balance() const { return balance_; }
+
+  private:
+      std::string owner_;
+      int balance_;
+  };
+
+  int main() {
+      Account acct{"Ada", 100};
+      acct.deposit(50);
+      std::cout << acct.balance() << "\n";
+      return 0;
+  }

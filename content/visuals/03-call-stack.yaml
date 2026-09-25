@@ -1,0 +1,25 @@
+id: call-stack
+title: Function calls and the stack
+lang: c
+module: c-funcs
+steps: [c-funcs-1, c-funcs-2, c-funcs-5]
+summary: Every call gets its own stack frame with its own copies of the arguments.
+text: |
+  When `main` calls `add_tax`, a new **stack frame** appears on top with the function's own variables. The argument `price` is a *copy* of `cost`: changing it inside the function doesn't touch `cost` in `main`. That's **pass by value**.
+
+  When the function returns, its frame disappears and the result lands in `total`.
+code: |
+  #include <stdio.h>
+
+  double add_tax(double price) {
+      double tax = price * 0.1;
+      price = price + tax;
+      return price;
+  }
+
+  int main(void) {
+      double cost = 20.0;
+      double total = add_tax(cost);
+      printf("cost %.2f, total %.2f\n", cost, total);
+      return 0;
+  }

@@ -1,0 +1,200 @@
+topics:
+  - slug: big-o-notation
+    title: Big-O notation explained
+    lang: cpp
+    description: What O(1), O(log n), O(n), O(n log n) and O(n^2) mean, with examples of each, for coding interviews and real code.
+    modules: [dsa-complexity]
+    body: |
+      Big-O describes how an algorithm's work grows as the input grows, ignoring constant factors:
+
+      | Big-O | Name | Example |
+      |---|---|---|
+      | O(1) | constant | index into an array, hash lookup |
+      | O(log n) | logarithmic | binary search |
+      | O(n) | linear | scan a list once |
+      | O(n log n) | linearithmic | good sorting algorithms |
+      | O(n^2) | quadratic | nested loops over the same data |
+
+      For a million items, O(n^2) means about a trillion steps while O(n log n) is about 20 million. Picking the right data structure usually matters more than micro-optimizing code.
+    example: |
+      #include <iostream>
+      #include <unordered_set>
+      #include <vector>
+
+      // O(n) with a hash set instead of O(n^2) with nested loops.
+      bool has_duplicate(const std::vector<int> &v) {
+          std::unordered_set<int> seen;
+          for (int x : v) {
+              if (!seen.insert(x).second) return true;
+          }
+          return false;
+      }
+
+      int main() {
+          std::cout << has_duplicate({3, 1, 4, 1, 5}) << " " << has_duplicate({2, 7, 1, 8}) << "\n";
+          return 0;
+      }
+
+  - slug: binary-search
+    title: Binary search
+    lang: cpp
+    description: How binary search finds a value in sorted data in O(log n), how to write it without bugs, and std::lower_bound.
+    modules: [dsa-complexity]
+    body: |
+      Binary search works on **sorted** data. Compare the target with the middle element; if the target is bigger, it can only be in the right half, so discard the left half, and vice versa. Each step halves the range, so a million elements take about 20 comparisons.
+
+      Classic bugs: computing `(lo + hi) / 2` can overflow for huge indexes (use `lo + (hi - lo) / 2`), and off-by-one loop bounds. In C++, prefer `std::lower_bound`, which returns the first position not less than the target.
+    visual: binary-search
+    example: |
+      #include <algorithm>
+      #include <iostream>
+      #include <vector>
+
+      int main() {
+          std::vector<int> v{2, 5, 8, 12, 16, 23, 38};
+          auto it = std::lower_bound(v.begin(), v.end(), 16);
+          bool found = it != v.end() && *it == 16;
+          std::cout << found << " at index " << (it - v.begin()) << "\n";
+          return 0;
+      }
+
+  - slug: sorting-algorithms
+    title: Sorting algorithms compared
+    lang: cpp
+    description: Insertion sort, merge sort, quicksort and counting sort compared by speed, memory and stability.
+    modules: [dsa-sorting]
+    body: |
+      | Algorithm | Average | Worst | Stable | Notes |
+      |---|---|---|---|---|
+      | Insertion sort | O(n^2) | O(n^2) | yes | fast for small or nearly sorted data |
+      | Merge sort | O(n log n) | O(n log n) | yes | needs O(n) extra memory |
+      | Quicksort | O(n log n) | O(n^2) | no | fast in practice, in place |
+      | Counting sort | O(n + k) | O(n + k) | yes | small integer keys only |
+
+      **Stable** means equal elements keep their original order, which matters when sorting by one field after another. In real code, use `std::sort` (an introsort hybrid, never O(n^2)) or `std::stable_sort`.
+    visual: insertion-sort
+    example: |
+      #include <algorithm>
+      #include <iostream>
+      #include <string>
+      #include <vector>
+
+      struct Player {
+          std::string name;
+          int score;
+      };
+
+      int main() {
+          std::vector<Player> ps{{"Ada", 90}, {"Bob", 75}, {"Cy", 90}, {"Di", 75}};
+          std::stable_sort(ps.begin(), ps.end(), [](const Player &a, const Player &b) { return a.score > b.score; });
+          for (const auto &p : ps) std::cout << p.name << " ";
+          std::cout << "\n";
+          return 0;
+      }
+
+  - slug: hash-tables
+    title: How hash tables work
+    lang: cpp
+    description: Hash functions, buckets, collisions, chaining and load factor, the ideas behind std::unordered_map.
+    modules: [dsa-hash]
+    body: |
+      A hash table turns a key into a number with a **hash function**, then uses that number to pick a **bucket**. Looking up the key means hashing it again and checking only that bucket, which is why lookups are O(1) on average.
+
+      Two keys can land in the same bucket (a **collision**). With **chaining**, each bucket holds a small list. The **load factor** (items divided by buckets) is kept low by growing the table and rehashing everything when it gets too full.
+
+      A bad hash function that sends many keys to one bucket turns lookups into O(n) scans.
+    example: |
+      #include <iostream>
+      #include <string>
+      #include <unordered_map>
+
+      int main() {
+          std::unordered_map<std::string, int> counts;
+          for (std::string w : {"red", "blue", "red", "green", "red"}) counts[w]++;
+          std::cout << counts["red"] << " " << counts.size() << " " << (counts.load_factor() <= counts.max_load_factor()) << "\n";
+          return 0;
+      }
+
+  - slug: binary-trees
+    title: Binary trees and binary search trees
+    lang: cpp
+    description: Tree terminology, recursive traversals, and how binary search trees keep data sorted for O(log n) lookups.
+    modules: [dsa-trees]
+    body: |
+      In a **binary tree** each node has up to two children. In a **binary search tree** (BST), everything in a node's left subtree is smaller than it and everything in its right subtree is larger, so a lookup walks down one path.
+
+      Traversals visit every node, usually recursively:
+
+      - **in-order** (left, node, right) visits a BST in sorted order
+      - **pre-order** (node first) and **post-order** (children first, useful for freeing)
+      - **level order** uses a queue to go row by row
+
+      An unbalanced BST can degrade into a list; `std::map` uses a self-balancing tree to guarantee O(log n).
+    visual: bst-insert
+    example: |
+      #include <iostream>
+      #include <memory>
+
+      struct Node {
+          int key;
+          std::unique_ptr<Node> left, right;
+          explicit Node(int k) : key(k) {}
+      };
+
+      void insert(std::unique_ptr<Node> &t, int key) {
+          if (!t) t = std::make_unique<Node>(key);
+          else if (key < t->key) insert(t->left, key);
+          else insert(t->right, key);
+      }
+
+      void in_order(const Node *t) {
+          if (!t) return;
+          in_order(t->left.get());
+          std::cout << t->key << " ";
+          in_order(t->right.get());
+      }
+
+      int main() {
+          std::unique_ptr<Node> root;
+          for (int k : {50, 30, 70, 20, 40}) insert(root, k);
+          in_order(root.get());
+          std::cout << "\n";
+          return 0;
+      }
+
+  - slug: graphs-bfs-dfs
+    title: "Graphs: BFS and DFS"
+    lang: cpp
+    description: Representing graphs with adjacency lists, and exploring them with breadth-first and depth-first search.
+    modules: [dsa-graphs]
+    body: |
+      A graph is a set of nodes connected by edges. The usual representation is an **adjacency list**: for each node, a list of its neighbors (`std::vector<std::vector<int>>`).
+
+      - **Breadth-first search (BFS)** uses a queue and visits nodes in order of distance, so it finds shortest paths when every edge has the same cost.
+      - **Depth-first search (DFS)** uses recursion or a stack and goes as deep as possible first; it's used for cycle detection and topological sorting.
+
+      Both mark nodes as visited so they're processed once, giving O(V + E) time.
+    example: |
+      #include <iostream>
+      #include <queue>
+      #include <vector>
+
+      int main() {
+          std::vector<std::vector<int>> adj{{1, 2}, {3}, {3}, {4}, {}};
+          std::vector<int> dist(adj.size(), -1);
+          std::queue<int> q;
+          dist[0] = 0;
+          q.push(0);
+          while (!q.empty()) {
+              int u = q.front();
+              q.pop();
+              for (int v : adj[u]) {
+                  if (dist[v] == -1) {
+                      dist[v] = dist[u] + 1;
+                      q.push(v);
+                  }
+              }
+          }
+          std::cout << "distance to 4: " << dist[4] << "\n";
+          return 0;
+      }

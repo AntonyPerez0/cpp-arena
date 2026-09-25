@@ -1,0 +1,25 @@
+id: references
+title: References are another name
+lang: cpp
+module: cpp-refs
+steps: [cpp-refs-1, cpp-refs-2, cpp-refs-3]
+summary: A reference parameter works on the caller's variable, with no copy.
+text: |
+  `int &r = count;` makes `r` another name for `count`; the arrow shows what it refers to. Changing `r` changes `count`.
+
+  `bump` takes an `int &`, so inside it `n` is `main`'s `count`, and the change sticks. It's what the pointer version did in C, with no `&` and `*` at every use.
+code: |
+  #include <iostream>
+
+  void bump(int &n) {
+      n += 10;
+  }
+
+  int main() {
+      int count = 1;
+      int &r = count;
+      r = 5;
+      bump(count);
+      std::cout << count << "\n";
+      return 0;
+  }

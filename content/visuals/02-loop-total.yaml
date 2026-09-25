@@ -1,0 +1,21 @@
+id: loop-total
+title: A for loop adding up a total
+lang: c
+module: c-loops
+steps: [c-loops-2, c-loops-3]
+summary: See the loop counter and the running total change on every pass.
+text: |
+  A `for` loop runs its body once per value of the counter. Watch `i` go 1, 2, 3, 4 and `total` grow each time the body runs.
+
+  Notice the jump back up to the `for` line after each pass: that's where `i++` happens and the condition `i <= 4` is checked again. When it's false, the loop ends and `i` disappears, because it only exists inside the loop.
+code: |
+  #include <stdio.h>
+
+  int main(void) {
+      int total = 0;
+      for (int i = 1; i <= 4; i++) {
+          total += i;
+      }
+      printf("total = %d\n", total);
+      return 0;
+  }

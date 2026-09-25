@@ -1,0 +1,24 @@
+id: function-pointer
+title: Calling through a function pointer
+lang: c
+module: c-funcptr
+steps: [c-funcptr-1, c-funcptr-2]
+summary: A variable can hold which function to call.
+text: |
+  `op` holds the address of a function. The first call through it runs `add`; after `op = mul;` the very same line style runs `mul` instead.
+
+  Watch the stack: the frame that appears is whichever function `op` currently holds. This is how callbacks and `qsort`'s comparison function work.
+code: |
+  #include <stdio.h>
+
+  int add(int a, int b) { return a + b; }
+  int mul(int a, int b) { return a * b; }
+
+  int main(void) {
+      int (*op)(int, int) = add;
+      int r1 = op(3, 4);
+      op = mul;
+      int r2 = op(3, 4);
+      printf("%d %d\n", r1, r2);
+      return 0;
+  }

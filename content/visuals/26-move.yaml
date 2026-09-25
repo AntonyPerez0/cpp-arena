@@ -1,0 +1,20 @@
+id: move-vector
+title: Moving instead of copying
+lang: cpp
+module: cpp-move
+steps: [cpp-move-1, cpp-move-2, cpp-move-5]
+summary: A copy duplicates the heap buffer; a move steals it.
+text: |
+  `copy` gets its **own** new heap buffer with the same numbers: that's the cost of copying. `moved` instead takes over `original`'s buffer: watch the heap, no new block appears. Afterwards `original` is left empty (valid, but with nothing in it).
+code: |
+  #include <iostream>
+  #include <utility>
+  #include <vector>
+
+  int main() {
+      std::vector<int> original{1, 2, 3};
+      std::vector<int> copy = original;
+      std::vector<int> moved = std::move(original);
+      std::cout << copy.size() << " " << moved.size() << " " << original.size() << "\n";
+      return 0;
+  }

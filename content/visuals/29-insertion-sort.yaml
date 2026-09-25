@@ -1,0 +1,25 @@
+id: insertion-sort
+title: Insertion sort, step by step
+lang: c
+module: dsa-sorting
+steps: [dsa-sorting-1]
+summary: Each new element slides left until it's in place.
+text: |
+  Everything left of `i` is already sorted. `key` is the next element; larger elements shift one box right to make room, and `key` drops into the gap. Watch the array settle one element at a time.
+code: |
+  #include <stdio.h>
+
+  int main(void) {
+      int a[5] = {5, 2, 4, 1, 3};
+      for (int i = 1; i < 5; i++) {
+          int key = a[i];
+          int j = i - 1;
+          while (j >= 0 && a[j] > key) {
+              a[j + 1] = a[j];
+              j--;
+          }
+          a[j + 1] = key;
+      }
+      printf("%d %d %d %d %d\n", a[0], a[1], a[2], a[3], a[4]);
+      return 0;
+  }

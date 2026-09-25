@@ -1,0 +1,52 @@
+id: bst-insert
+title: Inserting into a binary search tree
+lang: c
+module: dsa-trees
+steps: [dsa-trees-1, dsa-trees-2]
+summary: Each value walks down left or right and becomes a new leaf.
+text: |
+  Smaller values go left, larger go right. `insert` calls itself on the correct side until it finds an empty spot (`NULL`), then puts a new node there. Watch the recursive frames stack up as it walks down, and the heap nodes link together into a tree.
+code: |
+  #include <stdio.h>
+  #include <stdlib.h>
+
+  struct tree {
+      int key;
+      struct tree *left;
+      struct tree *right;
+  };
+
+  struct tree *insert(struct tree *t, int key) {
+      if (t == NULL) {
+          struct tree *n = malloc(sizeof *n);
+          if (!n) exit(1);
+          n->key = key;
+          n->left = NULL;
+          n->right = NULL;
+          return n;
+      }
+      if (key < t->key) {
+          t->left = insert(t->left, key);
+      } else {
+          t->right = insert(t->right, key);
+      }
+      return t;
+  }
+
+  void destroy(struct tree *t) {
+      if (!t) return;
+      destroy(t->left);
+      destroy(t->right);
+      free(t);
+  }
+
+  int main(void) {
+      int keys[4] = {50, 30, 70, 40};
+      struct tree *root = NULL;
+      for (int i = 0; i < 4; i++) {
+          root = insert(root, keys[i]);
+      }
+      printf("root %d, left %d, left->right %d\n", root->key, root->left->key, root->left->right->key);
+      destroy(root);
+      return 0;
+  }

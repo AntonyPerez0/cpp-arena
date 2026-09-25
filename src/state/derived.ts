@@ -10,11 +10,29 @@ export function moduleProgress(s: State, moduleId: string) {
 /** Topics (module ids) available in Deathmatch: any module with a finished step. */
 export function unlockedTopics(s: State): string[] {
   if (s.settings.unlockAll) return modules.map((m) => m.id);
-  return modules.filter((m) => m.steps.some((st) => s.steps[st.id]?.done)).map((m) => m.id);
+  return modules.filter((m) => s.placed.includes(m.id) || m.steps.some((st) => s.steps[st.id]?.done)).map((m) => m.id);
 }
 
+/** The first unfinished step, skipping modules the placement quiz said the learner knows. */
 export function nextStep(s: State) {
-  return allSteps.find(({ step }) => !s.steps[step.id]?.done) ?? null;
+  return allSteps.find(({ module, step }) => !s.steps[step.id]?.done && !s.placed.includes(module.id)) ?? allSteps.find(({ step }) => !s.steps[step.id]?.done) ?? null;
+}
+
+/** The learner's local date as YYYY-MM-DD (the daily challenge changes at local midnight). */
+export function localDay(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** Consecutive days with a daily challenge answered, ending today (or yesterday, if today isn't done yet). */
+export function dailyChallengeStreak(daily: Record<string, boolean>) {
+  const d = new Date();
+  if (!(localDay(d) in daily)) d.setDate(d.getDate() - 1);
+  let n = 0;
+  while (localDay(d) in daily) {
+    n++;
+    d.setDate(d.getDate() - 1);
+  }
+  return n;
 }
 
 export function totals(s: State) {

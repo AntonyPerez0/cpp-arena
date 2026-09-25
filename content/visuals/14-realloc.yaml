@@ -1,0 +1,32 @@
+id: realloc-grow
+title: Growing a buffer with realloc
+lang: c
+module: c-memory
+steps: [c-memory-5, c-memory-9]
+summary: When the block is full, realloc makes a bigger one and copies the old values over.
+text: |
+  The buffer starts with room for 2 numbers. When `count` reaches `cap`, `realloc` doubles the room. Watch the heap: the numbers move into a new, bigger block and the old block is gone.
+
+  The result goes into `bigger` first. If `realloc` failed it would return `NULL`, and writing straight into `buf` would lose the only pointer to the old block.
+code: |
+  #include <stdio.h>
+  #include <stdlib.h>
+
+  int main(void) {
+      int cap = 2;
+      int count = 0;
+      int *buf = malloc(cap * sizeof *buf);
+      if (!buf) return 1;
+      for (int v = 1; v <= 5; v++) {
+          if (count == cap) {
+              cap *= 2;
+              int *bigger = realloc(buf, cap * sizeof *buf);
+              if (!bigger) { free(buf); return 1; }
+              buf = bigger;
+          }
+          buf[count++] = v * v;
+      }
+      printf("%d values, capacity %d\n", count, cap);
+      free(buf);
+      return 0;
+  }

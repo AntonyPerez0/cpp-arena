@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { useStore } from "../state/store";
-import { nextStep, rankFor, totals, dailyStreak } from "../state/derived";
+import { nextStep, rankFor, totals, dailyStreak, dailyChallengeStreak, localDay } from "../state/derived";
 import { drills, modules, projects, pro } from "../content";
 import CompilerBadge from "../components/CompilerBadge";
 import { useTitle } from "../lib/title";
@@ -39,6 +39,11 @@ export default function Home() {
               ⌖ Deathmatch
             </Link>
           </div>
+          {t.done === 0 && s.placed.length === 0 && (
+            <p className="small">
+              Already know some C or C++? <Link to="/placement">Take the 5-minute placement quiz</Link> and skip what you know.
+            </p>
+          )}
           <div className="hero-compiler">
             <CompilerBadge />
             <span className="muted small">The compiler downloads once (about 95 MB, the whole Clang/LLVM toolchain), then loads from your browser's cache.</span>
@@ -97,6 +102,21 @@ export default function Home() {
           <div className="card-kicker">Projects</div>
           <h2 className="h3">{projects.length} builds with milestones</h2>
           <p>From a calculator and a text adventure to a memory allocator, an expression interpreter and your own vector&lt;T&gt;.</p>
+        </Link>
+        <Link to="/daily" className="card card-link">
+          <div className="card-kicker">Daily challenge</div>
+          <h2 className="h3">{localDay() in s.daily ? "Done for today" : "Today's problem is waiting"}</h2>
+          <p>One quick problem a day, the same for everyone. {dailyChallengeStreak(s.daily) > 0 ? `You're on a ${dailyChallengeStreak(s.daily)}-day streak.` : "Start a streak today."}</p>
+        </Link>
+        <Link to="/visualize" className="card card-link">
+          <div className="card-kicker">Watch code run</div>
+          <h2 className="h3">See memory line by line</h2>
+          <p>Step through real programs and watch the stack, the heap and every pointer as arrows. Great for pointers, linked lists and smart pointers.</p>
+        </Link>
+        <Link to="/deathmatch" className="card card-link">
+          <div className="card-kicker">Interview prep</div>
+          <h2 className="h3">Classic interview questions</h2>
+          <p>Pointers, memory, virtual functions, move semantics, the STL, complexity and concurrency: the questions C and C++ interviews actually ask.</p>
         </Link>
         <Link to="/pro" className="card card-link">
           <div className="card-kicker">Pro Track</div>

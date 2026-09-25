@@ -4,14 +4,10 @@ import { drills, moduleById, modules } from "../content";
 import type { Drill } from "../content/types";
 import { getState, patchSettings, useStore, type DmMode } from "../state/store";
 import { dailyStreak, rankFor, unlockedTopics } from "../state/derived";
-import { blip, callout, checkAnswer, isDue, lives, pickNext, recordRep, recordRun, TYPE_LABEL, BOSS_EVERY } from "../deathmatch/engine";
-import { CodeView, highlight } from "../components/highlight";
-import FillCode from "../components/FillCode";
-import CodeEditor from "../components/CodeEditor";
-import Results from "../components/Results";
-import Markdown, { InlineMd } from "../components/Markdown";
-import { grade, type GradeResult } from "../grader/grade";
+import { blip, callout, isDue, lives, pickNext, recordRep, recordRun, BOSS_EVERY, topicTitle, INTERVIEW } from "../deathmatch/engine";
+import { Rep, Death } from "../deathmatch/Reps";
 import { ensureCompiler } from "../compiler/client";
+import ShareButton from "../components/ShareButton";
 import { useTitle } from "../lib/title";
 
 type Phase = "lobby" | "playing" | "review" | "dead" | "cleared";
@@ -23,8 +19,9 @@ export default function Deathmatch() {
   const unlocked = unlockedTopics(s);
   const selected = (s.settings.topics ?? unlocked).filter((t) => unlocked.includes(t));
   const topics = selected.length ? selected : unlocked;
-  const pool = useMemo(() => drills.filter((d) => topics.includes(d.topic) && (s.settings.boss || d.type !== "boss")), [topics.join(","), s.settings.boss]);
-  const dueCount = pool.filter((d) => isDue(s.drills[d.id])).length;
+  const topicPool = useMemo(() => drills.filter((d) => topics.includes(d.topic) && (s.settings.boss || d.type !== "boss")), [topics.join(","), s.settings.boss]);
+  const interviewPool = useMemo(() => drills.filter((d) => d.topic === INTERVIEW && (s.settings.boss || d.type !== "boss")), [s.settings.boss]);
+  const dueCount = topicPool.filter((d) => isDue(s.drills[d.id])).length;
 
   const [phase, setPhase] = useState<Phase>("lobby");
   const [mode, setMode] = useState<DmMode>("deathmatch");
@@ -45,7 +42,7 @@ export default function Deathmatch() {
 
   const nextRep = useCallback(
     (repNo: number, m: DmMode) => {
-      const d = pickNext(pool, getState(), recent.current, repNo, getState().settings.boss, m);
+      const d = pickNext(m === "interview" ? interviewPool : topicPool, getState(), recent.current, repNo, getState().settings.boss, m);
       if (!d) {
         setPhase("cleared");
         return;
@@ -54,13 +51,14 @@ export default function Deathmatch() {
       setDrill(d);
       repStart.current = performance.now();
     },
-    [pool],
+    [topicPool, interviewPool],
   );
 
   const start = (m: DmMode) => {
-    if (!pool.length) return;
+    const p = m === "interview" ? interviewPool : topicPool;
+    if (!p.length) return;
     if (m === "warmup" && dueCount === 0) return;
-    if (s.settings.boss && pool.some((d) => d.type === "boss")) ensureCompiler({ warmCpp: pool.some((d) => d.lang === "cpp") });
+    if (s.settings.boss && p.some((d) => d.type === "boss")) ensureCompiler({ warmCpp: p.some((d) => d.lang === "cpp") });
     setMode(m);
     setStreak(0);
     setReps(0);
@@ -147,7 +145,7 @@ export default function Deathmatch() {
     return () => window.removeEventListener("keydown", h);
   });
 
-  if (phase === "lobby") return <Lobby pool={pool} unlocked={unlocked} selected={topics} dueCount={dueCount} onStart={start} />;
+  if (phase === "lobby") return <Lobby pool={topicPool} interviewCount={interviewPool.length} unlocked={unlocked} selected={topics} dueCount={dueCount} onStart={start} />;
 
   const best = Math.max(startBest, mode === "warmup" ? kills : streak);
   return (
@@ -159,7 +157,7 @@ export default function Deathmatch() {
           <div className="hud-l">{mode === "warmup" ? "cleared" : "streak"}</div>
         </div>
         <div className="hud-mid">
-          <div className="hud-mode">{mode === "deathmatch" ? "Deathmatch · 1 life" : mode === "casual" ? "Casual · 3 lives" : "Warm-up · due reviews"}</div>
+          <div className="hud-mode">{mode === "deathmatch" ? "Deathmatch · 1 life" : mode === "casual" ? "Casual · 3 lives" : mode === "interview" ? "Interview prep · 3 lives" : "Warm-up · due reviews"}</div>
           <div className="hud-lives" role="img" aria-label={`${hp} ${hp === 1 ? "life" : "lives"} left`}>
             {Array.from({ length: lives(mode) }).map((_, i) => (
               <span key={i} className={i < hp ? "life" : "life life-lost"}>
@@ -217,6 +215,12 @@ export default function Deathmatch() {
               <button className="btn btn-ghost" onClick={() => setPhase("lobby")}>
                 Lobby (Esc)
               </button>
+              {mode === "deathmatch" && streak > startBest && streak > 0 && (
+                <ShareButton
+                  card={{ kicker: "New personal best", title: `${streak}-rep streak`, lines: [`Rank: ${rankFor(streak).rank.name}`, "C and C++ Deathmatch, one life"], file: "cpparena-streak.png" }}
+                  text={`New Deathmatch best on C/C++ Arena: ${streak} in a row (${rankFor(streak).rank.name}).`}
+                />
+              )}
             </Death>
           )}
           {phase === "cleared" && (
@@ -242,7 +246,7 @@ export default function Deathmatch() {
           {feed.map((k) => (
             <div key={k.id} className={"kf " + (k.ok ? "kf-ok" : "kf-bad")}>
               <span className="kf-icon">{k.ok ? (k.type === "boss" ? "☠" : "⌖") : "✗"}</span>
-              <span className="kf-topic">{moduleById.get(k.topic)?.title ?? k.topic}</span>
+              <span className="kf-topic">{topicTitle(k.topic)}</span>
               <span className="kf-time">{(k.ms / 1000).toFixed(1)}s</span>
             </div>
           ))}
@@ -253,7 +257,7 @@ export default function Deathmatch() {
 }
 
 // ------------------------------------------------------------------ lobby
-function Lobby({ pool, unlocked, selected, dueCount, onStart }: { pool: Drill[]; unlocked: string[]; selected: string[]; dueCount: number; onStart: (m: DmMode) => void }) {
+function Lobby({ pool, interviewCount, unlocked, selected, dueCount, onStart }: { pool: Drill[]; interviewCount: number; unlocked: string[]; selected: string[]; dueCount: number; onStart: (m: DmMode) => void }) {
   const s = useStore((x) => x);
   const r = rankFor(s.dm.best.deathmatch);
   const streakDays = dailyStreak(s.dm.days);
@@ -299,9 +303,16 @@ function Lobby({ pool, unlocked, selected, dueCount, onStart }: { pool: Drill[];
             <p>
               Finish the first step of any lesson module to unlock its drills, or turn on <b>Unlock every topic</b> below if you already know some C/C++.
             </p>
-            <Link className="btn btn-primary" to="/learn/c-hello/1">
-              Start lesson 1
-            </Link>
+            <div className="actions">
+              <Link className="btn btn-primary" to="/learn/c-hello/1">
+                Start lesson 1
+              </Link>
+              {interviewCount > 0 && (
+                <button className="btn" onClick={() => onStart("interview")}>
+                  Try interview prep
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           <div className="modes">
@@ -319,6 +330,11 @@ function Lobby({ pool, unlocked, selected, dueCount, onStart }: { pool: Drill[];
               <div className="mode-name">Warm-up</div>
               <div className="mode-desc">Spaced review: only drills that are due, weakest first. 3 lives.</div>
               <div className="mode-best">{dueCount} due now</div>
+            </button>
+            <button className="mode mode-iv" onClick={() => onStart("interview")} disabled={!interviewCount}>
+              <div className="mode-name">Interview prep</div>
+              <div className="mode-desc">{interviewCount} classic C and C++ interview questions. 3 lives. Open to everyone.</div>
+              <div className="mode-best">best {s.dm.best.interview ?? 0}</div>
             </button>
           </div>
         )}
@@ -410,232 +426,3 @@ function Lobby({ pool, unlocked, selected, dueCount, onStart }: { pool: Drill[];
   );
 }
 
-// ------------------------------------------------------------------ one rep
-function Rep({ drill, onAnswer }: { drill: Drill; onAnswer: (given: string, ok: boolean) => void }) {
-  const topic = moduleById.get(drill.topic);
-  return (
-    <div className={"rep rep-" + drill.type} data-drill={drill.id}>
-      <div className="rep-head">
-        <span className={"rep-type type-" + drill.type}>{TYPE_LABEL[drill.type]}</span>
-        <span className={"lang-tag lang-" + drill.lang}>{drill.lang === "c" ? "C" : "C++"}</span>
-        <span className="rep-topic">{topic?.title}</span>
-      </div>
-      {drill.type !== "boss" && (
-        <p className="rep-prompt">
-          <InlineMd text={drill.prompt} />
-        </p>
-      )}
-      {drill.type === "predict" && <PredictRep drill={drill} onAnswer={onAnswer} />}
-      {drill.type === "fill" && <FillRep drill={drill} onAnswer={onAnswer} />}
-      {drill.type === "bug" && <BugRep drill={drill} onAnswer={onAnswer} />}
-      {drill.type === "compiles" && <CompilesRep drill={drill} onAnswer={onAnswer} />}
-      {drill.type === "boss" && <BossRep drill={drill} onAnswer={onAnswer} />}
-    </div>
-  );
-}
-
-function PredictRep({ drill, onAnswer }: { drill: Drill; onAnswer: (g: string, ok: boolean) => void }) {
-  const [v, setV] = useState("");
-  const submit = () => v.trim() && onAnswer(v, checkAnswer(drill, v));
-  return (
-    <>
-      <CodeView code={drill.display} />
-      <form
-        className="rep-answer"
-        onSubmit={(e) => {
-          e.preventDefault();
-          submit();
-        }}
-      >
-        <input
-          className="answer-input"
-          autoFocus
-          placeholder="Type the exact output (Enter to fire)"
-          aria-label="What does it print? Type the exact output"
-          value={v}
-          onChange={(e) => setV(e.target.value)}
-          spellCheck={false}
-          autoCapitalize="off"
-          autoComplete="off"
-          autoCorrect="off"
-        />
-        <button className="btn btn-primary">Fire ↵</button>
-      </form>
-      <div className="muted small">Line breaks and spaces are flexible: "1 2 3" matches three lines of 1, 2, 3.</div>
-    </>
-  );
-}
-
-function FillRep({ drill, onAnswer }: { drill: Drill; onAnswer: (g: string, ok: boolean) => void }) {
-  const [v, setV] = useState<string[]>([""]);
-  const submit = () => v[0].trim() && onAnswer(v[0], checkAnswer(drill, v[0]));
-  return (
-    <>
-      <FillCode template={drill.display} values={v} onChange={setV} onSubmit={submit} autoFocus />
-      {drill.output && (
-        <div className="rep-output">
-          <span className="lbl">should print</span>
-          <pre tabIndex={0} className="console tiny">{drill.output}</pre>
-        </div>
-      )}
-      <div className="rep-answer">
-        <button className="btn btn-primary" onClick={submit}>
-          Fire ↵
-        </button>
-      </div>
-    </>
-  );
-}
-
-function BugRep({ drill, onAnswer }: { drill: Drill; onAnswer: (g: string, ok: boolean) => void }) {
-  const lines = drill.display.split("\n");
-  const pickable = lines.map((l) => l.trim() !== "" && !/^\/\/ inside main:$/.test(l.trim()) && !/^[{}]\s*;?$/.test(l.trim()));
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => {
-      if (getState().settings.keys === false) return;
-      const n = parseInt(e.key, 10);
-      if (n >= 1 && n <= 9 && n <= lines.length && pickable[n - 1]) onAnswer(String(n), checkAnswer(drill, String(n)));
-    };
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  });
-  return (
-    <div className="buglines">
-      {lines.map((l, i) =>
-        pickable[i] ? (
-          <button key={i} className="bugline" aria-label={`Line ${i + 1}: ${l.trim()}`} onClick={() => onAnswer(String(i + 1), checkAnswer(drill, String(i + 1)))}>
-            <span className="ln">{i + 1}</span>
-            <code>{highlight(l)}</code>
-          </button>
-        ) : (
-          <div key={i} className="bugline bugline-off">
-            <span className="ln">{i + 1}</span>
-            <code>{highlight(l)}</code>
-          </div>
-        ),
-      )}
-      <div className="muted small">Click the line, or press its number key.</div>
-    </div>
-  );
-}
-
-function CompilesRep({ drill, onAnswer }: { drill: Drill; onAnswer: (g: string, ok: boolean) => void }) {
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => {
-      if (getState().settings.keys === false) return;
-      if (e.key === "y" || e.key === "Y") onAnswer("yes", checkAnswer(drill, "yes"));
-      if (e.key === "n" || e.key === "N") onAnswer("no", checkAnswer(drill, "no"));
-    };
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  });
-  return (
-    <>
-      <CodeView code={drill.display} />
-      <div className="yn">
-        <button className="btn btn-yes" onClick={() => onAnswer("yes", checkAnswer(drill, "yes"))}>
-          Compiles (Y)
-        </button>
-        <button className="btn btn-no" onClick={() => onAnswer("no", checkAnswer(drill, "no"))}>
-          Compile error (N)
-        </button>
-      </div>
-      <div className="muted small">Standard headers are already included. Warnings don't count as errors.</div>
-    </>
-  );
-}
-
-function BossRep({ drill, onAnswer }: { drill: Drill; onAnswer: (g: string, ok: boolean) => void }) {
-  const ex = drill.exercise!;
-  const [code, setCode] = useState(ex.seed);
-  const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<GradeResult | null>(null);
-  const [shots, setShots] = useState(3);
-  const busyRef = useRef(false);
-  const fire = async () => {
-    if (busyRef.current) return;
-    busyRef.current = true;
-    setBusy(true);
-    try {
-      const r = await grade(ex, code);
-      setResult(r);
-      if (r.status === "pass") onAnswer("pass", true);
-      else if (r.status !== "internal-error") {
-        const left = shots - 1;
-        setShots(left);
-        if (left <= 0) onAnswer(code, false);
-      }
-    } finally {
-      busyRef.current = false;
-      setBusy(false);
-    }
-  };
-  return (
-    <>
-      <div className="boss-banner">☠ BOSS REP · {shots} shot{shots === 1 ? "" : "s"} left</div>
-      <Markdown text={drill.prompt} />
-      <CodeEditor value={code} onChange={setCode} onRun={fire} diagnostics={result?.diagnostics} minHeight="180px" />
-      <div className="actions">
-        <button className="btn btn-primary" onClick={fire} disabled={busy}>
-          {busy ? "Compiling…" : "Fire  ⌃↵"}
-        </button>
-        <button className="btn btn-ghost" onClick={() => onAnswer("(gave up)", false)}>
-          Give up
-        </button>
-      </div>
-      {result && result.status !== "pass" && <Results result={result} attempt={3 - shots} />}
-    </>
-  );
-}
-
-// ------------------------------------------------------------------ death / review
-function Death({ drill, given, title, sub, children }: { drill: Drill; given: string; title: string; sub: string; children: React.ReactNode }) {
-  return (
-    <div className="death">
-      <h2 className="death-title">{title}</h2>
-      <div className="death-sub">{sub}</div>
-      <div className="death-card">
-        <div className="rep-head">
-          <span className={"rep-type type-" + drill.type}>{TYPE_LABEL[drill.type]}</span>
-          <span className="rep-topic">{moduleById.get(drill.topic)?.title}</span>
-        </div>
-        {drill.type === "boss" ? (
-          <>
-            <div className="lbl">a solution</div>
-            <CodeView code={drill.exercise!.solution} />
-          </>
-        ) : drill.type === "bug" ? (
-          <>
-            <CodeView code={drill.display.split("\n").map((l, i) => (String(i + 1) === drill.answer ? l + "   // <- bug" : l)).join("\n")} />
-            <div className="answer-cmp">
-              You picked line <b>{given}</b>. The bug is on line <b>{drill.answer}</b>. Fix: <code>{drill.fix}</code>
-            </div>
-          </>
-        ) : (
-          <>
-            {drill.type === "fill" ? (
-              <FillCode template={drill.display} values={[drill.answer]} onChange={() => {}} disabled />
-            ) : (
-              <CodeView code={drill.display} />
-            )}
-            <div className="answer-cmp">
-              <div>
-                <span className="lbl">you said</span> <code>{given || "(nothing)"}</code>
-              </div>
-              <div>
-                <span className="lbl">answer</span>{" "}
-                <code className="good">{drill.type === "compiles" ? (drill.answer === "yes" ? "compiles" : "compile error") : drill.answer}</code>
-              </div>
-            </div>
-          </>
-        )}
-        {drill.why && (
-          <div className="why">
-            <Markdown text={drill.why} />
-          </div>
-        )}
-      </div>
-      <div className="death-actions">{children}</div>
-    </div>
-  );
-}

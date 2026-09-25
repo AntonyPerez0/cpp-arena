@@ -1,0 +1,264 @@
+# Interview prep: classic C++ questions. Code questions are compiled and run to check the answers.
+topic: interview
+lang: cpp
+drills:
+  - type: choice
+    prompt: What's the only difference between `struct` and `class` in C++?
+    choices:
+      - Members and bases are public by default in a struct, private by default in a class
+      - A struct can't have member functions
+      - A struct can't use inheritance
+      - Structs live on the stack and classes on the heap
+    answer: 1
+    why: Otherwise they're identical. By convention, `struct` is used for plain data and `class` for types with invariants.
+
+  - type: choice
+    prompt: What does the Rule of Three (now Rule of Five) say?
+    choices:
+      - If a class needs a custom destructor, copy constructor or copy assignment, it probably needs all of them (plus the two move operations)
+      - A class should have at most three constructors
+      - Every class needs a virtual destructor
+      - Three levels of inheritance is the maximum
+    answer: 1
+    why: Needing one usually means the class owns a resource. Better still is the Rule of Zero, where members like `std::vector` and `std::unique_ptr` manage resources so you write none of them.
+
+  - type: predict
+    prompt: What does this print?
+    pre: |
+      struct Base {
+          virtual std::string name() const { return "Base"; }
+          virtual ~Base() = default;
+      };
+      struct Derived : Base {
+          std::string name() const override { return "Derived"; }
+      };
+      void by_value(Base b) { std::cout << b.name() << " "; }
+      void by_ref(const Base& b) { std::cout << b.name() << "\n"; }
+    body: |
+      Derived d;
+      by_value(d);
+      by_ref(d);
+    why: Passing by value copies only the Base part (object slicing), so the virtual call finds a Base. Passing by reference keeps the real object.
+
+  - type: choice
+    prompt: Why should a base class meant for polymorphic use have a virtual destructor?
+    choices:
+      - Deleting a derived object through a base pointer otherwise skips the derived destructor (undefined behavior)
+      - Otherwise the base class can't be instantiated
+      - Virtual destructors run faster
+      - Otherwise derived classes can't override other functions
+    answer: 1
+    why: "`delete base_ptr;` must find the right destructor at run time, which needs dynamic dispatch."
+
+  - type: predict
+    prompt: In what order are these printed?
+    pre: |
+      struct M { M() { std::cout << "M"; } ~M() { std::cout << "m"; } };
+      struct B { B() { std::cout << "B"; } ~B() { std::cout << "b"; } };
+      struct D : B {
+          M member;
+          D() { std::cout << "D"; }
+          ~D() { std::cout << "d"; }
+      };
+    body: |
+      { D obj; }
+      std::cout << "\n";
+    why: Construction goes base, then members, then the constructor body. Destruction is the exact reverse.
+
+  - type: choice
+    prompt: What does `std::move` actually do?
+    choices:
+      - It casts its argument to an rvalue reference, so a move constructor or move assignment can be chosen
+      - It moves the object's bytes to a new address
+      - It frees the object's memory
+      - It copies the object and then destroys the original
+    answer: 1
+    why: "`std::move` is just a cast. The move itself happens only if the receiving type has move operations; otherwise a copy is made."
+
+  - type: predict
+    prompt: What does this print?
+    body: |
+      std::vector<int> a{1, 2, 3};
+      std::vector<int> b = std::move(a);
+      std::cout << a.size() << " " << b.size() << "\n";
+    why: The moved-to vector takes over the buffer. The standard says the moved-from vector is in a valid but unspecified state; in practice (and with libstdc++ and libc++) it's empty.
+
+  - type: choice
+    prompt: When do you use `unique_ptr`, `shared_ptr` and `weak_ptr`?
+    choices:
+      - "unique_ptr: one clear owner (the default). shared_ptr: shared ownership. weak_ptr: observe a shared object without keeping it alive (breaks cycles)"
+      - unique_ptr for arrays, shared_ptr for single objects, weak_ptr for strings
+      - Always shared_ptr, because it's the safest
+      - weak_ptr is the fastest, so prefer it
+    answer: 1
+    why: Start with unique_ptr; reach for shared_ptr only when ownership is genuinely shared, since it costs an atomic reference count.
+
+  - type: choice
+    prompt: What is RAII?
+    choices:
+      - Tying a resource's lifetime to an object, so the destructor releases it automatically
+      - A way to allocate memory faster
+      - Run-time type identification
+      - A rule that every class must have a default constructor
+    answer: 1
+    why: Resource Acquisition Is Initialization. Files, locks, sockets and memory are released in destructors, so cleanup happens on every path, including early returns and exceptions.
+
+  - type: predict
+    prompt: What does this print?
+    body: |
+      std::vector<int> v;
+      v.reserve(10);
+      v.push_back(1);
+      std::cout << v.size() << " " << (v.capacity() >= 10) << "\n";
+    why: "`reserve` changes capacity (room), not size (how many elements exist)."
+
+  - type: choice
+    prompt: A `std::vector` reallocates during `push_back`. What happens to existing iterators, pointers and references into it?
+    choices:
+      - They're all invalidated
+      - They're updated to the new location automatically
+      - Only iterators are invalidated; pointers stay valid
+      - Nothing, vectors never move elements
+    answer: 1
+    why: The elements move to a new buffer. Reserve up front, or use indices, if you need to keep positions.
+
+  - type: choice
+    prompt: How do `std::map` and `std::unordered_map` differ?
+    choices:
+      - "map is a sorted tree with O(log n) operations; unordered_map is a hash table with O(1) average operations and no order"
+      - unordered_map keeps insertion order
+      - map allows duplicate keys; unordered_map doesn't
+      - They're the same; unordered_map is just an older name
+    answer: 1
+    why: Use map when you need order or range queries; unordered_map for fast lookups when order doesn't matter.
+
+  - type: predict
+    prompt: What does this print?
+    body: |
+      std::map<std::string, int> m;
+      m["b"] = 2;
+      m["a"] = 1;
+      std::cout << m.size() << " " << m["z"] << " " << m.size() << "\n";
+    why: "`operator[]` inserts a default value when the key is missing, so reading `m[\"z\"]` adds an entry. Use `find` or `contains` to look without inserting."
+
+  - type: choice
+    prompt: "What's the difference between `const int& f()` returning a reference to a local variable and returning `int`?"
+    choices:
+      - Returning a reference to a local is a dangling reference (undefined behavior); returning int copies the value safely
+      - The reference version is always faster and safe
+      - They behave identically
+      - Returning a reference to a local extends its lifetime
+    answer: 1
+    why: The local dies when the function returns. Lifetime extension only applies when a temporary is bound directly to a const reference in the same scope.
+
+  - type: compiles
+    prompt: Does this compile?
+    pre: |
+      struct Shape {
+          virtual double area() const = 0;
+          virtual ~Shape() = default;
+      };
+    body: |
+      Shape s;
+      std::cout << s.area() << "\n";
+    why: A class with a pure virtual function is abstract and can't be instantiated.
+
+  - type: choice
+    prompt: What does `explicit` on a constructor prevent?
+    choices:
+      - Implicit conversions, like passing an int where a `Meters` is expected
+      - Copying the object
+      - Calling the constructor from a derived class
+      - Creating the object on the heap
+    answer: 1
+    why: Single-argument constructors are conversion functions unless marked `explicit`. Marking them explicit avoids surprising conversions.
+
+  - type: predict
+    prompt: What does this print?
+    body: |
+      int x = 10;
+      auto add = [x](int y) { return x + y; };
+      x = 100;
+      std::cout << add(1) << "\n";
+    why: "`[x]` captures a copy when the lambda is created, so later changes to `x` don't affect it. `[&x]` would capture by reference and print 101."
+
+  - type: choice
+    prompt: What's the difference between `emplace_back` and `push_back`?
+    choices:
+      - emplace_back constructs the element in place from constructor arguments; push_back takes an existing object (copying or moving it)
+      - emplace_back adds to the front
+      - push_back is deprecated
+      - emplace_back doesn't grow the vector
+    answer: 1
+    why: "`v.emplace_back(\"x\", 3)` calls the element's constructor directly inside the vector. With a ready-made object, both are about the same."
+
+  - type: choice
+    prompt: What is undefined behavior?
+    choices:
+      - Code the language puts no requirements on, so the compiler may assume it never happens and anything can result
+      - Behavior that differs between compilers but is documented
+      - A compile error
+      - Any code that throws an exception
+    answer: 1
+    why: Out-of-bounds access, signed overflow, use after free and data races are all UB. Sanitizers (ASan, UBSan, TSan) catch many of them at run time.
+
+  - type: choice
+    prompt: What's a data race?
+    choices:
+      - Two threads access the same memory at the same time, at least one writes, and nothing synchronizes them
+      - Two threads waiting on each other forever
+      - A thread that runs too fast
+      - Reading a variable twice in a row
+    answer: 1
+    why: Data races are undefined behavior in C++. Fix them with a mutex or `std::atomic`. Two threads waiting forever is a deadlock.
+
+  - type: choice
+    prompt: How do you avoid deadlock when a function needs two mutexes?
+    choices:
+      - Lock them together with `std::scoped_lock lock(m1, m2);` (or always in the same global order)
+      - Lock them in whatever order is convenient
+      - Use `volatile` on both
+      - Unlock them before locking them
+    answer: 1
+    why: "`std::scoped_lock` with several mutexes uses a deadlock-avoidance algorithm; consistent lock ordering works too."
+
+  - type: predict
+    prompt: What does this print?
+    pre: |
+      template <typename T>
+      T biggest(T a, T b) { return a > b ? a : b; }
+    body: |
+      std::cout << biggest(3, 7) << " " << biggest(std::string("pear"), std::string("apple")) << "\n";
+    why: The template is instantiated separately for int and for std::string; strings compare alphabetically.
+
+  - type: choice
+    prompt: What's the difference between `const` and `constexpr`?
+    choices:
+      - "`constexpr` means the value can be computed at compile time; `const` only means it can't be changed after initialization"
+      - They're identical
+      - "`const` is compile time only; `constexpr` is run time only"
+      - "`constexpr` works only on functions"
+    answer: 1
+    why: A `const` variable can be initialized from a run-time value. `constexpr` variables can be used where a compile-time constant is required, like array sizes.
+
+  - type: bug
+    prompt: This should print 3 (the vector's final size). Click the line with the bug.
+    body: |
+      std::vector<int> v{1, 2, 3, 4, 5, 6};
+      for (auto it = v.begin(); it != v.end(); ++it) {
+          if (*it % 2 == 0) v.erase(it); // BUG
+      }
+      std::cout << v.size() << "\n";
+    fix: "if (*it % 2 == 0) { it = v.erase(it); --it; }"
+    ub: true
+    why: "`erase` invalidates `it`. Use the iterator it returns, or better, the erase-remove idiom: `std::erase_if(v, [](int x) { return x % 2 == 0; });` in C++20."
+
+  - type: choice
+    prompt: What does `noexcept` on a move constructor buy you?
+    choices:
+      - std::vector will move elements when it grows instead of copying them
+      - The function runs in a separate thread
+      - The compiler checks that no exception can occur at compile time
+      - Nothing; it's only documentation
+    answer: 1
+    why: vector gives the strong exception guarantee, so it only moves during reallocation if the move can't throw. Otherwise it copies.

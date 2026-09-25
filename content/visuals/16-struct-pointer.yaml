@@ -1,0 +1,29 @@
+id: struct-pointer
+title: Structs and the arrow operator
+lang: c
+module: c-structs
+steps: [c-structs-1, c-structs-2, c-structs-3]
+summary: A struct groups fields; a pointer to it uses -> to reach them.
+text: |
+  `p1` is one box holding two fields, `x` and `y`. `move_by` gets a pointer to it, so `pt->x += dx` changes `p1` in `main`. `pt->x` is shorthand for `(*pt).x`.
+
+  Passing a pointer also avoids copying the whole struct, which matters once structs get big.
+code: |
+  #include <stdio.h>
+
+  struct point {
+      int x;
+      int y;
+  };
+
+  void move_by(struct point *pt, int dx, int dy) {
+      pt->x += dx;
+      pt->y += dy;
+  }
+
+  int main(void) {
+      struct point p1 = {1, 2};
+      move_by(&p1, 3, 4);
+      printf("(%d, %d)\n", p1.x, p1.y);
+      return 0;
+  }

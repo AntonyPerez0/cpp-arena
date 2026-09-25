@@ -1,0 +1,216 @@
+# Interview prep: classic C questions. Code questions are compiled and run to check the answers.
+topic: interview
+lang: c
+drills:
+  - type: predict
+    prompt: A classic warm-up. What does this print?
+    body: |
+      int a[5] = {1, 2, 3, 4, 5};
+      int *p = a + 1;
+      printf("%d %d\n", *p, p[2]);
+    why: "`p` points at `a[1]`, so `*p` is 2 and `p[2]` is `*(p + 2)`, which is `a[3]`."
+
+  - type: predict
+    prompt: What does this print? (An int is 4 bytes here.)
+    pre: |
+      void f(int arr[10]) {
+          printf("%d ", sizeof arr == sizeof(int *));
+      }
+    body: |
+      int a[10];
+      printf("%zu ", sizeof a);
+      f(a);
+      printf("\n");
+    why: In `main`, `a` is an array of 10 ints (40 bytes). As a parameter, `int arr[10]` is really `int *arr`, so `sizeof` gives the size of a pointer, not of the array.
+
+  - type: choice
+    prompt: What's the difference between `const int *p` and `int *const p`?
+    choices:
+      - "`const int *p`: you can't change the int through p. `int *const p`: you can't change where p points"
+      - They mean the same thing
+      - "`const int *p`: p can't be moved. `int *const p`: the int can't be changed"
+      - Only `int *const p` is valid C
+    answer: 1
+    why: Read declarations right to left. `const int *p` is a pointer to a const int; `int *const p` is a const pointer to an int.
+
+  - type: choice
+    prompt: What's wrong with returning `buf` here?
+    pre: |
+      char *greet(void) {
+          char buf[16] = "hi";
+          return buf;
+      }
+    choices:
+      - "`buf` lives in greet's stack frame, which is gone once the function returns"
+      - Nothing; arrays are copied when returned
+      - It returns a copy of the first character only
+      - "`char buf[16]` must be declared `static` to compile"
+    answer: 1
+    why: The caller gets a dangling pointer. Return a heap copy (and document that the caller frees it), use a `static` buffer, or let the caller pass in a buffer.
+
+  - type: predict
+    prompt: What does this print?
+    body: |
+      int i = 5;
+      int j = i++ + 10;
+      int k = ++i + 10;
+      printf("%d %d %d\n", i, j, k);
+    why: "`i++` gives the old value (5) then increments; `++i` increments first (to 7) then gives the new value."
+
+  - type: choice
+    prompt: What does `volatile` tell the compiler?
+    choices:
+      - The value can change outside the program's control, so every read and write must really happen
+      - The variable is shared safely between threads
+      - The variable is stored in a CPU register
+      - The value never changes after it's set
+    answer: 1
+    why: "`volatile` is for memory-mapped hardware registers and signal handlers. It is not a thread-safety tool: use atomics or locks for that."
+
+  - type: choice
+    prompt: What does `static` mean on a function at file scope?
+    choices:
+      - The function is only visible inside this source file
+      - The function keeps its local variables between calls
+      - The function runs before main
+      - The function can't be called recursively
+    answer: 1
+    why: "At file scope, `static` means internal linkage. Inside a function, `static` on a local variable means it keeps its value between calls: same keyword, different meaning."
+
+  - type: predict
+    prompt: What does this print?
+    pre: |
+      int counter(void) {
+          static int n = 0;
+          n++;
+          return n;
+      }
+    body: |
+      counter();
+      counter();
+      printf("%d\n", counter());
+    why: A `static` local is created once and keeps its value between calls.
+
+  - type: bug
+    prompt: This should print 12. Click the line with the bug.
+    pre: |
+      #define SQUARE(x) x * x // BUG
+    body: |
+      int v = SQUARE(2 + 1) + 3;
+      printf("%d\n", v);
+    fix: "#define SQUARE(x) ((x) * (x))"
+    why: "Macros paste text. `SQUARE(2 + 1)` becomes `2 + 1 * 2 + 1`, which is 5. Parenthesize every parameter and the whole body."
+
+  - type: choice
+    prompt: What's the difference between `malloc` and `calloc`?
+    choices:
+      - "`calloc` zeroes the memory and takes a count and a size; `malloc` leaves it uninitialized"
+      - "`calloc` allocates on the stack"
+      - "`malloc` zeroes the memory; `calloc` doesn't"
+      - "`calloc` can resize an existing block"
+    answer: 1
+    why: "`calloc(n, size)` also checks the multiplication for overflow on most implementations. Resizing is `realloc`."
+
+  - type: bug
+    prompt: This should print 3. Click the line with the bug.
+    body: |
+      int *nums = malloc(3 * sizeof *nums);
+      if (!nums) return 1;
+      for (int i = 0; i <= 3; i++) { // BUG
+          nums[i] = i + 1;
+      }
+      printf("%d\n", nums[2]);
+      free(nums);
+    fix: "for (int i = 0; i < 3; i++) {"
+    ub: true
+    why: "`i <= 3` writes `nums[3]`, one past the end of the block: undefined behavior. Loops over n elements use `i < n`."
+
+  - type: predict
+    prompt: "What does this print? (unsigned arithmetic wraps around)"
+    body: |
+      unsigned int u = 0;
+      u = u - 1;
+      printf("%d\n", u == UINT_MAX);
+    why: Unsigned integers wrap modulo 2^N, so 0 - 1 is the largest value. Signed overflow, by contrast, is undefined behavior.
+
+  - type: choice
+    prompt: "`if (-1 < sizeof(int))` is false on common platforms. Why?"
+    choices:
+      - "`sizeof` gives an unsigned `size_t`, so -1 is converted to a huge unsigned number"
+      - "`sizeof(int)` is negative"
+      - The comparison is undefined behavior
+      - "`sizeof` can't be used in an `if`"
+    answer: 1
+    why: Mixing signed and unsigned in a comparison converts the signed side to unsigned. Compilers warn about this with -Wall -Wextra (-Wsign-compare).
+
+  - type: predict
+    prompt: What does this print?
+    body: |
+      int x = 6;
+      printf("%d %d %d\n", x & 3, x | 1, x ^ 5);
+    why: "6 is 110 in binary. 110 & 011 = 010 (2); 110 | 001 = 111 (7); 110 ^ 101 = 011 (3)."
+
+  - type: choice
+    prompt: How do you check whether a positive int `n` is a power of two in one expression?
+    choices:
+      - "`(n & (n - 1)) == 0`"
+      - "`n % 2 == 0`"
+      - "`(n | (n - 1)) == 0`"
+      - "`n >> 1 == n / 2`"
+    answer: 1
+    why: A power of two has exactly one bit set; subtracting 1 turns that bit off and every lower bit on, so the AND is zero.
+
+  - type: choice
+    prompt: What does `free(NULL)` do?
+    choices:
+      - Nothing; it's explicitly allowed
+      - It crashes
+      - It's undefined behavior
+      - It frees the most recent allocation
+    answer: 1
+    why: The C standard says freeing a null pointer does nothing, which is why setting pointers to NULL after `free` makes a double free harmless.
+
+  - type: predict
+    prompt: What does this print?
+    pre: |
+      struct s { char c; int i; };
+    body: |
+      printf("%d\n", sizeof(struct s) > sizeof(char) + sizeof(int));
+    why: The compiler adds padding after `c` so that `i` is aligned (usually on a 4-byte boundary), making the struct 8 bytes, not 5.
+
+  - type: choice
+    prompt: What is a memory leak?
+    choices:
+      - Heap memory that's still allocated but that nothing points to any more, so it can never be freed
+      - Reading memory that was already freed
+      - Writing past the end of an array
+      - Running out of stack space
+    answer: 1
+    why: Leaks come from losing the last pointer (overwriting it, or returning without freeing). Tools like Valgrind and AddressSanitizer's LeakSanitizer find them.
+
+  - type: compiles
+    prompt: Does this compile as C?
+    body: |
+      const int n = 3;
+      n = 4;
+      printf("%d\n", n);
+    why: Assigning to a const object is a compile error.
+
+  - type: predict
+    prompt: What does this print?
+    body: |
+      char s[] = "abc";
+      char *p = s;
+      while (*p) p++;
+      printf("%d\n", (int)(p - s));
+    why: The loop stops on the `'\0'` terminator; subtracting pointers gives how many elements apart they are.
+
+  - type: choice
+    prompt: Where do these live? `int g;` (file scope), `int x;` (inside a function), and the block from `malloc`.
+    choices:
+      - "`g`: static storage for the whole run. `x`: the stack. The block: the heap"
+      - All three are on the stack
+      - "`g` and the block on the heap, `x` on the stack"
+      - All three are on the heap
+    answer: 1
+    why: Globals and `static` variables exist for the whole program, locals live in the function's stack frame, and `malloc` memory lives until `free`.

@@ -5,6 +5,8 @@ import { getState, patchStep, useStore } from "../state/store";
 import Markdown from "../components/Markdown";
 import Workbench from "../components/Workbench";
 import { useTitle } from "../lib/title";
+import { visualsForStep } from "../content/visuals";
+import ShareButton from "../components/ShareButton";
 
 export default function StepPage() {
   const { moduleId = "", stepNo = "1" } = useParams();
@@ -14,8 +16,12 @@ export default function StepPage() {
   const step = m?.steps[idx];
   const progress = useStore((s) => (step ? s.steps[step.id] : undefined));
   const [justPassed, setJustPassed] = useState<string | null>(null);
+  const [finishedModule, setFinishedModule] = useState(false);
   useTitle(m && step ? `${step.title} · ${m.title}` : "Step not found");
-  useEffect(() => setJustPassed(null), [step?.id]);
+  useEffect(() => {
+    setJustPassed(null);
+    setFinishedModule(false);
+  }, [step?.id]);
 
   const onPass = useCallback(
     ({ hintsUsed, sawSolution }: { hintsUsed: number; sawSolution: boolean }) => {
@@ -25,7 +31,10 @@ export default function StepPage() {
       patchStep(step.id, { done: true, doneAt: first ? Date.now() : getState().steps[step.id]?.doneAt, clean: first ? hintsUsed === 0 && !sawSolution : getState().steps[step.id]?.clean });
       const moduleDone = m.steps.every((st) => st.id === step.id || getState().steps[st.id]?.done);
       if (!wasUnlocked && (drillsByTopic.get(m.id) ?? 0) > 0) setJustPassed(`New Deathmatch topic unlocked: ${m.title}`);
-      else if (moduleDone && first) setJustPassed(`Module complete: ${m.title}`);
+      else if (moduleDone && first) {
+        setJustPassed(`Module complete: ${m.title}`);
+        setFinishedModule(true);
+      }
       else setJustPassed("Step complete");
     },
     [step, m],
@@ -57,6 +66,17 @@ export default function StepPage() {
           </div>
           <h1>{step.title}</h1>
           <Markdown text={step.text} />
+          {visualsForStep(step.id).map((v) => (
+            <Link key={v.id} to={`/visualize/${v.id}`} className="watch-card">
+              <span className="watch-icon" aria-hidden="true">
+                ▶
+              </span>
+              <span>
+                <b>Watch it run:</b> {v.title}
+                <span className="muted small"> · see the memory line by line</span>
+              </span>
+            </Link>
+          ))}
           <div className="step-dots">
             {m.steps.map((st, i) => (
               <Link
@@ -73,6 +93,12 @@ export default function StepPage() {
           {justPassed && (
             <div className="banner banner-pass big">
               <span>✓ {justPassed}</span>
+              {finishedModule && (
+                <ShareButton
+                  card={{ kicker: "Module complete", title: m.title, lines: [`${m.steps.length} ${m.lang === "c" ? "C" : "C++"} exercises, compiled and passing`], file: `cpparena-${m.id}.png` }}
+                  text={`I just finished "${m.title}" on C/C++ Arena.`}
+                />
+              )}
               {next ? (
                 <button className="btn btn-primary" onClick={() => { setJustPassed(null); nav(next); }} autoFocus>
                   Next step →
@@ -93,6 +119,7 @@ export default function StepPage() {
             onHint={(n) => patchStep(step.id, { hintsUsed: n })}
             onSave={(code, blanks) => patchStep(step.id, { code, blanks })}
             onPass={onPass}
+            report={{ kind: "Lesson step", title: `${m.title}: ${step.title}`, id: step.id, path: `/learn/${m.id}/${idx + 1}` }}
           />
           <div className="step-nav">
             {prev ? (

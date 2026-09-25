@@ -1,0 +1,24 @@
+id: variables
+title: Variables change over time
+lang: c
+module: c-vars
+steps: [c-vars-1, c-vars-3, c-vars-4, c-vars-5]
+summary: Watch three variables get created and updated, one line at a time.
+text: |
+  A variable is a named box in memory. Step through and watch each box appear when its line runs, then change when a later line assigns to it.
+
+  - `score` is an `int` (whole number), `price` is a `double` (decimal) and `grade` is a `char` (a single character).
+  - `score = score + 5;` reads the old value, adds 5, and stores the result back in the same box.
+code: |
+  #include <stdio.h>
+
+  int main(void) {
+      int score = 10;
+      double price = 2.5;
+      char grade = 'B';
+      score = score + 5;
+      price = price * 2;
+      grade = 'A';
+      printf("%d %.1f %c\n", score, price, grade);
+      return 0;
+  }

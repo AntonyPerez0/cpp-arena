@@ -1,0 +1,163 @@
+# Interview prep: data structures, complexity, systems and tooling questions asked in C and C++ interviews.
+topic: interview
+lang: cpp
+drills:
+  - type: choice
+    prompt: What's the time complexity of looking up a key in a balanced binary search tree with n keys?
+    choices:
+      - O(log n)
+      - O(1)
+      - O(n)
+      - O(n log n)
+    answer: 1
+    why: Each comparison goes down one level, and a balanced tree has about log2(n) levels. std::map and std::set are balanced trees.
+
+  - type: choice
+    prompt: A hash table has O(1) average lookups. When does a lookup become O(n)?
+    choices:
+      - When many keys collide into the same bucket (a bad hash function or adversarial keys)
+      - When the table is empty
+      - When keys are strings
+      - Never; hash tables are always O(1)
+    answer: 1
+    why: With chaining, a lookup scans one bucket. If everything lands in one bucket, that's a linear scan. A good hash and rehashing on a load factor keep chains short.
+
+  - type: choice
+    prompt: Which sort is guaranteed O(n log n) in the worst case and stable?
+    choices:
+      - Merge sort
+      - Quicksort
+      - Insertion sort
+      - Selection sort
+    answer: 1
+    why: Quicksort is O(n^2) in the worst case and not stable; insertion and selection sort are O(n^2). In C++, `std::stable_sort` gives you stability.
+
+  - type: choice
+    prompt: Why is `std::vector` often faster than `std::list` even for inserts in the middle?
+    choices:
+      - Its elements are contiguous in memory, so the CPU cache and prefetcher make shifting and scanning very fast
+      - std::list is implemented with a vector internally
+      - Vector inserts are O(1) in the middle
+      - std::list allocates on the stack
+    answer: 1
+    why: Finding the insert position in a list means chasing pointers across memory, which causes cache misses. Measure before choosing a linked list.
+
+  - type: choice
+    prompt: What does amortized O(1) mean for `push_back`?
+    choices:
+      - Most pushes are O(1); occasional reallocations are O(n), but averaged over many pushes the cost per push is constant
+      - Every single push is guaranteed O(1)
+      - Push is O(1) only if you call reserve
+      - It's O(log n) on average
+    answer: 1
+    why: Growing the capacity geometrically (doubling, or 1.5 times) means the total copying work for n pushes is O(n).
+
+  - type: choice
+    prompt: Which data structure gives O(1) access to the smallest element and O(log n) insert and remove-min?
+    choices:
+      - A binary heap (std::priority_queue with std::greater)
+      - A sorted linked list
+      - A hash table
+      - A stack
+    answer: 1
+    why: A min-heap keeps the smallest element at the root. Dijkstra's shortest path algorithm and schedulers use it.
+
+  - type: choice
+    prompt: What's the difference between the stack and the heap?
+    choices:
+      - The stack holds function frames and is freed automatically in LIFO order; the heap is for memory you allocate and free explicitly, with any lifetime
+      - The heap is faster for everything
+      - The stack is shared between all threads
+      - They're two names for the same memory
+    answer: 1
+    why: Each thread has its own stack, usually a few megabytes, so big or long-lived data goes on the heap (preferably owned by a container or smart pointer).
+
+  - type: choice
+    prompt: Which tool would you use to find a use-after-free quickly during development?
+    choices:
+      - AddressSanitizer (compile with -fsanitize=address)
+      - clang-format
+      - A profiler like perf
+      - The -O3 flag
+    answer: 1
+    why: ASan reports the bad access with stack traces for where the memory was allocated and freed. Valgrind also finds it, more slowly, without recompiling.
+
+  - type: choice
+    prompt: What happens in the four stages of building a C or C++ program?
+    choices:
+      - Preprocess (#include, #define), compile to assembly, assemble to object files, link objects and libraries into an executable
+      - Parse, interpret, run, exit
+      - Compile, run tests, package, deploy
+      - Link, compile, preprocess, assemble
+    answer: 1
+    why: "Knowing the stages explains errors: an 'undefined reference' is a linker error (a missing definition or library), not a compiler error."
+
+  - type: choice
+    prompt: You get "undefined reference to `foo()`" at link time. What's the most likely cause?
+    choices:
+      - "`foo` is declared but its definition isn't compiled or linked in (a missing .cpp file or library)"
+      - A syntax error in foo's header
+      - "`foo` is called with the wrong argument types"
+      - The program ran out of memory
+    answer: 1
+    why: The compiler trusted the declaration; the linker couldn't find the body. Check the source is in the build (CMake target_sources) and libraries are linked (target_link_libraries).
+
+  - type: choice
+    prompt: What's the difference between a process and a thread?
+    choices:
+      - Threads in one process share its memory; separate processes each have their own address space
+      - Threads each have their own heap; processes share one
+      - A process can only have one thread
+      - There is no difference on Linux
+    answer: 1
+    why: Sharing memory makes threads cheap to communicate, and also what makes data races possible.
+
+  - type: choice
+    prompt: Two threads each do `counter++` 1000 times on a shared `int`. Why can the result be less than 2000?
+    choices:
+      - "`counter++` is a read, an add and a write; the threads can interleave and overwrite each other's updates"
+      - Integer overflow
+      - The compiler removes one of the loops
+      - Threads run one at a time, so it's always exactly 2000
+    answer: 1
+    why: It's a data race (undefined behavior). Use `std::atomic<int>` or protect the counter with a mutex.
+
+  - type: choice
+    prompt: What does "big endian" vs "little endian" describe?
+    choices:
+      - The order of a multi-byte number's bytes in memory; x86 and most ARM systems are little endian
+      - Whether a number is signed or unsigned
+      - Which end of an array is index 0
+      - The direction a stack grows
+    answer: 1
+    why: It matters when reading binary files or network data. Network protocols usually use big endian, hence `htonl` and friends.
+
+  - type: choice
+    prompt: What's the best first step when a program is too slow?
+    choices:
+      - Measure with a profiler (perf, or a benchmark) to find where the time actually goes
+      - Rewrite it in assembly
+      - Add -O3 and hope
+      - Replace every std::vector with a linked list
+    answer: 1
+    why: Intuition about hot spots is often wrong. Profile a release build (-O2 -g), fix the biggest cost, then measure again.
+
+  - type: choice
+    prompt: What should a good unit test do?
+    choices:
+      - Check one behavior, run fast, be repeatable, and fail with a clear message when the code is wrong
+      - Test every function in one big test
+      - Print results for a human to inspect
+      - Depend on the order other tests run in
+    answer: 1
+    why: Frameworks like GoogleTest make this easy. A test you've never seen fail might not test anything; try breaking the code on purpose.
+
+  - type: choice
+    prompt: In a code review, you see `strcpy(dest, user_input);`. What's the main concern?
+    choices:
+      - A buffer overflow if the input is longer than dest, a classic security hole
+      - It's slower than memcpy
+      - strcpy doesn't copy the terminator
+      - Nothing, strcpy is always safe
+    answer: 1
+    why: Check the length first, or use `snprintf` or a bounded copy. In C++, use `std::string`.
