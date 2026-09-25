@@ -562,6 +562,134 @@ steps:
       - "`int needed = snprintf(buf, size, \"%s %d/%d\", name, kills, deaths);`"
       - "It was truncated when `needed >= size` (compare as size_t after checking needed isn't negative)."
 
+  - title: Binary files
+    id: c-files-8
+    text: |
+      So far every file has been **text**: `fprintf(f, "%d", 1234)` writes the characters `1`, `2`, `3`, `4`. A **binary** file stores the raw bytes of values exactly as they sit in memory instead: an `int` is always 4 bytes (on this site), whatever its value. Binary files are smaller, faster to read and write, and let you jump straight to the 1,000th record without reading the 999 before it. Images, audio, databases and save games are binary.
+
+      ```c run
+      #include <stdio.h>
+
+      struct Score {
+          char name[16];
+          int points;
+      };
+
+      int main(void) {
+          struct Score out[3] = {{"ada", 90}, {"linus", 75}, {"grace", 88}};
+          FILE *f = fopen("scores.bin", "wb");
+          if (f == NULL) return 1;
+          size_t written = fwrite(out, sizeof out[0], 3, f);
+          fclose(f);
+
+          f = fopen("scores.bin", "rb");
+          if (f == NULL) return 1;
+          fseek(f, 0, SEEK_END);
+          long bytes = ftell(f);                       /* position at the end = the file's size */
+          fseek(f, sizeof(struct Score), SEEK_SET);    /* jump straight to record 1 */
+          struct Score s;
+          size_t got = fread(&s, sizeof s, 1, f);
+          fclose(f);
+
+          printf("wrote %zu records, %ld bytes\n", written, bytes);
+          printf("record 1: %s %d (read %zu)\n", s.name, s.points, got);
+          return 0;
+      }
+      ```
+
+      ```output
+      wrote 3 records, 60 bytes
+      record 1: linus 75 (read 1)
+      ```
+
+      ### How it works
+
+      - The modes `"wb"` and `"rb"` add `b` for binary. On Linux and macOS it makes no difference, but on Windows text mode translates line endings, which would corrupt binary data, so always include it for binary files.
+      - `fwrite(pointer, size, count, f)` writes `count` items of `size` bytes each, starting at `pointer`, and returns how many items it wrote. Here that's 3 records of 20 bytes, 60 bytes in total.
+      - `fread(pointer, size, count, f)` is the reverse. It returns how many **complete** items it read, which is less than `count` at the end of the file or on an error, so check it.
+      - `fseek(f, offset, from)` moves the read/write position: from the start (`SEEK_SET`), the current position (`SEEK_CUR`) or the end (`SEEK_END`). `ftell(f)` reports the current position. Seeking to the end and asking `ftell` is a common way to get a file's size.
+      - Because every record has the same size, record `i` starts at byte `i * sizeof(struct Score)`. That's **random access**: reading one record costs the same no matter how big the file is.
+
+      ### Raw bytes aren't portable
+
+      Writing a struct's bytes directly is fine for a file your own program reads back on the same machine. It's **not** a safe file format for anything else:
+
+      - Another compiler or machine may lay out the struct differently (**padding** between members), use a different size for `int`, or store multi-byte numbers in the opposite byte order (**endianness**).
+      - Never write pointers. An address means nothing in another run of the program.
+
+      Real file formats (PNG, ZIP, databases) define the exact size, order and byte order of every field, and programs write them field by field using fixed-size types like `uint32_t` (from `<stdint.h>`, covered in the integer types module).
+
+      **Your turn:** write three functions for a file of raw `int`s. `save_ints` writes `n` values and returns 0, or -1 if the file can't be opened or not everything was written. `load_ints` reads up to `max` values into `out` and returns how many it read, or -1 if the file can't be opened. `read_at` reads the value at position `index` into `*out` and returns 1, returns 0 if there's no value there, or -1 if the file can't be opened.
+    seed: |
+      #include <stdio.h>
+
+      int save_ints(const char *path, const int *a, int n) {
+
+      }
+
+      int load_ints(const char *path, int *out, int max) {
+
+      }
+
+      int read_at(const char *path, int index, int *out) {
+
+      }
+    solution: |
+      #include <stdio.h>
+
+      int save_ints(const char *path, const int *a, int n) {
+          FILE *f = fopen(path, "wb");
+          if (f == NULL) return -1;
+          size_t written = fwrite(a, sizeof a[0], (size_t)n, f);
+          fclose(f);
+          return written == (size_t)n ? 0 : -1;
+      }
+
+      int load_ints(const char *path, int *out, int max) {
+          FILE *f = fopen(path, "rb");
+          if (f == NULL) return -1;
+          size_t got = fread(out, sizeof out[0], (size_t)max, f);
+          fclose(f);
+          return (int)got;
+      }
+
+      int read_at(const char *path, int index, int *out) {
+          FILE *f = fopen(path, "rb");
+          if (f == NULL) return -1;
+          int ok = fseek(f, (long)index * (long)sizeof(int), SEEK_SET) == 0 && fread(out, sizeof *out, 1, f) == 1;
+          fclose(f);
+          return ok ? 1 : 0;
+      }
+    require:
+      - pattern: "fwrite"
+        message: Write the values with fwrite, as raw bytes.
+      - pattern: "fread"
+        message: Read the values back with fread.
+      - pattern: "fseek"
+        message: read_at should jump straight to the value with fseek instead of reading everything before it.
+    harness: |
+      int main(void) {
+          int a[4] = {5, -2, 99, 7};
+          CHECK_INT("save 4 values", save_ints("nums.bin", a, 4), 0);
+          int out[10] = {0};
+          CHECK_INT("load reads all 4", load_ints("nums.bin", out, 10), 4);
+          CHECK("values come back unchanged", out[0] == 5 && out[1] == -2 && out[2] == 99 && out[3] == 7);
+          int two[2] = {0};
+          CHECK_INT("load stops at max", load_ints("nums.bin", two, 2), 2);
+          CHECK_INT("load of a missing file", load_ints("missing.bin", out, 10), -1);
+          int v = 0;
+          CHECK_INT("read_at 2 finds a value", read_at("nums.bin", 2, &v), 1);
+          CHECK_INT("read_at 2 is 99", v, 99);
+          CHECK_INT("read_at 3 is the last one", read_at("nums.bin", 3, &v) == 1 && v == 7, 1);
+          CHECK_INT("read_at past the end", read_at("nums.bin", 4, &v), 0);
+          CHECK_INT("read_at on a missing file", read_at("missing.bin", 0, &v), -1);
+          return 0;
+      }
+    hints:
+      - "save_ints: open with `\"wb\"`, `fwrite(a, sizeof a[0], n, f)`, close, and return 0 only if fwrite reported all `n` items."
+      - "load_ints: open with `\"rb\"`, and fread's return value is exactly the count to return."
+      - "read_at: `fseek(f, (long)index * sizeof(int), SEEK_SET)`, then `fread(out, sizeof *out, 1, f) == 1` tells you whether a value was there."
+
   - title: "Challenge: a CSV report"
     id: c-files-7
     text: |

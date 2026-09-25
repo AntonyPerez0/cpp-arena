@@ -55,7 +55,7 @@ steps:
 
       ### Common mistakes
 
-      - Writing `std::unique_ptr<Robot> r(new Robot(...))`. It works, but `make_unique` is shorter and never leaks if something goes wrong in between.
+      - Writing `std::unique_ptr<Robot> r(new Robot(...))`. It works, but `make_unique` is shorter, names the type only once, and keeps a bare `new` out of your code entirely. (Before C++17 it also prevented a subtle leak when `new` appeared inside a function call's arguments.)
       - Creating a `unique_ptr` for something that could just be a normal local variable. Use the heap only when you need it: the object must outlive the scope, it's very large, or it's polymorphic.
 
       **Your turn:** create the object with `make_unique` and access it through the pointer.

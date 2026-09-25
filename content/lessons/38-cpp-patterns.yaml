@@ -602,6 +602,22 @@ steps:
       - An empty `unique_ptr` never calls the deleter, so a failed `fopen` (null) needs no special handling. The `if (f)` check inside the deleter is extra safety.
       - The `File` alias keeps the long type readable.
 
+      ### extern "C": calling between C and C++
+
+      C++ encodes each function's parameter types into its name in the compiled code (**name mangling**, which is how overloading works), and C doesn't. So when C++ code calls a function that was compiled as C, it has to be told, or the linker looks for the wrong name and reports `undefined reference`. C libraries' headers do this themselves:
+
+      ```cpp
+      #ifdef __cplusplus
+      extern "C" {
+      #endif
+      int sqlite3_close(sqlite3 *db);
+      #ifdef __cplusplus
+      }
+      #endif
+      ```
+
+      `__cplusplus` is only defined by C++ compilers, so C sees a plain declaration and C++ sees it inside `extern "C"`. The same keyword works in the other direction: an `extern "C"` function written in C++ can be called from C, and from Python, Rust or any other language that can call C, as long as its parameters and return type are plain C types. The standard C headers (`<cstdio>` and friends) already handle this, which is why the example above calls `std::fopen` directly.
+
       ### Your task
 
       - `open_file(path, mode)` returns `File(std::fopen(path.c_str(), mode.c_str()))` (or with whatever parameter types you choose).

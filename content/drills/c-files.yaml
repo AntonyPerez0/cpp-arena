@@ -130,3 +130,13 @@ drills:
     hints:
       - "Open src with \"r\" and dst with \"w\". If the second open fails, close the first before returning -1."
       - "Copy with `int c; while ((c = fgetc(in)) != EOF) fputc(toupper(c), out);`"
+  - type: predict
+    body: |
+      int a[3] = {7, 8, 9};
+      FILE *f = fopen("n.bin", "wb");
+      if (f == NULL) return 1;
+      size_t n = fwrite(a, sizeof a[0], 3, f);
+      long bytes = ftell(f);
+      fclose(f);
+      printf("%zu %ld\n", n, bytes);
+    why: fwrite returns how many items it wrote (3), and each int is 4 bytes here, so the file position is now 12.

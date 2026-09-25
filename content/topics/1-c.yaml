@@ -88,7 +88,7 @@ topics:
 
       `scanf` returns how many values it successfully read. Always check it: if the user types letters where a number was expected, nothing is stored.
 
-      For a word, `%s` reads up to the next space; always give a maximum width like `%19s` for a 20-byte array so long input can't overflow it. For whole lines, `fgets` is safer.
+      For a word, `%s` skips leading whitespace and reads up to the next space, tab or newline; always give a maximum width like `%19s` for a 20-byte array so long input can't overflow it. For whole lines, `fgets` is safer.
     example: |
       #include <stdio.h>
 

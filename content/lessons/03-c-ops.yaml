@@ -282,7 +282,7 @@ steps:
 
       ### Keep it simple
 
-      This rule matters for reading other people's code, but in your own code prefer to keep `++` on its own line. Expressions that change a variable and also use it again, like `n = n++ + 1` or `printf("%d %d", n, n++)`, are **undefined behavior** in C: the language doesn't say what happens, and different compilers give different results. Change a variable at most once per statement and you'll never hit this.
+      This rule matters for reading other people's code, but in your own code prefer to keep `++` on its own line. Expressions that change a variable and also use it again, like `n = n++ + 1` or `printf("%d %d", n, n++)`, are **undefined behavior** in C: the language doesn't say what happens, and different compilers give different results. The safe rule: if a statement changes a variable, don't use that same variable anywhere else in the statement. (`printf("%d %d", n, n++)` changes `n` only once, but it also reads `n` elsewhere, and that's already undefined.)
 
       **Your turn:** make the program print `5 7 7` by choosing prefix or postfix for each blank. The variable `a` starts at 5.
     fill: |

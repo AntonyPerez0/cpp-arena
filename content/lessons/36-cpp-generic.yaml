@@ -247,6 +247,10 @@ steps:
       - The parameter is `const T&`, but `T` itself is deduced without the `const` and `&`, so `std::is_same_v<T, std::string>` works here. When you're unsure, wrap the type in `std::remove_cvref_t` first.
       - The last line shows a transformation checked at compile time: stripping `const` and `&` from `const int&` leaves `int`.
 
+      ### decltype
+
+      `decltype(expr)` is the type of an expression, worked out at compile time without running it. If `a` is an `int` and `b` a `double`, `decltype(a + b)` is `double`. Generic code uses it to name types it can't spell out, like `std::vector<decltype(a + b)>`, and you can declare a variable with exactly another one's type: `decltype(total) copy = 0;`.
+
       **Your turn:** write `template <typename T> std::string kind_of(const T&)` returning `"bool"` for bool (careful: bool **is** an integral type, so check it first), `"signed"` or `"unsigned"` for other integral types, `"float"` for floating point, `"pointer"` for pointers, and `"other"` otherwise.
     seed: |
       #include <string>

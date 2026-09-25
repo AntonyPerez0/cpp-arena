@@ -218,6 +218,8 @@ steps:
 
       `Book b("Dune", 400);` and `Book c{"Emma", 300};` both call the constructor. The brace form (**uniform initialization**) is common in modern C++ and refuses narrowing conversions, like silently turning `3.7` into an `int`.
 
+      Braces have one more rule. A constructor taking a `std::initializer_list<T>` (from `<initializer_list>`) accepts a brace list of any length, and when one exists, braces **prefer** it. That's how `std::vector<int> v{1, 2, 3}` holds three values, and why `std::vector<int> v{3, 7}` holds 3 and 7 while `std::vector<int> v(3, 7)` holds three 7s. Your own classes can take a list the same way: `Bag(std::initializer_list<int> items) { for (int x : items) add(x); }`.
+
       Once a class has a constructor with parameters, you can't create one without arguments (`Book d;` is an error) unless you also write a constructor that takes none. That's the point: there's no way to get a `Book` without a title and a page count.
 
       **Your turn:** complete the constructor's initializer list.

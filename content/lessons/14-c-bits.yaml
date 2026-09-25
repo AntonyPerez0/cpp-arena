@@ -256,6 +256,24 @@ steps:
 
       Combining flags with `|` when calling a function (like `BOLD | ITALIC`) is a pattern you'll see in many C APIs, including `open()` on Unix.
 
+      ### Bit-fields
+
+      C can also pack small fields into an integer for you, with **bit-fields**:
+
+      ```c
+      struct Style {
+          unsigned bold : 1;      /* 1 bit: 0 or 1 */
+          unsigned italic : 1;
+          unsigned size : 6;      /* 6 bits: 0 to 63 */
+      };
+      ```
+
+      Each member uses only the number of bits after the colon, and you read and write it like any member (`s.size = 12;`). That saves memory in big arrays of small records. But the compiler chooses the exact layout (which end the bits start from, padding), so bit-fields are **not** a portable way to match a file format or a hardware register. Use masks and shifts, as above, for that.
+
+      ### Byte order
+
+      A 4-byte `int` like `0x12345678` is stored as 4 separate bytes, and machines disagree about their order. **Little-endian** machines, which include x86 and ARM as it's almost always configured (so nearly every PC and phone, and WebAssembly), store the lowest byte first: `78 56 34 12`. **Big-endian** machines store `12 34 56 78`, and network protocols traditionally send numbers in big-endian order. Shifts and masks work on **values**, so `(x >> 8) & 0xFF` gives the same answer everywhere. Byte order only matters when you look at memory one byte at a time, or read and write raw bytes, as binary files do in the next module.
+
       **Your turn:** fill in the operators.
     fill: |
       #include <stdio.h>

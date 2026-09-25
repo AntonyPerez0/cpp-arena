@@ -500,3 +500,137 @@ steps:
       }
     hints:
       - "Build the result: `Vec2 r = {a.x + b.x, a.y + b.y};` and return it."
+
+  - title: Unions and tagged unions
+    id: c-structs-7
+    text: |
+      A struct holds **all** of its members at once, each in its own memory. A **union** looks the same but holds **one** member at a time: every member starts at the same address and shares the same bytes. A union is as big as its largest member (possibly rounded up for alignment), not the sum of them.
+
+      On its own, a union doesn't remember which member you last stored, so real code pairs it with an `enum` that says which one is in use. That combination is called a **tagged union**, and it's C's way of saying "a value that can be one of several types":
+
+      ```c run
+      #include <stdio.h>
+
+      enum Kind { NUMBER, TEXT };
+
+      struct Value {
+          enum Kind kind;           /* which union member is in use */
+          union {
+              double number;
+              char text[16];
+          } as;
+      };
+
+      void print_value(struct Value v) {
+          if (v.kind == NUMBER) {
+              printf("number %.2f\n", v.as.number);
+          } else {
+              printf("text \"%s\"\n", v.as.text);
+          }
+      }
+
+      int main(void) {
+          struct Value a = {NUMBER, {.number = 3.5}};
+          struct Value b = {.kind = TEXT, .as.text = "hello"};
+          print_value(a);
+          print_value(b);
+          printf("union: %zu bytes; members: %zu and %zu\n", sizeof a.as, sizeof a.as.number, sizeof a.as.text);
+          return 0;
+      }
+      ```
+
+      ```output
+      number 3.50
+      text "hello"
+      union: 16 bytes; members: 8 and 16
+      ```
+
+      ### How it works
+
+      - `union { double number; char text[16]; } as;` declares a member called `as` whose type is a union. `v.as.number` and `v.as.text` are two views of the same 16 bytes.
+      - The union is 16 bytes, the size of its biggest member, even though it can hold an 8-byte `double`. A struct with both members would need 24.
+      - `{.number = 3.5}` and `.as.text = "hello"` use **designated initializers** to say which member to fill in.
+      - Every reader checks `kind` first and only touches the member that matches. Keeping the tag and the data in step is the programmer's job: the compiler won't stop you from reading `as.number` when `kind` says `TEXT`.
+
+      ### Reading the wrong member
+
+      If you store `3.5` into `as.number` and then read `as.text`, C reinterprets the same bytes as characters. That's allowed in C, but what you get depends on how the machine stores a `double`, so it's rarely what you want. (In C++, reading a union member other than the one last stored is undefined behavior.) Use unions for "one of several things", with a tag, and not as a trick for converting between types.
+
+      ### Where they're used
+
+      Tagged unions appear wherever data comes in several shapes: the values in an interpreter (a number, a string or a list), messages in a network protocol (each kind of message has a different payload), events in a game or GUI (a key press, a mouse click, a resize). They save memory when you have many such values, and they keep "one of these" explicit in the type. C++'s `std::variant`, later in the course, is a tagged union that tracks the tag for you.
+
+      **Your turn:** a `struct Shape` is a circle, a rectangle or a triangle, with a union holding each kind's measurements. Write `area(s)` (a triangle's area is base × height / 2) and `make_circle(r)`, which returns a circle shape with radius `r`.
+    seed: |
+      #include <stdio.h>
+
+      #define PI 3.14159265358979
+
+      enum ShapeKind { CIRCLE, RECTANGLE, TRIANGLE };
+
+      struct Shape {
+          enum ShapeKind kind;
+          union {
+              struct { double radius; } circle;
+              struct { double width, height; } rect;
+              struct { double base, height; } tri;
+          } as;
+      };
+
+      double area(const struct Shape *s) {
+
+      }
+
+      struct Shape make_circle(double r) {
+
+      }
+    solution: |
+      #include <stdio.h>
+
+      #define PI 3.14159265358979
+
+      enum ShapeKind { CIRCLE, RECTANGLE, TRIANGLE };
+
+      struct Shape {
+          enum ShapeKind kind;
+          union {
+              struct { double radius; } circle;
+              struct { double width, height; } rect;
+              struct { double base, height; } tri;
+          } as;
+      };
+
+      double area(const struct Shape *s) {
+          switch (s->kind) {
+          case CIRCLE:
+              return PI * s->as.circle.radius * s->as.circle.radius;
+          case RECTANGLE:
+              return s->as.rect.width * s->as.rect.height;
+          case TRIANGLE:
+              return s->as.tri.base * s->as.tri.height / 2;
+          }
+          return 0;
+      }
+
+      struct Shape make_circle(double r) {
+          struct Shape s = {CIRCLE, {.circle = {r}}};
+          return s;
+      }
+    harness: |
+      int main(void) {
+          struct Shape rect = {RECTANGLE, {.rect = {3, 4}}};
+          struct Shape tri = {TRIANGLE, {.tri = {6, 5}}};
+          struct Shape c = make_circle(2);
+          CHECK_DBL("rectangle 3 x 4", area(&rect), 12);
+          CHECK_DBL("triangle base 6, height 5", area(&tri), 15);
+          CHECK("make_circle sets the kind", c.kind == CIRCLE);
+          CHECK_DBL("make_circle sets the radius", c.as.circle.radius, 2);
+          CHECK_DBL("circle of radius 2", area(&c), 4 * PI);
+          struct Shape unit = make_circle(1);
+          CHECK_DBL("unit circle", area(&unit), PI);
+          return 0;
+      }
+    hints:
+      - "`s` is a pointer, so use `s->kind` and `s->as.circle.radius`, `s->as.rect.width` and so on."
+      - "A `switch (s->kind)` with one `case` per kind, each returning its formula, reads well. Add a final `return 0;` after the switch."
+      - "make_circle: `struct Shape s = {CIRCLE, {.circle = {r}}};` then `return s;`."

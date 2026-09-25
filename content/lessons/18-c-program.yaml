@@ -463,6 +463,124 @@ steps:
       - args: [ "100", "200" ]
         hidden: true
 
+  - title: Variadic functions
+    id: c-program-7
+    text: |
+      `printf` takes one argument, or five, or twenty. Functions like that are **variadic**, and you can write your own with `<stdarg.h>`. The `...` in the parameter list stands for "any number of extra arguments":
+
+      ```c run
+      #include <stdarg.h>
+      #include <stdio.h>
+
+      /* Average of the `count` ints that follow. */
+      double average(int count, ...) {
+          va_list args;
+          va_start(args, count);                    /* extras start after `count` */
+          int total = 0;
+          for (int i = 0; i < count; i++) {
+              total += va_arg(args, int);           /* the next extra, read as an int */
+          }
+          va_end(args);
+          return count > 0 ? (double)total / count : 0.0;
+      }
+
+      /* A printf-style logger: hand the format and the extras to vprintf. */
+      void log_line(int line, const char *fmt, ...) {
+          va_list args;
+          va_start(args, fmt);
+          printf("[line %d] ", line);
+          vprintf(fmt, args);
+          printf("\n");
+          va_end(args);
+      }
+
+      #define LOG(...) log_line(__LINE__, __VA_ARGS__)
+
+      int main(void) {
+          printf("%.2f\n", average(3, 90, 72, 85));
+          LOG("loaded %d maps in %.2f s", 7, 0.25);
+          return 0;
+      }
+      ```
+
+      ```output
+      82.33
+      [line 30] loaded 7 maps in 0.25 s
+      ```
+
+      ### How it works
+
+      - A variadic function needs at least one named parameter before the `...`. `va_start(args, last_named)` starts reading after it, each `va_arg(args, type)` fetches the next extra argument as that type, and `va_end(args)` cleans up.
+      - **The function can't tell how many extras there are, or their types.** Something must say: a count (like `average`), a format string (like `printf`, where each `%d` or `%s` means one more argument), or a special last value such as `NULL`. Reading more extras than were passed, or reading one as the wrong type, is undefined behavior.
+      - Extras go through the **default argument promotions**: `char` and `short` arrive as `int`, and `float` arrives as `double`. So read them with `va_arg(args, int)` or `va_arg(args, double)`; `va_arg(args, float)` is a bug.
+      - To pass the extras on to another function, use the `v` versions of the standard functions, which take a `va_list`: `vprintf`, `vfprintf`, `vsnprintf`. That's how every logging function is built.
+      - `LOG(...)` is a **variadic macro**: `__VA_ARGS__` pastes whatever arguments it was given. `__LINE__` is the line number where the macro is used (30 here), and `__FILE__` gives the file name, which is why logging macros use them.
+
+      ### Why printf format mistakes are dangerous
+
+      This explains an earlier rule. `printf` finds out what each extra argument is **only** from the format string. Pass a `double` where the format says `%d` and `printf` reads the wrong bytes: undefined behavior. For `printf` itself, compilers check the format string against the arguments and warn, which is one more reason to read warnings. Your own variadic functions get no such check.
+
+      **Your turn:** write `max_of(count, ...)`, returning the largest of `count` ints (`count` is at least 1), and `format_into(buf, size, fmt, ...)`, which works exactly like `snprintf`: it formats into `buf`, never writing more than `size` bytes, and returns what `snprintf` would.
+    seed: |
+      #include <stdarg.h>
+      #include <stdio.h>
+
+      int max_of(int count, ...) {
+
+      }
+
+      int format_into(char *buf, size_t size, const char *fmt, ...) {
+
+      }
+    solution: |
+      #include <stdarg.h>
+      #include <stdio.h>
+
+      int max_of(int count, ...) {
+          va_list args;
+          va_start(args, count);
+          int best = va_arg(args, int);
+          for (int i = 1; i < count; i++) {
+              int x = va_arg(args, int);
+              if (x > best) best = x;
+          }
+          va_end(args);
+          return best;
+      }
+
+      int format_into(char *buf, size_t size, const char *fmt, ...) {
+          va_list args;
+          va_start(args, fmt);
+          int n = vsnprintf(buf, size, fmt, args);
+          va_end(args);
+          return n;
+      }
+    require:
+      - pattern: "va_start"
+        message: Read the extra arguments with va_start, va_arg and va_end.
+      - pattern: "vsnprintf"
+        message: format_into should pass its va_list on to vsnprintf.
+    harness: |
+      int main(void) {
+          CHECK_INT("max of 3", max_of(3, 4, 9, 2), 9);
+          CHECK_INT("max of 1", max_of(1, -5), -5);
+          CHECK_INT("all negative", max_of(4, -8, -3, -9, -4), -3);
+          CHECK_INT("max first", max_of(3, 10, 1, 2), 10);
+          char buf[32];
+          int n = format_into(buf, sizeof buf, "%s has %d hp", "ada", 90);
+          CHECK_STR("formats like printf", buf, "ada has 90 hp");
+          CHECK_INT("returns the length", n, 13);
+          char small[6];
+          int m = format_into(small, sizeof small, "%d-%d", 1234, 5678);
+          CHECK_STR("truncates safely", small, "1234-");
+          CHECK_INT("returns the full length it needed", m, 9);
+          return 0;
+      }
+    hints:
+      - "max_of: after `va_start(args, count)`, read the first value with `va_arg(args, int)` as the best so far, then loop over the other `count - 1`."
+      - "format_into: `va_start(args, fmt)`, then `int n = vsnprintf(buf, size, fmt, args);`, then `va_end(args)` and return `n`."
+      - "Always call `va_end` before returning."
+
   - title: "Challenge: a real command-line tool"
     id: c-program-6
     text: |

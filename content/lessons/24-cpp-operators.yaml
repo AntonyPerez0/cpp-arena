@@ -108,6 +108,31 @@ steps:
       - Define `==` and the compiler automatically rewrites `a != b` as `!(a == b)`. You don't need to write `!=` any more.
       - `bool operator==(const Point&) const = default;` asks the compiler to generate `==` comparing **every** member in order. That's the right choice when equality really means "all members equal".
 
+      ### All six comparisons from one line
+
+      `auto operator<=>(const T&) const = default;` defines the **three-way comparison** (nicknamed the spaceship operator, from `<compare>`). The compiler then provides `<`, `<=`, `>` and `>=`, comparing members in the order they're declared, the way a dictionary compares words letter by letter. A defaulted `<=>` also gives you `==`, so one line makes a type fully comparable and sortable:
+
+      ```cpp run
+      #include <compare>
+      #include <iostream>
+
+      struct Release {
+          int major, minor, patch;
+          auto operator<=>(const Release&) const = default;
+      };
+
+      int main() {
+          Release a{1, 4, 2}, b{1, 10, 0};
+          std::cout << (a < b) << (a == b) << (b >= a) << "\n";
+      }
+      ```
+
+      ```output
+      101
+      ```
+
+      `1.4.2` is less than `1.10.0` because `minor` is compared as a number (4 < 10), not as text.
+
       ### Member or free function?
 
       `Point`'s operator is a **member** (declared inside the struct, with one parameter: the right-hand side, while `*this` is the left). `Version`'s is a **free function** with both sides as parameters. Both work. Free functions are often preferred for symmetric operators like `==` and `+`, since they treat both sides the same way.

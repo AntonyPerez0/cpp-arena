@@ -271,9 +271,11 @@ await test("a step that reads files from the working folder passes (c-files 2)",
   await page.locator(".banner", { hasText: "All tests passed" }).waitFor({ timeout: 5000 });
 });
 
-await test("command-line arguments and exit codes are graded (c-program 6)", async () => {
-  await go("/learn/c-program/6");
-  const step = content.modules.find((m) => m.id === "c-program").steps[5];
+await test("command-line arguments and exit codes are graded (c-program challenge)", async () => {
+  const steps = content.modules.find((m) => m.id === "c-program").steps;
+  const at = steps.findIndex((s) => s.id === "c-program-6");
+  await go(`/learn/c-program/${at + 1}`);
+  const step = steps[at];
   await setEditor(step.solution.replace("return status;", "return 0;"));
   await check();
   await page.getByText(/expects exit code 1/).first().waitFor({ timeout: 5000 });

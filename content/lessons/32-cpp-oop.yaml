@@ -807,6 +807,211 @@ steps:
       - "Use `std::find` from `<algorithm>` to check for duplicates and to locate a name to erase."
       - "For the roster, add `\", \"` before every name except the first."
 
+  - title: Casts, dynamic_cast and slicing
+    id: cpp-oop-9
+    text: |
+      A **cast** converts a value to another type on purpose. C has one cast syntax, `(int)x`, that does everything from harmless number conversions to dangerous pointer reinterpretation, without saying which. C++ splits casting into four named casts, so each one says exactly what it's doing and is easy to search for:
+
+      | Cast | What it does | Checked |
+      |---|---|---|
+      | `static_cast<T>(x)` | ordinary conversions: `double` to `int`, `int` to an `enum`, a base pointer to a derived pointer **when you know** the real type | at compile time only |
+      | `dynamic_cast<T*>(p)` | a base pointer to a derived pointer, **if** the object really is one; otherwise `nullptr` | at run time |
+      | `const_cast<T>(x)` | removes `const`, to call old code that forgot to declare it | not at all |
+      | `reinterpret_cast<T>(x)` | treats the bits as a different type, like a pointer as an integer | not at all |
+
+      ### dynamic_cast: asking "what are you, really?"
+
+      With a pointer to a base class, `dynamic_cast` checks at run time whether the object is the derived type you ask for:
+
+      ```cpp run
+      #include <iostream>
+      #include <memory>
+      #include <vector>
+
+      struct Shape {
+          virtual ~Shape() = default;
+          virtual double area() const = 0;
+      };
+
+      struct Circle : Shape {
+          double r;
+          explicit Circle(double radius) : r(radius) {}
+          double area() const override { return 3.14159 * r * r; }
+      };
+
+      struct Square : Shape {
+          double side;
+          explicit Square(double s) : side(s) {}
+          double area() const override { return side * side; }
+      };
+
+      int main() {
+          std::vector<std::unique_ptr<Shape>> shapes;
+          shapes.push_back(std::make_unique<Circle>(1.0));
+          shapes.push_back(std::make_unique<Square>(2.0));
+          for (const auto& s : shapes) {
+              if (const auto* c = dynamic_cast<const Circle*>(s.get())) {
+                  std::cout << "circle with radius " << c->r << "\n";
+              } else {
+                  std::cout << "not a circle, area " << s->area() << "\n";
+              }
+          }
+          std::cout << static_cast<int>(7.9) << "\n";
+      }
+      ```
+
+      ```output
+      circle with radius 1
+      not a circle, area 4
+      7
+      ```
+
+      - `dynamic_cast` only works on **polymorphic** classes (with at least one virtual function), because it uses the same run-time type information that virtual calls use. It returns `nullptr` when the object isn't that type, so the `if (const auto* c = ...)` pattern tests and converts in one step. (There's also a reference form, `dynamic_cast<Circle&>(shape)`, which throws `std::bad_cast` on failure instead.)
+      - `static_cast<Circle*>(shape_ptr)` would also compile, but it doesn't check anything. If the object is really a `Square`, using the result is undefined behavior. Use `static_cast` downward only when the type is guaranteed.
+      - `static_cast<int>(7.9)` truncates toward zero, giving 7.
+      - Needing many `dynamic_cast`s is often a sign that a **virtual function is missing**: instead of asking each object what it is, ask it to do the work (`s->area()`). It's the right tool when you genuinely need something only one subclass has.
+
+      ### const_cast, reinterpret_cast and C-style casts
+
+      - `const_cast` is for calling an old function that takes `char*` but doesn't actually modify anything. Modifying an object that was really declared `const` through it is undefined behavior.
+      - `reinterpret_cast` is for low-level code: hardware registers, hashing a pointer's address. To look at an object's bytes, copy them with `std::memcpy` (or C++20's `std::bit_cast`) instead.
+      - A C-style cast `(Circle*)p` in C++ silently tries `static_cast`, then `const_cast`, then `reinterpret_cast`, and does whichever compiles, including the dangerous ones. That's why C++ style guides ban it: the named casts make intent visible and mistakes loud.
+
+      ### Object slicing
+
+      Copying a derived object **into a base-class object** (not a pointer or reference) keeps only the base part. The derived members are sliced off, and virtual calls on the copy run the **base** versions:
+
+      ```cpp run
+      #include <iostream>
+      #include <string>
+
+      struct Animal {
+          virtual ~Animal() = default;
+          virtual std::string sound() const { return "..."; }
+      };
+
+      struct Dog : Animal {
+          std::string sound() const override { return "woof"; }
+      };
+
+      void by_value(Animal a) { std::cout << a.sound() << "\n"; }       // copies just the Animal part
+      void by_ref(const Animal& a) { std::cout << a.sound() << "\n"; }  // refers to the real Dog
+
+      int main() {
+          Dog d;
+          by_value(d);
+          by_ref(d);
+      }
+      ```
+
+      ```output
+      ...
+      woof
+      ```
+
+      The same happens when you store derived objects in a `std::vector<Animal>`: each one is sliced to an `Animal` as it's copied in. That's why polymorphic objects are always passed by reference or pointer and stored as `std::unique_ptr<Base>`, as in this module's containers. Making the base class abstract, or deleting its copy operations, turns accidental slicing into a compile error.
+
+      ### Multiple inheritance
+
+      A C++ class can have more than one base class: `class Duck : public Swimmer, public Flyer`. The common, safe use is implementing several **interfaces** (abstract classes with only pure virtual functions). Inheriting data and behavior from several classes gets complicated fast (two bases sharing a common base create the "diamond problem", solved with `virtual` inheritance), so most style guides restrict it to interfaces.
+
+      **Your turn:** write `circle_area_total(shapes)`, the total area of only the circles, and `largest_square(shapes)`, a pointer to the square with the biggest side, or `nullptr` if there are no squares.
+    seed: |
+      #include <memory>
+      #include <vector>
+
+      struct Shape {
+          virtual ~Shape() = default;
+          virtual double area() const = 0;
+      };
+
+      struct Circle : Shape {
+          double r;
+          explicit Circle(double radius) : r(radius) {}
+          double area() const override { return 3.14159 * r * r; }
+      };
+
+      struct Square : Shape {
+          double side;
+          explicit Square(double s) : side(s) {}
+          double area() const override { return side * side; }
+      };
+
+      using Shapes = std::vector<std::unique_ptr<Shape>>;
+
+      double circle_area_total(const Shapes& shapes) {
+
+      }
+
+      const Square* largest_square(const Shapes& shapes) {
+
+      }
+    solution: |
+      #include <memory>
+      #include <vector>
+
+      struct Shape {
+          virtual ~Shape() = default;
+          virtual double area() const = 0;
+      };
+
+      struct Circle : Shape {
+          double r;
+          explicit Circle(double radius) : r(radius) {}
+          double area() const override { return 3.14159 * r * r; }
+      };
+
+      struct Square : Shape {
+          double side;
+          explicit Square(double s) : side(s) {}
+          double area() const override { return side * side; }
+      };
+
+      using Shapes = std::vector<std::unique_ptr<Shape>>;
+
+      double circle_area_total(const Shapes& shapes) {
+          double total = 0;
+          for (const auto& s : shapes)
+              if (dynamic_cast<const Circle*>(s.get())) total += s->area();
+          return total;
+      }
+
+      const Square* largest_square(const Shapes& shapes) {
+          const Square* best = nullptr;
+          for (const auto& s : shapes) {
+              if (const auto* sq = dynamic_cast<const Square*>(s.get())) {
+                  if (!best || sq->side > best->side) best = sq;
+              }
+          }
+          return best;
+      }
+    require:
+      - pattern: "dynamic_cast"
+        message: Use dynamic_cast to find out which shapes are circles and squares.
+    harness: |
+      int main() {
+          Shapes v;
+          v.push_back(std::make_unique<Square>(2));
+          v.push_back(std::make_unique<Circle>(1));
+          v.push_back(std::make_unique<Square>(5));
+          v.push_back(std::make_unique<Circle>(2));
+          v.push_back(std::make_unique<Square>(3));
+          double want = 3.14159 * 1 * 1 + 3.14159 * 2 * 2;
+          double got = circle_area_total(v);
+          CHECK("circle total is pi(1) + pi(4)", got > want - 1e-9 && got < want + 1e-9);
+          const Square* big = largest_square(v);
+          CHECK("largest square has side 5", big && big->side == 5);
+          CHECK("it points at the real object", big == v[2].get());
+          Shapes circles;
+          circles.push_back(std::make_unique<Circle>(3));
+          CHECK("no squares gives nullptr", largest_square(circles) == nullptr);
+          CHECK("no circles gives 0", circle_area_total(Shapes{}) == 0);
+      }
+    hints:
+      - "`dynamic_cast<const Circle*>(s.get())` is a non-null pointer exactly when the shape is a circle."
+      - "largest_square: keep a `const Square* best = nullptr` and replace it when you find a square with a bigger `side`."
+      - "Return `best` at the end; it stays `nullptr` if no shape was a square."
+
   - title: "Challenge: program to an interface"
     id: cpp-oop-8
     text: |

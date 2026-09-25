@@ -123,3 +123,22 @@ drills:
     hints:
       - "`team[i].kills` for each i."
     why: An array of structs is indexed like any array, then accessed with a dot.
+  - type: predict
+    pre: |
+      union Slot {
+          char c;
+          int i;
+          double d;
+      };
+    body: |
+      printf("%zu\n", sizeof(union Slot));
+    why: All members share the same memory, so a union is as big as its largest member, here the 8-byte double.
+  - type: choice
+    prompt: How does C code usually keep track of which member of a union holds a value?
+    choices:
+      - It stores an enum "tag" next to the union that says which member is in use
+      - It calls sizeof on the union
+      - It reads every member and picks the one that looks right
+      - The union remembers it automatically
+    answer: 1
+    why: A union doesn't record which member was written last. Pairing it with a tag, a tagged union, makes that explicit.

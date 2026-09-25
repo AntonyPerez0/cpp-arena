@@ -46,3 +46,21 @@ drills:
       auto b = std::chrono::steady_clock::now();
       std::cout << (b >= a) << "\n";
     why: steady_clock is monotonic, which is what you want for measuring durations.
+  - type: predict
+    pre: |
+      #include <random>
+    body: |
+      std::mt19937 a(5), b(5);
+      bool same = a() == b();
+      bool repeats = a() == a();
+      std::cout << same << repeats << "\n";
+    why: Two engines with the same seed produce the same sequence. Consecutive numbers from one engine differ, so calling a() twice gives two different values.
+  - type: choice
+    prompt: Which part of `<random>` gives exactly the same numbers with every compiler for the same seed?
+    choices:
+      - The engine, such as std::mt19937
+      - The distribution, such as std::uniform_int_distribution
+      - std::shuffle
+      - std::random_device
+    answer: 1
+    why: The standard specifies each engine's output exactly. Distributions and shuffle are implemented differently by each standard library, and random_device is meant to be unpredictable.

@@ -129,3 +129,21 @@ drills:
       int x = o;
       std::cout << x << "\n";
     why: An optional doesn't silently convert to its value. Use *o or o.value().
+  - type: choice
+    prompt: Why catch exceptions by `const&`, as in `catch (const std::exception& e)`?
+    choices:
+      - Catching by value copies the exception and slices a derived exception down to the base type
+      - A reference makes the throw faster
+      - Catching by value doesn't compile
+      - It stops the exception from being re-thrown
+    answer: 1
+    why: Throw by value, catch by const reference. The handler then sees the real exception type and its full message.
+  - type: choice
+    prompt: A function throws an exception halfway through. What happens to its local objects before a catch handler runs?
+    choices:
+      - They're destroyed, in reverse order of construction, as the stack unwinds
+      - Nothing; they leak
+      - Only objects created with new are destroyed
+      - They stay alive until the program ends
+    answer: 1
+    why: Stack unwinding runs the destructors of every fully constructed local in each function being left. That's why RAII cleans up even when an exception is thrown.

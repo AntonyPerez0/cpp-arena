@@ -516,6 +516,15 @@ steps:
       - `subspan(offset, count)`, `first(n)` and `last(n)` make smaller spans in O(1). No elements are copied.
       - A span remembers its size, unlike the pointer-plus-length pairs from C. So `for (double x : xs)` just works.
 
+      ### What else modern C++ added
+
+      Two big C++20 features aren't practiced in this course, and you'll meet them in newer codebases:
+
+      - **Modules** (`export module geometry;` and `import geometry;`) replace `#include`'s text pasting with compiled interfaces, which builds faster and stops macros leaking between files. C++23 added `import std;` for the whole standard library. Compiler and build-tool support took years to mature, so most existing code still uses headers.
+      - **Coroutines** (`co_await`, `co_yield`, `co_return`) are functions that can pause and later resume, used for asynchronous networking and for generators. The language provides the machinery, and you normally use them through a library (C++23 added `std::generator`).
+
+      C++23 also brought `std::expected` and `std::print`. A new standard comes out every three years, and C++26 is the next.
+
       ### Your task: best window sum
 
       The simple way: for each start `i` from 0 to `xs.size() - k`, sum `xs.subspan(i, k)` and keep the best. That's O(n * k).

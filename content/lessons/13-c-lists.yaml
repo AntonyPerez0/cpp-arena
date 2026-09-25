@@ -182,6 +182,11 @@ steps:
           CHECK_INT("second", head->next->value, 2);
           CHECK_INT("third", head->next->next->value, 3);
           CHECK("ends with NULL", head->next->next->next == NULL);
+          while (head) {
+              struct Node *next = head->next;
+              free(head);
+              head = next;
+          }
           return 0;
       }
     hints:

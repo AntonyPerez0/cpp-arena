@@ -312,7 +312,7 @@ steps:
 
       ```c
       const int MAX_PLAYERS = 10;
-      MAX_PLAYERS = 12;   // error: assignment of read-only variable
+      MAX_PLAYERS = 12;   // error: cannot assign to variable 'MAX_PLAYERS' with const-qualified type 'const int'
       ```
 
       If any later line tries to change it, the program doesn't compile. That turns a silent bug into an error you see immediately. It also documents your intent: a reader knows this value is fixed. Many programmers write constant names in `UPPER_CASE` so they stand out.

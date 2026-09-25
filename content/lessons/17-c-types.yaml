@@ -357,6 +357,28 @@ steps:
 
       The first line asks "is 3 greater than -1?" and gets **false**, because -1 converted to `size_t` is the largest possible value. (The example writes the conversion out as `(size_t)n` so it compiles without warnings, but plain `len > n` does exactly the same conversion behind your back.) The second line handles the negative case **first**, before any conversion happens, and gets the right answer. The third converts the unsigned side to `int` instead, which is safe here because 1 fits.
 
+      ### Small types are promoted first
+
+      Before doing arithmetic, C converts `char` and `short` (signed or unsigned) to `int`. These **integer promotions** mean small types don't overflow in the middle of an expression:
+
+      ```c run
+      #include <stdio.h>
+
+      int main(void) {
+          unsigned char a = 200, b = 100;
+          int sum = a + b;                  /* both promoted to int: 300 */
+          unsigned char wrapped = a + b;    /* 300 doesn't fit in 1 byte: stored as 300 - 256 = 44 */
+          printf("%d %d\n", sum, wrapped);
+          return 0;
+      }
+      ```
+
+      ```output
+      300 44
+      ```
+
+      The addition happens in `int`. Only storing the result in the 1-byte `wrapped` loses information, and since that's a conversion to an unsigned type it wraps around, which is well defined. Promotion is also why `printf("%d", c)` works for a `char`: it arrives as an `int`.
+
       ### Where this bites
 
       `strlen`, `sizeof` and container sizes are all unsigned (`size_t`). Comparing them with an `int` that might be negative, or subtracting two sizes (`a_len - b_len` is huge, not negative, when b is longer), are classic bugs.
