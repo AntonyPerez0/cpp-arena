@@ -7,19 +7,55 @@ steps:
   - title: std::format
     id: cpp-lib-1
     text: |
-      C++20's `std::format` combines printf's compactness with type safety: `{}` placeholders are filled in order, and the format is checked **at compile time** when it's a literal.
+      You've formatted output two ways so far: C's `printf` (compact, but not type-safe: a wrong `%d` is undefined behavior) and streams with `<iomanip>` (type-safe, but wordy and full of sticky state). C++20's `std::format` (from `<format>`) combines the best of both: `{}` placeholders filled in order, compact width and precision specs, and the format string is checked **at compile time** when it's a literal.
 
-      ```cpp
-      std::format("{} has {} kills", name, k);        // "ropz has 25 kills"
-      std::format("{:>8}", "ab");                     // right-align in 8: "      ab"
-      std::format("{:<8}|", "ab");                    // left-align: "ab      |"
-      std::format("{:^7}", "mid");                    // center: "  mid  "
-      std::format("{:.2f}", 3.14159);                 // "3.14"
-      std::format("{:05}", 42);                       // zero-pad: "00042"
-      std::format("{:x} {:b}", 255, 5);               // hex and binary: "ff 101"
+      ```cpp run
+      #include <format>
+      #include <iostream>
+      #include <string>
+
+      int main() {
+          std::string item = "coffee";
+          int qty = 3;
+          double price = 2.5;
+
+          std::cout << std::format("{} x {} = {:.2f}\n", qty, item, qty * price);
+          std::cout << std::format("[{:<8}][{:>8}][{:^8}]\n", "left", "right", "mid");
+          std::cout << std::format("[{:*^10}]\n", "hi");                  // fill with *
+          std::cout << std::format("{:03} {:x} {:X} {:b}\n", 7, 255, 255, 5);
+          std::cout << std::format("{1} before {0}\n", "second", "first"); // explicit positions
+          std::string line = std::format("{:>6.1f}%", 42.25);            // it's just a string
+          std::cout << line << " (" << line.size() << " chars)\n";
+      }
       ```
 
-      The spec after the colon is `[fill][align][width][.precision][type]`.
+      ```output
+      3 x coffee = 7.50
+      [left    ][   right][  mid   ]
+      [****hi****]
+      007 ff FF 101
+      first before second
+        42.2% (7 chars)
+      ```
+
+      ### The spec after the colon
+
+      `{:[fill][align][width][.precision][type]}`, each part optional:
+
+      | Part | Examples |
+      |---|---|
+      | align | `<` left, `>` right, `^` center |
+      | fill | any character before the align, like `*` in `{:*^10}` |
+      | width | minimum characters: `{:8}` |
+      | `.precision` | digits after the point for floats: `{:.2f}` |
+      | type | `f` fixed, `x`/`X` hex, `b` binary, `e` scientific |
+      | `0` before width | zero-pad numbers: `{:03}` |
+
+      Numbers are right-aligned by default and strings left-aligned. Unlike `setw`, nothing is sticky: each placeholder has its own spec. And `42.25` became `42.2` because it's exactly halfway, and ties round to the even digit.
+
+      ### Your task
+
+      One call with three placeholders: `{:<10}` for the name, `{:>4}` for the kills and `{:>6.2f}` for the K/D.
 
       **Your turn:** write `std::string row(const std::string& name, int kills, double kd)` producing the name left-aligned in 10 characters, kills right-aligned in 4, and the K/D right-aligned in 6 with 2 decimals. Use a single `std::format` call.
     seed: |
@@ -52,18 +88,52 @@ steps:
   - title: Formatting your own types
     id: cpp-lib-2
     text: |
-      To make `std::format` understand your type, specialize `std::formatter` for it. The easiest way is to **reuse** an existing formatter: inherit from `std::formatter<std::string>` (which already parses width, alignment and fill), build your text, and hand it to the base class:
+      `std::format` knows the built-in types and strings. To make it understand **your** type, you specialize `std::formatter` for it, the same way you taught streams with `operator<<`.
 
-      ```cpp
+      The easiest way is to **reuse** an existing formatter: inherit from `std::formatter<std::string>` (which already parses width, alignment and fill), build your text, and pass it to the base class's `format`. Then every spec that works for strings works for your type too.
+
+      ```cpp run
+      #include <format>
+      #include <iostream>
+      #include <string>
+
+      struct Temp {
+          double celsius;
+      };
+
       template <>
-      struct std::formatter<Point> : std::formatter<std::string> {
-          auto format(const Point& p, std::format_context& ctx) const {
-              return std::formatter<std::string>::format(std::format("({}, {})", p.x, p.y), ctx);
+      struct std::formatter<Temp> : std::formatter<std::string> {
+          auto format(const Temp& t, std::format_context& ctx) const {
+              std::string text = std::format("{:.1f}C/{:.0f}F", t.celsius, t.celsius * 9 / 5 + 32);
+              return std::formatter<std::string>::format(text, ctx);
           }
       };
+
+      int main() {
+          Temp today{21.5};
+          std::cout << std::format("today: {}\n", today);
+          std::cout << std::format("[{:>14}]\n", today);     // width and alignment come for free
+          std::cout << std::format("[{:-<14}]\n", Temp{-3});
+      }
       ```
 
-      Now `std::format("{:>12}", pt)` works, alignment included.
+      ```output
+      today: 21.5C/71F
+      [     21.5C/71F]
+      [-3.0C/27F-----]
+      ```
+
+      The text `21.5C/71F` is 9 characters, so `{:>14}` pads it with 5 spaces on the left, and `{:-<14}` pads with dashes on the right.
+
+      ### How it works
+
+      - `template <> struct std::formatter<Temp>` is a full specialization, like the ones in the templates module.
+      - `format` receives your object and a **context** (where the output goes). It builds a plain string with an inner `std::format` call and hands that to the base class, which applies the width, alignment and fill from the placeholder.
+      - The function must be `const`, and returning `auto` avoids spelling out the iterator type.
+
+      ### Your task: cents to dollars
+
+      Split the cents with `/ 100` and `% 100`, and zero-pad the cents part to two digits: `std::format("${}.{:02}", c / 100, c % 100)`. Then pass the result to the base formatter so `{:>10}` and friends work on `Money` too.
 
       **Your turn:** write a formatter for `Money` (an amount in cents, never negative here) that shows it as dollars: `Money{1205}` is `$12.05`, `Money{7}` is `$0.07`.
     seed: |
@@ -106,17 +176,53 @@ steps:
   - title: chrono durations
     id: cpp-lib-3
     text: |
-      Passing time around as a bare `int` invites bugs: seconds or milliseconds? `<chrono>` puts the unit **in the type**:
+      Passing time around as a bare `int` invites bugs. Is `timeout = 30` seconds or milliseconds? Real outages have been caused by exactly that confusion. `<chrono>` puts the **unit in the type**, so the compiler keeps track and converts for you.
 
-      ```cpp
+      ```cpp run
+      #include <chrono>
+      #include <iostream>
+
       using namespace std::chrono_literals;
-      std::chrono::milliseconds t = 1500ms;
-      std::chrono::seconds s = 2min;                              // exact conversions are implicit
-      auto whole = std::chrono::duration_cast<std::chrono::seconds>(t);   // lossy ones need a cast: 1s
-      t += 3s;                                                    // mixed units just work: 4500ms
+
+      void wait_for(std::chrono::milliseconds t) {
+          std::cout << "waiting " << t.count() << " ms\n";
+      }
+
+      int main() {
+          wait_for(2s);                         // seconds convert to ms exactly
+          wait_for(250ms);
+
+          std::chrono::seconds lap = 95s;
+          auto m = std::chrono::duration_cast<std::chrono::minutes>(lap);   // 1 (truncated)
+          auto rest = lap - m;                                              // 35s
+          std::cout << m.count() << " min " << rest.count() << " s\n";
+
+          auto total = 1min + 30s + 500ms;      // mixed units: the result is in ms
+          std::cout << total.count() << " ms\n";
+          std::cout << std::chrono::duration<double>(total).count() << " s\n";
+      }
       ```
 
-      Converting to a coarser unit truncates (1500ms becomes 1s), so the language makes you say `duration_cast` explicitly. `.count()` gives the raw number when you really need it, for example to print.
+      ```output
+      waiting 2000 ms
+      waiting 250 ms
+      1 min 35 s
+      90500 ms
+      90.5 s
+      ```
+
+      ### How it works
+
+      - `std::chrono::seconds`, `milliseconds`, `minutes`, `hours` and friends are all **durations** with a unit baked into the type. The literals `2s`, `250ms`, `1min` come from `std::chrono_literals`.
+      - Converting to a **finer** unit (seconds to milliseconds) is exact, so it happens implicitly, as in `wait_for(2s)`.
+      - Converting to a **coarser** unit loses information (95 seconds isn't a whole number of minutes), so C++ makes you write `duration_cast`, which truncates.
+      - Adding different units gives the finer one automatically.
+      - `.count()` returns the raw number in the duration's own unit. Use it only at the edges, for printing or talking to old APIs.
+      - `std::chrono::duration<double>` is seconds as a floating point number, handy for display.
+
+      ### Your task
+
+      Cast to `std::chrono::minutes` for the minutes. Then subtract those minutes from `t` and cast the remainder to `std::chrono::seconds`. Format with `{}:{:02}` so 7 seconds shows as `07`.
 
       **Your turn:** write `std::string mmss(std::chrono::milliseconds t)` that formats a round timer as `M:SS` (truncating the milliseconds), like `1:55` or `0:07`.
     seed: |
@@ -157,20 +263,50 @@ steps:
   - title: Measuring time
     id: cpp-lib-4
     text: |
-      `<chrono>` has several clocks, and picking the wrong one is a classic bug:
+      `<chrono>` has several **clocks**, and picking the wrong one is a classic bug:
 
       | Clock | Use it for |
       |---|---|
       | `std::chrono::steady_clock` | measuring elapsed time: it never jumps backwards |
       | `std::chrono::system_clock` | wall-clock time ("now" as a date); can jump when the OS adjusts the time |
 
-      Timing code with `system_clock` can give **negative** durations if the clock is corrected mid-measurement. Always use `steady_clock` for intervals, timeouts and benchmarks:
+      A clock's `now()` returns a **time point**. Subtracting two time points gives a **duration**, which you can cast to whatever unit you want.
 
-      ```cpp
-      auto start = std::chrono::steady_clock::now();
-      work();
-      auto elapsed = std::chrono::steady_clock::now() - start;   // a duration
+      ```cpp run
+      #include <chrono>
+      #include <iostream>
+
+      long slow_sum(int n) {
+          long s = 0;
+          for (int i = 0; i < n; i++) s += i % 7;
+          return s;
+      }
+
+      int main() {
+          auto start = std::chrono::steady_clock::now();
+          volatile long result = slow_sum(2'000'000);
+          auto elapsed = std::chrono::steady_clock::now() - start;
+
+          auto us = std::chrono::duration_cast<std::chrono::microseconds>(elapsed);
+          std::cout << "result " << result << "\n";
+          std::cout << "never negative: " << (us.count() >= 0) << "\n";   // the real number varies per run
+      }
       ```
+
+      ```output
+      result 5999995
+      never negative: 1
+      ```
+
+      ### Why steady_clock
+
+      The system clock follows the wall clock, which gets corrected: network time sync nudges it, daylight saving shifts it, a user changes it. If that happens during a measurement, a `system_clock` interval can be wrong or even **negative**. `steady_clock` only ever moves forward at a constant rate, so it's the right choice for intervals, timeouts and benchmarks.
+
+      The `volatile` stops the optimizer from removing the work whose result is never used otherwise. Benchmark libraries have helpers for this.
+
+      ### Your task: timing any callable
+
+      Accept the callable as a forwarding reference `F&& f` (from the variadic templates module), take `now()` before and after calling `f()`, and `duration_cast` the difference to `std::chrono::microseconds`.
 
       **Your turn:** write `template <typename F> std::chrono::microseconds time_it(F&& f)` that calls `f()` once and returns how long it took.
     seed: |
@@ -211,17 +347,55 @@ steps:
   - title: Strict number parsing with from_chars
     id: cpp-lib-5
     text: |
-      `std::stoi` throws exceptions and silently ignores trailing junk (`stoi("12abc")` is 12). `atoi` can't report errors at all. For parsing untrusted input, `<charconv>` has `std::from_chars`: no exceptions, no locale, no allocation, and precise error reporting:
+      Parsing numbers from untrusted input (files, network messages, user typing) is where many programs go wrong. The older tools each have a problem:
 
-      ```cpp
-      int v;
-      auto [ptr, ec] = std::from_chars(s.data(), s.data() + s.size(), v);
-      if (ec == std::errc::invalid_argument)     { /* no number at all */ }
-      if (ec == std::errc::result_out_of_range)  { /* too big for int */ }
-      if (ptr != s.data() + s.size())            { /* junk after the number */ }
+      - `std::stoi` throws exceptions, and silently ignores trailing junk: `stoi("12abc")` is 12.
+      - `atoi` can't report errors at all: `atoi("abc")` is 0, just like `atoi("0")`.
+
+      `std::from_chars` from `<charconv>` has none of these problems: no exceptions, no locale, no allocation, and precise error reporting. It's also the fastest parser in the standard library.
+
+      ```cpp run
+      #include <charconv>
+      #include <iostream>
+      #include <string_view>
+
+      void check(std::string_view s) {
+          int v = 0;
+          auto [ptr, ec] = std::from_chars(s.data(), s.data() + s.size(), v);
+          std::cout << "'" << s << "': ";
+          if (ec == std::errc::invalid_argument) std::cout << "no number\n";
+          else if (ec == std::errc::result_out_of_range) std::cout << "too big for int\n";
+          else if (ptr != s.data() + s.size()) std::cout << v << " but junk after it: '" << ptr << "'\n";
+          else std::cout << "ok " << v << "\n";
+      }
+
+      int main() {
+          check("123");
+          check("-45");
+          check("12abc");
+          check("abc");
+          check("99999999999");
+          check(" 7");
+      }
       ```
 
-      It's also the fastest parser in the standard library, which matters when loading big files.
+      ```output
+      '123': ok 123
+      '-45': ok -45
+      '12abc': 12 but junk after it: 'abc'
+      'abc': no number
+      '99999999999': too big for int
+      ' 7': no number
+      ```
+
+      ### How it works
+
+      - `from_chars(first, last, value)` parses from the character range `[first, last)`. For a `string_view`, that's `s.data()` to `s.data() + s.size()`.
+      - It returns a struct with `ptr` (where parsing stopped) and `ec` (an error code, or a default `std::errc()` on success). Structured bindings unpack both.
+      - If `ptr` didn't reach the end, there were extra characters after the number.
+      - It accepts a leading `-`, but **not** a leading `+` or spaces, which is exactly the strictness you want for validating input.
+
+      (Printing `ptr` works in this example only because the string literals end in `'\0'`. A general `string_view` isn't guaranteed to.)
 
       **Your turn:** write `std::optional<int> to_int(std::string_view s)` that accepts only a complete, in-range integer (optional leading `-`, no spaces, no junk).
     seed: |
@@ -265,7 +439,53 @@ steps:
   - title: "Challenge: a log formatter"
     id: cpp-lib-6
     text: |
-      Every service writes logs, and consistent, sortable, greppable log lines matter when you're debugging production at 3 a.m.
+      Every service writes logs, and consistent, sortable, greppable log lines matter when you're debugging production at 3 a.m. This challenge combines the module's tools: chrono to break a duration into parts, and `std::format` to lay them out.
+
+      Breaking a duration into fields works like breaking seconds into minutes and seconds, one unit at a time:
+
+      ```cpp run
+      #include <chrono>
+      #include <format>
+      #include <iostream>
+      #include <string>
+
+      using namespace std::chrono_literals;
+
+      std::string pretty(std::chrono::seconds t) {
+          auto d = std::chrono::duration_cast<std::chrono::days>(t);
+          t -= d;
+          auto h = std::chrono::duration_cast<std::chrono::hours>(t);
+          t -= h;
+          auto m = std::chrono::duration_cast<std::chrono::minutes>(t);
+          t -= m;
+          return std::format("{}d {:02}h {:02}m {:02}s", d.count(), h.count(), m.count(), t.count());
+      }
+
+      int main() {
+          std::cout << pretty(93784s) << "\n";
+          std::cout << pretty(59s) << "\n";
+          std::cout << std::format("[{:<5}] boot\n[{:<5}] boot\n", "INFO", "ERROR");
+      }
+      ```
+
+      ```output
+      1d 02h 03m 04s
+      0d 00h 00m 59s
+      [INFO ] boot
+      [ERROR] boot
+      ```
+
+      ### The steps
+
+      1. `duration_cast` to the biggest unit to get the whole number of that unit.
+      2. Subtract it from the remaining time.
+      3. Repeat with the next smaller unit.
+
+      What's left at the end is the smallest unit. For your log line, go hours, minutes, seconds, then what remains is milliseconds (pad to 3 digits with `{:03}`). Hours are **not** split into days, so they can exceed 24.
+
+      ### The level name
+
+      A `switch` over the `enum class` returns the name, and `{:<5}` pads `INFO` and `WARN` to five characters, so the messages line up in a column no matter the level.
 
       **Your turn:** write `std::string log_line(Level level, std::chrono::milliseconds uptime, std::string_view msg)` producing:
 
