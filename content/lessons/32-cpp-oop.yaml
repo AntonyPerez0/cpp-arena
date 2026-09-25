@@ -7,24 +7,58 @@ steps:
   - title: Inheritance
     id: cpp-oop-1
     text: |
-      A class can **inherit** from another, getting all its members, then add or change behaviour:
+      Often several classes share most of their data and behavior: every vehicle has a name and a speed, every account has an owner and a balance. **Inheritance** lets a new class (the **derived** class) start from an existing one (the **base** class), getting all its members, and then add more.
 
-      ```cpp
-      class Weapon {
+      The relationship must be **is-a**: a `Car` *is a* `Vehicle`, so anything you can do with a vehicle you can do with a car.
+
+      ```cpp run
+      #include <iostream>
+      #include <string>
+
+      class Vehicle {
       public:
-          int damage = 10;
-          void describe() const { std::cout << damage << "\n"; }
+          Vehicle(std::string name, int wheels) : name_(name), wheels_(wheels) {}
+          std::string summary() const { return name_ + " on " + std::to_string(wheels_) + " wheels"; }
+
+      private:
+          std::string name_;
+          int wheels_;
       };
 
-      class Rifle : public Weapon {    // a Rifle IS-A Weapon
+      class Truck : public Vehicle {
       public:
-          int magazine = 30;
+          Truck(std::string name, int load) : Vehicle(name, 6), load_(load) {}
+          int load() const { return load_; }
+
+      private:
+          int load_;
       };
 
-      Rifle r;
-      r.damage = 36;      // inherited
-      r.describe();       // inherited
+      int main() {
+          Truck t("hauler", 12);
+          std::cout << t.summary() << ", carrying " << t.load() << " tons\n";
+          Vehicle v("bike", 2);
+          std::cout << v.summary() << "\n";
+      }
       ```
+
+      ```output
+      hauler on 6 wheels, carrying 12 tons
+      bike on 2 wheels
+      ```
+
+      ### How it works
+
+      - `class Truck : public Vehicle` means "Truck inherits from Vehicle". Always write `public` here; without it, the inherited members become private to the outside world, which is almost never what you want.
+      - A `Truck` object **contains** a complete `Vehicle` inside it, plus its own `load_`.
+      - `t.summary()` works because `summary` was inherited.
+      - The base part must be constructed first, and the derived class does that in its initializer list: `: Vehicle(name, 6)`. That's the **only** way to call the base constructor, and it's required when the base has no default constructor.
+      - `name_` and `wheels_` are `private` to `Vehicle`, so even `Truck`'s own code can't touch them directly. It uses `Vehicle`'s public functions like everyone else.
+
+      ### Common mistakes
+
+      - Trying to set base members in the derived constructor's body (`name_ = name;`). They're private to the base; pass them to the base constructor instead.
+      - Using inheritance just to reuse code when there's no is-a relationship. That's what members are for (more in step 7).
 
       **Your turn:** make `Sniper` inherit from `Weapon` and set the base part through the base constructor.
     fill: |
@@ -59,24 +93,61 @@ steps:
   - title: virtual and override
     id: cpp-oop-2
     text: |
-      Through a base-class reference or pointer, which function runs? By default, the **base** version. Mark the base function `virtual` and the actual object's version runs instead. That's **polymorphism**.
+      Inheritance becomes powerful when code works with the **base** type but each object behaves according to its **real** type. A function that takes `const Animal&` should make a `Dog` bark and a `Cat` meow. That's **polymorphism** ("many forms").
 
-      ```cpp
-      class Enemy {
+      By default, C++ doesn't do this: through a base reference, the **base** version of a function runs. Marking the function `virtual` changes that: the call is decided **at run time**, by the actual object.
+
+      ```cpp run
+      #include <iostream>
+      #include <string>
+
+      class Notifier {
       public:
-          virtual std::string sound() const { return "..."; }
-          virtual ~Enemy() = default;
-      };
-      class Zombie : public Enemy {
-      public:
-          std::string sound() const override { return "brains"; }
+          virtual std::string send(const std::string& msg) const { return "log: " + msg; }
+          std::string channel() const { return "base"; }          // not virtual
+          virtual ~Notifier() = default;
       };
 
-      const Enemy& e = Zombie{};
-      e.sound();   // "brains"
+      class Email : public Notifier {
+      public:
+          std::string send(const std::string& msg) const override { return "email: " + msg; }
+          std::string channel() const { return "smtp"; }          // hides, doesn't override
+      };
+
+      class Sms : public Notifier {
+      public:
+          std::string send(const std::string& msg) const override { return "sms: " + msg.substr(0, 5); }
+      };
+
+      void alert(const Notifier& n) {
+          std::cout << n.send("server down") << " via " << n.channel() << "\n";
+      }
+
+      int main() {
+          alert(Notifier{});
+          alert(Email{});
+          alert(Sms{});
+      }
       ```
 
-      Write `override` on the derived version: the compiler then checks that you really are overriding something (typos become errors).
+      ```output
+      log: server down via base
+      email: server down via base
+      sms: serve via base
+      ```
+
+      ### Reading the output
+
+      - `send` is `virtual`, so `alert` calls the real object's version: log, email and sms.
+      - `channel` is **not** virtual, so through a `Notifier&` it's always the base version, even for an `Email`. That's almost never what you want in a class hierarchy.
+
+      ### override
+
+      Write `override` after every function that's meant to replace a virtual one. The compiler then **checks** that a matching virtual function exists in the base. Without it, a typo or a missing `const` silently creates a brand new function, and the base version keeps running. With it, that's a compile error.
+
+      ### virtual ~Base() = default
+
+      A class meant to be used through base references or pointers needs a **virtual destructor**. You'll see exactly why in step 5; for now, always include it.
 
       **Your turn:** make `Knife` and `Grenade` override `attack`, returning `"slash"` and `"boom"`.
     seed: |
@@ -134,15 +205,59 @@ steps:
   - title: Abstract classes
     id: cpp-oop-3
     text: |
-      A **pure virtual** function (`= 0`) has no implementation in the base class. A class with one is **abstract**: you can't create it directly, only derive from it. It acts as an **interface**.
+      Sometimes the base class can't give a sensible default. What's the area of "a shape"? There isn't one: only circles, squares and triangles have areas. So the base declares the function but provides no body, by writing `= 0`. That's a **pure virtual** function.
 
-      ```cpp
-      class Shape {
+      A class with at least one pure virtual function is **abstract**: you can't create an object of it, only of classes derived from it that implement every pure virtual function. An abstract class with only pure virtual functions is an **interface**: a promise of what every derived class can do.
+
+      ```cpp run
+      #include <iostream>
+      #include <string>
+
+      class Payment {
       public:
-          virtual double area() const = 0;
-          virtual ~Shape() = default;
+          virtual double fee(double amount) const = 0;      // no body: must be overridden
+          virtual std::string name() const = 0;
+          virtual ~Payment() = default;
       };
+
+      class Card : public Payment {
+      public:
+          double fee(double amount) const override { return 0.30 + amount * 0.029; }
+          std::string name() const override { return "card"; }
+      };
+
+      class Transfer : public Payment {
+      public:
+          double fee(double) const override { return 1.0; }  // flat fee; parameter unused
+          std::string name() const override { return "transfer"; }
+      };
+
+      void quote(const Payment& p, double amount) {
+          std::cout << p.name() << ": " << p.fee(amount) << "\n";
+      }
+
+      int main() {
+          quote(Card{}, 100);
+          quote(Transfer{}, 100);
+          // Payment p;   // error: cannot declare variable 'p' to be of abstract type
+      }
       ```
+
+      ```output
+      card: 3.2
+      transfer: 1
+      ```
+
+      ### How it works
+
+      - `= 0` makes a function pure virtual. `Payment` itself can never be created.
+      - `Card` and `Transfer` implement **both** pure virtual functions, so they're concrete classes. If a derived class missed one, it would be abstract too, and creating it would be a compile error that names the missing function.
+      - `quote` works with any payment method, including ones written years later. That's the point of an interface.
+      - `double fee(double) const` leaves the parameter unnamed because it isn't used. That avoids an "unused parameter" warning.
+
+      ### Your task
+
+      Each shape stores its own dimensions and implements `area()`: a circle is pi times r squared, a rectangle is width times height. Remember `const` and `override`, and use the value of pi given.
 
       **Your turn:** write `Circle` (radius) and `Rect` (width, height) implementing `area()`. Use `3.14159265358979` for pi.
     seed: |
@@ -211,16 +326,63 @@ steps:
   - title: Polymorphic containers
     id: cpp-oop-4
     text: |
-      To store different derived types in one container, store **pointers to the base**. With `std::unique_ptr` nothing leaks:
+      To hold **different** derived types in one container, you can't store the objects themselves: a `std::vector<Shape>` would only have room for the base part, and an abstract base can't be stored at all. Instead, store **pointers to the base**, and let virtual calls reach each real object. With `std::unique_ptr`, the vector owns the objects and nothing leaks.
 
-      ```cpp
-      std::vector<std::unique_ptr<Shape>> shapes;
-      shapes.push_back(std::make_unique<Circle>(1.0));
-      shapes.push_back(std::make_unique<Rect>(2, 3));
-      for (const auto& s : shapes) total += s->area();
+      ```cpp run
+      #include <algorithm>
+      #include <iostream>
+      #include <memory>
+      #include <string>
+      #include <vector>
+
+      class Plan {
+      public:
+          virtual double monthly(int users) const = 0;
+          virtual ~Plan() = default;
+      };
+
+      class Flat : public Plan {
+      public:
+          explicit Flat(double price) : price_(price) {}
+          double monthly(int) const override { return price_; }
+      private:
+          double price_;
+      };
+
+      class PerSeat : public Plan {
+      public:
+          double monthly(int users) const override {
+              return users <= 5 ? users * 8.0 : 40 + (users - 5) * 6.0;   // cheaper after 5 seats
+          }
+      };
+
+      int main() {
+          std::vector<std::unique_ptr<Plan>> plans;
+          plans.push_back(std::make_unique<Flat>(99));
+          plans.push_back(std::make_unique<PerSeat>());
+
+          for (int users : {3, 12}) {
+              double cheapest = 1e9;
+              for (const auto& p : plans) cheapest = std::min(cheapest, p->monthly(users));
+              std::cout << users << " users: best price " << cheapest << "\n";
+          }
+      }
       ```
 
-      That's also why the base class needs a **virtual destructor**: deleting a `Circle` through a `Shape*` must run `Circle`'s destructor.
+      ```output
+      3 users: best price 24
+      12 users: best price 82
+      ```
+
+      ### How it works
+
+      - `std::make_unique<Flat>(99)` creates a `Flat` and returns `unique_ptr<Flat>`, which converts automatically to `unique_ptr<Plan>` when pushed into the vector.
+      - `p->monthly(users)` is a virtual call, so each plan's own formula runs.
+      - When `plans` is destroyed, each `unique_ptr` deletes its object **through a `Plan*`**. That only runs the right destructor because `Plan`'s destructor is virtual.
+
+      ### Your task: shotgun damage
+
+      "80 on the first hit, 20 for each hit after" means `hits` of 0 gives 0, 1 gives 80, 3 gives 80 + 20 + 20. Handle 0 hits separately. `total_damage` is then a loop that adds `w->damage(hits)` for every weapon.
 
       **Your turn:** write `int total_damage(const std::vector<std::unique_ptr<Weapon>>& ws, int hits)` that sums `damage(hits)` across all weapons, and implement `Pistol` (25 per hit) and `Shotgun` (80 on the first hit, 20 for each hit after).
     seed: |
@@ -293,7 +455,46 @@ steps:
   - title: Virtual destructors
     id: cpp-oop-5
     text: |
-      Without a virtual destructor, deleting a derived object through a base pointer only runs the **base** destructor. The derived part never gets cleaned up.
+      Here's why the base class of a hierarchy always has a **virtual destructor**. When you `delete` an object through a base pointer (which is what `unique_ptr<Base>` does when it goes away), the destructor call follows the same rule as any other member function:
+
+      - If `~Base()` is **not** virtual, only `~Base()` runs. The derived part is never destroyed: its members aren't cleaned up, its resources leak. Formally, it's undefined behavior.
+      - If `~Base()` **is** virtual, the call goes to `~Derived()` first, which then automatically runs `~Base()`.
+
+      ```cpp run
+      #include <iostream>
+      #include <memory>
+      #include <string>
+
+      struct Connection {
+          virtual ~Connection() { std::cout << "close socket\n"; }
+      };
+
+      struct TlsConnection : Connection {
+          std::string session = "keys";
+          ~TlsConnection() override { std::cout << "wipe " << session << "\n"; }
+      };
+
+      int main() {
+          std::unique_ptr<Connection> c = std::make_unique<TlsConnection>();
+          std::cout << "using connection\n";
+      }
+      ```
+
+      ```output
+      using connection
+      wipe keys
+      close socket
+      ```
+
+      ### The order
+
+      Construction goes **base first, then derived**: the derived constructor relies on its base part already existing. Destruction goes in **reverse**: derived first, then base. The output shows the derived cleanup (`wipe keys`) before the base cleanup (`close socket`).
+
+      If you removed the `virtual` from `~Connection`, the `wipe keys` line would disappear. In real code that's a leaked session key, a leaked buffer, or an open file.
+
+      ### The rule
+
+      If a class has **any** virtual function, give it a virtual destructor. `virtual ~Base() = default;` is enough when there's nothing to clean up in the base itself.
 
       **Your turn:** the program should print:
 
@@ -347,15 +548,56 @@ steps:
   - title: Calling the base version, and protected
     id: cpp-oop-6
     text: |
-      An override often wants to **extend** the base behavior, not replace it. Call the base version by naming it:
+      An override often wants to **extend** the base behavior rather than replace it: do what the base did, then add something. Call the base version by naming its class with `::`.
 
-      ```cpp
-      std::string describe() const override {
-          return Unit::describe() + " [elite]";
+      ```cpp run
+      #include <iostream>
+      #include <string>
+      #include <utility>
+
+      class Account {
+      public:
+          explicit Account(std::string owner) : owner_(std::move(owner)) {}
+          virtual ~Account() = default;
+          virtual std::string describe() const { return owner_ + ": " + std::to_string(balance_); }
+          void deposit(int amount) { balance_ += amount; }
+
+      protected:
+          int balance_ = 0;          // derived classes may use this directly
+
+      private:
+          std::string owner_;
+      };
+
+      class Savings : public Account {
+      public:
+          using Account::Account;    // reuse the base constructors
+          std::string describe() const override { return Account::describe() + " (savings)"; }
+          void add_interest() { balance_ += balance_ * rate_ / 100; }
+
+      private:
+          int rate_ = 5;
+      };
+
+      int main() {
+          Savings s("Mia");
+          s.deposit(200);
+          s.add_interest();
+          std::cout << s.describe() << "\n";
       }
       ```
 
-      Access levels, one more time:
+      ```output
+      Mia: 210 (savings)
+      ```
+
+      ### How it works
+
+      - `Account::describe()` explicitly calls the **base** version, even though `describe` is virtual. Without the `Account::` prefix, the override would call itself forever.
+      - `add_interest` changes `balance_` directly, which is allowed because it's `protected`. `owner_` is `private`, so `Savings` couldn't touch it.
+      - `using Account::Account;` inherits the base constructors, so `Savings s("Mia")` works without writing a constructor.
+
+      ### Access levels, one more time
 
       | Keyword | Who can use it |
       |---|---|
@@ -364,6 +606,10 @@ steps:
       | `private` | only the class itself |
 
       Use `protected` sparingly. Every protected member is part of the contract with all future subclasses, so it's as hard to change later as a public one.
+
+      ### Your task
+
+      In `Medic`, `describe()` calls `Unit::describe()` and appends `" +heal"`. `heal(Unit& u)` calls the public `u.restore(power_)`. `power_` is protected, so the Medic can read it.
 
       **Your turn:** finish `Medic`. Its `describe()` returns the base description plus `" +heal"`, and `heal(Unit& u)` restores `u` by the protected `power_` amount (use `u.restore(...)`).
     seed: |
@@ -437,18 +683,58 @@ steps:
   - title: Composition over inheritance
     id: cpp-oop-7
     text: |
-      Inheritance means **is-a**: a `Pistol` *is a* `Weapon`. For **has-a** relationships, use a member instead. That's *composition*:
+      Inheritance is powerful, but it's also the **tightest** coupling there is: a derived class depends on every detail of its base. For many relationships there's a simpler tool. Inheritance means **is-a**: a `Truck` *is a* `Vehicle`. For **has-a** relationships, give the class a **member** instead. That's called **composition**.
 
       ```cpp
       class Squad : public std::vector<Player> { };   // wrong: a squad isn't a vector
       class Squad { std::vector<Player> members_; };   // right: a squad has members
       ```
 
-      Why composition is the default in professional code:
+      ```cpp run
+      #include <algorithm>
+      #include <iostream>
+      #include <string>
+      #include <vector>
 
-      - The class controls its own interface. Inheriting from `std::vector` would expose `erase`, `clear` and everything else, letting callers break your rules.
-      - You can swap the member's type later without touching callers.
+      class Playlist {
+      public:
+          bool add(const std::string& song) {
+              if (songs_.size() >= 3) return false;                                   // rule: max 3
+              if (std::find(songs_.begin(), songs_.end(), song) != songs_.end()) return false;
+              songs_.push_back(song);
+              return true;
+          }
+          std::string summary() const {
+              std::string out;
+              for (const auto& s : songs_) out += "[" + s + "]";
+              return out;
+          }
+
+      private:
+          std::vector<std::string> songs_;    // has-a: the playlist controls access
+      };
+
+      int main() {
+          Playlist p;
+          std::cout << p.add("a") << p.add("b") << p.add("a") << p.add("c") << p.add("d") << "\n";
+          std::cout << p.summary() << "\n";
+      }
+      ```
+
+      ```output
+      11010
+      [a][b][c]
+      ```
+
+      ### Why composition is the default in professional code
+
+      - The class controls its own interface. Inheriting from `std::vector` would expose `erase`, `clear`, `push_back` and everything else, letting callers break the "max 3, no duplicates" rules.
+      - You can swap the member's type later (say, to a `std::set`) without touching any caller.
       - Standard containers have no virtual destructor, so they aren't meant to be base classes at all.
+
+      ### Your task
+
+      `Squad` is the same shape as `Playlist`: `add` checks the size limit and duplicates, `remove` finds the name with `std::find` and erases it, and `roster` joins the names with `", "` (watch out for the separator fencepost from the streams module).
 
       **Your turn:** write class `Squad` that *has* a `std::vector<std::string>` of names, with a maximum size of 5:
 
@@ -524,14 +810,62 @@ steps:
   - title: "Challenge: program to an interface"
     id: cpp-oop-8
     text: |
-      In enterprise code, the most valuable use of virtual functions isn't game units: it's **dependency injection**. A class depends on an abstract *interface* instead of a concrete service, and whoever creates it passes in the real thing.
+      In professional code, the most valuable use of virtual functions isn't game units: it's **dependency injection**. A class depends on an abstract **interface** instead of a concrete service, and whoever creates it passes in the real thing.
 
-      ```cpp
-      class Clock { public: virtual ~Clock() = default; virtual long now() const = 0; };
-      class Session { public: explicit Session(const Clock& c); /* uses c.now() */ };
+      Why that matters: code that calls the system clock, a database or the network directly is hard to test. Tests would have to wait for real time to pass or set up a real server. If the code only talks to an interface, a test can pass in a **fake** it fully controls.
+
+      ```cpp run
+      #include <iostream>
+
+      class Clock {
+      public:
+          virtual ~Clock() = default;
+          virtual long now() const = 0;
+      };
+
+      class FakeClock : public Clock {        // a test double: time moves only when told
+      public:
+          long now() const override { return t_; }
+          void advance(long s) { t_ += s; }
+      private:
+          long t_ = 0;
+      };
+
+      class Coupon {
+      public:
+          Coupon(const Clock& clock, long valid_for) : clock_(clock), expires_(clock.now() + valid_for) {}
+          bool valid() const { return clock_.now() < expires_; }
+      private:
+          const Clock& clock_;                // depends on the interface only
+          long expires_;
+      };
+
+      int main() {
+          FakeClock clock;
+          Coupon c(clock, 60);
+          std::cout << c.valid();
+          clock.advance(59);
+          std::cout << c.valid();
+          clock.advance(1);
+          std::cout << c.valid() << "\n";
+      }
       ```
 
-      Production code passes a clock that reads the system time. **Tests** pass a fake clock they control, so time-dependent logic can be tested instantly and reliably. The same idea covers databases, network clients and file systems.
+      ```output
+      110
+      ```
+
+      The test checks a 60 second expiry instantly, with exact control over the boundary. In production you'd pass a `SystemClock` whose `now()` reads the real time, and `Coupon` wouldn't change at all.
+
+      ### Designing the rate limiter
+
+      Store the **times** of recent allowed calls in a `std::deque<long>`, oldest at the front. In `allow()`:
+
+      1. Get `now()` once.
+      2. Pop from the front every time `t` where `now >= t + window_`: those calls have left the window.
+      3. If fewer than `limit_` remain, push `now` at the back and return `true`; otherwise return `false`.
+
+      Store the clock as a `const Clock&` member, as `Coupon` does. The object that owns the real clock must outlive the limiter.
 
       **Your turn:** write `class RateLimiter` that takes a `const Clock&` and allows at most `limit` calls to `allow()` in any window of `window` seconds. `allow()` returns true and records the call if under the limit, otherwise false. A call at time `t` falls out of the window once `now() >= t + window`.
     seed: |

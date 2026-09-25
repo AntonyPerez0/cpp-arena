@@ -7,18 +7,57 @@ steps:
   - title: std::optional
     id: cpp-modern-1
     text: |
-      `std::optional<T>` holds either a `T` or nothing. It's the honest way to say "this might not have a result", instead of magic values like `-1` or `nullptr`:
+      Many functions sometimes have **no answer**: searching for something that isn't there, parsing text that isn't a number. Old code signals that with a magic value like `-1`, `0` or `nullptr`, and every caller has to know (and remember) which value means "nothing". Worse, sometimes `-1` is a perfectly valid answer.
 
-      ```cpp
-      std::optional<int> find_score(const std::string& name);
+      `std::optional<T>` (from `<optional>`) makes "maybe" part of the type. It holds either a `T` or nothing, and the caller can't use the value without dealing with the "nothing" case.
 
-      if (auto s = find_score("rain")) {
-          std::cout << *s;          // or s.value()
+      ```cpp run
+      #include <iostream>
+      #include <optional>
+      #include <string>
+      #include <vector>
+
+      std::optional<double> average(const std::vector<int>& v) {
+          if (v.empty()) return std::nullopt;         // no data, no average
+          double sum = 0;
+          for (int x : v) sum += x;
+          return sum / v.size();                      // a double converts to optional<double>
       }
-      int x = find_score("nobody").value_or(0);
+
+      int main() {
+          std::vector<int> full = {3, 4, 8};
+          std::vector<int> empty;
+
+          if (auto a = average(full)) {
+              std::cout << "average " << *a << "\n";
+          }
+          auto b = average(empty);
+          std::cout << "has value? " << b.has_value() << "\n";
+          std::cout << "with default: " << b.value_or(0.0) << "\n";
+      }
       ```
 
-      Return `std::nullopt` for "nothing".
+      ```output
+      average 5
+      has value? 0
+      with default: 0
+      ```
+
+      ### How it works
+
+      - Return a `T` normally and it becomes an optional holding that value. Return `std::nullopt` for "nothing".
+      - An optional converts to `bool`: true when it holds a value. `if (auto a = f())` declares and tests in one step.
+      - `*a` (or `a.value()`) gets the value. Only do that after checking. `*` on an empty optional is undefined behavior.
+      - `value_or(fallback)` gives the value, or the fallback if empty. Great for sensible defaults.
+
+      ### Your task: parsing an int by hand
+
+      Walk the string character by character:
+
+      1. Empty string: fail.
+      2. If the first character is `-`, remember it and start from index 1. If that leaves nothing, fail (a lone `-`).
+      3. Every remaining character must be `'0'` to `'9'`. Build the number with `v = v * 10 + (c - '0')`.
+      4. Apply the sign at the end.
 
       **Your turn:** write `std::optional<int> parse_int(const std::string& s)` that returns the number for strings made only of digits (with an optional leading `-`), and `std::nullopt` otherwise (including the empty string and a lone `-`).
     seed: |
@@ -64,20 +103,58 @@ steps:
   - title: std::variant and std::visit
     id: cpp-modern-2
     text: |
-      `std::variant<A, B, C>` holds exactly **one** of several types, and knows which. It's a type-safe union.
+      Sometimes a value can be **one of several different kinds**: a JSON value is a number, a string or a list; a shape is a circle or a rectangle; a message is a login, a chat line or a logout. In C you'd use a `union` plus a tag field and hope nobody reads the wrong member.
 
-      ```cpp
-      std::variant<int, std::string> v = 5;
-      v = "hello";                               // now holds a string
-      std::holds_alternative<std::string>(v);    // true
-      std::get<std::string>(v);                  // "hello"
+      `std::variant<A, B, C>` (from `<variant>`) holds exactly **one** of its types at a time and always knows which one. Reading the wrong one is caught instead of silently producing garbage.
+
+      ```cpp run
+      #include <iostream>
+      #include <string>
+      #include <variant>
+      #include <vector>
+
+      struct Circle { double r; };
+      struct Square { double side; };
+      using Shape = std::variant<Circle, Square>;
+
+      double area(const Shape& s) {
+          if (const Circle* c = std::get_if<Circle>(&s)) return 3.14 * c->r * c->r;
+          return std::get<Square>(s).side * std::get<Square>(s).side;
+      }
+
+      int main() {
+          std::vector<Shape> shapes = {Circle{1}, Square{3}};
+          for (const auto& s : shapes) {
+              std::cout << (std::holds_alternative<Circle>(s) ? "circle " : "square ") << area(s) << "\n";
+          }
+
+          std::variant<int, std::string> cell = 42;
+          cell = std::string("hello");               // now it holds a string
+          std::visit([](const auto& x) { std::cout << "cell: " << x << "\n"; }, cell);
+          std::cout << "index " << cell.index() << "\n";
+      }
       ```
 
-      `std::visit` calls a function with whatever is inside. A lambda with an `auto` parameter handles every type:
-
-      ```cpp
-      std::visit([](const auto& x) { std::cout << x; }, v);
+      ```output
+      circle 3.14
+      square 9
+      cell: hello
+      index 1
       ```
+
+      ### Ways to look inside
+
+      | Tool | Use |
+      |---|---|
+      | `std::holds_alternative<T>(v)` | `true` if it currently holds a `T` |
+      | `std::get<T>(v)` | the `T` inside (only when it holds one) |
+      | `std::get_if<T>(&v)` | a pointer to the `T`, or `nullptr` if it holds something else |
+      | `std::visit(f, v)` | calls `f` with whatever is inside |
+      | `v.index()` | which alternative, counting from 0 |
+
+      `std::get_if` combines the check and the access, which is why the `area` function uses it. In `std::visit`, a lambda with an `auto` parameter is compiled once per alternative, so it handles every type.
+
+      In standard C++, `std::get` with the wrong type throws an exception. This site compiles without exceptions, so check first with `holds_alternative` or use `get_if`.
 
       **Your turn:** an `Event` is either a `Kill{attacker, victim}`, a `Plant{site}` or a `RoundEnd{winner}`. Write `std::string describe(const Event& e)` returning `"A killed B"`, `"bomb planted at X"` or `"round to W"`. Use `std::holds_alternative`/`std::get`, or `std::get_if`.
     seed: |
@@ -119,16 +196,68 @@ steps:
   - title: std::string_view
     id: cpp-modern-3
     text: |
-      `std::string_view` is a lightweight, **non-owning** view of characters: a pointer plus a length. It accepts string literals, `std::string`s and substrings without copying anything, which makes it the modern choice for read-only string parameters.
+      A function that only **reads** a string often takes `const std::string&`. That works, but when a caller passes a literal like `"hello"`, a temporary `std::string` must be built first, allocating and copying. And taking a piece of a string with `substr` makes yet another copy.
 
-      ```cpp
-      int count_upper(std::string_view s);
-      count_upper("AWP");            // no std::string is created
-      s.substr(1, 2);                // also a view, no copy
-      s.starts_with("de_");          // C++20
+      `std::string_view` (from `<string_view>`) is a lightweight **view**: just a pointer to some characters and a length. It never owns or copies the text. It accepts literals, `std::string`s and parts of either for free.
+
+      ```cpp run
+      #include <iostream>
+      #include <string>
+      #include <string_view>
+
+      std::string_view file_extension(std::string_view path) {
+          auto dot = path.rfind('.');
+          if (dot == std::string_view::npos) return {};   // empty view
+          return path.substr(dot + 1);                    // a view into path: no copy
+      }
+
+      int count_char(std::string_view s, char c) {
+          int n = 0;
+          for (char x : s) n += (x == c);
+          return n;
+      }
+
+      int main() {
+          std::cout << file_extension("report.final.pdf") << "\n";
+          std::string name = "photo.jpeg";
+          std::cout << file_extension(name) << "\n";
+          std::cout << "[" << file_extension("README") << "]\n";
+
+          std::string_view v = "  banana  ";
+          v.remove_prefix(2);                             // just moves the start
+          std::cout << count_char(v, 'a') << " " << v.size() << " " << v.starts_with("ban") << "\n";
+      }
       ```
 
-      Danger: a view doesn't keep the text alive. Never return a view of a local string.
+      ```output
+      pdf
+      jpeg
+      []
+      3 8 1
+      ```
+
+      ### How it works
+
+      - `substr`, `remove_prefix` and `remove_suffix` on a view only adjust its pointer and length. Nothing is copied, so they're O(1).
+      - A view has most of `std::string`'s read-only interface: `size`, `[]`, `find`, `rfind`, `starts_with`, `ends_with`, `substr`, and range-for.
+      - Take `std::string_view` **by value**. It's two words, cheaper to copy than a reference is to follow.
+
+      ### The danger: views don't keep text alive
+
+      A view points at characters owned by someone else. If the owner dies, the view dangles:
+
+      ```cpp
+      std::string_view bad() {
+          std::string s = "temporary";
+          return s;          // s is destroyed here; the view points at freed memory
+      }
+      ```
+
+      Rule of thumb: use `string_view` for **parameters**; return it only when it points into something the caller owns, like `file_extension` does.
+
+      ### Your task: trim
+
+      Move the start past leading spaces with `remove_prefix(1)` while the first character is `' '`, then do the same at the end with `remove_suffix(1)` and `back()`. Check `empty()` first each time so an all-spaces string ends up as an empty view.
 
       **Your turn:** write `std::string_view trim(std::string_view s)` that returns the view without leading and trailing spaces.
     seed: |
@@ -162,24 +291,53 @@ steps:
   - title: Concepts
     id: cpp-modern-4
     text: |
-      A plain template accepts any type and fails with a wall of errors deep inside if the type doesn't fit. **Concepts** (C++20) state the requirements up front:
+      A plain template accepts **any** type. If the type doesn't fit, the error appears deep inside the template's body, often as a wall of messages about code you didn't write. **Concepts** (C++20) state the requirements **up front**, in the signature, so misuse is rejected immediately with a short, clear error.
 
-      ```cpp
+      ```cpp run
       #include <concepts>
+      #include <iostream>
+      #include <string>
+      #include <vector>
 
       template <std::integral T>
-      T gcd(T a, T b) { ... }       // only integer types allowed
+      bool is_even(T n) { return n % 2 == 0; }
 
-      gcd(12, 18);    // ok
-      gcd(1.5, 2.0);  // clear error: double doesn't satisfy integral
-      ```
-
-      You can write your own with `requires`:
-
-      ```cpp
       template <typename T>
-      concept HasSize = requires(T t) { t.size(); };
+      concept Sized = requires(const T& t) {
+          { t.size() } -> std::convertible_to<std::size_t>;
+      };
+
+      template <Sized C>
+      bool is_empty(const C& c) { return c.size() == 0; }
+
+      int main() {
+          std::cout << is_even(10) << is_even(7L) << "\n";
+          std::cout << is_empty(std::string("")) << is_empty(std::vector<int>{1}) << "\n";
+          // is_even(2.5);   // error: 'double' does not satisfy 'integral'
+          // is_empty(42);   // error: 'int' does not satisfy 'Sized'
+      }
       ```
+
+      ```output
+      10
+      10
+      ```
+
+      ### How it works
+
+      - `template <std::integral T>` replaces `template <typename T>` and says "T must be an integer type". `std::integral`, `std::floating_point`, `std::same_as` and many more live in `<concepts>`.
+      - You can define your own concept with `requires`: list expressions that must compile for the type. `Sized` requires a `size()` member returning something convertible to a size.
+      - If a call doesn't satisfy the concept, the compiler says exactly that, and points at **your** call.
+
+      ### Your task: Euclid's algorithm
+
+      The greatest common divisor of `a` and `b` equals the gcd of `b` and `a % b`, and `gcd(a, 0)` is `a`. So loop while `b != 0`:
+
+      ```
+      (48, 18) -> (18, 12) -> (12, 6) -> (6, 0)   answer 6
+      ```
+
+      Use a temporary to do the swap: `T t = a % b; a = b; b = t;`. The `std::integral` constraint is required: `%` doesn't work on doubles, and the tests check that a `double` call is rejected.
 
       **Your turn:** write `template <std::integral T> T gcd(T a, T b)` using Euclid's algorithm: while `b != 0`, replace `(a, b)` with `(b, a % b)`. The tests also check that calling it with a `double` is rejected.
     seed: |
@@ -214,19 +372,59 @@ steps:
   - title: Ranges
     id: cpp-modern-5
     text: |
-      C++20 **ranges** let you pass a container directly to algorithms and build lazy pipelines with `|`:
+      C++20 **ranges** make algorithms easier to use and add **views**: lazy, composable steps that you chain with `|`, like a Unix pipeline.
 
-      ```cpp
-      #include <ranges>
+      - `std::ranges::sort(v)` instead of `std::sort(v.begin(), v.end())`. Every classic algorithm has a `std::ranges::` version that takes the container directly.
+      - `std::views::filter(pred)` keeps elements where `pred` is true.
+      - `std::views::transform(f)` turns each element into `f(element)`.
+      - `std::views::take(n)`, `std::views::reverse` and more.
+
+      ```cpp run
       #include <algorithm>
+      #include <iostream>
+      #include <ranges>
+      #include <string>
+      #include <vector>
 
-      std::ranges::sort(v);        // no begin/end needed
+      struct Order {
+          std::string item;
+          int qty;
+      };
 
-      for (int x : v | std::views::filter([](int x) { return x % 2 == 0; })
-                     | std::views::transform([](int x) { return x * x; })) {
-          ...   // squares of the even numbers, computed on demand
+      int main() {
+          std::vector<int> v = {5, 2, 9, 1, 6};
+          std::ranges::sort(v);
+          for (int x : v) std::cout << x << " ";
+          std::cout << "\n";
+
+          std::vector<Order> orders = {{"tea", 3}, {"cake", 0}, {"jam", 2}, {"bun", 0}};
+          auto shipped = orders
+              | std::views::filter([](const Order& o) { return o.qty > 0; })
+              | std::views::transform([](const Order& o) { return o.item; });
+
+          std::vector<std::string> names;
+          for (const auto& n : shipped) names.push_back(n);
+          for (const auto& n : names) std::cout << n << " ";
+          std::cout << "(" << names.size() << ")\n";
       }
       ```
+
+      ```output
+      1 2 5 6 9 
+      tea jam (2)
+      ```
+
+      ### Lazy means nothing happens yet
+
+      Building `shipped` doesn't filter or copy anything. It's a recipe. The work happens element by element while the `for` loop pulls values through the pipeline. That's why views are cheap even on huge inputs, and why you usually finish by looping over the view and collecting results, as the example does.
+
+      ### Reading a pipeline
+
+      Read it top to bottom: start with `orders`, keep the ones with quantity above zero, turn each into its item name. The order of steps matters: transform first and you'd lose `qty` before you could filter on it.
+
+      ### Common mistake
+
+      A view refers to the original container. If the container is destroyed or changed while you still use the view, it dangles, just like `string_view`.
 
       **Your turn:** write `std::vector<std::string> top_fraggers(const std::vector<std::pair<std::string, int>>& players, int min_kills)` that returns the names of players with at least `min_kills`, in their original order, using `views::filter` and `views::transform`.
     seed: |
@@ -272,21 +470,57 @@ steps:
   - title: std::span
     id: cpp-modern-6
     text: |
-      `std::span<T>` is to arrays what `string_view` is to strings: a non-owning view of contiguous elements. One function can then accept a C array, a `std::array` or a `std::vector`:
+      `std::span<T>` (from `<span>`) is to arrays what `string_view` is to strings: a non-owning view of **contiguous** elements, just a pointer and a count. One function taking a span accepts a C array, a `std::array` or a `std::vector`, with no copying and no templates.
 
-      ```cpp
+      ```cpp run
+      #include <array>
+      #include <iostream>
       #include <span>
+      #include <vector>
 
-      int sum(std::span<const int> xs) {
-          int s = 0;
-          for (int x : xs) s += x;
-          return s;
+      double mean(std::span<const double> xs) {
+          double s = 0;
+          for (double x : xs) s += x;
+          return xs.empty() ? 0 : s / xs.size();
       }
 
-      int a[] = {1, 2, 3};
-      std::vector<int> v = {4, 5};
-      sum(a);  sum(v);  sum(std::span(v).subspan(1));
+      void zero_out(std::span<int> xs) {         // non-const span: can modify
+          for (int& x : xs) x = 0;
+      }
+
+      int main() {
+          double c_array[] = {1, 2, 3, 4};
+          std::array<double, 2> arr = {10, 20};
+          std::vector<double> vec = {5, 5, 5, 9};
+          std::cout << mean(c_array) << " " << mean(arr) << " " << mean(vec) << "\n";
+
+          std::span<const double> all(vec);
+          std::cout << mean(all.subspan(1, 2)) << " " << mean(all.last(1)) << "\n";
+
+          std::vector<int> ids = {7, 8, 9, 10};
+          zero_out(std::span(ids).first(2));
+          for (int id : ids) std::cout << id << " ";
+          std::cout << "\n";
+      }
       ```
+
+      ```output
+      2.5 15 6
+      5 9
+      0 0 9 10 
+      ```
+
+      ### How it works
+
+      - `std::span<const double>` means "a view of doubles I won't change". `std::span<int>` allows writing through it.
+      - `subspan(offset, count)`, `first(n)` and `last(n)` make smaller spans in O(1). No elements are copied.
+      - A span remembers its size, unlike the pointer-plus-length pairs from C. So `for (double x : xs)` just works.
+
+      ### Your task: best window sum
+
+      The simple way: for each start `i` from 0 to `xs.size() - k`, sum `xs.subspan(i, k)` and keep the best. That's O(n * k).
+
+      The **sliding window** way is O(n): sum the first `k` elements, then for each step right, add the element entering the window and subtract the one leaving it (`sum += xs[i] - xs[i - k]`). Start `best` from the first window's sum, not 0, because every value might be negative.
 
       **Your turn:** write `int max_window(std::span<const int> xs, std::size_t k)` that returns the largest sum of `k` consecutive elements. Use `subspan` or a sliding window. Assume `1 <= k <= xs.size()`.
     seed: |
