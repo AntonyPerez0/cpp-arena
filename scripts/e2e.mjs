@@ -624,6 +624,7 @@ await test("accessibility: deathmatch reps and the death screen pass axe", async
       await ap.locator("input.blank").fill("zzz");
       await ap.keyboard.press("Enter");
     } else if (type === "bug") await ap.getByRole("button", { name: /^Line \d+:/ }).first().click();
+    else if (type === "choice") await ap.locator(".rep .choice").first().click();
     else break;
     await ap.waitForTimeout(150);
   }
