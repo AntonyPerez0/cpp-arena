@@ -7,17 +7,45 @@ steps:
   - title: while loops
     id: c-loops-1
     text: |
-      A `while` loop repeats its block as long as the condition stays true.
+      Computers are good at doing the same thing many times. A **loop** repeats a block of code. The simplest is `while`: it checks a condition, and if it's true, runs the body, then checks again, and so on until the condition is false.
 
-      ```c
-      int i = 1;
-      while (i <= 3) {
-          printf("%d\n", i);
-          i++;
+      ```c run
+      #include <stdio.h>
+
+      int main(void) {
+          int lives = 3;
+          while (lives > 0) {
+              printf("lives left: %d\n", lives);
+              lives--;
+          }
+          printf("game over\n");
+          return 0;
       }
       ```
 
-      This prints 1, 2, 3. Forget the `i++` and the loop runs forever. On this site, an infinite loop gets stopped after 3 seconds.
+      ```output
+      lives left: 3
+      lives left: 2
+      lives left: 1
+      game over
+      ```
+
+      ### Trace it
+
+      Tracing a loop by hand (writing down each variable after every pass) is the best way to understand it:
+
+      | Check `lives > 0` | Prints | `lives` after |
+      |---|---|---|
+      | 3 > 0 true | lives left: 3 | 2 |
+      | 2 > 0 true | lives left: 2 | 1 |
+      | 1 > 0 true | lives left: 1 | 0 |
+      | 0 > 0 false | (loop ends) | 0 |
+
+      The condition is checked **before** each pass, so if it's false at the start, the body never runs at all.
+
+      ### Every loop needs progress
+
+      Something in the body must eventually make the condition false. Here it's `lives--`. If you forget it, `lives` stays 3 forever and the loop never ends: an **infinite loop**. On this site, a program that runs longer than 3 seconds is stopped with a time-limit message. On your own computer, press Ctrl+C to stop it.
 
       **Your turn:** read `n` and count down from `n` to 1, one number per line, then print `GO!`.
     fill: |
@@ -45,18 +73,49 @@ steps:
   - title: for loops
     id: c-loops-2
     text: |
-      A `for` loop puts the three parts of a counting loop on one line:
+      Most loops count: start somewhere, stop at some point, and step each time. A `for` loop puts all three parts on one line, so you can see the whole plan at a glance:
 
       ```c
-      for (int i = 0; i < 5; i++) {
-          printf("%d ", i);
+      for (init; condition; update) {
+          body
       }
-      // 0 1 2 3 4
       ```
 
-      1. **init** `int i = 0` runs once
-      2. **condition** `i < 5` is checked before each round
-      3. **update** `i++` runs after each round
+      1. **init** runs once, before anything else. Usually it creates the counter: `int i = 0`.
+      2. **condition** is checked before every pass. If false, the loop ends.
+      3. **body** runs.
+      4. **update** runs after each pass, usually `i++`. Then back to step 2.
+
+      ```c run
+      #include <stdio.h>
+
+      int main(void) {
+          for (int i = 0; i < 5; i++) {
+              printf("%d ", i);
+          }
+          printf("\n");
+          for (int t = 10; t >= 0; t -= 5) {
+              printf("T-%d ", t);
+          }
+          printf("\n");
+          return 0;
+      }
+      ```
+
+      ```output
+      0 1 2 3 4 
+      T-10 T-5 T-0 
+      ```
+
+      ### Counting conventions
+
+      `for (int i = 0; i < n; i++)` runs exactly **n** times (0 through n-1). This "start at 0, stop before n" style is the standard in C, because it matches array positions, which also start at 0. If you need 1 through n, write `for (int i = 1; i <= n; i++)`.
+
+      A counter declared in the `for` line only exists inside the loop. Using `i` after the loop is a compile error, which keeps names from leaking.
+
+      ### for or while?
+
+      They can do the same things. Use `for` when you're counting or the number of passes is known; use `while` when you loop until something happens (like input running out).
 
       **Your turn:** read `n` and print the squares from 1 to n on one line, separated by spaces. For `n = 4`: `1 4 9 16`.
     seed: |
@@ -97,14 +156,51 @@ steps:
   - title: Accumulating a total
     id: c-loops-3
     text: |
-      A very common loop pattern: start a variable at 0 and add to it every round.
+      A pattern you'll use constantly: **accumulating** a result across a loop. Create a variable before the loop, update it on every pass, and use it after the loop.
 
-      ```c
-      int sum = 0;
-      for (int i = 1; i <= 100; i++) {
-          sum += i;
+      - For a **sum**, start at 0 and add each value.
+      - For a **count**, start at 0 and add 1 when something matches.
+      - For a **maximum**, start with a value that anything will beat (or with the first value), and replace it whenever you see something bigger.
+
+      ```c run
+      #include <stdio.h>
+
+      int main(void) {
+          int n;
+          scanf("%d", &n);
+          int total = 0;
+          int passed = 0;
+          for (int i = 0; i < n; i++) {
+              int grade;
+              scanf("%d", &grade);
+              total += grade;
+              if (grade >= 50) {
+                  passed++;
+              }
+          }
+          printf("average %d, passed %d\n", total / n, passed);
+          return 0;
       }
       ```
+
+      ```input
+      5
+      72 45 90 38 60
+      ```
+
+      ```output
+      average 61, passed 3
+      ```
+
+      ### Reading a list
+
+      A common input format is "first the count, then that many values". Read the count first, then loop that many times, reading one value per pass. Each `scanf` continues from where the last one stopped, so the values can be on one line or many.
+
+      ### Where to declare things
+
+      `total` and `passed` are declared **before** the loop, because they must survive across passes and be used afterwards. `grade` is declared **inside**, because each pass only needs its own current value. If `total` were declared inside the loop, it would be reset to 0 every pass.
+
+      For a maximum, starting at 0 works only when all values are at least 0. For values that might be negative, start with the first value instead.
 
       **Your turn:** the first number of input is `n`, followed by `n` damage values. Print the total damage and the highest single hit:
 
@@ -163,17 +259,53 @@ steps:
   - title: break and continue
     id: c-loops-4
     text: |
-      - `break` leaves the loop immediately.
-      - `continue` skips the rest of this round and jumps to the next one.
+      Sometimes you need to change a loop's flow from inside the body:
 
-      ```c
-      for (int i = 1; i <= 10; i++) {
-          if (i % 2 == 0) continue;  // skip even numbers
-          if (i > 7) break;          // stop after 7
-          printf("%d ", i);
+      - `break` **leaves the loop immediately**. Execution continues after the loop.
+      - `continue` **skips the rest of this pass**. In a `for` loop the update still runs, then the condition is checked as usual.
+
+      ```c run
+      #include <stdio.h>
+
+      int main(void) {
+          int x;
+          int count = 0;
+          while (scanf("%d", &x) == 1) {
+              if (x == -1) {
+                  break;
+              }
+              if (x % 2 != 0) {
+                  continue;
+              }
+              count++;
+              printf("even: %d\n", x);
+          }
+          printf("%d even numbers\n", count);
+          return 0;
       }
-      // 1 3 5 7
       ```
+
+      ```input
+      4 7 10 3 -1 8
+      ```
+
+      ```output
+      even: 4
+      even: 10
+      2 even numbers
+      ```
+
+      The `8` after `-1` is never read, because `break` ended the loop.
+
+      ### Reading until the input runs out
+
+      `while (scanf("%d", &x) == 1)` is a standard C idiom: it reads one number per pass and stops when a read fails, which happens at the end of the input or at something that isn't a number. It works for any amount of input without knowing the count in advance.
+
+      ### Sentinel values
+
+      Using a special value like `0` or `-1` to mean "stop" is called a **sentinel**. It's handy for simple formats, but it means the sentinel itself can never be real data.
+
+      `break` only exits the **innermost** loop it's in. That matters once you nest loops.
 
       **Your turn:** read numbers until you see `0`. Ignore negative numbers. Print the sum of the positive ones. Use `break` for the 0 and `continue` for negatives.
     seed: |
@@ -221,16 +353,46 @@ steps:
   - title: do-while
     id: c-loops-5
     text: |
-      A `do { } while (cond);` loop checks its condition at the **end**, so the body always runs at least once. It's perfect for "ask until valid" input and for menus.
+      `while` and `for` check their condition **before** each pass. `do ... while` checks it **after**, so the body always runs **at least once**:
 
       ```c
-      int x;
       do {
-          scanf("%d", &x);
-      } while (x < 1 || x > 5);
+          body
+      } while (condition);
       ```
 
-      Note the semicolon after `while (...)`.
+      Note the semicolon after the closing parenthesis; forgetting it is a compile error.
+
+      This fits situations where you must do something before you can decide whether to repeat, such as asking for input and then checking it:
+
+      ```c run
+      #include <stdio.h>
+
+      int main(void) {
+          int guess;
+          int tries = 0;
+          do {
+              scanf("%d", &guess);
+              tries++;
+          } while (guess != 42);
+          printf("got it in %d tries\n", tries);
+          return 0;
+      }
+      ```
+
+      ```input
+      10 50 42 7
+      ```
+
+      ```output
+      got it in 3 tries
+      ```
+
+      With a plain `while`, you'd need to read once before the loop and again inside it, repeating code. `do-while` avoids that.
+
+      ### Validation loops
+
+      "Keep asking until the input is valid" is the classic use. The condition describes **invalid** input, so the loop repeats while the input is bad. Write the condition carefully: "less than 1 **or** greater than 5" is outside the range; "less than 1 **and** greater than 5" can never be true, so the loop would never repeat.
 
       **Your turn:** read numbers until one is between 1 and 5 (inclusive). For every invalid number print `invalid N`. Then print `chose N`.
     seed: |
@@ -271,17 +433,41 @@ steps:
   - title: Nested loops
     id: c-loops-6
     text: |
-      A loop inside a loop runs the inner loop completely for every round of the outer one. That's how you walk a grid.
+      A loop's body can contain another loop. The **inner** loop runs completely, from start to finish, during **each** pass of the outer loop. If the outer loop runs 3 times and the inner loop 4 times, the inner body runs 12 times.
 
-      ```c
-      for (int row = 0; row < 2; row++) {
-          for (int col = 0; col < 3; col++) {
-              printf("*");
+      Nested loops are how you work with anything two-dimensional: rows and columns, a grid, a table.
+
+      ```c run
+      #include <stdio.h>
+
+      int main(void) {
+          for (int row = 1; row <= 3; row++) {
+              for (int col = 1; col <= 4; col++) {
+                  printf("%3d", row * col);
+              }
+              printf("\n");
           }
-          printf("\n");
+          return 0;
       }
       ```
-      prints two rows of three stars.
+
+      ```output
+        1  2  3  4
+        2  4  6  8
+        3  6  9 12
+      ```
+
+      (`%3d` pads each number to 3 characters wide so the columns line up.)
+
+      ### How to think about it
+
+      - The **outer** loop picks the row.
+      - The **inner** loop prints everything in that row.
+      - After the inner loop finishes, the outer body prints `\n` to end the row.
+
+      The inner loop's limit can depend on the outer counter. For example, `for (int col = 1; col <= row; col++)` makes row 1 have one column, row 2 two columns, and so on, which is how you build triangle shapes.
+
+      Use different counter names for each level (`row` and `col`, or `i` and `j`). Reusing the same name is a common bug.
 
       **Your turn:** read `n` and print a right triangle of `#` with `n` rows. For `n = 4`:
 

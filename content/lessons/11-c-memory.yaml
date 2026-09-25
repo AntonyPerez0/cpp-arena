@@ -7,20 +7,45 @@ steps:
   - title: Stack vs heap
     id: c-memory-1
     text: |
-      So far every variable lived on the **stack**: it's created when its block starts and destroyed automatically when the block ends. Stack arrays need a size known up front, and they die when the function returns.
+      Every variable you've made so far lives on the **stack**. The stack is fast and automatic: a function's local variables are created when it's called and destroyed when it returns. But it has two big limits:
 
-      The **heap** is memory you request at runtime and give back when you're done:
+      1. **Sizes are fixed at compile time.** `int scores[100]` is always 100, even if you only need 3, or need 1,000.
+      2. **Lifetimes are tied to the function.** When a function returns, its locals are gone, so it can't create data that outlives it.
 
-      ```c
+      The **heap** removes both limits. It's a large pool of memory you request while the program runs, of any size, and it stays yours until **you** give it back.
+
+      ```c run
+      #include <stdio.h>
       #include <stdlib.h>
 
-      int *a = malloc(n * sizeof(int));   // room for n ints
-      if (a == NULL) { /* out of memory */ }
-      a[0] = 42;                          // use it like an array
-      free(a);                            // give it back
+      int main(void) {
+          int n = 4;
+          double *temps = malloc(n * sizeof(double));
+          if (temps == NULL) {
+              return 1;
+          }
+          for (int i = 0; i < n; i++) {
+              temps[i] = 20.5 + i;
+          }
+          printf("%.1f %.1f\n", temps[0], temps[n - 1]);
+          free(temps);
+          return 0;
+      }
       ```
 
-      `malloc` returns `NULL` if it fails. Every `malloc` needs exactly one matching `free`.
+      ```output
+      20.5 23.5
+      ```
+
+      ### The pieces
+
+      - `#include <stdlib.h>` declares `malloc` and `free`.
+      - `malloc(bytes)` reserves that many bytes on the heap and returns a pointer to the start. It knows nothing about types, so you compute the size: **count x `sizeof` the element**. `malloc(n)` alone would be n bytes, not n doubles, a very common bug.
+      - The returned pointer can be used exactly like an array: `temps[i]`.
+      - `malloc` returns `NULL` if the memory isn't available. Always check before using it.
+      - `free(pointer)` gives the block back. After that you must not touch it.
+
+      The rule of thumb: **every successful `malloc` gets exactly one `free`**. Use the **Watch it run** link to see the heap block appear, fill, and disappear.
 
       **Your turn:** allocate room for `n` ints.
     fill: |
@@ -45,7 +70,54 @@ steps:
   - title: Size decided at runtime
     id: c-memory-2
     text: |
-      The real power of `malloc`: the size can come from input.
+      The first real payoff of `malloc`: the size can depend on data you only learn while the program runs, such as a count in the input. A stack array would need a guessed maximum; a heap array is exactly as big as needed.
+
+      ```c run
+      #include <stdio.h>
+      #include <stdlib.h>
+
+      int main(void) {
+          int n;
+          scanf("%d", &n);
+          int *vals = malloc(n * sizeof *vals);
+          if (vals == NULL) {
+              return 1;
+          }
+          for (int i = 0; i < n; i++) {
+              scanf("%d", &vals[i]);
+          }
+          int evens = 0;
+          for (int i = 0; i < n; i++) {
+              if (vals[i] % 2 == 0) {
+                  evens++;
+              }
+          }
+          printf("%d of %d are even\n", evens, n);
+          free(vals);
+          return 0;
+      }
+      ```
+
+      ```input
+      5
+      3 8 10 7 4
+      ```
+
+      ```output
+      3 of 5 are even
+      ```
+
+      ### `sizeof *vals`
+
+      `n * sizeof *vals` means "n times the size of whatever `vals` points at". It's the same as `sizeof(int)` here, but it stays correct if you later change the type of `vals` to `long` or `double`, because it follows the pointer's type automatically. Many style guides prefer it for that reason.
+
+      ### Two passes
+
+      Some questions need the data twice: "how many are above the average" needs the average first (one pass to sum), then a second pass to compare each value. That's why the values are stored in an array instead of being processed while reading.
+
+      ### Don't forget `free`
+
+      When `main` returns, the operating system reclaims all memory anyway, so a missing `free` at the very end of `main` does no visible harm. But the habit matters: the same code inside a function that runs thousands of times would leak memory each time. Free what you allocate, always.
 
       **Your turn:** read `n`, then `n` numbers into a heap array. Print how many are **above the average**. Free the array at the end.
 
@@ -100,16 +172,54 @@ steps:
   - title: Return heap memory from a function
     id: c-memory-3
     text: |
-      A stack array dies when its function returns, so returning its address is a bug (a **dangling pointer**):
+      A function's local variables live in its **stack frame**, which is destroyed when the function returns. Returning the address of a local is therefore a serious bug:
 
       ```c
       int *bad(void) {
           int a[3] = {1, 2, 3};
-          return a;       // a is destroyed here!
+          return a;     // a dies right here
       }
       ```
 
-      Heap memory survives until someone frees it, so a function can create it and hand it back. The caller then **owns** it and must `free` it.
+      The caller gets a **dangling pointer**: an address that used to hold the array but now belongs to whatever the program does next. It may look fine at first and then show garbage later. Compilers warn: `function returns address of local variable`.
+
+      Heap memory doesn't have this problem. It lives until someone calls `free`, so a function can create it and return it safely:
+
+      ```c run
+      #include <stdio.h>
+      #include <stdlib.h>
+
+      int *repeat(int value, int n) {
+          int *a = malloc(n * sizeof *a);
+          if (a == NULL) {
+              return NULL;
+          }
+          for (int i = 0; i < n; i++) {
+              a[i] = value;
+          }
+          return a;
+      }
+
+      int main(void) {
+          int *sevens = repeat(7, 3);
+          if (sevens == NULL) {
+              return 1;
+          }
+          printf("%d %d %d\n", sevens[0], sevens[1], sevens[2]);
+          free(sevens);
+          return 0;
+      }
+      ```
+
+      ```output
+      7 7 7
+      ```
+
+      ### Ownership moves to the caller
+
+      `repeat` allocates, but it's `main` that frees. The responsibility for freeing is called **ownership**, and here it passes from the function to its caller along with the pointer. C doesn't track this for you, so it has to be clear from the function's name and documentation that "the caller must free the result".
+
+      If the allocation fails, returning `NULL` passes the problem up to the caller, who is in the best position to decide what to do.
 
       **Your turn:** write `int *range(int n)` returning a new heap array `{0, 1, ..., n-1}`.
     seed: |
@@ -146,8 +256,60 @@ steps:
   - title: calloc and strdup-style copies
     id: c-memory-4
     text: |
-      - `calloc(count, size)` allocates **and zeroes** the memory.
-      - To keep a copy of a string, allocate `strlen(s) + 1` bytes (the +1 is for `'\0'`) and copy it in.
+      ### calloc
+
+      `calloc(count, size)` allocates room for `count` elements of `size` bytes each, and **sets every byte to zero**. Use it when you want a clean starting state, like counters or a grid. It also checks that `count * size` doesn't overflow, which `malloc(count * size)` doesn't.
+
+      ### Copying a string onto the heap
+
+      A very common job: keep your own copy of a string, for example text that came from a temporary buffer. The recipe:
+
+      1. Measure it with `strlen`.
+      2. Allocate `strlen(s) + 1` bytes. The **+1** is for the `'\0'`, and forgetting it is one of the most common bugs in C.
+      3. Copy the characters, including the terminator (`strcpy` or `memcpy` with the +1).
+
+      ```c run
+      #include <stdio.h>
+      #include <stdlib.h>
+      #include <string.h>
+
+      char *shout(const char *s) {
+          size_t n = strlen(s);
+          char *out = malloc(n + 2);
+          if (out == NULL) {
+              return NULL;
+          }
+          memcpy(out, s, n);
+          out[n] = '!';
+          out[n + 1] = '\0';
+          return out;
+      }
+
+      int main(void) {
+          char *msg = shout("hello");
+          if (msg == NULL) {
+              return 1;
+          }
+          printf("%s (%zu chars)\n", msg, strlen(msg));
+          free(msg);
+          int *counts = calloc(3, sizeof *counts);
+          if (counts == NULL) {
+              return 1;
+          }
+          printf("%d %d %d\n", counts[0], counts[1], counts[2]);
+          free(counts);
+          return 0;
+      }
+      ```
+
+      ```output
+      hello! (6 chars)
+      0 0 0
+      ```
+
+      `shout` needs `n + 2` bytes: n characters, the `!`, and the terminator. Counting bytes carefully like this is everyday C.
+
+      (Many systems have `strdup`, which does steps 1 to 3 for you. It's standard since C23, but writing it yourself is good practice.)
 
       **Your turn:** write `char *copy_string(const char *s)` that returns a new heap copy of `s`.
     seed: |
@@ -189,15 +351,47 @@ steps:
   - title: Growing with realloc
     id: c-memory-5
     text: |
-      `realloc(p, new_size)` resizes a heap block, keeping the old contents. It may move the block, so always use the pointer it returns:
+      What if you don't know how many values are coming, not even at run time? The answer is a **growable array**: start with a small heap block, and when it fills up, make it bigger. `realloc` does the resizing.
 
-      ```c
-      int *tmp = realloc(a, new_cap * sizeof(int));
-      if (tmp == NULL) { /* a is still valid */ }
-      a = tmp;
+      `realloc(ptr, new_size)` returns a pointer to a block of the new size that holds the old contents. It may grow the block where it is, or it may allocate a new block elsewhere, copy everything over, and free the old one. So:
+
+      - **Always use the pointer `realloc` returns.** The old one may now be invalid.
+      - If it fails, it returns `NULL` and the **old block is untouched**. So store the result in a temporary first. Writing `a = realloc(a, ...)` directly would overwrite your only pointer with `NULL` on failure, leaking the old block.
+
+      ```c run
+      #include <stdio.h>
+      #include <stdlib.h>
+
+      int main(void) {
+          int cap = 1, len = 0;
+          char *text = malloc(cap);
+          if (!text) return 1;
+          const char *word = "growing";
+          for (int i = 0; word[i] != '\0'; i++) {
+              if (len + 1 >= cap) {
+                  char *bigger = realloc(text, cap * 2);
+                  if (!bigger) { free(text); return 1; }
+                  text = bigger;
+                  cap *= 2;
+              }
+              text[len++] = word[i];
+          }
+          text[len] = '\0';
+          printf("%s, capacity %d\n", text, cap);
+          free(text);
+          return 0;
+      }
       ```
 
-      Growing by **doubling** the capacity keeps it fast even for many pushes.
+      ```output
+      growing, capacity 8
+      ```
+
+      ### Why double?
+
+      Growing by one element each time would copy the whole array on every push, which gets very slow for big arrays. **Doubling** the capacity means copies become rarer as the array grows, so on average each push is cheap (this is called **amortized O(1)**). C++'s `std::vector` and almost every dynamic array in other languages work this way.
+
+      Keep two numbers: **length** (how many are used) and **capacity** (how many fit). Grow only when length reaches capacity.
 
       **Your turn:** read integers until the end of input (you don't know how many!) into a heap array that starts with capacity 2 and doubles when full. Print how many you read, the capacity at the end, and the last number:
 
@@ -258,16 +452,53 @@ steps:
   - title: Memory bugs to avoid
     id: c-memory-6
     text: |
-      The classic heap mistakes, which C won't catch for you:
+      Heap memory gives you power and responsibility. C doesn't check any of the following, and none of them reliably crash, which is exactly what makes them dangerous: the program may work in testing and fail later, far from the real mistake.
 
       | Bug | What happens |
       |---|---|
-      | **Leak** | forgetting `free`; memory is lost until the program exits |
-      | **Use after free** | using a pointer after `free`; it may point at reused memory |
-      | **Double free** | freeing twice; corrupts the allocator |
-      | **Out of bounds** | writing past the end; silently corrupts neighbours |
+      | **Leak** | You lose the last pointer to a block without freeing it. The memory is wasted until the program ends. |
+      | **Use after free** | You read or write through a pointer after `free`. The memory may already hold something else. |
+      | **Double free** | You free the same block twice, which corrupts the allocator's bookkeeping. |
+      | **Buffer overflow** | You write past the end of a block, silently overwriting neighboring data. Often caused by forgetting the +1 for `'\0'`. |
 
-      A good habit: set a pointer to `NULL` right after freeing it. `free(NULL)` is safe and does nothing.
+      ### Habits that prevent them
+
+      - Compute sizes carefully: for strings, **length + 1**.
+      - Free temporaries as soon as you're done with them, on every path through the function.
+      - Set a pointer to `NULL` right after freeing it. `free(NULL)` does nothing, so a second free becomes harmless, and an accidental use crashes immediately instead of corrupting memory.
+      - Use tools: compile with `-fsanitize=address` (AddressSanitizer) or run under Valgrind on your own machine, and they report the exact line.
+
+      ```c run
+      #include <stdio.h>
+      #include <stdlib.h>
+      #include <string.h>
+
+      char *label(const char *name, int number) {
+          size_t n = strlen(name) + 1 + 10 + 1;
+          char *out = malloc(n);
+          if (out == NULL) {
+              return NULL;
+          }
+          snprintf(out, n, "%s#%d", name, number);
+          return out;
+      }
+
+      int main(void) {
+          char *a = label("player", 42);
+          if (a == NULL) return 1;
+          printf("%s\n", a);
+          free(a);
+          a = NULL;
+          free(a);
+          return 0;
+      }
+      ```
+
+      ```output
+      player#42
+      ```
+
+      `label` sizes its buffer for the name, the `#`, up to 10 digits, and the terminator, and `snprintf` can never write past `n` bytes. The second `free(a)` is harmless because `a` was set to `NULL`.
 
       **Your turn:** this function should build a message but it has two memory bugs (a missing `+ 1` for the terminator, and a leak of `tmp`). Fix both so it returns `"gg wp"` correctly.
     seed: |
@@ -320,7 +551,7 @@ steps:
   - title: A 2D grid on the heap
     id: c-memory-7
     text: |
-      When a grid's size is only known at runtime, a common layout is an **array of row pointers**, each row its own allocation:
+      Sometimes you need a 2D grid whose size is only known at run time, like a game board read from input. A common way to build one is an **array of row pointers**: first allocate an array of pointers (one per row), then allocate each row separately.
 
       ```
       grid ──> [ row0 ] ──> [ 0 0 0 0 ]
@@ -328,15 +559,45 @@ steps:
                [ row2 ] ──> [ 0 0 0 0 ]
       ```
 
-      ```c
-      int **g = malloc(rows * sizeof *g);        // the row pointers
-      for (int r = 0; r < rows; r++)
-          g[r] = calloc(cols, sizeof *g[r]);     // each row, zeroed
+      `grid` has type `int **`: a pointer to the first of several `int *`, each pointing at a row of ints. `grid[r]` is row `r` (an `int *`), and `grid[r][c]` is a cell, just like a normal 2D array.
+
+      ```c run
+      #include <stdio.h>
+      #include <stdlib.h>
+
+      int main(void) {
+          int rows = 2, cols = 3;
+          double **m = malloc(rows * sizeof *m);
+          if (!m) return 1;
+          for (int r = 0; r < rows; r++) {
+              m[r] = malloc(cols * sizeof *m[r]);
+              if (!m[r]) {
+                  for (int k = 0; k < r; k++) free(m[k]);
+                  free(m);
+                  return 1;
+              }
+              for (int c = 0; c < cols; c++) m[r][c] = r + c / 10.0;
+          }
+          printf("%.1f %.1f\n", m[0][2], m[1][1]);
+          for (int r = 0; r < rows; r++) free(m[r]);
+          free(m);
+          return 0;
+      }
       ```
 
-      `sizeof *g` means "the size of whatever g points at". It stays correct even if you change the type later, which is why many style guides prefer it.
+      ```output
+      0.2 1.1
+      ```
 
-      Freeing goes in reverse: every row first, then the array of pointers. If any allocation fails halfway, free what you already allocated and return `NULL`.
+      ### Cleaning up
+
+      Free in **reverse order of creation**: every row first, then the array of row pointers. If you freed `m` first, you'd lose the pointers to the rows and leak them all.
+
+      ### When an allocation fails halfway
+
+      If row 2 of 5 fails, rows 0 and 1 are already allocated. Returning `NULL` without freeing them would leak. The example handles it: free every row made so far, then the pointer array, then report failure. Handling partial failure is a big part of writing robust C.
+
+      (Another layout is one big block of `rows * cols` cells indexed as `cells[r * cols + c]`: a single allocation and faster, but less convenient.)
 
       **Your turn:** write `make_grid` (all cells zero) and `free_grid`.
     seed: |
@@ -403,15 +664,63 @@ steps:
   - title: Who owns what
     id: c-memory-8
     text: |
-      C has no garbage collector, so every heap pointer needs an **owner**: the one piece of code responsible for freeing it. Professional C code writes this down in a comment next to each function:
+      C has no garbage collector, so for every heap block, some code must be responsible for freeing it: its **owner**. Most memory bugs come from confusion about ownership: two parts of the program each thinking the other will free something (a leak), or both freeing it (a double free).
+
+      Professional C code makes ownership explicit, usually in a comment next to the function:
 
       ```c
-      /* Returns a new array of new strings. The caller owns both:
-         free each word, then the array, or call free_words(). */
-      char **split_words(const char *s, int *count);
+      /* Returns a new string. The caller owns it and must free() it. */
+      char *read_name(void);
+
+      /* Borrows s: does not keep or free it. */
+      int count_vowels(const char *s);
       ```
 
-      A function that allocates something nested usually ships a matching "free" function, so callers can't get the order wrong.
+      When a function returns something **nested** (an array of separately allocated strings, a tree of nodes), freeing it correctly requires several steps in the right order. Good libraries provide a matching free function so callers can't get it wrong.
+
+      ```c run
+      #include <stdio.h>
+      #include <stdlib.h>
+      #include <string.h>
+
+      /* Returns n heap copies of s in a heap array. Release with free_copies(). */
+      char **copies(const char *s, int n) {
+          char **out = malloc(n * sizeof *out);
+          if (!out) return NULL;
+          for (int i = 0; i < n; i++) {
+              out[i] = malloc(strlen(s) + 1);
+              if (!out[i]) {
+                  while (i > 0) free(out[--i]);
+                  free(out);
+                  return NULL;
+              }
+              strcpy(out[i], s);
+          }
+          return out;
+      }
+
+      void free_copies(char **list, int n) {
+          for (int i = 0; i < n; i++) free(list[i]);
+          free(list);
+      }
+
+      int main(void) {
+          char **c = copies("hi", 3);
+          if (!c) return 1;
+          c[1][0] = 'H';
+          printf("%s %s %s\n", c[0], c[1], c[2]);
+          free_copies(c, 3);
+          return 0;
+      }
+      ```
+
+      ```output
+      hi Hi hi
+      ```
+
+      ### Splitting a string
+
+      To split on spaces, walk the string, find where each word starts and ends, allocate `length + 1` bytes for it, copy the characters with `memcpy`, and add the `'\0'`. Count the words first (spaces + 1 for a non-empty string) so you know how big the array of pointers must be, or grow it with `realloc` as you go.
 
       **Your turn:** write `split_words`. It splits `s` on single spaces into separately allocated strings, stores how many in `*count`, and returns the array. Then write `free_words`. You can assume words are separated by exactly one space and `s` has no leading or trailing spaces. An empty string has 0 words (you may return `NULL` then).
     seed: |
@@ -487,15 +796,52 @@ steps:
   - title: "Challenge: a string builder"
     id: c-memory-9
     text: |
-      Building a long string with repeated `strcat` into a fixed buffer is how buffer overflows happen. Real C code uses a **string builder**: a struct that owns a growing heap buffer.
+      This challenge brings the whole module together: a struct that **owns** a growing heap buffer, with functions to create, use and destroy it. This is how real C libraries are designed.
+
+      Building text with repeated `strcat` into a fixed-size array is how buffer overflows happen. A **string builder** instead keeps:
 
       ```c
       typedef struct {
-          char *buf;   /* always '\0'-terminated once initialized */
+          char *buf;   /* the text, always '\0'-terminated */
           size_t len;  /* characters used, not counting '\0' */
           size_t cap;  /* bytes allocated */
       } Builder;
       ```
+
+      ### Invariants
+
+      An **invariant** is a rule that's always true between calls. For the builder: `buf` holds `len` characters followed by `'\0'`, and `len + 1 <= cap`. Every function may rely on it at the start and must restore it before returning. Writing invariants down makes this kind of code much easier to get right.
+
+      ### Appending
+
+      To append `s` (of length `n`), you need `len + n + 1` bytes. If `cap` is smaller, keep doubling a **new** capacity until it's enough, `realloc` to it, and only then update the struct. If `realloc` fails, return an error and leave everything as it was (the old buffer is still valid). Then `memcpy` the new characters (plus the terminator) to `buf + len`, and update `len`.
+
+      Here's the same "grow by doubling until it fits" calculation on its own:
+
+      ```c run
+      #include <stdio.h>
+      #include <stddef.h>
+
+      size_t grown(size_t cap, size_t needed) {
+          while (cap < needed) {
+              cap *= 2;
+          }
+          return cap;
+      }
+
+      int main(void) {
+          printf("%zu %zu %zu\n", grown(8, 5), grown(8, 9), grown(8, 70));
+          return 0;
+      }
+      ```
+
+      ```output
+      8 16 128
+      ```
+
+      ### Lifecycle
+
+      `sb_init` must be called before use and `sb_free` after, exactly like `malloc` and `free`. After freeing, reset the fields (`buf = NULL`, `len = cap = 0`) so an accidental second `sb_free` is harmless.
 
       **Your turn:** write the four functions:
 

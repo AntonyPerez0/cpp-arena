@@ -68,6 +68,10 @@ export default function Workbench({ ex, initialCode, initialBlanks, hintsUsed, o
     try {
       const r = await grade(ex, source);
       setResult(r);
+      // The editor fills the screen on desktop, so bring the results into view.
+      requestAnimationFrame(() =>
+        boxRef.current?.querySelector(".results")?.scrollIntoView({ block: "nearest", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }),
+      );
       setAttempts((a) => a + 1);
       if (r.status === "pass") onPass({ hintsUsed, sawSolution });
     } finally {

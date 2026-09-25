@@ -1,7 +1,17 @@
 import { useMemo } from "react";
 import { marked } from "marked";
+import { highlightHtml } from "./highlight";
 
 marked.setOptions({ gfm: true, breaks: false });
+// C and C++ code blocks get the same colors as the rest of the site.
+marked.use({
+  renderer: {
+    code({ text, lang }) {
+      if (lang !== "c" && lang !== "cpp") return false;
+      return `<pre><code class="language-${lang}">${highlightHtml(text)}</code></pre>\n`;
+    },
+  },
+});
 
 /** Renders trusted lesson markdown (content is authored in this repo). */
 export default function Markdown({ text, className = "" }: { text: string; className?: string }) {

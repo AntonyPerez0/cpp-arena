@@ -7,13 +7,39 @@ steps:
   - title: Arithmetic
     id: c-ops-1
     text: |
-      C has the usual math operators: `+`, `-`, `*` (multiply) and `/` (divide).
+      C has the arithmetic operators you know: `+` (add), `-` (subtract), `*` (multiply) and `/` (divide). An **expression** combines values, variables and operators, and C works out (**evaluates**) its value.
 
-      ```c
-      int total = 12 * 3 + 4;   // 40
+      ```c run
+      #include <stdio.h>
+
+      int main(void) {
+          int a = 12 * 3 + 4;
+          int b = 12 * (3 + 4);
+          int c = 20 - 5 - 3;
+          printf("%d %d %d\n", a, b, c);
+          return 0;
+      }
       ```
 
-      Multiplication and division happen before addition and subtraction, just like in school math. Parentheses change the order: `12 * (3 + 4)` is 84.
+      ```output
+      40 84 12
+      ```
+
+      ### Order of operations
+
+      C follows the same rules as school math. This order is called **precedence**:
+
+      1. Parentheses first.
+      2. Then `*`, `/` and `%` (which you'll meet soon).
+      3. Then `+` and `-`.
+
+      When operators have the same precedence, they go **left to right**: `20 - 5 - 3` is `(20 - 5) - 3`, which is 12, not `20 - (5 - 3)`.
+
+      So `12 * 3 + 4` multiplies first (36) and then adds (40). If you want the addition first, add parentheses. When you're not sure, add parentheses anyway: they cost nothing and make the intent obvious to the next reader.
+
+      ### Using variables in expressions
+
+      Expressions can mix numbers and variables. `price * quantity + shipping` reads the current values of the variables at the moment the line runs.
 
       **Your turn:** make the program print `Damage: 96` by filling in the operators. Base damage is 30, the multiplier is 4, armor absorbs 24.
     fill: |
@@ -35,14 +61,45 @@ steps:
   - title: The integer division trap
     id: c-ops-2
     text: |
-      When **both** sides of `/` are `int`, C does integer division: the fraction is thrown away (not rounded).
+      This is one of the most famous traps in C. When **both** sides of `/` are integers, C does **integer division**: it divides and throws the fractional part away. It doesn't round; it just cuts it off (truncates toward zero).
 
-      ```c
-      printf("%d\n", 7 / 2);      // 3, not 3.5
-      printf("%f\n", 7.0 / 2);    // 3.500000
+      ```c run
+      #include <stdio.h>
+
+      int main(void) {
+          printf("%d\n", 7 / 2);
+          printf("%d\n", 99 / 100);
+          printf("%f\n", 7.0 / 2);
+          printf("%f\n", (double)7 / 2);
+          return 0;
+      }
       ```
 
-      If either side is a `double`, you get a real division.
+      ```output
+      3
+      0
+      3.500000
+      3.500000
+      ```
+
+      ### Why storing into a double doesn't help
+
+      ```c
+      double avg = 7 / 2;   // avg is 3.0, not 3.5
+      ```
+
+      C works out the right side **first**, using only what's on the right. `7 / 2` is int divided by int, so it becomes 3. Only then is 3 converted to a `double` and stored. The destination's type is never considered while the expression is being evaluated.
+
+      ### How to get a real division
+
+      If **either** side of `/` is a `double`, C converts the other side too and does a real division. You can:
+
+      - write a decimal literal: `7.0 / 2`
+      - **cast** a variable, which means converting its value to another type for this expression: `(double)kills / rounds`
+
+      A cast is written as the type in parentheses before the value. `(double)kills` doesn't change the variable `kills`; it produces a `double` copy of its value for this calculation.
+
+      Put the cast on one of the operands, not around the whole division: `(double)(kills / rounds)` still does the integer division first, and then converts the already-truncated answer.
 
       **Your turn:** 25 kills over 10 rounds should print `Kills per round: 2.50`. Right now it prints `2.00`. Fix the calculation of `kpr` so it does a real division.
     seed: |
@@ -74,14 +131,35 @@ steps:
   - title: Remainder with %
     id: c-ops-3
     text: |
-      `%` (modulo) gives the **remainder** of an integer division.
+      The `%` operator (called **modulo** or remainder) gives what's **left over** after an integer division.
 
-      ```c
-      17 / 5   // 3
-      17 % 5   // 2   (17 = 3*5 + 2)
+      ```c run
+      #include <stdio.h>
+
+      int main(void) {
+          printf("%d %d\n", 17 / 5, 17 % 5);
+          printf("%d %d\n", 20 / 5, 20 % 5);
+          printf("%d\n", 9 % 2);
+          return 0;
+      }
       ```
 
-      It's great for "is this even?" (`n % 2 == 0`) and for splitting units.
+      ```output
+      3 2
+      4 0
+      1
+      ```
+
+      17 divided by 5 is 3 with 2 left over (3 times 5 is 15, and 17 minus 15 is 2). `/` gives the 3 and `%` gives the 2. Together they always satisfy `(a / b) * b + a % b == a`.
+
+      ### What it's good for
+
+      - **Even or odd:** `n % 2` is 0 for even numbers and 1 for odd ones.
+      - **Every Nth time:** `i % 10 == 0` is true for 0, 10, 20 and so on.
+      - **Wrapping around:** `(hour + 5) % 24` keeps a clock hour between 0 and 23.
+      - **Splitting units:** 135 cents is `135 / 100` dollars and `135 % 100` cents. The same trick splits seconds into hours, minutes and seconds.
+
+      `%` only works on integers. For doubles there's a library function called `fmod`, but you'll rarely need it.
 
       **Your turn:** a match lasted `754` seconds. Print it as minutes and seconds: `12 min 34 sec`.
     seed: |
@@ -116,15 +194,45 @@ steps:
   - title: Shorthand operators
     id: c-ops-4
     text: |
-      Updating a variable with itself is so common that C has shortcuts:
+      Changing a variable based on its own value is so common that C has shortcuts for it. These **compound assignment** operators do the math and store the result in one step:
 
       | Shorthand | Means |
       |---|---|
       | `x += 5;` | `x = x + 5;` |
       | `x -= 5;` | `x = x - 5;` |
       | `x *= 2;` | `x = x * 2;` |
-      | `x++;` | `x = x + 1;` |
-      | `x--;` | `x = x - 1;` |
+      | `x /= 2;` | `x = x / 2;` |
+      | `x %= 3;` | `x = x % 3;` |
+      | `x++;` | `x = x + 1;` (increment) |
+      | `x--;` | `x = x - 1;` (decrement) |
+
+      ```c run
+      #include <stdio.h>
+
+      int main(void) {
+          int gold = 10;
+          gold += 15;
+          printf("%d\n", gold);
+          gold /= 5;
+          printf("%d\n", gold);
+          gold--;
+          printf("%d\n", gold);
+          return 0;
+      }
+      ```
+
+      ```output
+      25
+      5
+      4
+      ```
+
+      The shorthand means exactly the same as the long form; it's just shorter and harder to mistype (you don't have to repeat a long variable name). `++` and `--` are everywhere in C, especially for counting in loops, which is where the name C++ comes from: "C, plus one".
+
+      ### Common mistakes
+
+      - `x =+ 5;` (the characters swapped) is valid C, but it means `x = +5;`, which sets `x` to 5. The operator is `+=`.
+      - There's no `**` power operator. For powers you multiply, or use the `pow` function from `<math.h>`.
 
       **Your turn:** fill in the shorthand operators so the program prints `Streak: 12`.
     fill: |
@@ -147,16 +255,34 @@ steps:
   - title: Prefix vs postfix ++
     id: c-ops-5
     text: |
-      `x++` and `++x` both add 1 to `x`, but they differ when used inside a bigger expression:
+      Used on a line by itself, `x++;` and `++x;` do the same thing: add 1 to `x`. They only differ when the result is **used inside a bigger expression**, because the expression gets a value from them:
 
-      - `x++` (postfix) gives the **old** value, then increments.
-      - `++x` (prefix) increments first, then gives the **new** value.
+      - `x++` (**postfix**) gives the **old** value of `x`, then increments it.
+      - `++x` (**prefix**) increments `x` first, then gives the **new** value.
 
-      ```c
-      int a = 5;
-      int b = a++;   // b = 5, a = 6
-      int c = ++a;   // a = 7, c = 7
+      ```c run
+      #include <stdio.h>
+
+      int main(void) {
+          int n = 10;
+          int first = n++;
+          printf("first=%d n=%d\n", first, n);
+          int second = ++n;
+          printf("second=%d n=%d\n", second, n);
+          return 0;
+      }
       ```
+
+      ```output
+      first=10 n=11
+      second=12 n=12
+      ```
+
+      Walk through it: `first = n++` copies the old value (10) into `first`, then `n` becomes 11. `second = ++n` bumps `n` to 12 first, then copies 12 into `second`.
+
+      ### Keep it simple
+
+      This rule matters for reading other people's code, but in your own code prefer to keep `++` on its own line. Expressions that change a variable and also use it again, like `n = n++ + 1` or `printf("%d %d", n, n++)`, are **undefined behavior** in C: the language doesn't say what happens, and different compilers give different results. Change a variable at most once per statement and you'll never hit this.
 
       **Your turn:** make the program print `5 7 7` by choosing prefix or postfix for each blank. The variable `a` starts at 5.
     fill: |
@@ -178,9 +304,40 @@ steps:
   - title: Put it together
     id: c-ops-6
     text: |
-      Time to write a small calculation on your own.
+      Time to put the module together and write a calculation from scratch. Here's how to approach a small task like this, which is the same process you'll use for much bigger ones:
 
-      A player's **ADR** (average damage per round) is total damage divided by rounds played. Given the variables below, print:
+      1. **Read what the output must be**, character by character.
+      2. **Name the values you need.** What goes into the answer? Give each intermediate result its own variable with a clear name.
+      3. **Choose types.** Counts and sums of whole numbers are `int`. Averages and ratios are usually `double`.
+      4. **Watch for integer division.** If you divide two ints and want decimals, cast one side.
+      5. **Print with the right specifiers:** `%d` for `int`, `%.2f` for a `double` with two decimals.
+
+      Here's a similar calculation, fully worked:
+
+      ```c run
+      #include <stdio.h>
+
+      int main(void) {
+          int quiz1 = 18;
+          int quiz2 = 15;
+          int quiz3 = 19;
+          int quizzes = 3;
+          int total = quiz1 + quiz2 + quiz3;
+          double average = (double)total / quizzes;
+          printf("Total points: %d\n", total);
+          printf("Average: %.2f\n", average);
+          return 0;
+      }
+      ```
+
+      ```output
+      Total points: 52
+      Average: 17.33
+      ```
+
+      Notice `total` is computed once and then reused for both lines. Storing intermediate results in well-named variables makes code easier to read and to check.
+
+      **Your turn:** a player's **ADR** (average damage per round) is total damage divided by rounds played. Given the variables below, print:
 
       ```
       Total damage: 2090

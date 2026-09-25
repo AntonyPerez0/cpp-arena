@@ -7,19 +7,47 @@ steps:
   - title: Your first variable
     id: c-vars-1
     text: |
-      A **variable** is a named box that holds a value. In C you must say what *type* of value goes in the box.
+      So far the program only printed fixed text. Real programs work with **data** that changes: scores, prices, names. To keep a piece of data around, you store it in a **variable**.
+
+      A variable is a named box in the computer's memory. In C, every box has a **type** that says what kind of value it can hold, and the type never changes. You create (declare) a variable by writing the type, then the name:
 
       ```c
       int kills = 25;
       ```
 
-      This creates a box named `kills` that holds an `int` (a whole number) and puts `25` in it.
+      - `int` is the type: a whole number (an **int**eger) such as `-3`, `0` or `25`.
+      - `kills` is the name you'll use to refer to the box.
+      - `= 25` puts a starting value in it. This is called **initializing** the variable.
 
-      To print it, `printf` needs a **format specifier** where the value should go. For an `int` that's `%d`:
+      ### Printing a variable
 
-      ```c
-      printf("Kills: %d\n", kills);
+      `printf` can't print a number directly inside the quotes, because the text in quotes is fixed. Instead you put a **format specifier** where the value should appear, and give the value after the string. For an `int` the specifier is `%d` (for **d**ecimal):
+
+      ```c run
+      #include <stdio.h>
+
+      int main(void) {
+          int kills = 25;
+          int rounds = 16;
+          printf("Kills: %d\n", kills);
+          printf("Rounds played: %d\n", rounds);
+          return 0;
+      }
       ```
+
+      ```output
+      Kills: 25
+      Rounds played: 16
+      ```
+
+      ### Naming rules
+
+      Names can use letters, digits and underscores, but can't start with a digit, and can't be a C keyword like `int` or `return`. Names are case sensitive: `score` and `Score` are different variables. Pick names that say what the value means: `total_price` beats `x`.
+
+      ### Common mistakes
+
+      - **Using a variable before declaring it:** the compiler says `'score' undeclared`.
+      - **Forgetting to initialize:** `int score;` holds garbage (whatever was in that memory before) until you assign a value. Always give variables a starting value.
 
       **Your turn:** declare an `int` named `score` with the value `42`.
     fill: |
@@ -38,12 +66,35 @@ steps:
   - title: Printing values with %d
     id: c-vars-2
     text: |
-      `printf` replaces each `%d` with the next value after the format string, in order.
+      One `printf` call can print several values. It works through the format string from left to right, and each `%d` is replaced by the **next** value in the list after the string, in order.
 
-      ```c
-      int a = 3, b = 4;
-      printf("%d + %d\n", a, b);   // prints 3 + 4
+      ```c run
+      #include <stdio.h>
+
+      int main(void) {
+          int wins = 7;
+          int losses = 3;
+          printf("Record: %d-%d\n", wins, losses);
+          printf("%d games played\n", wins + losses);
+          return 0;
+      }
       ```
+
+      ```output
+      Record: 7-3
+      10 games played
+      ```
+
+      Notice that the thing after the comma doesn't have to be a single variable: `wins + losses` is an **expression**, and C works out its value (10) before printing it.
+
+      ### The list must match
+
+      `printf` trusts you. It doesn't check that the number of `%d`s matches the number of values, or that the values really are `int`s. If they don't match, the output is garbage or the program misbehaves. The compiler warns about it (`format '%d' expects a matching 'int' argument`), which is one reason to always read warnings.
+
+      - Two `%d` need two values, in the order you want them to appear.
+      - Swapping the values swaps the output: `printf("%d-%d\n", losses, wins)` prints `3-7`.
+
+      Everything in the format string that isn't a `%` code is printed as is, including spaces, slashes and punctuation.
 
       **Your turn:** complete the `printf` so it prints `K/D: 20/5`.
     fill: |
@@ -63,14 +114,40 @@ steps:
   - title: Changing a variable
     id: c-vars-3
     text: |
-      A variable can be given a new value with `=`. The old value is replaced.
+      Variables are called variables because they can **vary**: you can store a new value in one at any time with `=`. The old value is thrown away and replaced.
 
-      ```c
-      int hp = 100;
-      hp = hp - 27;     // now 73
+      ```c run
+      #include <stdio.h>
+
+      int main(void) {
+          int hp = 100;
+          printf("Start: %d\n", hp);
+          hp = hp - 27;
+          printf("After a hit: %d\n", hp);
+          hp = 100;
+          printf("Healed: %d\n", hp);
+          return 0;
+      }
       ```
 
-      Read `hp = hp - 27` as: take the current value of `hp`, subtract 27, and store the result back in `hp`.
+      ```output
+      Start: 100
+      After a hit: 73
+      Healed: 100
+      ```
+
+      ### `=` is not "equals"
+
+      In math, `hp = hp - 27` would be impossible. In C, `=` means **assign**: "work out the value on the right, then store it in the box on the left". So `hp = hp - 27` runs in two stages:
+
+      1. Read the current value of `hp` (100) and subtract 27, giving 73.
+      2. Store 73 into `hp`, replacing 100.
+
+      The right side is always worked out completely before anything is stored, which is why a variable can appear on both sides.
+
+      ### Declaring vs assigning
+
+      `int hp = 100;` **creates** the box (with its type) and fills it. Later lines just write `hp = ...;` without `int`. Writing `int hp` again in the same place would try to create a second box with the same name, and the compiler reports `redefinition of 'hp'`.
 
       **Your turn:** the player has `3200` money and buys a rifle for `2700`. Subtract the price from `money` so the program prints `Money left: 500`.
     seed: |
@@ -104,15 +181,39 @@ steps:
   - title: Decimals with double
     id: c-vars-4
     text: |
-      `int` can't hold fractions. For numbers with a decimal point use `double`, and print it with `%f`.
+      An `int` can only hold whole numbers. If you need a fraction, like an accuracy of 0.625 or a price of 19.99, use the type `double` (short for "double-precision floating point"). Print a `double` with `%f`.
 
-      ```c
-      double accuracy = 0.625;
-      printf("%f\n", accuracy);    // 0.625000
-      printf("%.2f\n", accuracy);  // 0.63 (rounded to 2 places)
+      ```c run
+      #include <stdio.h>
+
+      int main(void) {
+          double accuracy = 0.625;
+          double price = 19.5;
+          printf("%f\n", accuracy);
+          printf("%.2f\n", accuracy);
+          printf("%.1f\n", price);
+          return 0;
+      }
       ```
 
-      `%.2f` means "two digits after the decimal point".
+      ```output
+      0.625000
+      0.62
+      19.5
+      ```
+
+      ### Controlling decimals
+
+      Plain `%f` always shows six digits after the decimal point. Put `.N` between the `%` and the `f` to choose how many: `%.2f` shows two, `%.0f` shows none. The value is **rounded** for printing (0.625 can print as 0.62 or 0.63 depending on how it's stored exactly); the variable itself isn't changed.
+
+      ### How exact are doubles?
+
+      A `double` stores about 15 to 16 significant digits, which is plenty for most things, but it stores numbers in binary, so many decimal fractions (like 0.1) are tiny approximations. That's why you should never use `double` for money in real software: store cents in an integer instead. For scores, ratios and measurements, `double` is the right choice.
+
+      ### Common mistakes
+
+      - Printing a `double` with `%d` (or an `int` with `%f`) prints nonsense. The specifier must match the type.
+      - Writing `double x = 7 / 2;` still gives 3.0, because `7 / 2` is worked out with ints first. You'll dig into that in the next module.
 
       **Your turn:** store `1.25` in a `double` named `rating` and print it with exactly two decimals so the output is `Rating: 1.25`.
     fill: |
@@ -131,16 +232,40 @@ steps:
   - title: Characters with char
     id: c-vars-5
     text: |
-      A `char` holds a single character, written in **single** quotes: `'A'`. Double quotes make a string, which is a different thing.
+      A `char` holds a **single character**, such as a letter, digit or symbol. Character values are written in **single** quotes: `'A'`, `'7'`, `'?'`. Double quotes mean something different: `"A"` is a *string* (text that can have many characters), which you'll meet properly later.
 
       Print a `char` with `%c`:
 
-      ```c
-      char grade = 'B';
-      printf("Grade: %c\n", grade);
+      ```c run
+      #include <stdio.h>
+
+      int main(void) {
+          char grade = 'B';
+          char next = grade + 1;
+          printf("Grade: %c\n", grade);
+          printf("Next: %c\n", next);
+          printf("As a number: %d\n", grade);
+          return 0;
+      }
       ```
 
-      Under the hood a `char` is a small number (its ASCII code), so `'A'` is 65. Printing a char with `%d` shows that number.
+      ```output
+      Grade: B
+      Next: C
+      As a number: 66
+      ```
+
+      ### Characters are numbers
+
+      Computers only store numbers, so every character has a numeric code. The standard table is called **ASCII**: `'A'` is 65, `'B'` is 66, `'a'` is 97, `'0'` is 48, and a space is 32. A `char` is really a small integer (one byte), and C lets you do arithmetic on it, which is why `grade + 1` gives `'C'`.
+
+      What you see depends on how you print it: `%c` shows the character, `%d` shows its code. It's the same value either way.
+
+      ### Common mistakes
+
+      - `char c = "A";` (double quotes) is an error: that's a string, not a character.
+      - `'AB'` isn't one character. A `char` holds exactly one.
+      - `'7'` (the character, code 55) is not the number `7`.
 
       **Your turn:** write a program that stores the letter `T` in a `char` named `team`, then prints two lines:
 
@@ -181,13 +306,41 @@ steps:
   - title: Constants and sizeof
     id: c-vars-6
     text: |
-      Put `const` in front of a declaration to make a variable read-only. Trying to change it later is a compile error, which protects you from accidents.
+      ### Constants
+
+      Some values should never change while the program runs: the number of players on a team, the length of a round, a tax rate. Put `const` in front of the declaration to make the variable **read-only**:
 
       ```c
       const int MAX_PLAYERS = 10;
+      MAX_PLAYERS = 12;   // error: assignment of read-only variable
       ```
 
-      `sizeof` tells you how many bytes a type uses. On this site (and most machines) `int` is 4 bytes, `double` is 8 and `char` is always 1. Print a size with `%zu`.
+      If any later line tries to change it, the program doesn't compile. That turns a silent bug into an error you see immediately. It also documents your intent: a reader knows this value is fixed. Many programmers write constant names in `UPPER_CASE` so they stand out.
+
+      ### sizeof
+
+      Every type takes up a fixed number of **bytes** of memory. The `sizeof` operator tells you how many:
+
+      ```c run
+      #include <stdio.h>
+
+      int main(void) {
+          printf("char: %zu\n", sizeof(char));
+          printf("double: %zu\n", sizeof(double));
+          printf("long long: %zu\n", sizeof(long long));
+          return 0;
+      }
+      ```
+
+      ```output
+      char: 1
+      double: 8
+      long long: 8
+      ```
+
+      `sizeof` gives a value of a special unsigned type called `size_t`, and the matching `printf` specifier is `%zu`. A `char` is 1 byte by definition. The others depend on the machine, but on this site and on almost every modern computer an `int` is 4 bytes (so it can hold values up to about 2.1 billion) and a `double` is 8.
+
+      Knowing sizes matters once you work with memory directly, which you'll do with arrays and pointers.
 
       **Your turn:** declare a constant `int` named `ROUND_TIME` equal to `115`, and print:
 

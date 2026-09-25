@@ -7,16 +7,41 @@ steps:
   - title: Functions have addresses
     id: c-funcptr-1
     text: |
-      A function lives in memory like everything else, so you can store its address in a **function pointer** and call it later:
+      Functions live in memory too. The compiled machine code of a function sits at some address, and just as you can store the address of an `int` in a pointer, you can store the address of a function in a **function pointer** and call the function through it later. This lets a program choose **which** function to run while it's running, and it's the foundation of callbacks, plugins and dispatch tables.
 
-      ```c
-      int add(int a, int b) { return a + b; }
+      ```c run
+      #include <stdio.h>
 
-      int (*op)(int, int) = add;   // op points at add
-      printf("%d\n", op(2, 3));    // 5
+      double half(double x) { return x / 2; }
+      double twice(double x) { return x * 2; }
+
+      int main(void) {
+          double (*f)(double) = half;
+          printf("%.1f\n", f(9));
+          f = twice;
+          printf("%.1f\n", f(9));
+          double (*pick[2])(double) = {half, twice};
+          printf("%.1f\n", pick[1](pick[0](10)));
+          return 0;
+      }
       ```
 
-      Read `int (*op)(int, int)` as: "op is a pointer to a function taking (int, int) and returning int". The parentheses around `*op` matter: without them, `int *op(int, int)` declares a *function* returning `int *`.
+      ```output
+      4.5
+      18.0
+      10.0
+      ```
+
+      ### Reading the declaration
+
+      `double (*f)(double)` reads from the name outward: `f` is a **pointer** (`*f`, in parentheses) to a **function taking a double** (`(double)`) and **returning a double**. The parentheses around `*f` are essential. Without them, `double *f(double)` declares a *function* named `f` that returns a `double *`.
+
+      ### Using them
+
+      - A function's name used without calling it (`half`, not `half()`) gives its address. You can also write `&half`; it means the same.
+      - Call through the pointer exactly like a normal function: `f(9)`. (The old style `(*f)(9)` also works.)
+      - The pointer's type must match the function's signature: parameter types and return type.
+      - `pick` is an **array** of function pointers, which is the basis of the dispatch tables coming up in step 3.
 
       **Your turn:** point `op` at `sub` and call it.
     fill: |
@@ -41,19 +66,50 @@ steps:
   - title: typedef and passing callbacks
     id: c-funcptr-2
     text: |
-      Function pointer types get unreadable fast, so give them a name with `typedef`:
+      Function pointer types are hard to read, so C programmers name them with `typedef`:
 
       ```c
-      typedef int (*BinOp)(int, int);
+      typedef int (*BinOp)(int, int);   /* BinOp: pointer to function (int, int) -> int */
       ```
 
-      Now `BinOp` is a type, and you can pass behavior into a function. The function you pass is called a **callback**:
+      Now `BinOp` can be used like any type, which makes it easy to write functions that **take behavior as a parameter**. The function you pass in is called a **callback**, because the receiving function "calls back" into your code.
 
-      ```c
-      int fold(const int *a, int n, int init, BinOp f);
-      fold(a, n, 0, add);   // sum
-      fold(a, n, 1, mul);   // product
+      ```c run
+      #include <stdio.h>
+
+      typedef int (*Predicate)(int);
+
+      static int is_even(int x) { return x % 2 == 0; }
+      static int is_big(int x) { return x > 100; }
+
+      int count_if(const int *a, int n, Predicate p) {
+          int count = 0;
+          for (int i = 0; i < n; i++) {
+              if (p(a[i])) {
+                  count++;
+              }
+          }
+          return count;
+      }
+
+      int main(void) {
+          int v[] = {4, 150, 7, 200, 10};
+          printf("%d even, %d big\n", count_if(v, 5, is_even), count_if(v, 5, is_big));
+          return 0;
+      }
       ```
+
+      ```output
+      4 even, 2 big
+      ```
+
+      `count_if` doesn't know or care what it's counting. It walks the array and asks the callback about each element. One loop now serves every counting question you'll ever have.
+
+      ### Fold (also called reduce)
+
+      **Fold** is the same idea for combining values: keep an accumulator, starting at some initial value, and for each element replace it with `f(accumulator, element)`. With addition and 0 you get a sum; with multiplication and 1 a product; with a "bigger of two" function, a maximum. It's one of the most general loops there is, and languages like C++, Python and JavaScript have it built in (`std::accumulate`, `reduce`).
+
+      (`static` on the helper functions just keeps them private to this file, which is covered in the last module of this section.)
 
       **Your turn:** write `fold`. It starts with `init` and combines it with each element in order: `acc = f(acc, a[i])`.
     seed: |
@@ -90,21 +146,53 @@ steps:
   - title: A dispatch table
     id: c-funcptr-3
     text: |
-      An array of structs pairing a **name** with a **function** replaces a long `if`/`else if` chain. Adding a command becomes one line in the table, and the lookup code never changes:
+      When a program must choose between many actions based on a name or number, a long `if`/`else if` chain grows with every new case, and the "what" and the "how" get mixed together. A **dispatch table** separates them: an array of structs, each pairing a key with a function pointer. Finding the right entry is a simple search, and adding a new action is one line in the table.
 
-      ```c
+      ```c run
+      #include <stdio.h>
+      #include <string.h>
+
+      static void say_hi(void) { printf("hello!\n"); }
+      static void say_time(void) { printf("it is 12:00\n"); }
+      static void say_help(void) { printf("commands: hi, time, help\n"); }
+
       typedef struct {
           const char *name;
-          int (*fn)(int, int);
+          void (*run)(void);
       } Command;
 
-      static const Command commands[] = {
-          {"add", add},
-          {"sub", sub},
+      static const Command table[] = {
+          {"hi", say_hi},
+          {"time", say_time},
+          {"help", say_help},
       };
+
+      int main(void) {
+          const char *inputs[] = {"time", "dance", "hi"};
+          size_t ncmds = sizeof table / sizeof table[0];
+          for (int k = 0; k < 3; k++) {
+              size_t i = 0;
+              while (i < ncmds && strcmp(table[i].name, inputs[k]) != 0) i++;
+              if (i < ncmds) table[i].run();
+              else printf("unknown: %s\n", inputs[k]);
+          }
+          return 0;
+      }
       ```
 
-      Interpreters, command-line tools, network protocol handlers and state machines are all built this way.
+      ```output
+      it is 12:00
+      unknown: dance
+      hello!
+      ```
+
+      ### The lookup
+
+      Search the table for a matching name. If the loop stops early, `i` is the matching index and you call `table[i].run()`; if `i` reaches the table size, the name wasn't found. The same code handles 3 commands or 300.
+
+      ### Where it's used
+
+      Command-line tools with subcommands (`git commit`, `git push`), interpreters mapping instructions to handlers, network servers mapping message types to handlers, and state machines all use tables like this. `sizeof table / sizeof table[0]` keeps the count right automatically when you add rows.
 
       **Your turn:** the program reads lines like `add 2 3` until end of input. Look up the command in the table and print the result, or `unknown CMD` if it isn't there. Add a `mul` command to the table as well.
     seed: |
@@ -184,21 +272,54 @@ steps:
   - title: Sorting with qsort
     id: c-funcptr-4
     text: |
-      The standard library's `qsort` can sort *any* array, because you hand it a **comparator** callback:
+      The standard library's `qsort` sorts **any** array: ints, doubles, structs, strings. It can do that because it doesn't compare elements itself. You give it a **comparator** callback that knows how to compare two elements of your type:
 
       ```c
       void qsort(void *base, size_t count, size_t size,
-                 int (*cmp)(const void *, const void *));
+                 int (*cmp)(const void *a, const void *b));
       ```
 
-      The comparator receives pointers to two elements (as `const void *`, which you convert back to the real type) and returns negative, zero or positive, like `strcmp`.
+      The comparator gets pointers to two elements, typed as `const void *` (pointer to "something"), and must return negative if `a` should come first, positive if `b` should, and 0 if they're equal. You convert the pointers back to the real type inside.
 
-      ```c
-      static int by_value(const void *pa, const void *pb) {
-          int a = *(const int *)pa, b = *(const int *)pb;
-          return (a > b) - (a < b);   // not a - b: that can overflow!
+      ```c run
+      #include <stdio.h>
+      #include <stdlib.h>
+      #include <string.h>
+
+      typedef struct {
+          char name[12];
+          double price;
+      } Item;
+
+      static int by_price(const void *pa, const void *pb) {
+          const Item *a = pa, *b = pb;
+          if (a->price != b->price) {
+              return (a->price > b->price) - (a->price < b->price);
+          }
+          return strcmp(a->name, b->name);
+      }
+
+      int main(void) {
+          Item shop[] = {{"lamp", 20.0}, {"cup", 5.5}, {"book", 20.0}};
+          qsort(shop, 3, sizeof shop[0], by_price);
+          for (int i = 0; i < 3; i++) printf("%s %.2f\n", shop[i].name, shop[i].price);
+          return 0;
       }
       ```
+
+      ```output
+      cup 5.50
+      book 20.00
+      lamp 20.00
+      ```
+
+      ### Writing comparators correctly
+
+      - `(a > b) - (a < b)` gives -1, 0 or 1. The shortcut `return a - b;` looks tempting for ints but **overflows** for large values of opposite signs, which is undefined behavior and silently misorders elements.
+      - For several sort keys, compare the most important first, and only if it's a tie move on to the next (here, name as a tie-breaker). This gives a stable, predictable order.
+      - For descending order, swap the roles of `a` and `b`.
+
+      The pointer conversion `const Item *a = pa;` works without a cast in C, because a `void *` converts to any object pointer automatically.
 
       **Your turn:** write a comparator `by_score_desc` for `Player` structs: higher score first, and for equal scores, alphabetical by name. Then `sort_players` calls `qsort` with it.
     seed: |
@@ -262,14 +383,58 @@ steps:
   - title: Generic code with void *
     id: c-funcptr-5
     text: |
-      `qsort` works on any type because it treats the array as raw bytes: a `void *` base pointer plus an element `size`. Element `i` starts at byte offset `i * size`:
+      How can `qsort` work with any element type when C has no generics? It treats the array as **raw bytes**:
 
-      ```c
-      const char *bytes = base;            // char * allows byte arithmetic
-      const void *elem = bytes + i * size;
+      - `base` is a `void *`: the address of the first element, type unknown.
+      - `size` says how many bytes one element takes.
+      - Element `i` therefore starts at byte offset `i * size`.
+
+      To do that byte arithmetic you convert to `char *`, because `char` is exactly one byte and C doesn't allow arithmetic on `void *` in standard code.
+
+      ```c run
+      #include <stdio.h>
+      #include <stddef.h>
+
+      size_t count_matching(const void *base, size_t n, size_t size, int (*pred)(const void *)) {
+          const char *bytes = base;
+          size_t count = 0;
+          for (size_t i = 0; i < n; i++) {
+              if (pred(bytes + i * size)) {
+                  count++;
+              }
+          }
+          return count;
+      }
+
+      static int is_negative_double(const void *p) {
+          return *(const double *)p < 0;
+      }
+
+      static int starts_with_a(const void *p) {
+          const char *const *s = p;
+          return (*s)[0] == 'a';
+      }
+
+      int main(void) {
+          double d[] = {1.5, -2.0, -0.5, 3.0};
+          const char *words[] = {"apple", "pear", "avocado"};
+          printf("%zu %zu\n", count_matching(d, 4, sizeof d[0], is_negative_double),
+                 count_matching(words, 3, sizeof words[0], starts_with_a));
+          return 0;
+      }
       ```
 
-      You can't do arithmetic on `void *` itself in standard C, which is why you go through `char *`.
+      ```output
+      2 2
+      ```
+
+      ### Who knows the type?
+
+      The generic function only moves bytes around. The **callback** knows the real type and casts the `const void *` back: `*(const double *)p`. For the array of strings, each element is a `const char *`, so the callback receives a pointer **to** a pointer and must dereference twice. Getting this cast wrong compiles fine and reads garbage, which is the price of `void *` genericity. C++ templates, later in the course, solve the same problem with full type checking.
+
+      ### Returning a pointer to an element
+
+      A generic search returns a `const void *` pointing into the array (or `NULL`). The caller casts it back to the element type.
 
       **Your turn:** write `find_first`, which returns a pointer to the first element for which `pred` returns nonzero, or `NULL`.
     seed: |
@@ -312,13 +477,57 @@ steps:
   - title: "Challenge: an event bus"
     id: c-funcptr-6
     text: |
-      A bare function pointer has no memory of its own. To let a callback update *your* data, C APIs pass a `void *ctx` ("context" or "user data") alongside it, and hand it back on every call:
+      A plain function pointer has a limitation: the function it points at can only use its parameters and global variables. What if the callback needs to update **your** data, like a counter in `main` or a particular window in a GUI?
 
-      ```c
-      typedef void (*Handler)(int event, void *ctx);
+      C's answer is the **context pointer**. Alongside the function pointer, you register a `void *ctx`, which can point at anything. Whoever calls the callback passes that `ctx` back unchanged. The callback casts it to the type it expects and uses it.
+
+      ```c run
+      #include <stdio.h>
+
+      typedef void (*Visitor)(int value, void *ctx);
+
+      void for_each(const int *a, int n, Visitor v, void *ctx) {
+          for (int i = 0; i < n; i++) {
+              v(a[i], ctx);
+          }
+      }
+
+      typedef struct {
+          int sum;
+          int count;
+      } Stats;
+
+      static void add_to_stats(int value, void *ctx) {
+          Stats *s = ctx;
+          s->sum += value;
+          s->count++;
+      }
+
+      static void track_max(int value, void *ctx) {
+          int *best = ctx;
+          if (value > *best) *best = value;
+      }
+
+      int main(void) {
+          int data[] = {4, 9, 2};
+          Stats st = {0, 0};
+          int best = 0;
+          for_each(data, 3, add_to_stats, &st);
+          for_each(data, 3, track_max, &best);
+          printf("sum %d count %d max %d\n", st.sum, st.count, best);
+          return 0;
+      }
       ```
 
-      That's how GUI toolkits, `pthread_create`, network libraries and game engines all do callbacks in C.
+      ```output
+      sum 15 count 3 max 9
+      ```
+
+      The same `for_each` drives two completely different callbacks, each with its own kind of context. This "function pointer plus `void *` user data" pattern appears throughout real C APIs: `pthread_create`, `qsort_r`, event loops, GUI toolkits and audio libraries.
+
+      ### An event bus
+
+      An event bus stores several handler and context **pairs**. Emitting an event calls every registered handler, in order, each with **its own** context. Store the pairs in parallel arrays (or an array of structs), guard against overflowing the fixed capacity, and loop over them on emit.
 
       **Your turn:** build a tiny event bus that stores up to 8 handler/context pairs.
 

@@ -7,25 +7,53 @@ steps:
   - title: Headers and include guards
     id: c-program-1
     text: |
-      Real C programs are split into many files. Each module has two parts:
+      Real C programs are thousands or millions of lines, split across many files. Understanding how those files fit together is essential for working on any real codebase.
 
-      - a **header** (`score.h`) with *declarations*: types, function prototypes, constants. It's the module's public interface.
-      - a **source file** (`score.c`) with the *definitions*: the actual function bodies.
+      ### Modules: a header and a source file
 
-      Other files `#include "score.h"` to use the module. The compiler builds each `.c` file separately, then the **linker** joins them.
+      Each module usually has two files:
 
-      ```c
-      /* score.h */
-      #ifndef SCORE_H
-      #define SCORE_H
+      - A **header** (`score.h`) with **declarations**: type definitions, function prototypes and constants. It's the module's public interface: what other code may use.
+      - A **source file** (`score.c`) with the **definitions**: the actual function bodies. It `#include`s its own header.
 
-      typedef struct { int kills, deaths; } Score;
-      double kd_ratio(Score s);
+      Other files `#include "score.h"` (quotes for your own headers, angle brackets for system headers) and can then call its functions.
 
+      ### How it's built
+
+      The compiler turns each `.c` file into an **object file** separately, knowing only what its includes declared. Then the **linker** joins all the object files, connecting each call to the matching definition. If a definition is missing, the linker reports `undefined reference to 'kd_ratio'`; if something is defined twice, `multiple definition`.
+
+      ### Include guards
+
+      `#include` pastes a file's text. Headers often end up included more than once (`main.c` includes `a.h` and `b.h`, and both include `score.h`), and defining the same struct twice is an error. An **include guard** makes repeat inclusions disappear:
+
+      ```c run
+      #include <stdio.h>
+
+      #ifndef GREETING_H
+      #define GREETING_H
+      #define GREETING "hi"
+      typedef struct { int times; } Repeat;
       #endif
+
+      #ifndef GREETING_H
+      #define GREETING_H
+      #define GREETING "hi"
+      typedef struct { int times; } Repeat;
+      #endif
+
+      int main(void) {
+          Repeat r = {2};
+          for (int i = 0; i < r.times; i++) printf("%s\n", GREETING);
+          return 0;
+      }
       ```
 
-      That `#ifndef` / `#define` / `#endif` wrapper is an **include guard**. Headers often get included twice (a.h includes b.h, and so does main.c), and defining the struct twice is an error. The guard makes the second copy vanish.
+      ```output
+      hi
+      hi
+      ```
+
+      The first time, `GREETING_H` isn't defined, so everything up to `#endif` is kept, and `GREETING_H` gets defined. The second time, `#ifndef GREETING_H` is false and the preprocessor skips the whole block. Many compilers also accept `#pragma once` at the top of a header for the same effect.
 
       The editor here holds a single file, so this program pastes the "header" in **twice** to simulate a double include. **Your turn:** complete the guard so it compiles.
     fill: |
@@ -64,19 +92,52 @@ steps:
   - title: static functions and variables
     id: c-program-2
     text: |
-      `static` has two jobs in C, and both are about **hiding**:
+      `static` is one of C's most overloaded keywords. It has two jobs, and both are about keeping things hidden or contained.
 
-      1. On a function or global variable, it means **internal linkage**: the name is private to its `.c` file. Other files can't call it, and two files can each have their own `static int helper(void)` without clashing. Mark every helper that isn't part of the header `static`.
-      2. On a local variable, it means the variable **keeps its value between calls**. It's created once, not every time the function runs.
+      ### 1. On functions and globals: private to the file
 
-      ```c
-      static int clamp(int v) { ... }   /* private helper */
+      A function or global variable marked `static` has **internal linkage**: its name is only visible inside its own `.c` file. Other files can't call it, and two files can each have their own `static int helper(void)` without the linker complaining about a duplicate. Professional code marks **every** function that isn't part of the header's public interface as `static`. It keeps the public surface small and avoids name clashes across a big program.
 
-      int next_id(void) {
-          static int last = 0;          /* initialized once */
-          return ++last;
+      ### 2. On local variables: keeps its value between calls
+
+      A `static` local variable is created **once**, when the program starts, and keeps its value from one call of the function to the next. Its initializer runs only once. A normal local is created fresh on every call.
+
+      ```c run
+      #include <stdio.h>
+
+      static int square(int x) {
+          return x * x;
+      }
+
+      int calls(void) {
+          static int count = 0;
+          int fresh = 0;
+          count++;
+          fresh++;
+          printf("count %d, fresh %d\n", count, fresh);
+          return count;
+      }
+
+      int main(void) {
+          calls();
+          calls();
+          calls();
+          printf("%d\n", square(calls()));
+          return 0;
       }
       ```
+
+      ```output
+      count 1, fresh 1
+      count 2, fresh 1
+      count 3, fresh 1
+      count 4, fresh 1
+      16
+      ```
+
+      `count` remembers between calls; `fresh` starts over every time.
+
+      Static locals are handy for counters, ID generators and caches, but use them sparingly: hidden state makes functions harder to test (calling twice gives different results) and isn't safe when several threads call the function at once.
 
       **Your turn:** write `int next_ticket(void)` that returns 1, 2, 3, ... on successive calls, using a static local. Also write a private `static` helper `pad3(int n)` returning `n % 1000`, and use it so tickets wrap back to 0 after 999.
     seed: |
@@ -116,19 +177,49 @@ steps:
   - title: extern and shared state
     id: c-program-3
     text: |
-      A global variable **defined** in one file can be used from another by **declaring** it with `extern`:
+      A global variable defined in one file can be used from other files. The file that uses it needs a **declaration** saying "this variable exists, with this type, defined somewhere else". That's what `extern` is for:
 
       ```c
-      /* config.h */
-      extern int max_rounds;     /* declaration: "it exists somewhere" */
+      /* config.h: the declaration, included wherever it's used */
+      extern int max_rounds;
 
-      /* config.c */
-      int max_rounds = 30;       /* the one definition */
+      /* config.c: the one definition, which actually creates the variable */
+      int max_rounds = 30;
       ```
 
-      The declaration goes in a header; the definition goes in exactly one `.c` file. Two definitions is a linker error, and zero is an "undefined reference" error.
+      ### Declaration vs definition
 
-      That said, mutable globals are a common source of bugs in large codebases: any code anywhere can change them, and they make testing hard. Prefer passing a struct pointer around. Globals are best kept `const`.
+      This distinction runs through all of C:
+
+      - A **declaration** tells the compiler a name and its type. There can be many.
+      - A **definition** creates the thing (reserves memory for a variable, or provides a function's body). There must be **exactly one**.
+
+      For functions, a prototype is a declaration and is implicitly `extern`. For variables, `extern int x;` is a declaration, while `int x = 5;` at file scope is a definition.
+
+      ```c run
+      #include <stdio.h>
+
+      extern const char *app_name;
+      extern int version;
+
+      int main(void) {
+          printf("%s v%d\n", app_name, version);
+          return 0;
+      }
+
+      const char *app_name = "arena";
+      int version = 3;
+      ```
+
+      ```output
+      arena v3
+      ```
+
+      Here the declarations come first, so `main` can use the variables that are defined further down. In a real project the definitions would be in another file.
+
+      ### A warning about globals
+
+      Mutable globals are convenient and dangerous. Any code anywhere can change them, so bugs are hard to trace; tests interfere with each other; and threads race on them. Large codebases prefer passing a struct (like a `Config *`) to the functions that need it. Globals are at their best when they're `const`.
 
       **Your turn:** declare `max_rounds` with `extern` above `main` so it can be used before the definition that appears later in the file.
     fill: |
@@ -151,14 +242,56 @@ steps:
   - title: const-correct interfaces
     id: c-program-4
     text: |
-      In a header, a function's signature is a **contract**. Mark every pointer parameter the function only reads as `const`:
+      In a header, each function signature is a **contract** with every caller. Pointer parameters raise one question above all: will this function modify what I pass in? `const` answers it in the signature itself:
 
       ```c
-      size_t count_alive(const Player *team, size_t n);   /* reads only */
+      size_t count_alive(const Player *team, size_t n);   /* only reads */
       void heal_all(Player *team, size_t n, int amount);  /* modifies */
       ```
 
-      Callers can then pass `const` data safely, and readers know at a glance which functions have side effects. Adding `const` later is painful because it ripples through every caller, so get it right from the start.
+      ### Why it matters
+
+      - **Readers** can tell which functions have side effects without reading the bodies.
+      - **Callers** holding `const` data (a read-only table, a string literal) can pass it only to functions that promise not to modify it. Without `const` on the parameter, the call doesn't compile, or requires an ugly cast.
+      - **The compiler** enforces the promise: a body that tries to write through a `const` pointer is an error.
+
+      ```c run
+      #include <stdio.h>
+      #include <stddef.h>
+
+      typedef struct {
+          const char *name;
+          int stock;
+      } Item;
+
+      int total_stock(const Item *items, size_t n) {
+          int sum = 0;
+          for (size_t i = 0; i < n; i++) sum += items[i].stock;
+          return sum;
+      }
+
+      void restock(Item *items, size_t n, int amount) {
+          for (size_t i = 0; i < n; i++) items[i].stock += amount;
+      }
+
+      int main(void) {
+          Item shop[] = {{"pen", 3}, {"cup", 0}};
+          restock(shop, 2, 5);
+          static const Item catalog[] = {{"lamp", 2}, {"desk", 1}};
+          printf("%d %d\n", total_stock(shop, 2), total_stock(catalog, 2));
+          return 0;
+      }
+      ```
+
+      ```output
+      13 3
+      ```
+
+      `total_stock` accepts both the modifiable `shop` and the read-only `catalog`, because it promises not to change either. `restock(catalog, ...)` would not compile.
+
+      ### Get it right early
+
+      Adding `const` later is painful: once a function takes `const Item *`, every function it passes that pointer to must also take `const`, all the way down. That ripple is why experienced C programmers make parameters `const` from the start, whenever the function only reads.
 
       **Your turn:** fix the three signatures. The read-only ones need `const`; `heal_all` really does modify the team, so it must stay non-const.
     seed: |
@@ -239,22 +372,56 @@ steps:
   - title: Command-line arguments
     id: c-program-5
     text: |
-      `main` can receive the words typed after the program name:
+      Command-line programs receive input as **arguments**: the words typed after the program's name, like `gcc -Wall main.c` or `git commit -m "fix"`. To receive them, declare `main` with two parameters:
 
       ```c
       int main(int argc, char **argv)
       ```
 
-      - `argc` is the argument count, **including** the program name.
-      - `argv[0]` is the program name; `argv[1]` to `argv[argc - 1]` are the arguments, as strings.
+      - `argc` (argument count) is how many there are, **including** the program name itself.
+      - `argv` (argument vector) is an array of strings: `argv[0]` is the program name, and `argv[1]` to `argv[argc - 1]` are the arguments. `argv[argc]` is `NULL`.
 
-      So `./sum 4 5 6` has `argc == 4` and `argv[2]` is `"5"`. Convert numbers with `strtol`, which also tells you where parsing stopped, so you can detect junk like `"12abc"`:
+      So running `./sum 4 5 6` gives `argc == 4`, `argv[1]` is `"4"`, and `argv[3]` is `"6"`. They're always **strings**, even when they look like numbers.
 
-      ```c
-      char *end;
-      long v = strtol(argv[i], &end, 10);
-      if (*end != '\0' || end == argv[i]) { /* not a clean number */ }
+      ### Converting to numbers safely
+
+      `atoi("12abc")` returns 12 and `atoi("abc")` returns 0 with no way to tell something went wrong. `strtol` reports where it stopped:
+
+      ```c run
+      #include <stdio.h>
+      #include <stdlib.h>
+
+      int parse_int(const char *s, long *out) {
+          char *end;
+          long v = strtol(s, &end, 10);
+          if (end == s || *end != '\0') {
+              return 0;
+          }
+          *out = v;
+          return 1;
+      }
+
+      int main(void) {
+          const char *tests[] = {"42", "-7", "12abc", ""};
+          for (int i = 0; i < 4; i++) {
+              long v;
+              if (parse_int(tests[i], &v)) printf("\"%s\" -> %ld\n", tests[i], v);
+              else printf("\"%s\" is not a number\n", tests[i]);
+          }
+          return 0;
+      }
       ```
+
+      ```output
+      "42" -> 42
+      "-7" -> -7
+      "12abc" is not a number
+      "" is not a number
+      ```
+
+      After the call, `end` points at the first character `strtol` didn't use. If it's the start of the string, no digits were found; if it's not the terminator, junk followed the number. Only when it's at the `'\0'` was the whole argument a clean number.
+
+      (The example tests fixed strings; in your program, loop over `argv[1]` to `argv[argc - 1]`.)
 
       **Your turn:** print the sum of all arguments. If any argument isn't a clean integer, print `bad number: ARG` and stop. The tests run your program with different arguments.
     seed: |
@@ -290,20 +457,62 @@ steps:
       - "Loop from `i = 1` (argv[0] is the program name) to `i < argc`."
       - "`long v = strtol(argv[i], &end, 10);` then check `end == argv[i] || *end != '\\0'` for junk."
     tests:
-      - args: ["4", "5", "6"]
+      - args: [ "4", "5", "6" ]
       - args: []
-      - args: ["10", "-3", "x7"]
-      - args: ["100", "200"]
+      - args: [ "10", "-3", "x7" ]
+      - args: [ "100", "200" ]
         hidden: true
 
   - title: "Challenge: a real command-line tool"
     id: c-program-6
     text: |
-      Command-line tools follow conventions that scripts and other programs rely on:
+      Command-line tools are glued together by scripts and other programs, and that only works because they all follow a few conventions. Writing tools that follow them is part of writing professional C.
 
-      - Normal output goes to **stdout**; error messages go to **stderr** (`fprintf(stderr, ...)`), so they don't pollute output that's piped somewhere else.
-      - The **exit code** reports success: `0` means everything worked; nonzero means something failed. Scripts check it (`if ./tool; then ...`). `<stdlib.h>` names them `EXIT_SUCCESS` and `EXIT_FAILURE`.
-      - Keep going after one bad input when that's useful, but still report failure at the end.
+      ### stdout and stderr
+
+      A program has two output streams. **stdout** is for the program's actual results; **stderr** is for errors and diagnostics. They're kept separate so that `./tool > results.txt` saves only results, while errors still appear on the screen. Write errors with `fprintf(stderr, ...)`.
+
+      ### Exit codes
+
+      The value `main` returns (or passes to `exit()`) is the **exit code**. `0` means success; anything else means failure, and different numbers can signal different problems (by convention, 2 often means "used incorrectly"). Shell scripts check it: `if ./tool; then ...`, and CI systems fail a build when a step exits nonzero. `<stdlib.h>` names the basics `EXIT_SUCCESS` and `EXIT_FAILURE`.
+
+      ```c run
+      #include <stdio.h>
+      #include <stdlib.h>
+
+      int check_all(const int *values, int n) {
+          int status = EXIT_SUCCESS;
+          for (int i = 0; i < n; i++) {
+              if (values[i] < 0) {
+                  fprintf(stderr, "check: value %d is negative\n", i);
+                  status = EXIT_FAILURE;
+                  continue;
+              }
+              printf("value %d ok: %d\n", i, values[i]);
+          }
+          return status;
+      }
+
+      int main(void) {
+          int v[] = {3, 8, 5};
+          int status = check_all(v, 3);
+          printf("done\n");
+          return status;
+      }
+      ```
+
+      ```output
+      value 0 ok: 3
+      value 1 ok: 8
+      value 2 ok: 5
+      done
+      ```
+
+      ### Keep going, but remember the failure
+
+      A good tool processes everything it can: one missing file shouldn't stop the others from being counted. It reports each problem on stderr as it happens, remembers that something failed (the `status` variable), and returns the failure code **at the end**. Early exit is right only when continuing makes no sense, such as no arguments at all, where you print a **usage** message to stderr.
+
+      The tests on this site check stdout and the exit code separately, just like a script would.
 
       **Your turn:** write `lines FILE...`, a tool that prints `COUNT NAME` for each file and a final `COUNT total` line. A file that can't be opened prints `lines: cannot open NAME` to **stderr**, is skipped, and makes the program exit with code **1** at the end (after the total). With no arguments at all, print `usage: lines FILE...` to stderr and exit with code **2**.
     seed: |
@@ -356,11 +565,11 @@ steps:
       - "Keep an `int status = EXIT_SUCCESS;`. When a file fails, print to stderr, set status to EXIT_FAILURE and `continue`."
       - "Print the total after the loop, then `return status;`"
     tests:
-      - args: ["a.txt", "b.txt"]
+      - args: [ "a.txt", "b.txt" ]
         files:
           a.txt: "one\ntwo\n"
           b.txt: "x\ny\nz\n"
-      - args: ["a.txt", "missing.txt", "b.txt"]
+      - args: [ "a.txt", "missing.txt", "b.txt" ]
         files:
           a.txt: "one\n"
           b.txt: "1\n2\n"
@@ -368,7 +577,7 @@ steps:
       - args: []
         exit: 2
         allowEmpty: true
-      - args: ["empty.txt"]
+      - args: [ "empty.txt" ]
         files:
           empty.txt: ""
         hidden: true

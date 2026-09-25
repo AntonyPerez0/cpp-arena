@@ -7,7 +7,9 @@ steps:
   - title: Define and call a function
     id: c-funcs-1
     text: |
-      A function packages code under a name. It has a **return type**, a **name**, **parameters**, and a **body**:
+      As programs grow, putting everything in `main` gets messy fast. A **function** packages a piece of work under a name, so you can write it once and use it (**call** it) wherever it's needed. You've been calling functions all along: `printf` and `scanf` are functions someone else wrote.
+
+      A function definition has four parts:
 
       ```c
       int square(int x) {
@@ -15,9 +17,38 @@ steps:
       }
       ```
 
-      You call it like `square(7)`, which evaluates to 49.
+      - **Return type** (`int`): the type of value the function hands back.
+      - **Name** (`square`): how you call it.
+      - **Parameters** (`int x`): inputs, each with a type and a name. Inside the function, `x` is a variable holding whatever value the caller passed.
+      - **Body**: the code between the braces. `return` ends the function and sends a value back.
 
-      From now on, some steps are **function steps**: you write only the function, and hidden tests call it with different inputs. Don't write `main` on those steps.
+      ```c run
+      #include <stdio.h>
+
+      int square(int x) {
+          return x * x;
+      }
+
+      int main(void) {
+          int a = square(7);
+          printf("%d\n", a);
+          printf("%d\n", square(3) + square(4));
+          return 0;
+      }
+      ```
+
+      ```output
+      49
+      25
+      ```
+
+      ### What happens during a call
+
+      When `main` reaches `square(7)`, it pauses. The value 7 is copied into the parameter `x`, the body of `square` runs, and `return x * x` sends 49 back. The call `square(7)` is then **replaced by that value**, so `int a = square(7);` stores 49, and `main` carries on. A call is an expression, so it can be used anywhere a value can, like inside `printf` or another calculation.
+
+      ### Function steps on this site
+
+      From now on, some steps are **function steps**: you write only the function, and hidden tests call it with many different inputs and check what it returns. Don't write a `main` on those steps (the tests bring their own), and don't print anything the task didn't ask for; the tests look at the return value.
 
       **Your turn:** complete `add` so it returns the sum of its two parameters.
     fill: |
@@ -38,6 +69,61 @@ steps:
   - title: Write a function
     id: c-funcs-2
     text: |
+      Now write a whole function yourself. The task is to return the largest of three numbers. Before typing any code, think through the logic the way you'd do it by hand.
+
+      ### Step 1: solve the smaller problem
+
+      Finding the larger of **two** numbers is easy:
+
+      ```c
+      int max2(int a, int b) {
+          if (a > b) {
+              return a;
+          }
+          return b;
+      }
+      ```
+
+      Notice there's no `else`: `return` ends the function immediately, so if `a > b` the second `return` is never reached. Many programmers like this "return early" style.
+
+      ### Step 2: build on it
+
+      For three numbers you can keep a "best so far" variable, the same idea as finding a maximum in a loop:
+
+      ```c run
+      #include <stdio.h>
+
+      int min3(int a, int b, int c) {
+          int best = a;
+          if (b < best) {
+              best = b;
+          }
+          if (c < best) {
+              best = c;
+          }
+          return best;
+      }
+
+      int main(void) {
+          printf("%d %d %d\n", min3(5, 2, 9), min3(1, 1, 1), min3(-4, 0, -7));
+          return 0;
+      }
+      ```
+
+      ```output
+      2 1 -7
+      ```
+
+      That's the **minimum**; the maximum is the same idea with the comparisons flipped.
+
+      ### Think about edge cases
+
+      Hidden tests will try tricky inputs, so ask yourself: what if two numbers are equal? What if all are negative? What if the largest is first, or last? The "best so far" approach handles all of those without special cases, which is a sign it's a good approach.
+
+      ### Every path must return
+
+      If a function promises to return an `int`, every way through it must reach a `return`. If one path falls off the end without returning, the result is garbage; the compiler warns `control reaches end of non-void function`.
+
       **Your turn:** write `int max3(int a, int b, int c)` that returns the largest of three numbers.
     seed: |
       int max3(int a, int b, int c) {
@@ -65,15 +151,45 @@ steps:
   - title: void functions
     id: c-funcs-3
     text: |
-      A function that doesn't return a value has return type `void`. It's used for its effect, like printing.
+      Not every function computes a value. Some exist for what they **do**, like printing. Their return type is `void`, meaning "returns nothing":
 
-      ```c
+      ```c run
+      #include <stdio.h>
+
+      void greet(int times) {
+          for (int i = 0; i < times; i++) {
+              printf("hi ");
+          }
+          printf("\n");
+      }
+
       void banner(void) {
-          printf("=== ROUND START ===\n");
+          printf("=== START ===\n");
+      }
+
+      int main(void) {
+          banner();
+          greet(3);
+          greet(1);
+          return 0;
       }
       ```
 
-      (`(void)` in the parameter list means "takes no arguments".)
+      ```output
+      === START ===
+      hi hi hi 
+      hi 
+      ```
+
+      ### Details
+
+      - A `void` function doesn't need a `return` statement; it ends when it reaches the closing brace. You can still write `return;` (with no value) to leave early.
+      - You can't use its result: `int x = banner();` is a compile error, because there is no result.
+      - `(void)` in the parameter list means "takes no arguments". Call it with empty parentheses: `banner()`. Forgetting the parentheses (`banner;`) doesn't call it at all; the compiler warns that the statement has no effect.
+
+      ### Why bother?
+
+      Even small helpers make code easier to read. `print_bar(10)` says what it does; a loop that prints ten `=` characters has to be read to be understood. And if you need the same output in five places, a function means one place to fix when it changes.
 
       **Your turn:** write `void print_bar(int n)` that prints `n` `=` characters followed by a newline. `print_bar(5)` prints `=====`.
     seed: |
@@ -106,17 +222,39 @@ steps:
   - title: Prototypes
     id: c-funcs-4
     text: |
-      C reads your file top to bottom. If `main` calls a function that's defined *below* it, the compiler hasn't seen it yet. Fix that with a **prototype**: the function's first line followed by `;`.
+      The compiler reads your file **once, from top to bottom**. When it reaches a call like `half(10)`, it needs to already know what `half` is: its return type and the types of its parameters. If the definition comes further down the file, the compiler hasn't seen it yet and reports an error such as `implicit declaration of function 'half'`.
 
-      ```c
-      int triple(int x);        // prototype: "this exists"
+      You have two options:
+
+      1. Define every function **above** the functions that call it.
+      2. Put a **prototype** (also called a declaration) near the top: the function's first line, ending with a semicolon instead of a body.
+
+      ```c run
+      #include <stdio.h>
+
+      double area(double w, double h);
 
       int main(void) {
-          printf("%d\n", triple(4));
+          printf("%.1f\n", area(2.5, 4));
+          return 0;
       }
 
-      int triple(int x) { return 3 * x; }   // definition
+      double area(double w, double h) {
+          return w * h;
+      }
       ```
+
+      ```output
+      10.0
+      ```
+
+      The prototype promises "a function called `area` exists, takes two doubles and returns a double". That's enough for the compiler to check the call in `main`. The actual body can come later in the file, or even in a different file.
+
+      ### Why prototypes matter
+
+      In bigger programs, functions call each other in every direction, so no ordering works for all of them. Prototypes also go in **header files** (`.h`), which is how one file uses functions defined in another. `#include <stdio.h>` is exactly that: a file full of prototypes, including `printf`'s.
+
+      The prototype and the definition must match. If they disagree about types, the compiler reports `conflicting types`.
 
       **Your turn:** press Check to see the error, then add the missing prototype.
     seed: |
@@ -155,19 +293,47 @@ steps:
   - title: Scope and pass by value
     id: c-funcs-5
     text: |
-      Variables declared inside a function only exist inside it (**local scope**).
+      ### Scope: where a name exists
 
-      C passes arguments **by value**: the function gets a *copy*. Changing the parameter doesn't change the caller's variable:
+      A variable declared inside a function is **local** to it. It's created when the function starts and destroyed when it returns, and no other function can see it. Two functions can each have their own variable named `total` and they never interfere. The same goes for variables declared inside any `{ }` block, like a loop body.
 
-      ```c
-      void reset(int hp) { hp = 100; }   // changes the copy only
+      ### Pass by value
 
-      int hp = 20;
-      reset(hp);
-      printf("%d\n", hp);   // still 20
+      When you call a function, C **copies** each argument's value into the matching parameter. The function works on its own copy:
+
+      ```c run
+      #include <stdio.h>
+
+      void try_to_double(int n) {
+          n = n * 2;
+          printf("inside: %d\n", n);
+      }
+
+      int doubled(int n) {
+          return n * 2;
+      }
+
+      int main(void) {
+          int score = 10;
+          try_to_double(score);
+          printf("after try: %d\n", score);
+          score = doubled(score);
+          printf("after return: %d\n", score);
+          return 0;
+      }
       ```
 
-      (To change the caller's variable you need pointers, coming soon.)
+      ```output
+      inside: 20
+      after try: 10
+      after return: 20
+      ```
+
+      `try_to_double` doubled its **copy**, which vanished when it returned. `main`'s `score` was never touched. `doubled` does the right thing: it **returns** the new value, and `main` stores it.
+
+      ### Why C works this way
+
+      Copying keeps functions independent: calling a function can't secretly change your variables, which makes programs easier to reason about. When a function really does need to change the caller's variable, there are two ways: return the new value (best when there's one result), or pass the variable's **address** with a pointer, which is coming up in the pointers module.
 
       **Your turn:** `heal` below tries to modify its parameter. Rewrite it to **return** the new value instead, and store that result in `main` so the program prints `hp 75`.
     seed: |
@@ -208,14 +374,44 @@ steps:
   - title: Recursion
     id: c-funcs-6
     text: |
-      A function can call itself. That's **recursion**. Every recursive function needs a **base case** that stops, and a step that moves toward it.
+      A function can call **itself**. This is called **recursion**, and it's a natural fit for problems defined in terms of smaller versions of themselves.
 
-      ```c
+      Take factorial: 5! = 5 x 4 x 3 x 2 x 1. Notice that 5! is just 5 x 4!, and 4! is 4 x 3!, and so on down to 1! = 1. That translates directly into code:
+
+      ```c run
+      #include <stdio.h>
+
       int factorial(int n) {
-          if (n <= 1) return 1;          // base case
-          return n * factorial(n - 1);   // smaller problem
+          if (n <= 1) {
+              return 1;
+          }
+          return n * factorial(n - 1);
+      }
+
+      int main(void) {
+          printf("%d %d %d\n", factorial(1), factorial(5), factorial(10));
+          return 0;
       }
       ```
+
+      ```output
+      1 120 3628800
+      ```
+
+      ### The two parts every recursive function needs
+
+      1. A **base case** that answers directly, without recursing (`n <= 1` returns 1).
+      2. A **recursive case** that calls itself on a **smaller** problem (`n - 1`), so it eventually reaches the base case.
+
+      ### How it runs
+
+      Each call gets its own copy of `n`, stored in its own **stack frame**. `factorial(3)` calls `factorial(2)`, which calls `factorial(1)`. Now three calls are paused, waiting. `factorial(1)` returns 1, then `factorial(2)` finishes with 2 x 1 = 2, then `factorial(3)` finishes with 3 x 2 = 6. The calls stack up, then unwind. Use the **Watch it run** link below to see the frames appear and disappear.
+
+      Without a base case (or if the problem never gets smaller), the calls pile up until the program runs out of stack memory and crashes with a **stack overflow**.
+
+      ### Fibonacci
+
+      For this step, each Fibonacci number depends on the **two** before it, so the recursive case makes two calls. You need two base cases (0 and 1). This simple version recomputes the same values many times, so it's slow for large n; that's fine here, and you'll learn faster techniques later.
 
       **Your turn:** write `int fib(int n)` returning the n-th Fibonacci number, where `fib(0) = 0`, `fib(1) = 1` and every later number is the sum of the two before it.
     seed: |
@@ -243,7 +439,46 @@ steps:
   - title: "Challenge: is it prime?"
     id: c-funcs-7
     text: |
-      A prime is a whole number greater than 1 whose only divisors are 1 and itself.
+      A **prime** is a whole number greater than 1 whose only divisors are 1 and itself: 2, 3, 5, 7, 11, 13 and so on. 1 is **not** prime, and neither are 0 or negative numbers.
+
+      ### The idea
+
+      To test `n`, try dividing it by every candidate `d` starting at 2. If any `d` divides it evenly (`n % d == 0`), it isn't prime, and you can return 0 immediately. If none do, it's prime.
+
+      ### Why stop at the square root?
+
+      If `n` has a divisor bigger than its square root, it must also have one smaller than the square root (because they multiply to `n`: for 91, 7 x 13, and 7 is below the square root, about 9.5). So once you've tried every `d` with `d * d <= n` and found nothing, there's nothing left to find. For a number around a million, that's about 1,000 checks instead of 1,000,000.
+
+      Writing the loop condition as `d * d <= n` avoids needing a square-root function and floating-point numbers.
+
+      Here's the same "try divisors" pattern used for a different job, counting how many divisors a number has:
+
+      ```c run
+      #include <stdio.h>
+
+      int count_divisors(int n) {
+          int count = 0;
+          for (int d = 1; d <= n; d++) {
+              if (n % d == 0) {
+                  count++;
+              }
+          }
+          return count;
+      }
+
+      int main(void) {
+          printf("%d %d %d\n", count_divisors(12), count_divisors(7), count_divisors(1));
+          return 0;
+      }
+      ```
+
+      ```output
+      6 2 1
+      ```
+
+      ### Handle the edge cases first
+
+      Start the function by dealing with the special inputs (anything below 2) and returning right away. Then the loop only has to handle the normal case. Hidden tests will definitely try 0, 1, 2 and a large prime.
 
       **Your turn:** write `int is_prime(int n)` that returns `1` for primes and `0` otherwise. Only test divisors up to the square root (`d * d <= n`) so it stays fast for big numbers.
     seed: |

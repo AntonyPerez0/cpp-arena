@@ -7,9 +7,11 @@ steps:
   - title: Your first program
     id: c-hello-1
     text: |
-      Every C program starts running at a function called `main`. Inside it, `printf` prints text to the screen.
+      A **program** is a list of instructions the computer follows from top to bottom. C is a *compiled* language: you write the instructions as text (the **source code**), a tool called the **compiler** checks them and translates them into machine code the processor can run, and then the program runs. Every time you press **Check**, a real C compiler does exactly that in your browser.
 
-      ```c
+      ### The shape of every C program
+
+      ```c run
       #include <stdio.h>
 
       int main(void) {
@@ -18,9 +20,23 @@ steps:
       }
       ```
 
-      - `#include <stdio.h>` pulls in the **st**andar**d** **i**nput/**o**utput library, which is where `printf` lives.
-      - `\n` is a *newline*: it ends the line.
-      - `return 0;` tells the operating system the program finished successfully.
+      ```output
+      Hi!
+      ```
+
+      Line by line:
+
+      - `#include <stdio.h>` pulls in the **st**andar**d** **i**nput/**o**utput library. It tells the compiler what `printf` is. Without it the compiler doesn't know the name and refuses to build.
+      - `int main(void)` starts a **function** called `main`. Every C program begins running at `main`, no matter how big it is. `int` says it gives back a whole number when it finishes, and `(void)` says it takes no inputs.
+      - The curly braces `{ }` hold the function's **body**: the instructions that run, in order.
+      - `printf("Hi!\n");` calls the `printf` function to print text. The text goes inside double quotes. `\n` is a *newline*: it ends the line, like pressing Enter.
+      - `return 0;` ends `main` and reports "success" (0) to the operating system. A non-zero number would mean something went wrong.
+
+      ### Common mistakes
+
+      - **Spelling and capitals matter.** `Printf` or `print` are different names, and the compiler will say something like `implicit declaration of function 'print'`.
+      - **Forgetting `#include <stdio.h>`** gives a similar error about `printf`.
+      - **Forgetting the `;`** at the end of a statement. You'll practice reading that error in step 5.
 
       **Your turn:** fill in the blank so the program prints `Hello, World!`.
     fill: |
@@ -38,9 +54,30 @@ steps:
   - title: Printing your own text
     id: c-hello-2
     text: |
-      Whatever is between the double quotes is printed exactly. The quotes themselves are not printed.
+      A piece of text in double quotes, like `"I like pizza"`, is called a **string literal**. `printf` prints it **exactly** as written: every letter, space and capital. The double quotes themselves are not printed; they only mark where the text starts and ends.
 
-      Note the `;` at the end of the statement. In C, statements end with a semicolon, like a period ends a sentence.
+      ```c run
+      #include <stdio.h>
+
+      int main(void) {
+          printf("C was created in 1972\n");
+          printf("   spaces   are   kept\n");
+          return 0;
+      }
+      ```
+
+      ```output
+      C was created in 1972
+         spaces   are   kept
+      ```
+
+      ### Statements and semicolons
+
+      Each instruction inside `main` is a **statement**, and in C every statement ends with a semicolon `;`, the way a sentence ends with a period. The compiler uses the semicolons to tell where one instruction stops and the next begins. Line breaks don't matter to it: you could put two statements on one line, but one per line is much easier to read.
+
+      ### Why exact output matters
+
+      The tests on this site compare your program's output with the expected output character by character (ignoring only trailing spaces at the ends of lines). Real programs work the same way: another program reading your output, or a grader at work, won't guess what you meant. `I am learning c` is not the same as `I am learning C`.
 
       **Your turn:** make the program print exactly:
 
@@ -62,14 +99,41 @@ steps:
   - title: Several lines
     id: c-hello-3
     text: |
-      Each `printf` call continues where the last one stopped. Only `\n` moves to a new line, so these two calls:
+      `printf` doesn't start a new line by itself. Each call continues **exactly where the last one stopped**, and only a `\n` moves the cursor to the start of the next line. So these two calls print on the same line:
 
-      ```c
-      printf("Ready, ");
-      printf("set\n");
+      ```c run
+      #include <stdio.h>
+
+      int main(void) {
+          printf("Ready, ");
+          printf("set, ");
+          printf("go!\n");
+          printf("Next line\n");
+          return 0;
+      }
       ```
 
-      print `Ready, set` on a single line.
+      ```output
+      Ready, set, go!
+      Next line
+      ```
+
+      Think of the output as a typewriter: the text goes where the cursor is, and `\n` is the carriage return. That means you can build one line from several calls, or print several lines from one call:
+
+      ```c
+      printf("one\ntwo\nthree\n");   // three lines from one call
+      ```
+
+      Both styles are fine. Programs usually use one `printf` per line because it's easier to read and change.
+
+      ### The order is the order
+
+      Statements in `main` run **top to bottom**, one after another. If you swap two `printf` lines, their output swaps too. This "one step at a time, in order" idea is the foundation for everything that follows: later you'll learn to skip steps (`if`) and repeat them (loops).
+
+      ### Common mistakes
+
+      - Forgetting the `\n` at the end, so the next thing printed is glued to the end of the line.
+      - Putting `\n` at the *start* instead of the end, which adds a blank line before the text.
 
       **Your turn:** write a program that prints these three lines:
 
@@ -105,14 +169,41 @@ steps:
   - title: Escape sequences
     id: c-hello-4
     text: |
-      Some characters can't be typed directly inside a string, so C uses **escape sequences** that start with a backslash:
+      Inside a string, some characters are special. A `"` would end the string early, and there's no key for "new line" that you can put between quotes. C solves this with **escape sequences**: a backslash `\` followed by a character, meaning "the next character is not what it looks like".
 
       | You write | You get |
       |---|---|
       | `\n` | new line |
-      | `\t` | tab |
-      | `\"` | a double quote |
-      | `\\` | a backslash |
+      | `\t` | tab (jump to the next column) |
+      | `\"` | a double quote character |
+      | `\\` | a single backslash |
+
+      ```c run
+      #include <stdio.h>
+
+      int main(void) {
+          printf("Name\tScore\n");
+          printf("Ada\t95\n");
+          printf("A path: C:\\games\\cs\n");
+          printf("He said \"nice shot\"\n");
+          return 0;
+      }
+      ```
+
+      ```output
+      Name	Score
+      Ada	95
+      A path: C:\games\cs
+      He said "nice shot"
+      ```
+
+      Each escape sequence is two characters in your source code but becomes **one** character in the output. The compiler does the translation.
+
+      ### Common mistakes
+
+      - Writing `"She said "hi""`: the second `"` ends the string, and the compiler gets confused by what follows. Escape the inner quotes.
+      - Using a forward slash `/n` instead of a backslash `\n`. That just prints `/n`.
+      - A single `\` before a normal letter (like `\q`) is not a valid escape, and the compiler warns about it.
 
       **Your turn:** print this line exactly, including the quotes:
 
@@ -134,15 +225,36 @@ steps:
   - title: Comments and reading errors
     id: c-hello-5
     text: |
-      Comments are notes for humans. The compiler ignores them.
+      ### Comments
+
+      Comments are notes for people reading the code. The compiler throws them away, so they never change what the program does.
 
       ```c
-      // a comment runs to the end of the line
-      /* this kind can span
-         several lines */
+      // A line comment runs from the two slashes to the end of the line.
+      /* A block comment can
+         span several lines. */
+      printf("hi\n"); // comments can also follow code
       ```
 
-      When the code is wrong, the compiler tells you the **line number** and what it expected. The most common beginner error is a missing semicolon: `error: expected ';'`.
+      Good comments explain **why** the code does something ("prices are in cents so we never round"), not what it obviously does.
+
+      ### Reading compiler errors
+
+      When your code isn't valid C, the compiler stops and reports an error. Learning to read these messages is one of the most useful skills in programming. A typical error looks like this:
+
+      ```text
+      main.c:4:25: error: expected ';' before 'return'
+      ```
+
+      - `main.c` is the file, `4` is the **line** and `25` the **column** where the compiler noticed the problem.
+      - `error:` means it can't continue. A `warning:` means the code compiles but is suspicious; take warnings seriously too.
+      - The message describes what it expected.
+
+      One important detail: the compiler reports where it **noticed** the problem, which is often the line *after* the real mistake. A missing semicolon at the end of line 3 is usually reported on line 4, because that's where the compiler realized the statement didn't end.
+
+      When there are several errors, **fix the first one first**. One mistake can confuse the compiler into reporting extra errors that disappear once the first is fixed.
+
+      On this site, errors also appear in the editor next to the line, with a plain-English explanation below the code.
 
       **Your turn:** this program has two mistakes. Press **Check** first to see what the compiler says, then fix both so it prints `Fixed it` on one line.
     seed: |

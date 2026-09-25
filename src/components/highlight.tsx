@@ -35,3 +35,24 @@ export function highlight(code: string, keyPrefix = ""): ReactNode[] {
 export function CodeView({ code, className = "" }: { code: string; className?: string }) {
   return <pre tabIndex={0} className={"codeview " + className}>{highlight(code)}</pre>;
 }
+
+const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+/** The same highlighting as an HTML string, for code blocks inside lesson Markdown. */
+export function highlightHtml(code: string): string {
+  let out = "";
+  let last = 0;
+  for (const m of code.matchAll(TOKEN)) {
+    if (m.index! > last) out += esc(code.slice(last, m.index));
+    const text = m[0];
+    let cls = "";
+    if (m[1]) cls = "tk-com";
+    else if (m[2]) cls = "tk-str";
+    else if (m[3]) cls = "tk-pre";
+    else if (m[4]) cls = "tk-num";
+    else if (m[5]) cls = KEYWORDS.has(text) ? "tk-kw" : TYPES.has(text) ? "tk-type" : /^\s*\(/.test(code.slice(m.index! + text.length)) ? "tk-fn" : "";
+    out += cls ? `<span class="${cls}">${esc(text)}</span>` : esc(text);
+    last = m.index! + text.length;
+  }
+  return out + esc(code.slice(last));
+}

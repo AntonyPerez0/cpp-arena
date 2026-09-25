@@ -7,19 +7,59 @@ steps:
   - title: if and else
     id: c-if-1
     text: |
-      `if` runs a block of code only when a condition is true. `else` runs when it's false.
+      So far, every line of `main` ran every time. Real programs need to make **decisions**: do this if the player is alive, that if they're not. The `if` statement runs a block of code only when a **condition** is true.
 
       ```c
-      if (hp > 0) {
-          printf("alive\n");
+      if (condition) {
+          // runs only when condition is true
       } else {
-          printf("dead\n");
+          // runs only when condition is false
       }
       ```
 
-      Comparison operators: `==` equal, `!=` not equal, `<`, `>`, `<=`, `>=`.
+      Exactly one of the two blocks runs. The `else` part is optional; without it, nothing happens when the condition is false.
 
-      Careful: `=` assigns and `==` compares. `if (x = 5)` is a classic bug.
+      ```c run
+      #include <stdio.h>
+
+      int main(void) {
+          int temperature;
+          scanf("%d", &temperature);
+          if (temperature >= 30) {
+              printf("hot\n");
+          } else {
+              printf("not hot\n");
+          }
+          printf("done\n");
+          return 0;
+      }
+      ```
+
+      ```input
+      34
+      ```
+
+      ```output
+      hot
+      done
+      ```
+
+      After the `if`/`else`, the program continues with the next line either way, which is why `done` always prints.
+
+      ### Comparison operators
+
+      | Operator | Meaning |
+      |---|---|
+      | `==` | equal to |
+      | `!=` | not equal to |
+      | `<` and `>` | less than, greater than |
+      | `<=` and `>=` | less or equal, greater or equal |
+
+      A comparison produces `1` for true or `0` for false.
+
+      ### The `=` versus `==` trap
+
+      `=` **assigns** and `==` **compares**. `if (x = 5)` doesn't check whether `x` is 5: it stores 5 in `x`, and since 5 is non-zero the condition is always true. The compiler warns about this (`suggest parentheses around assignment used as truth value`); when you see that warning, you almost certainly meant `==`.
 
       **Your turn:** read a health value and print `alive` if it's greater than 0, otherwise `dead`.
     fill: |
@@ -47,17 +87,44 @@ steps:
   - title: else if chains
     id: c-if-2
     text: |
-      Chain several conditions with `else if`. C checks them top to bottom and runs **only the first** one that's true.
+      When there are more than two possibilities, chain conditions with `else if`. C tests them **from top to bottom** and runs the block of the **first** condition that's true, then skips everything else in the chain. The final `else` catches whatever is left.
 
-      ```c
-      if (score >= 90) {
-          printf("A\n");
-      } else if (score >= 80) {
-          printf("B\n");
-      } else {
-          printf("C or lower\n");
+      ```c run
+      #include <stdio.h>
+
+      int main(void) {
+          int speed;
+          scanf("%d", &speed);
+          if (speed > 130) {
+              printf("way too fast\n");
+          } else if (speed > 100) {
+              printf("too fast\n");
+          } else if (speed >= 60) {
+              printf("fine\n");
+          } else {
+              printf("slow\n");
+          }
+          return 0;
       }
       ```
+
+      ```input
+      115
+      ```
+
+      ```output
+      too fast
+      ```
+
+      115 is not over 130, so the first test fails. It is over 100, so the second block runs, and C doesn't even look at the remaining conditions.
+
+      ### Order matters
+
+      Because only the first match runs, put the **most specific or extreme** conditions first. If `speed >= 60` came first, a speed of 150 would print `fine`, because 150 is also at least 60. When conditions are ordered from highest to lowest like this, each later test can rely on the earlier ones having failed: inside the `speed > 100` branch you already know the speed is at most 130.
+
+      ### Braces
+
+      With a single statement, braces are technically optional (`if (x) printf("hi\n");`), but always writing them prevents a classic bug: adding a second line later and not noticing it isn't inside the `if`.
 
       **Your turn:** read a player's kill count for a round and print:
 
@@ -107,17 +174,49 @@ steps:
   - title: And, or, not
     id: c-if-3
     text: |
-      Combine conditions with logical operators:
+      Often a decision depends on more than one thing. **Logical operators** combine conditions:
 
-      - `&&` (and): true only if **both** sides are true
-      - `||` (or): true if **at least one** side is true
-      - `!` (not): flips true and false
+      | Operator | Name | True when |
+      |---|---|---|
+      | `a && b` | and | both `a` and `b` are true |
+      | `a \|\| b` | or | at least one is true |
+      | `!a` | not | `a` is false |
 
-      ```c
-      if (money >= 2700 && !has_rifle) { ... }
+      ```c run
+      #include <stdio.h>
+
+      int main(void) {
+          int age, has_ticket;
+          scanf("%d %d", &age, &has_ticket);
+          if (age >= 18 && has_ticket) {
+              printf("welcome\n");
+          }
+          if (age < 18 || !has_ticket) {
+              printf("sorry\n");
+          }
+          return 0;
+      }
       ```
 
-      In C, any non-zero number counts as true and `0` is false.
+      ```input
+      20 0
+      ```
+
+      ```output
+      sorry
+      ```
+
+      ### Truth in C
+
+      C has no special true/false type in its oldest form: **any non-zero number counts as true, and 0 is false**. That's why `has_ticket` alone works as a condition, and `!has_ticket` is true when it's 0. (Modern C also has `bool`, `true` and `false` from `<stdbool.h>`; they're 1 and 0 underneath.)
+
+      ### Short-circuiting
+
+      `&&` stops as soon as the left side is false, and `||` stops as soon as the left side is true, because the answer is already known. This is useful for safety checks: in `count > 0 && total / count > 10`, the division only happens when `count` isn't zero.
+
+      ### Precedence
+
+      `!` binds tightest, then comparisons, then `&&`, then `||`. So `a || b && c` means `a || (b && c)`. Use parentheses when you mix `&&` and `||`, even when you know the rules; the next reader might not.
 
       **Your turn:** read `money` and `round` (two ints). A player can buy if they have at least 2700 money **and** it is not the first round (round 1 is a pistol round). Print `buy` or `save`.
     seed: |
@@ -154,22 +253,48 @@ steps:
   - title: switch
     id: c-if-4
     text: |
-      When you compare one value against many constants, `switch` is tidier than a long `else if` chain:
+      When one value is compared against a list of **constant** possibilities, `switch` is often clearer than a long `else if` chain:
 
-      ```c
-      switch (key) {
-          case 'w':
-              printf("forward\n");
-              break;
-          case 's':
-              printf("back\n");
-              break;
-          default:
-              printf("?\n");
+      ```c run
+      #include <stdio.h>
+
+      int main(void) {
+          int day;
+          scanf("%d", &day);
+          switch (day) {
+              case 6:
+              case 7:
+                  printf("weekend\n");
+                  break;
+              case 5:
+                  printf("almost weekend\n");
+                  break;
+              default:
+                  printf("weekday\n");
+          }
+          return 0;
       }
       ```
 
-      Each `case` needs a `break;`, otherwise execution **falls through** into the next case. `default` catches everything else.
+      ```input
+      7
+      ```
+
+      ```output
+      weekend
+      ```
+
+      ### How it works
+
+      `switch` evaluates the value in parentheses once, then **jumps** to the `case` label with the matching constant. From there, it runs statements **downward** until it hits a `break` (which leaves the `switch`) or the end. If no case matches, it jumps to `default`, or does nothing if there's no `default`.
+
+      ### Fall-through
+
+      Because execution continues until a `break`, forgetting one makes the program **fall through** into the next case and run its code too. That's a very common bug. It's also occasionally useful on purpose, as with `case 6:` and `case 7:` above sharing the same code.
+
+      ### Limits
+
+      `case` labels must be constant integer values, which includes characters like `'q'`. You can't use ranges, strings or variables as labels; use `if`/`else if` for those.
 
       **Your turn:** read a char and print the direction for `w`, `a`, `s`, `d` (`forward`, `left`, `back`, `right`), or `unknown` for anything else.
     fill: |
@@ -201,12 +326,35 @@ steps:
   - title: The ternary operator
     id: c-if-5
     text: |
-      `condition ? a : b` is an *expression* that evaluates to `a` if the condition is true and `b` otherwise. It's handy for small choices:
+      The **ternary operator** `condition ? a : b` is a compact if/else that produces a **value**: `a` if the condition is true, `b` otherwise. Because it's an expression, you can use it right inside an assignment or a `printf` argument, where an `if` statement can't go.
 
-      ```c
-      int best = (x > y) ? x : y;
-      printf("%s\n", n == 1 ? "kill" : "kills");
+      ```c run
+      #include <stdio.h>
+
+      int main(void) {
+          int x = 7, y = 12;
+          int bigger = (x > y) ? x : y;
+          printf("bigger: %d\n", bigger);
+          int items = 3;
+          printf("%d %s\n", items, items == 1 ? "item" : "items");
+          return 0;
+      }
       ```
+
+      ```output
+      bigger: 12
+      3 items
+      ```
+
+      It reads like a question: "is `x > y`? if so `x`, else `y`".
+
+      ### `%s` and strings
+
+      The second example prints a word with `%s`, the format specifier for **strings** (text). `"item"` and `"items"` are both strings, so whichever one the ternary picks is printed. You'll learn more about strings in their own module.
+
+      ### When to use it
+
+      Use the ternary for small, simple choices between two values. For anything with side effects or longer logic, a normal `if`/`else` is easier to read. Nesting ternaries (`a ? b : c ? d : e`) is legal but quickly becomes hard to follow.
 
       **Your turn:** read an int `n` and print `n kill` or `n kills` with the correct plural (1 is singular, everything else plural).
     fill: |
@@ -229,12 +377,55 @@ steps:
   - title: "Challenge: leap years"
     id: c-if-6
     text: |
-      A year is a leap year if:
+      This challenge is about translating an English rule into a precise condition, which is a big part of programming.
 
-      - it's divisible by 4, **and**
-      - it's **not** divisible by 100, **unless** it's also divisible by 400.
+      The leap year rule, as a sentence: a year is a leap year if it's divisible by 4, **except** years divisible by 100, which are **not** leap years, **unless** they're also divisible by 400.
 
-      So 2024 and 2000 are leap years, but 1900 and 2023 are not.
+      ### Break it down
+
+      "Divisible by N" means the remainder is zero: `year % N == 0`. Then work through the cases:
+
+      | Year | div by 4 | div by 100 | div by 400 | Leap? |
+      |---|---|---|---|---|
+      | 2023 | no | no | no | no |
+      | 2024 | yes | no | no | yes |
+      | 1900 | yes | yes | no | no |
+      | 2000 | yes | yes | yes | yes |
+
+      A table like this is a great tool: it lists the tricky cases, and you can use it to test your condition afterwards. The same approach works for any rule.
+
+      ### Two ways to write it
+
+      You can write one combined condition with `&&`, `||` and parentheses, or a chain of `if`/`else if` that checks the most specific rule first. Here's the chain style on a different rule (a number is "fizz" if divisible by 3, "buzz" if by 5, "fizzbuzz" if both):
+
+      ```c run
+      #include <stdio.h>
+
+      int main(void) {
+          int n;
+          scanf("%d", &n);
+          if (n % 15 == 0) {
+              printf("fizzbuzz\n");
+          } else if (n % 3 == 0) {
+              printf("fizz\n");
+          } else if (n % 5 == 0) {
+              printf("buzz\n");
+          } else {
+              printf("%d\n", n);
+          }
+          return 0;
+      }
+      ```
+
+      ```input
+      30
+      ```
+
+      ```output
+      fizzbuzz
+      ```
+
+      The most specific case (divisible by both) had to come first, or 30 would stop at "fizz".
 
       **Your turn:** read a year and print `leap` or `common`.
     seed: |
