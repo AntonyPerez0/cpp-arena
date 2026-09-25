@@ -1,6 +1,10 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
+import SyncPanel, { IncomingTransfer } from "../components/SyncPanel";
 import { modules } from "../content";
-import { exportProgress, importProgress, resetProgress, useStore } from "../state/store";
+import { exportProgress, patchSettings, resetProgress, useStore, type Theme } from "../state/store";
+import { TEXT_SIZES } from "../lib/appearance";
+import ShareButton from "../components/ShareButton";
+import { Link } from "react-router-dom";
 import { RANKS, dailyStreak, moduleProgress, rankFor, topicStats, totals } from "../state/derived";
 import { clearCompilerCache } from "../compiler/client";
 import CompilerBadge from "../components/CompilerBadge";
@@ -12,7 +16,6 @@ export default function Profile() {
   const r = rankFor(s.dm.best.deathmatch);
   const t = totals(s);
   const ts = topicStats(s);
-  const fileRef = useRef<HTMLInputElement>(null);
   const [msg, setMsg] = useState("");
   const clean = Object.values(s.steps).filter((x) => x.done && x.clean).length;
 
@@ -35,6 +38,7 @@ export default function Profile() {
       <div className="page-head">
         <h1>Profile</h1>
       </div>
+      <IncomingTransfer />
       <div className="cards3">
         <div className="card">
           <div className="card-kicker">Rank</div>
@@ -48,6 +52,15 @@ export default function Profile() {
               <span key={x.name} className={"rank-pip" + (i <= r.index ? " on" : "")} title={`${x.name} (${x.at})`} />
             ))}
           </div>
+          {s.dm.best.deathmatch > 0 && (
+            <div className="actions">
+              <ShareButton
+                card={{ kicker: "Deathmatch rank", title: r.rank.name, lines: [`Best streak: ${s.dm.best.deathmatch}`, `${t.done} of ${t.total} lesson steps done`], file: "cpparena-rank.png" }}
+                text={`I'm ${r.rank.name} on C/C++ Arena.`}
+                label="Share rank"
+              />
+            </div>
+          )}
         </div>
         <div className="card">
           <div className="card-kicker">Lessons</div>
@@ -55,6 +68,9 @@ export default function Profile() {
             {t.done} / {t.total} steps
           </h2>
           <p className="muted small">{clean} solved clean (no hints, no solution peek).</p>
+          <p className="small">
+            <Link to="/certificate">Certificates</Link>
+          </p>
         </div>
         <div className="card">
           <div className="card-kicker">Deathmatch</div>
@@ -102,47 +118,50 @@ export default function Profile() {
       </section>
 
       <section className="card">
-        <h2 className="h3">Your data</h2>
-        <p className="muted small">
-          Progress is saved in this browser only. Export it to move to another device or keep a backup.
-        </p>
-        <div className="actions">
-          <button className="btn" onClick={download}>
-            Export progress
-          </button>
-          <button className="btn" onClick={() => fileRef.current?.click()}>
-            Import progress
-          </button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="application/json"
-            hidden
-            onChange={async (e) => {
-              const f = e.target.files?.[0];
-              if (!f) return;
-              try {
-                importProgress(await f.text());
-                setMsg("Progress imported.");
-              } catch (err: any) {
-                setMsg("Import failed: " + err.message);
-              }
-            }}
-          />
-          <button
-            className="btn btn-danger"
-            onClick={() => {
-              if (confirm("Erase all progress in this browser? This can't be undone (export first if unsure).")) {
-                resetProgress();
-                setMsg("Progress reset.");
-              }
-            }}
-          >
-            Reset everything
-          </button>
-        </div>
-        {msg && <p>{msg}</p>}
+        <h2 className="h3">Appearance</h2>
+        <fieldset className="radio-row">
+          <legend>Theme</legend>
+          {(
+            [
+              ["system", "Match my device"],
+              ["dark", "Dark"],
+              ["light", "Light"],
+            ] as [Theme, string][]
+          ).map(([v, label]) => (
+            <label key={v}>
+              <input type="radio" name="theme" value={v} checked={s.settings.theme === v} onChange={() => patchSettings({ theme: v })} /> {label}
+            </label>
+          ))}
+        </fieldset>
+        <fieldset className="radio-row">
+          <legend>Text size</legend>
+          {TEXT_SIZES.map((t) => (
+            <label key={t.value}>
+              <input type="radio" name="textsize" value={t.value} checked={s.settings.textScale === t.value} onChange={() => patchSettings({ textScale: t.value })} /> {t.label}
+            </label>
+          ))}
+        </fieldset>
       </section>
+
+      <SyncPanel onFile={download} onMessage={setMsg} />
+      <section className="card">
+        <h2 className="h3">Start over</h2>
+        <button
+          className="btn btn-danger"
+          onClick={() => {
+            if (confirm("Erase all progress in this browser? This can't be undone (export first if unsure).")) {
+              resetProgress();
+              setMsg("Progress reset.");
+            }
+          }}
+        >
+          Reset everything
+        </button>
+      </section>
+      <p className="visually-hidden" role="status" aria-live="polite">
+        {msg}
+      </p>
+      {msg && <div className="toast">{msg}</div>}
 
       <section className="card">
         <h2 className="h3">Compiler</h2>

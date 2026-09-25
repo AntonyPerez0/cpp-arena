@@ -1,0 +1,29 @@
+id: pointer-to-pointer
+title: A pointer to a pointer
+lang: c
+module: c-pointers
+steps: [c-pointers-7]
+summary: Let a function change which thing the caller's pointer points at.
+text: |
+  `pick_larger` needs to change the caller's pointer `best`, not the numbers. So it takes `int **out`: a pointer whose arrow leads to `best`, which itself points at a number.
+
+  After `*out = b;`, `best` points at `y`. Follow the two arrows: `out` to `best`, `best` to `y`.
+code: |
+  #include <stdio.h>
+
+  void pick_larger(int *a, int *b, int **out) {
+      if (*b > *a) {
+          *out = b;
+      } else {
+          *out = a;
+      }
+  }
+
+  int main(void) {
+      int x = 5;
+      int y = 9;
+      int *best = &x;
+      pick_larger(&x, &y, &best);
+      printf("larger = %d\n", *best);
+      return 0;
+  }

@@ -1,0 +1,22 @@
+id: vector-growth
+title: How a vector grows
+lang: cpp
+module: cpp-vector
+steps: [cpp-vector-1, cpp-vector-2, cpp-vector-3]
+summary: When size reaches capacity, the vector moves everything into a bigger heap block.
+text: |
+  A `std::vector` keeps its elements in a heap block. **Size** is how many you've added; **capacity** is how many fit before it has to grow.
+
+  Watch the heap during `push_back`: when the block is full, the vector allocates a bigger one, moves the elements over, and frees the old one. That's why pointers and iterators into a vector can break after a `push_back`, and why `reserve` helps when you know the final size.
+code: |
+  #include <iostream>
+  #include <vector>
+
+  int main() {
+      std::vector<int> v;
+      for (int i = 1; i <= 5; i++) {
+          v.push_back(i * 10);
+      }
+      std::cout << v.size() << " " << v.capacity() << "\n";
+      return 0;
+  }

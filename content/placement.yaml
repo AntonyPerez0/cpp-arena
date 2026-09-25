@@ -1,0 +1,157 @@
+# Placement quiz: one question per milestone in the curriculum, in order.
+# Getting a question wrong means "start at that module"; everything before it
+# can be skipped. Every question's answer is checked by compiling and running it.
+questions:
+  - module: c-ops
+    type: predict
+    body: |
+      int a = 7, b = 2;
+      printf("%d %d\n", a / b, a % b);
+    why: Dividing two ints throws away the fraction (7 / 2 is 3), and `%` gives the remainder (1).
+
+  - module: c-loops
+    type: predict
+    body: |
+      for (int i = 0; i < 10; i += 3) {
+          printf("%d ", i);
+      }
+      printf("\n");
+    why: "`i` goes 0, 3, 6, 9; the next value, 12, fails `i < 10`."
+
+  - module: c-funcs
+    type: predict
+    pre: |
+      void set_five(int x) {
+          x = 5;
+      }
+    body: |
+      int a = 1;
+      set_five(a);
+      printf("%d\n", a);
+    why: C passes arguments by value, so the function changes its own copy and `a` stays 1.
+
+  - module: c-arrays
+    type: predict
+    body: |
+      int a[] = {4, 8, 15, 16};
+      printf("%zu\n", sizeof a / sizeof a[0]);
+    why: The size of the whole array divided by the size of one element is the element count.
+
+  - module: c-strings
+    type: predict
+    body: |
+      char s[] = "hello";
+      printf("%zu %zu\n", strlen(s), sizeof s);
+    why: "`strlen` counts letters (5); the array also holds the `'\\0'` terminator, so it's 6 bytes."
+
+  - module: c-pointers
+    type: predict
+    body: |
+      int a[] = {10, 20, 30};
+      int *p = a;
+      p++;
+      *p += 1;
+      printf("%d %d\n", a[1], *(p + 1));
+    why: "`p++` moves to `a[1]`, which becomes 21; `*(p + 1)` is `a[2]`."
+
+  - module: c-memory
+    type: choice
+    prompt: What's wrong with this code?
+    body: |
+      char *s = malloc(5);
+      if (!s) return 1;
+      strcpy(s, "hello");
+      printf("%s\n", s);
+      free(s);
+    choices:
+      - There's no room for the `'\0'` at the end, so `strcpy` writes past the block
+      - "`malloc` needs a cast to `char *`"
+      - "`strcpy` only works on arrays, not on heap memory"
+      - Nothing, it's correct
+    answer: 1
+    compiles: true
+    why: '"hello" needs 6 bytes including the terminator. `malloc(strlen(src) + 1)` is the safe pattern.'
+
+  - module: c-structs
+    type: predict
+    pre: |
+      struct point { int x; int y; };
+    body: |
+      struct point a = {1, 2};
+      struct point *q = &a;
+      q->x = 9;
+      printf("%d %d\n", a.x, q->y);
+    why: "`q` points at `a`, so `q->x = 9` changes `a.x`."
+
+  - module: cpp-refs
+    type: predict
+    pre: |
+      void twice(int &r) { r *= 2; }
+    body: |
+      int v = 4;
+      twice(v);
+      twice(v);
+      std::cout << v << "\n";
+    why: A reference parameter is the caller's variable, so both calls double `v`.
+
+  - module: cpp-raii
+    type: predict
+    pre: |
+      struct Noisy {
+          char c;
+          explicit Noisy(char ch) : c(ch) { std::cout << c; }
+          ~Noisy() { std::cout << (char)(c + 32); }
+      };
+    body: |
+      {
+          Noisy a('A');
+          Noisy b('B');
+      }
+      std::cout << "\n";
+    why: Objects are destroyed in reverse order of construction, so `b` goes first.
+
+  - module: cpp-algorithms
+    type: predict
+    body: |
+      std::vector<int> v{3, 1, 2};
+      std::sort(v.begin(), v.end());
+      v.push_back(0);
+      std::cout << v[0] << v.back() << v.size() << "\n";
+    why: After sorting, `v` is 1 2 3; then 0 is added at the end, making 4 elements.
+
+  - module: cpp-smart
+    type: choice
+    prompt: "`a` is a `std::unique_ptr<int>`. What happens with `auto b = a;`?"
+    choices:
+      - It doesn't compile, because a unique_ptr can't be copied
+      - Both `a` and `b` own the int, and it's deleted twice
+      - "`b` takes ownership and `a` becomes empty"
+      - "`b` gets its own copy of the int"
+    answer: 1
+    why: unique_ptr's copy constructor is deleted. To hand over ownership you write `auto b = std::move(a);`.
+
+  - module: cpp-oop
+    type: predict
+    pre: |
+      struct Animal {
+          virtual std::string sound() const { return "..."; }
+          virtual ~Animal() = default;
+      };
+      struct Dog : Animal {
+          std::string sound() const override { return "woof"; }
+      };
+    body: |
+      std::unique_ptr<Animal> a = std::make_unique<Dog>();
+      std::cout << a->sound() << "\n";
+    why: "`sound` is virtual, so the call goes to the real object's override."
+
+  - module: dsa-complexity
+    type: choice
+    prompt: About how many comparisons does binary search need to find a value among 1,000,000 sorted numbers?
+    choices:
+      - About 20
+      - About 1,000
+      - About 500,000
+      - About 1,000,000
+    answer: 1
+    why: Each comparison halves the range, and 2 to the power 20 is about a million.

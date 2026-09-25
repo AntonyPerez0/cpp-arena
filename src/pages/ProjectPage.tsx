@@ -97,6 +97,7 @@ export default function ProjectPage() {
               setPassed(true);
             }}
             checkLabel="Check milestone"
+            report={{ kind: "Project milestone", title: `${p.title}: ${ms.title}`, id: `${p.id}#${cur + 1}`, path: `/projects/${p.id}` }}
           />
         </section>
       </div>

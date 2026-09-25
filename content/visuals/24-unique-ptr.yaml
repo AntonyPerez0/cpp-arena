@@ -1,0 +1,27 @@
+id: unique-ptr
+title: unique_ptr owns and moves
+lang: cpp
+module: cpp-smart
+steps: [cpp-smart-1, cpp-smart-2, cpp-smart-3]
+summary: Exactly one unique_ptr owns the heap object; moving hands it over.
+text: |
+  `std::make_unique` creates a `Point` on the heap and `a` owns it. `std::move(a)` transfers ownership to `b`: afterwards `a` is empty (`nullptr`) and `b` points at the same heap block. No copy of the `Point` is made.
+
+  When `b` goes out of scope at the end of `main`, it deletes the `Point` for you.
+code: |
+  #include <iostream>
+  #include <memory>
+
+  struct Point {
+      int x;
+      int y;
+  };
+
+  int main() {
+      auto a = std::make_unique<Point>(Point{3, 4});
+      a->x = 30;
+      std::unique_ptr<Point> b = std::move(a);
+      bool a_empty = (a == nullptr);
+      std::cout << b->x << " " << a_empty << "\n";
+      return 0;
+  }

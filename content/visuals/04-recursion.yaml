@@ -1,0 +1,26 @@
+id: recursion
+title: Recursion stacks up frames
+lang: c
+module: c-funcs
+steps: [c-funcs-6]
+summary: factorial(4) calls itself until it reaches the base case, then the frames unwind.
+text: |
+  Each call to `factorial` gets a new frame, so there are several `n`s alive at once, one per frame. The calls stack up until `n` is 1 (the **base case**), then each frame returns its result to the one below it and disappears.
+
+  Watch the stack grow to four frames of `factorial`, then shrink back to `main`.
+code: |
+  #include <stdio.h>
+
+  int factorial(int n) {
+      if (n <= 1) {
+          return 1;
+      }
+      int rest = factorial(n - 1);
+      return n * rest;
+  }
+
+  int main(void) {
+      int result = factorial(4);
+      printf("4! = %d\n", result);
+      return 0;
+  }

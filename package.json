@@ -6,7 +6,7 @@
   "scripts": {
     "postinstall": "node scripts/copy-toolchain.mjs",
     "dev": "vite",
-    "content": "node scripts/build-content.mjs",
+    "content": "node scripts/content.mjs",
     "verify:wasm": "node scripts/verify-wasm.mjs",
     "verify": "npm run content && npm run verify:wasm",
     "build": "node scripts/copy-toolchain.mjs && tsc --noEmit && vite build && node scripts/pack-pro.mjs && node scripts/prerender.mjs",
@@ -26,6 +26,7 @@
     "@uiw/react-codemirror": "^4.25.11",
     "browsercc": "0.1.1",
     "marked": "^14.1.4",
+    "qrcode-generator": "^1.4.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.30.6"

@@ -74,6 +74,10 @@ page("/", {
 <li><a href="${link("/deathmatch")}">Deathmatch: ${content.drills.length} drills</a></li>
 <li><a href="${link("/projects")}">Projects: ${content.projects.length} multi-milestone builds</a></li>
 <li><a href="${link("/pro")}">Pro Track: ${content.pro.length} projects graded by GitHub Actions</a></li>
+<li><a href="${link("/topics")}">C and C++ topics explained</a></li>
+<li><a href="${link("/visualize")}">Watch code run: memory visualizations</a></li>
+<li><a href="${link("/daily")}">Daily challenge</a></li>
+<li><a href="${link("/placement")}">Placement quiz</a></li>
 </ul>`,
 });
 
@@ -161,6 +165,80 @@ for (const p of content.pro) {
   });
 }
 
+// ---------------------------------------------------------------- topics, visualizations, quizzes
+const topics = content.topics ?? [];
+const modById = new Map(content.modules.map((m) => [m.id, m]));
+const visuals = fs.existsSync(path.join(ROOT, "src/generated/visuals.json")) ? JSON.parse(fs.readFileSync(path.join(ROOT, "src/generated/visuals.json"), "utf8")) : [];
+const visById = new Map(visuals.map((v) => [v.id, v]));
+page("/topics", {
+  title: `C and C++ topics explained (${topics.length} guides) | ${NAME}`,
+  description: "Short, tested explanations of C and C++: pointers, memory, structs, classes, RAII, smart pointers, move semantics, the STL, Big-O and more.",
+  body: `<h1>C and C++ topics</h1><ul>` + topics.map((t) => `<li><a href="${link(`/topics/${t.slug}`)}">${esc(t.title)}</a>: ${esc(t.description)}</li>`).join("") + `</ul>`,
+});
+for (const t of topics) {
+  const lang = t.lang === "c" ? "C" : "C++";
+  const vis = t.visual ? visById.get(t.visual) : null;
+  page(`/topics/${t.slug}`, {
+    title: `${t.title} | ${NAME}`,
+    description: t.description,
+    type: "article",
+    jsonld: {
+      "@context": "https://schema.org",
+      "@type": "TechArticle",
+      headline: t.title,
+      description: t.description,
+      proficiencyLevel: "Beginner",
+      programmingLanguage: lang,
+      inLanguage: "en",
+      isAccessibleForFree: true,
+      url: `${SITE}/topics/${t.slug}/`,
+      isPartOf: { "@type": "Course", name: courseLd.name, url: SITE + "/" },
+    },
+    body: `<nav aria-label="Breadcrumb"><a href="${link("/topics")}">Topics</a> › ${lang}</nav>
+<h1>${esc(t.title)}</h1>
+<p>${esc(t.description)}</p>
+${md(t.body)}
+<h2>Example</h2>
+<pre><code>${esc(t.example)}</code></pre>
+<p>Output:</p>
+<pre><code>${esc(t.output)}</code></pre>
+${vis ? `<p><a href="${link(`/visualize/${vis.id}`)}">Watch it run: ${esc(vis.title)}</a></p>` : ""}
+<h2>Practice it</h2><ul>${t.modules.map((m) => `<li><a href="${link(`/learn/${m}/1`)}">Lesson: ${esc(modById.get(m)?.title ?? m)}</a></li>`).join("")}</ul>`,
+  });
+}
+
+page("/visualize", {
+  title: `Watch C and C++ code run: memory visualizations | ${NAME}`,
+  description: `${visuals.length} step-by-step visualizations of real programs: the stack, the heap and every pointer drawn as an arrow, recorded with a debugger.`,
+  body: `<h1>Watch code run</h1><p>Step through real programs one line at a time and see the stack, the heap and every pointer.</p><ul>` + visuals.map((v) => `<li><a href="${link(`/visualize/${v.id}`)}">${esc(v.title)}</a>: ${esc(v.summary)}</li>`).join("") + `</ul>`,
+});
+for (const v of visuals) {
+  const m = modById.get(v.module);
+  page(`/visualize/${v.id}`, {
+    title: `${v.title}: step-by-step ${v.lang === "c" ? "C" : "C++"} visualization | ${NAME}`,
+    description: summary(v.summary + " " + v.text),
+    type: "article",
+    body: `<nav aria-label="Breadcrumb"><a href="${link("/visualize")}">Watch code run</a> › ${esc(m?.title ?? "")}</nav>
+<h1>${esc(v.title)}</h1>
+${md(v.text)}
+<pre><code>${esc(v.code)}</code></pre>
+<p>Output:</p><pre><code>${esc(v.out)}</code></pre>
+${m ? `<p>From the lesson: <a href="${link(`/learn/${m.id}/1`)}">${esc(m.title)}</a></p>` : ""}`,
+  });
+}
+
+page("/daily", {
+  title: `Daily C and C++ challenge | ${NAME}`,
+  description: "One quick C or C++ problem a day, the same for everyone. Keep your streak going.",
+  body: `<h1>Daily challenge</h1><p>One quick C or C++ problem a day, the same for everyone. Answer it to keep your streak going.</p>`,
+});
+page("/placement", {
+  title: `C and C++ placement quiz: where should you start? | ${NAME}`,
+  description: `${(content.placement ?? []).length} quick questions from printf to smart pointers that show which lessons you can skip.`,
+  body: `<h1>Placement quiz</h1><p>Already know some C or C++? Answer ${(content.placement ?? []).length} quick questions to find your starting point and skip what you know.</p>`,
+});
+page("/certificate", { title: `Certificates | ${NAME}`, description: "Certificates for finishing the C/C++ Arena course and the Pro Track.", index: false, body: `<h1>Certificates</h1>` });
+
 page("/profile", { title: `Your progress | ${NAME}`, description: "Your saved progress, ranks and settings.", index: false, body: `<h1>Profile</h1>` });
 
 // ---------------------------------------------------------------- render
@@ -183,6 +261,7 @@ function render(p) {
   const nav = `<header class="topbar"><a class="brand" href="${BASE}">${NAME}</a><nav class="nav" aria-label="Main">${[
     ["/learn", "Learn"],
     ["/deathmatch", "Deathmatch"],
+    ["/daily", "Daily"],
     ["/projects", "Projects"],
     ["/pro", "Pro"],
     ["/profile", "Profile"],

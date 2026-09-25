@@ -1,0 +1,641 @@
+# Reference pages at /topics/<slug>: a short explanation, a checked example, and links into the lessons.
+topics:
+  - slug: c-hello-world
+    title: Hello World in C
+    lang: c
+    description: Write, compile and run your first C program, and learn what each line of Hello World does.
+    modules: [c-hello]
+    body: |
+      Every C program starts running at `main`. The smallest useful program prints a line of text with `printf`:
+
+      - `#include <stdio.h>` brings in the standard input/output library, where `printf` is declared.
+      - `int main(void)` is where the program starts. `void` means it takes no arguments.
+      - `printf("Hello, World!\n");` prints the text. `\n` is a newline.
+      - `return 0;` tells the operating system the program succeeded.
+
+      To build it on your own machine, save it as `hello.c` and run `gcc -Wall hello.c -o hello`, then `./hello`. The `-Wall` flag turns on warnings, which catch many mistakes early.
+    example: |
+      #include <stdio.h>
+
+      int main(void) {
+          printf("Hello, World!\n");
+          return 0;
+      }
+
+  - slug: c-variables-and-types
+    title: C variables and data types
+    lang: c
+    description: int, double, char and friends. How to declare variables in C, what each type holds, and how big they are.
+    modules: [c-vars, c-types]
+    body: |
+      A variable is a named piece of memory with a **type** that decides what it can hold:
+
+      | Type | Holds | Typical size |
+      |---|---|---|
+      | `int` | whole numbers | 4 bytes |
+      | `double` | decimal numbers | 8 bytes |
+      | `char` | one character (a small number) | 1 byte |
+      | `long long` | bigger whole numbers | 8 bytes |
+
+      Always give a variable a value when you declare it: a local variable that was never set holds garbage. `sizeof` tells you how many bytes a type or variable uses. For exact sizes, `<stdint.h>` has `int32_t`, `uint8_t` and friends.
+    example: |
+      #include <stdio.h>
+
+      int main(void) {
+          int lives = 3;
+          double speed = 2.5;
+          char grade = 'A';
+          printf("%d %.1f %c\n", lives, speed, grade);
+          printf("int is %zu bytes\n", sizeof(int));
+          return 0;
+      }
+
+  - slug: printf-format-specifiers
+    title: printf format specifiers
+    lang: c
+    description: A cheat sheet for printf in C, from %d, %f, %s and %c to width, precision and %zu for sizes.
+    modules: [c-vars, c-hello]
+    body: |
+      `printf` replaces each `%` code in the format string with the next argument. The code must match the argument's type:
+
+      | Specifier | Type | Example output |
+      |---|---|---|
+      | `%d` | `int` | `42` |
+      | `%f`, `%.2f` | `double` | `3.141593`, `3.14` |
+      | `%c` | `char` | `A` |
+      | `%s` | string (`char *`) | `hello` |
+      | `%zu` | `size_t` (from `sizeof`, `strlen`) | `8` |
+      | `%x` | `unsigned`, in hex | `ff` |
+      | `%%` | a literal percent sign | `%` |
+
+      A number between `%` and the letter sets a minimum width: `%5d` pads to 5 characters, and `%-5d` pads on the right. Mismatched types are undefined behavior, so compile with `-Wall`, which checks format strings for you.
+    example: |
+      #include <stdio.h>
+
+      int main(void) {
+          printf("[%5d] [%-5d] [%.2f]\n", 42, 42, 3.14159);
+          printf("%s scored %d%%\n", "Ada", 95);
+          return 0;
+      }
+
+  - slug: scanf-reading-input
+    title: Reading input with scanf
+    lang: c
+    description: How to read numbers and words from the keyboard in C with scanf, and how to check that it worked.
+    modules: [c-input]
+    body: |
+      `scanf` reads text from standard input and converts it, using the same kind of format codes as `printf`. It needs the **address** of each variable to fill in, so you pass `&x`, not `x`.
+
+      `scanf` returns how many values it successfully read. Always check it: if the user types letters where a number was expected, nothing is stored.
+
+      For a word, `%s` reads up to the next space; always give a maximum width like `%19s` for a 20-byte array so long input can't overflow it. For whole lines, `fgets` is safer.
+    example: |
+      #include <stdio.h>
+
+      int main(void) {
+          int a, b;
+          if (scanf("%d %d", &a, &b) != 2) {
+              printf("please type two numbers\n");
+              return 1;
+          }
+          printf("%d\n", a + b);
+          return 0;
+      }
+    stdin: "3 4\n"
+
+  - slug: c-if-else-switch
+    title: if, else and switch in C
+    lang: c
+    description: Making decisions in C with if, else if, else and switch, plus the comparison and logical operators.
+    modules: [c-if]
+    body: |
+      `if` runs a block only when its condition is true (any non-zero value). Chain options with `else if` and finish with `else`.
+
+      Comparisons are `==`, `!=`, `<`, `<=`, `>` and `>=`. Combine them with `&&` (and), `||` (or) and `!` (not). A classic bug is writing `=` (assignment) where you meant `==`.
+
+      `switch` picks a case by an integer value. Each case needs a `break`, or execution **falls through** into the next case.
+    example: |
+      #include <stdio.h>
+
+      int main(void) {
+          int score = 72;
+          if (score >= 90) {
+              printf("A\n");
+          } else if (score >= 70) {
+              printf("C or better\n");
+          } else {
+              printf("keep going\n");
+          }
+          switch (score / 10) {
+          case 7:
+              printf("seventies\n");
+              break;
+          default:
+              printf("other\n");
+          }
+          return 0;
+      }
+
+  - slug: c-loops
+    title: "Loops in C: for, while and do-while"
+    lang: c
+    description: How for, while and do-while loops work in C, with break, continue and the common off-by-one mistakes.
+    modules: [c-loops]
+    body: |
+      - `while (condition)` repeats while the condition is true.
+      - `for (start; condition; step)` packs the counter into one line and is the usual choice for counting.
+      - `do { ... } while (condition);` always runs the body at least once.
+
+      `break` leaves the loop immediately and `continue` skips to the next pass.
+
+      To run a body n times, count from 0 with `i < n`. Writing `i <= n` runs once too often, which for an array means reading past its end.
+    example: |
+      #include <stdio.h>
+
+      int main(void) {
+          for (int i = 0; i < 5; i++) {
+              if (i == 3) continue;
+              printf("%d ", i);
+          }
+          printf("\n");
+          int n = 3;
+          while (n > 0) {
+              printf("%d...", n);
+              n--;
+          }
+          printf("go!\n");
+          return 0;
+      }
+
+  - slug: c-functions
+    title: Functions in C
+    lang: c
+    description: Defining and calling functions in C, parameters, return values, prototypes and pass by value.
+    modules: [c-funcs]
+    body: |
+      A function has a return type, a name, and parameters. Calling it runs its body with the arguments copied into the parameters.
+
+      C passes arguments **by value**: the function gets copies, so changing a parameter doesn't change the caller's variable. To let a function change the caller's variable, pass a pointer to it.
+
+      A function must be declared before it's used. Either define it above `main`, or put a **prototype** (just the first line, ending with `;`) near the top or in a header file.
+    visual: call-stack
+    example: |
+      #include <stdio.h>
+
+      int square(int x);
+
+      int main(void) {
+          printf("%d\n", square(7));
+          return 0;
+      }
+
+      int square(int x) {
+          return x * x;
+      }
+
+  - slug: recursion
+    title: Recursion explained
+    lang: c
+    description: What recursion is, why every recursive function needs a base case, and how the call stack makes it work.
+    modules: [c-funcs, dsa-trees]
+    body: |
+      A **recursive** function calls itself on a smaller version of the problem. Every recursive function needs:
+
+      1. A **base case** that answers directly without recursing, and
+      2. A **recursive case** that moves toward the base case.
+
+      Each call gets its own stack frame with its own variables, so several calls are in progress at once. Without a base case the frames pile up until the program crashes with a stack overflow.
+
+      Recursion fits naturally with trees, divide and conquer (merge sort, quicksort) and anything defined in terms of itself.
+    visual: recursion
+    example: |
+      #include <stdio.h>
+
+      int sum_to(int n) {
+          if (n == 0) return 0;
+          return n + sum_to(n - 1);
+      }
+
+      int main(void) {
+          printf("%d\n", sum_to(100));
+          return 0;
+      }
+
+  - slug: c-arrays
+    title: Arrays in C
+    lang: c
+    description: Declaring, indexing and looping over arrays in C, 2D arrays, and why arrays passed to functions lose their size.
+    modules: [c-arrays]
+    body: |
+      An array is a fixed number of elements of one type, stored side by side. Indexes start at **0**, so an array of 5 has indexes 0 to 4. C doesn't check indexes: reading `a[5]` is undefined behavior, not an error message.
+
+      `sizeof a / sizeof a[0]` gives the element count, but only where the array was declared. When you pass an array to a function it turns into a pointer to its first element, so pass the length as a separate parameter.
+
+      A 2D array like `int grid[3][4]` is 3 rows of 4 ints.
+    visual: arrays
+    example: |
+      #include <stdio.h>
+
+      int total(const int a[], int n) {
+          int t = 0;
+          for (int i = 0; i < n; i++) t += a[i];
+          return t;
+      }
+
+      int main(void) {
+          int scores[] = {90, 72, 85};
+          int n = sizeof scores / sizeof scores[0];
+          printf("%d scores, total %d\n", n, total(scores, n));
+          return 0;
+      }
+
+  - slug: c-strings
+    title: Strings in C
+    lang: c
+    description: How C strings work as char arrays ending in a null terminator, plus strlen, strcpy, strcmp and safe copying.
+    modules: [c-strings]
+    body: |
+      C has no string type. A string is a `char` array with a `'\0'` (null terminator) after the last character, so `"cat"` needs 4 bytes.
+
+      `<string.h>` has the helpers: `strlen` (length without the terminator), `strcmp` (compare, returns 0 when equal), `strcpy` and `strcat` (copy and append, which don't check the destination's size).
+
+      Never compare strings with `==`: that compares addresses. And make sure the destination has room for the terminator, or use `snprintf`, which always stays within the size you give it.
+    visual: strings
+    example: |
+      #include <stdio.h>
+      #include <string.h>
+
+      int main(void) {
+          char name[16];
+          snprintf(name, sizeof name, "%s-%d", "player", 7);
+          printf("%s has %zu chars\n", name, strlen(name));
+          printf("%d\n", strcmp(name, "player-7") == 0);
+          return 0;
+      }
+
+  - slug: c-pointers
+    title: Pointers in C explained
+    lang: c
+    description: What a pointer is, how & and * work, and why C uses pointers to change variables, share arrays and build data structures.
+    modules: [c-pointers]
+    body: |
+      A pointer is a variable that holds a **memory address**. `&x` gives the address of `x`; `*p` follows the pointer to the value it points at.
+
+      Pointers let a function change the caller's variables, pass big data without copying it, and link data together (lists, trees). A pointer that points at nothing should be `NULL`; following a `NULL` pointer crashes the program.
+
+      The easiest way to understand pointers is to watch them: step through the visualization below and follow the arrows.
+    visual: pointer-basics
+    example: |
+      #include <stdio.h>
+
+      void add_bonus(int *score) {
+          *score += 10;
+      }
+
+      int main(void) {
+          int score = 50;
+          int *p = &score;
+          add_bonus(p);
+          printf("%d %d\n", score, *p);
+          return 0;
+      }
+
+  - slug: pointer-arithmetic
+    title: Pointer arithmetic
+    lang: c
+    description: How adding to a pointer moves by whole elements, how p[i] relates to *(p + i), and where pointer arithmetic becomes undefined.
+    modules: [c-pointers]
+    body: |
+      Adding 1 to a pointer moves it to the **next element**, not the next byte: for an `int *` that's usually 4 bytes along. That's why `p[i]` means exactly `*(p + i)`.
+
+      Subtracting two pointers into the same array gives how many elements apart they are. You may point one past the last element (useful as an end marker), but reading it, or going further, is undefined behavior.
+    visual: pointer-arithmetic
+    example: |
+      #include <stdio.h>
+
+      int main(void) {
+          int a[] = {5, 10, 15, 20};
+          int *p = a;
+          int *end = a + 4;
+          printf("%d %d %d\n", *(p + 2), p[3], (int)(end - p));
+          return 0;
+      }
+
+  - slug: malloc-and-free
+    title: "malloc and free: dynamic memory in C"
+    lang: c
+    description: How to allocate memory on the heap in C with malloc, calloc and realloc, check for failure, and free it correctly.
+    modules: [c-memory]
+    body: |
+      Local variables live on the stack and vanish when their function returns. When you need memory whose size is only known at run time, or that must outlive a function, ask for it on the **heap**:
+
+      - `malloc(bytes)` returns a pointer to a new block (contents uninitialized), or `NULL` if it failed.
+      - `calloc(count, size)` does the same and zeroes it.
+      - `realloc(p, bytes)` resizes a block, possibly moving it.
+      - `free(p)` gives it back. Every successful allocation needs exactly one `free`.
+
+      Write sizes as `n * sizeof *p` so they stay right if the type changes.
+    visual: heap-array
+    example: |
+      #include <stdio.h>
+      #include <stdlib.h>
+
+      int main(void) {
+          int n = 5;
+          int *squares = malloc(n * sizeof *squares);
+          if (squares == NULL) return 1;
+          for (int i = 0; i < n; i++) squares[i] = i * i;
+          printf("%d\n", squares[4]);
+          free(squares);
+          return 0;
+      }
+
+  - slug: memory-leaks
+    title: Memory leaks, dangling pointers and double frees
+    lang: c
+    description: The classic C memory bugs, what causes them, and how to find them with AddressSanitizer and Valgrind.
+    modules: [c-memory]
+    body: |
+      - **Leak:** heap memory is never freed, usually because the last pointer to it was overwritten or a function returned early.
+      - **Dangling pointer:** using memory after `free`. The pointer still holds the old address, but the memory is no longer yours.
+      - **Double free:** calling `free` twice on the same block. Setting the pointer to `NULL` after freeing makes a second `free` harmless.
+      - **Buffer overflow:** writing past the end of a block.
+
+      None of these reliably crash, which is what makes them dangerous. Compile with `-fsanitize=address -g` while developing and the program stops at the exact line, or run it under `valgrind`.
+    visual: heap-string
+    example: |
+      #include <stdio.h>
+      #include <stdlib.h>
+
+      int main(void) {
+          char *buf = malloc(8);
+          if (!buf) return 1;
+          buf[0] = 'o';
+          buf[1] = 'k';
+          buf[2] = '\0';
+          printf("%s\n", buf);
+          free(buf);
+          buf = NULL;
+          free(buf);
+          return 0;
+      }
+
+  - slug: c-structs
+    title: Structs in C
+    lang: c
+    description: Grouping data with struct in C, the dot and arrow operators, typedef, and passing structs to functions.
+    modules: [c-structs]
+    body: |
+      A `struct` groups related values into one type. Access fields with `.` on a struct and `->` on a pointer to a struct (`p->x` is short for `(*p).x`).
+
+      Structs are copied when passed by value, which is fine for small ones. For big structs, or when the function should change the original, pass a pointer (a `const` pointer if it only reads).
+
+      `typedef struct { ... } Point;` lets you write `Point` instead of `struct point`.
+    visual: struct-pointer
+    example: |
+      #include <stdio.h>
+
+      typedef struct {
+          char name[16];
+          int hp;
+      } Player;
+
+      void hit(Player *p, int dmg) {
+          p->hp -= dmg;
+      }
+
+      int main(void) {
+          Player p = {"Ada", 100};
+          hit(&p, 30);
+          printf("%s has %d hp\n", p.name, p.hp);
+          return 0;
+      }
+
+  - slug: linked-lists
+    title: Linked lists in C
+    lang: c
+    description: Build a singly linked list in C with malloc, push to the front, walk it, reverse it, and free it.
+    modules: [c-lists]
+    body: |
+      A linked list is a chain of nodes on the heap, each holding a value and a pointer to the next node. The last node's `next` is `NULL`.
+
+      Pushing to the front is O(1): make a node, point it at the old head, and it becomes the new head. Walking the list follows `next` until `NULL`. To free the list, save `next` before freeing each node.
+
+      Linked lists teach pointers well, but for most real programs a dynamic array (like `std::vector`) is faster because its elements sit together in memory.
+    visual: list-push
+    example: |
+      #include <stdio.h>
+      #include <stdlib.h>
+
+      struct node {
+          int value;
+          struct node *next;
+      };
+
+      int main(void) {
+          struct node *head = NULL;
+          for (int v = 1; v <= 3; v++) {
+              struct node *n = malloc(sizeof *n);
+              if (!n) return 1;
+              n->value = v;
+              n->next = head;
+              head = n;
+          }
+          for (struct node *p = head; p; p = p->next) printf("%d ", p->value);
+          printf("\n");
+          while (head) {
+              struct node *next = head->next;
+              free(head);
+              head = next;
+          }
+          return 0;
+      }
+
+  - slug: bitwise-operators
+    title: Bitwise operators in C and C++
+    lang: c
+    description: "&, |, ^, ~, << and >> explained with examples: setting, clearing and testing bits, and bit flags."
+    modules: [c-bits]
+    body: |
+      Bitwise operators work on the individual bits of integers:
+
+      | Operator | Meaning | Common use |
+      |---|---|---|
+      | `a & b` | AND | test or clear bits |
+      | `a \| b` | OR | set bits |
+      | `a ^ b` | XOR | toggle bits |
+      | `~a` | NOT | flip every bit |
+      | `a << n` | shift left | multiply by 2 to the n; build masks |
+      | `a >> n` | shift right | divide by 2 to the n |
+
+      Flags pack several yes/no options into one integer: `flags |= FLAG` sets one, `flags &= ~FLAG` clears it, and `flags & FLAG` tests it. Use unsigned types for bit work, since shifting negative numbers is not portable.
+    example: |
+      #include <stdio.h>
+
+      #define CAN_READ  (1u << 0)
+      #define CAN_WRITE (1u << 1)
+
+      int main(void) {
+          unsigned perms = 0;
+          perms |= CAN_READ | CAN_WRITE;
+          perms &= ~CAN_WRITE;
+          printf("%d %d\n", (perms & CAN_READ) != 0, (perms & CAN_WRITE) != 0);
+          return 0;
+      }
+
+  - slug: c-preprocessor-macros
+    title: The C preprocessor and macros
+    lang: c
+    description: "#include, #define, include guards and conditional compilation, plus why macros need parentheses."
+    modules: [c-bits, c-program]
+    body: |
+      Before compiling, the preprocessor handles lines starting with `#`:
+
+      - `#include` pastes in a header file.
+      - `#define NAME value` replaces text. Function-like macros such as `#define SQUARE(x) ((x) * (x))` need parentheses around every parameter and the whole body, because they paste text rather than evaluate expressions.
+      - `#if`, `#ifdef` and `#ifndef` include code only under certain conditions.
+
+      Headers use **include guards** (`#ifndef MY_H` / `#define MY_H` / `#endif`, or `#pragma once`) so being included twice doesn't cause errors. In C++, prefer `constexpr` and inline functions to macros.
+    example: |
+      #include <stdio.h>
+
+      #define SQUARE(x) ((x) * (x))
+      #define DEBUG 1
+
+      int main(void) {
+          printf("%d\n", SQUARE(2 + 1));
+      #if DEBUG
+          printf("debug build\n");
+      #endif
+          return 0;
+      }
+
+  - slug: file-io-in-c
+    title: File I/O in C
+    lang: c
+    description: Open, read, write and close files in C with fopen, fprintf, fgets and fclose, and handle errors.
+    modules: [c-files]
+    body: |
+      `fopen(name, mode)` opens a file and returns a `FILE *`, or `NULL` if it failed (always check). Common modes are `"r"` (read), `"w"` (write, replacing the file) and `"a"` (append).
+
+      Write with `fprintf` or `fputs`, read lines with `fgets`, and always `fclose` when you're done so buffered data is written out.
+
+      `fgets(buf, sizeof buf, f)` reads one line (keeping the `\n`) and returns `NULL` at the end of the file, which makes it the standard loop condition.
+    example: |
+      #include <stdio.h>
+
+      int main(void) {
+          FILE *out = fopen("notes.txt", "w");
+          if (!out) return 1;
+          fprintf(out, "line one\nline two\n");
+          fclose(out);
+
+          FILE *in = fopen("notes.txt", "r");
+          if (!in) return 1;
+          char line[64];
+          int count = 0;
+          while (fgets(line, sizeof line, in)) count++;
+          fclose(in);
+          printf("%d lines\n", count);
+          return 0;
+      }
+
+  - slug: function-pointers
+    title: Function pointers and callbacks in C
+    lang: c
+    description: Store a function in a variable, pass it as a callback, and use it with qsort, with readable typedefs.
+    modules: [c-funcptr]
+    body: |
+      A function's name, used without calling it, is its address. You can store that in a **function pointer** and call through it later, which lets code decide what to do at run time.
+
+      The syntax `int (*op)(int, int)` reads as "op is a pointer to a function taking two ints and returning an int". A `typedef` makes it readable.
+
+      Callbacks are how C does customization: `qsort` takes a comparison function, and event systems take handler functions.
+    visual: function-pointer
+    example: |
+      #include <stdio.h>
+      #include <stdlib.h>
+
+      int by_value(const void *a, const void *b) {
+          int x = *(const int *)a;
+          int y = *(const int *)b;
+          return (x > y) - (x < y);
+      }
+
+      int main(void) {
+          int v[] = {42, 7, 19, 3};
+          qsort(v, 4, sizeof v[0], by_value);
+          printf("%d %d %d %d\n", v[0], v[1], v[2], v[3]);
+          return 0;
+      }
+
+  - slug: undefined-behavior
+    title: Undefined behavior in C and C++
+    lang: c
+    description: What undefined behavior is, the common causes (overflow, out of bounds, use after free), and how sanitizers catch it.
+    modules: [c-types]
+    body: |
+      **Undefined behavior** (UB) is code the language places no requirements on. The compiler is allowed to assume it never happens, so the result can be anything: a crash, a wrong answer, or code that works until you change the optimization level.
+
+      Common causes:
+
+      - signed integer overflow (`INT_MAX + 1`)
+      - reading or writing outside an array
+      - using memory after `free`, or an uninitialized variable
+      - dereferencing `NULL`
+      - data races between threads
+
+      Defend with warnings (`-Wall -Wextra`), sanitizers (`-fsanitize=address,undefined`), and by checking before doing arithmetic that could overflow.
+    example: |
+      #include <limits.h>
+      #include <stdio.h>
+
+      int safe_add(int a, int b, int *out) {
+          if ((b > 0 && a > INT_MAX - b) || (b < 0 && a < INT_MIN - b)) return 0;
+          *out = a + b;
+          return 1;
+      }
+
+      int main(void) {
+          int r = 0;
+          int ok = safe_add(INT_MAX, 1, &r);
+          printf("%d\n", ok);
+          ok = safe_add(2, 3, &r);
+          printf("%d %d\n", ok, r);
+          return 0;
+      }
+
+  - slug: header-files
+    title: Header files and multiple source files
+    lang: c
+    description: How to split a C or C++ program into .h and .c files, what goes where, and how the linker joins them.
+    modules: [c-program]
+    body: |
+      Bigger programs are split into several `.c` files. A **header** (`.h`) holds the declarations other files need: function prototypes, struct definitions and constants. The matching `.c` file holds the definitions.
+
+      Each `.c` file is compiled on its own into an object file, then the **linker** joins them. "Undefined reference" errors come from the linker: something was declared but its definition wasn't linked in.
+
+      Mark helper functions `static` so they stay private to their file, and protect headers with include guards.
+
+      ```c
+      // math_utils.h
+      #ifndef MATH_UTILS_H
+      #define MATH_UTILS_H
+      int clamp(int v, int lo, int hi);
+      #endif
+      ```
+    example: |
+      #include <stdio.h>
+
+      /* In a real project this prototype lives in math_utils.h ... */
+      int clamp(int v, int lo, int hi);
+
+      int main(void) {
+          printf("%d %d\n", clamp(150, 0, 100), clamp(-5, 0, 100));
+          return 0;
+      }
+
+      /* ... and this definition in math_utils.c */
+      int clamp(int v, int lo, int hi) {
+          return v < lo ? lo : v > hi ? hi : v;
+      }

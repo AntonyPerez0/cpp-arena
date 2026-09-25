@@ -3,8 +3,25 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0f1115" />
+    <meta name="theme-color" content="#0d0f13" />
+    <script>
+      // Apply the saved theme and text size before anything paints.
+      (function () {
+        var t = "system", z = 1;
+        try {
+          var s = JSON.parse(localStorage.getItem("cpp-arena-v1") || "{}").settings || {};
+          t = s.theme || "system";
+          z = s.textScale || 1;
+        } catch (e) {}
+        if (t === "system") t = window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+        var r = document.documentElement;
+        r.setAttribute("data-theme", t);
+        r.style.setProperty("--scale", String(z));
+      })();
+    </script>
     <meta name="description" content="Learn C and C++ from zero to advanced with real in-browser compilation, deathmatch reps and projects." />
     <title>C/C++ Arena</title>
   </head>

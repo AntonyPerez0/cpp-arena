@@ -1,0 +1,28 @@
+id: heap-array
+title: An array on the heap
+lang: c
+module: c-memory
+steps: [c-memory-1, c-memory-2]
+summary: malloc gives you a block on the heap; free gives it back.
+text: |
+  `malloc` asks for a block of memory on the **heap** and returns its address. The block lives on after the line that made it, until you call `free`.
+
+  Watch the heap block appear on the `malloc` line, fill up in the loop, then vanish at `free`. After `free`, `data` still holds the old address but points at nothing valid (a **dangling pointer**), so the program sets it to `NULL`.
+code: |
+  #include <stdio.h>
+  #include <stdlib.h>
+
+  int main(void) {
+      int n = 4;
+      int *data = malloc(n * sizeof *data);
+      if (data == NULL) {
+          return 1;
+      }
+      for (int i = 0; i < n; i++) {
+          data[i] = (i + 1) * 10;
+      }
+      printf("last = %d\n", data[n - 1]);
+      free(data);
+      data = NULL;
+      return 0;
+  }

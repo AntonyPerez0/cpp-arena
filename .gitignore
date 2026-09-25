@@ -4,3 +4,5 @@ public/toolchain
 *.log
 .DS_Store
 test-results
+public/visuals
+src/generated/visuals.json

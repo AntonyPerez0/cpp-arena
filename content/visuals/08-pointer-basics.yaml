@@ -1,0 +1,20 @@
+id: pointer-basics
+title: A pointer holds an address
+lang: c
+module: c-pointers
+steps: [c-pointers-1]
+summary: Make a pointer to a variable, then change the variable through it.
+text: |
+  `&age` is the address of `age`. Storing it in `p` makes `p` point at `age`, drawn as an arrow.
+
+  `*p = 31;` means "go to where `p` points and store 31 there", so `age` changes even though the line never mentions `age`.
+code: |
+  #include <stdio.h>
+
+  int main(void) {
+      int age = 30;
+      int *p = &age;
+      *p = 31;
+      printf("age = %d\n", age);
+      return 0;
+  }

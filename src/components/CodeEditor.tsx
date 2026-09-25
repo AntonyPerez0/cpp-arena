@@ -6,6 +6,8 @@ import { keymap, EditorView } from "@codemirror/view";
 import { Prec } from "@codemirror/state";
 import { linter, lintGutter, type Diagnostic as CmDiagnostic } from "@codemirror/lint";
 import type { Diagnostic } from "../grader/friendly";
+import { useResolvedTheme } from "../lib/appearance";
+import { lightEditorTheme } from "./lightTheme";
 
 type Props = {
   value: string;
@@ -20,6 +22,7 @@ type Props = {
 
 export default function CodeEditor({ value, onChange, onRun, diagnostics = [], minHeight = "260px", readOnly, label = "Code editor" }: Props) {
   const helpId = useId();
+  const theme = useResolvedTheme();
   const extensions = useMemo(() => {
     const diagSource = diagnostics.filter((d) => d.line > 0 && !d.inTests && d.severity !== "note");
     return [
@@ -60,7 +63,7 @@ export default function CodeEditor({ value, onChange, onRun, diagnostics = [], m
       <CodeMirror
         value={value}
         onChange={onChange}
-        theme={oneDark}
+        theme={theme === "light" ? lightEditorTheme : oneDark}
         extensions={extensions}
         minHeight={minHeight}
         readOnly={readOnly}

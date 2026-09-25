@@ -1,0 +1,25 @@
+id: array-param
+title: Passing an array to a function
+lang: c
+module: c-arrays
+steps: [c-arrays-4, c-arrays-5]
+summary: The function gets a pointer to the caller's array, so its changes stick.
+text: |
+  An array isn't copied when you pass it. The parameter `values` is a **pointer** to the first box of `scores` in `main`, so the arrow points back into `main`'s frame.
+
+  That's why `double_all` can change the caller's array, and why it needs the length passed separately: a pointer doesn't know how many boxes follow it.
+code: |
+  #include <stdio.h>
+
+  void double_all(int values[], int n) {
+      for (int i = 0; i < n; i++) {
+          values[i] *= 2;
+      }
+  }
+
+  int main(void) {
+      int scores[3] = {4, 7, 9};
+      double_all(scores, 3);
+      printf("%d %d %d\n", scores[0], scores[1], scores[2]);
+      return 0;
+  }

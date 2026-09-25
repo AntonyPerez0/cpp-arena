@@ -1,9 +1,17 @@
 import type { Drill } from "../content/types";
+import { moduleById } from "../content";
 import { looseOutput } from "../grader/assemble.js";
 import type { DmMode, DrillStat, State } from "../state/store";
 import { update, today } from "../state/store";
 
 export const BOSS_EVERY = 8;
+/** Drill topic for the interview prep set (not a lesson module). */
+export const INTERVIEW = "interview";
+
+export function topicTitle(topic: string): string {
+  if (topic === INTERVIEW) return "Interview prep";
+  return moduleById.get(topic)?.title ?? topic;
+}
 const DAY = 86_400_000;
 // Leitner intervals (days) for boxes 1..5
 const INTERVAL = [0, 0.5, 1, 3, 7, 16];
@@ -27,6 +35,7 @@ export function checkAnswer(d: Drill, answer: string): boolean {
     }
     case "bug":
     case "compiles":
+    case "choice":
       return answer.trim().toLowerCase() === d.answer;
     default:
       return false;
@@ -111,6 +120,7 @@ export const TYPE_LABEL: Record<Drill["type"], string> = {
   bug: "Spot the bug",
   compiles: "Will it compile?",
   boss: "Boss rep",
+  choice: "Pick one",
 };
 
 export function callout(streak: number): string | null {

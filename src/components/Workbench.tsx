@@ -9,6 +9,9 @@ import Markdown from "./Markdown";
 import { CodeView } from "./highlight";
 import { useCompilerStatus } from "./CompilerBadge";
 import { ensureCompiler } from "../compiler/client";
+import SymbolBar from "./SymbolBar";
+import ReportLink from "./ReportLink";
+import type { ReportInfo } from "../lib/site";
 
 type Props = {
   ex: Exercise;
@@ -20,6 +23,8 @@ type Props = {
   onPass: (info: { hintsUsed: number; sawSolution: boolean }) => void;
   onRevealSolution?: () => void;
   checkLabel?: string;
+  /** What to put in a "Report a problem" issue (the code and last result are added automatically). */
+  report?: Omit<ReportInfo, "code" | "result">;
 };
 
 /** A short summary of a result for screen readers (the visible results panel has the details). */
@@ -32,7 +37,7 @@ function announce(r: GradeResult): string {
   return `${failed} of ${r.tests.length} tests failed.${rules} Details are below the editor.`;
 }
 
-export default function Workbench({ ex, initialCode, initialBlanks, hintsUsed, onHint, onSave, onPass, onRevealSolution, checkLabel = "Check" }: Props) {
+export default function Workbench({ ex, initialCode, initialBlanks, hintsUsed, onHint, onSave, onPass, onRevealSolution, checkLabel = "Check", report }: Props) {
   const isFill = ex.kind === "fill";
   const blankCount = isFill ? parseTemplate(ex.seed).blanks.length : 0;
   const [code, setCode] = useState(initialCode ?? ex.seed);
@@ -47,6 +52,7 @@ export default function Workbench({ ex, initialCode, initialBlanks, hintsUsed, o
   const [showConsole, setShowConsole] = useState(false);
   const compiler = useCompilerStatus();
   const busyRef = useRef(false);
+  const boxRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     ensureCompiler({ warmCpp: ex.lang === "cpp" });
@@ -99,7 +105,7 @@ export default function Workbench({ ex, initialCode, initialBlanks, hintsUsed, o
   const waiting = compiler.state !== "ready";
 
   return (
-    <div className="workbench">
+    <div className="workbench" ref={boxRef}>
       {isFill ? (
         <FillCode
           template={ex.seed}
@@ -123,6 +129,7 @@ export default function Workbench({ ex, initialCode, initialBlanks, hintsUsed, o
           diagnostics={result?.diagnostics}
         />
       )}
+      <SymbolBar container={boxRef} />
 
       <div className="actions">
         <button className="btn btn-primary" onClick={check} disabled={busy} aria-keyshortcuts="Control+Enter Meta+Enter">
@@ -205,6 +212,11 @@ export default function Workbench({ ex, initialCode, initialBlanks, hintsUsed, o
             </button>
           )}
         </div>
+        {report && (
+          <p className="report-row">
+            <ReportLink info={() => ({ ...report, code: source, result: result ? announce(result) : undefined })} />
+          </p>
+        )}
         {showSolution && (
           <div className="solution">
             <div className="lbl">reference solution (type it in yourself; that is the rep)</div>

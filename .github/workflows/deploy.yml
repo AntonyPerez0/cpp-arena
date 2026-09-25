@@ -44,11 +44,17 @@ jobs:
             echo "SITE_URL=https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}" >> "$GITHUB_ENV"
           fi
 
+      - name: Install gdb (records the step-by-step visualizations)
+        run: sudo apt-get update && sudo apt-get install -y gdb
+
       - name: Compile and run every lesson, drill and project with real GCC/G++
         run: npm run content -- --no-cache
 
       - name: Type-check and build the site (plus one pre-rendered page per route, sitemap.xml)
         run: npm run build
+        env:
+          # Optional: a Cloudflare Web Analytics token, set under Settings > Secrets and variables > Actions > Variables.
+          CF_BEACON_TOKEN: ${{ vars.CF_BEACON_TOKEN }}
 
       - name: Install Chromium for the browser tests
         run: npx playwright install --with-deps chromium

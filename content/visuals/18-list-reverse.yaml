@@ -1,0 +1,45 @@
+id: list-reverse
+title: Reversing a linked list in place
+lang: c
+module: c-lists
+steps: [c-lists-4, c-lists-5]
+summary: Three pointers flip every next arrow without allocating anything.
+text: |
+  `prev`, `cur` and `next` walk down the list. Each pass saves `cur->next`, flips `cur->next` to point backward at `prev`, then moves all three one node along.
+
+  Watch the heap arrows turn around one at a time. At the end, `prev` is the new head.
+code: |
+  #include <stdio.h>
+  #include <stdlib.h>
+
+  struct node {
+      int value;
+      struct node *next;
+  };
+
+  int main(void) {
+      struct node *head = NULL;
+      for (int v = 3; v >= 1; v--) {
+          struct node *n = malloc(sizeof *n);
+          if (!n) return 1;
+          n->value = v;
+          n->next = head;
+          head = n;
+      }
+      struct node *prev = NULL;
+      struct node *cur = head;
+      while (cur) {
+          struct node *next = cur->next;
+          cur->next = prev;
+          prev = cur;
+          cur = next;
+      }
+      head = prev;
+      printf("%d %d %d\n", head->value, head->next->value, head->next->next->value);
+      while (head) {
+          struct node *next = head->next;
+          free(head);
+          head = next;
+      }
+      return 0;
+  }

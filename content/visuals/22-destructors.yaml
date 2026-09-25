@@ -1,0 +1,32 @@
+id: destructors
+title: Constructors, destructors and scope
+lang: cpp
+module: cpp-raii
+steps: [cpp-raii-1, cpp-raii-2, cpp-raii-3]
+summary: Objects are destroyed automatically, in reverse order, when their scope ends.
+text: |
+  Each `Noisy` prints when it's made and when it's destroyed. Watch the output: `b` is destroyed at the end of the inner block, before `c` is even created, and at the end of `main` the rest go in **reverse** order.
+
+  This automatic cleanup is what RAII builds on: put the release in the destructor and it can't be forgotten.
+code: |
+  #include <iostream>
+  #include <string>
+
+  struct Noisy {
+      std::string name;
+      explicit Noisy(std::string n) : name(n) {
+          std::cout << "make " << name << "\n";
+      }
+      ~Noisy() {
+          std::cout << "drop " << name << "\n";
+      }
+  };
+
+  int main() {
+      Noisy a("a");
+      {
+          Noisy b("b");
+      }
+      Noisy c("c");
+      return 0;
+  }

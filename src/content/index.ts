@@ -6,6 +6,9 @@ export const modules = content.modules;
 export const projects = content.projects;
 export const drills = content.drills;
 export const pro = content.pro ?? [];
+export const placement = content.placement ?? [];
+export const topics = content.topics ?? [];
+export const topicBySlug = new Map(topics.map((t) => [t.slug, t]));
 export const proById = new Map(pro.map((p) => [p.id, p]));
 
 export const moduleById = new Map(modules.map((m) => [m.id, m]));

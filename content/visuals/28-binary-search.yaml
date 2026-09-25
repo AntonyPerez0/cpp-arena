@@ -1,0 +1,31 @@
+id: binary-search
+title: Binary search halves the range
+lang: c
+module: dsa-complexity
+steps: [dsa-complexity-1, dsa-complexity-2]
+summary: lo and hi close in on the target, halving the search range every pass.
+text: |
+  The array is sorted, so comparing the middle element tells us which half can't contain the target. Watch `lo`, `hi` and `mid`: each pass throws away half of what's left. For 8 elements it takes at most 4 looks; for a million, about 20. That's **O(log n)**.
+code: |
+  #include <stdio.h>
+
+  int main(void) {
+      int a[8] = {2, 5, 8, 12, 16, 23, 38, 56};
+      int target = 23;
+      int lo = 0;
+      int hi = 7;
+      int found = -1;
+      while (lo <= hi) {
+          int mid = lo + (hi - lo) / 2;
+          if (a[mid] == target) {
+              found = mid;
+              break;
+          } else if (a[mid] < target) {
+              lo = mid + 1;
+          } else {
+              hi = mid - 1;
+          }
+      }
+      printf("found at %d\n", found);
+      return 0;
+  }

@@ -1,0 +1,44 @@
+id: list-push
+title: Building a linked list
+lang: c
+module: c-lists
+steps: [c-lists-1, c-lists-2, c-lists-3]
+summary: Each push makes a heap node that points at the old head.
+text: |
+  Every node is a separate heap block holding a value and a `next` pointer. `push` makes a new node, points its `next` at the current head, and returns it as the new head.
+
+  After three pushes, follow the arrows from `head`: 3, then 2, then 1, then `NULL`. The list is in reverse order because each push goes on the front.
+code: |
+  #include <stdio.h>
+  #include <stdlib.h>
+
+  struct node {
+      int value;
+      struct node *next;
+  };
+
+  struct node *push(struct node *head, int value) {
+      struct node *n = malloc(sizeof *n);
+      if (!n) exit(1);
+      n->value = value;
+      n->next = head;
+      return n;
+  }
+
+  int main(void) {
+      struct node *head = NULL;
+      for (int v = 1; v <= 3; v++) {
+          head = push(head, v);
+      }
+      int sum = 0;
+      for (struct node *p = head; p != NULL; p = p->next) {
+          sum += p->value;
+      }
+      printf("sum = %d\n", sum);
+      while (head) {
+          struct node *next = head->next;
+          free(head);
+          head = next;
+      }
+      return 0;
+  }

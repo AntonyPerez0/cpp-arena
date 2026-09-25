@@ -263,9 +263,11 @@ async function buildDrills(moduleIds) {
   const jobs = [];
   for (const { file, data } of files) {
     const topic = data.topic;
-    if (!moduleIds.has(topic)) errors.push(`${file}: unknown topic ${topic}`);
+    // "interview" is the interview prep set, not tied to a lesson module.
+    if (!moduleIds.has(topic) && topic !== "interview") errors.push(`${file}: unknown topic ${topic}`);
     (data.drills ?? []).forEach((d, i) => {
-      const id = d.id ?? `${topic}-${i + 1}`;
+      // Interview drills come from several files, so their ids include the file name.
+      const id = d.id ?? (topic === "interview" ? `${path.basename(file, ".yaml")}-${i + 1}` : `${topic}-${i + 1}`);
       if (seen.has(id)) errors.push(`${file}: duplicate drill id ${id}`);
       seen.add(id);
       const lang = d.lang ?? data.lang;
@@ -355,6 +357,32 @@ async function buildDrill(where, id, topic, lang, d) {
       if (!why) warnings.push(`${where}: no explanation`);
       return { ...base, why, prompt: d.prompt ?? "Does this compile?", display: drillDisplay(pre, body), answer, src: { pre, body, stdin: d.stdin ?? "", ...(d.files ? { files: d.files } : {}), ...(d.args ? { args: d.args.map(String) } : {}) } };
     }
+    case "choice": {
+      const choices = (d.choices ?? []).map(String);
+      const answer = Number(d.answer);
+      if (choices.length < 2 || choices.length > 4) return void errors.push(`${where}: choice drills need 2 to 4 choices`);
+      if (new Set(choices).size !== choices.length) errors.push(`${where}: duplicate choices`);
+      if (!(answer >= 1 && answer <= choices.length)) return void errors.push(`${where}: answer must be the number of the right choice (1 to ${choices.length})`);
+      if (!d.prompt) errors.push(`${where}: choice drills need a prompt`);
+      if (!d.why) errors.push(`${where}: choice drills need an explanation (why)`);
+      const display = drillDisplay(pre, body);
+      if (display) {
+        // Code shown with a question must compile (unless the question is about a compile error),
+        // and "verify: output" checks that the right choice really is what it prints.
+        // Code with only declarations still needs a main to link.
+        const res = await execute(lang, drillProgram(lang, pre, body || " "), [runInput(d)]);
+        if (d.compiles !== false && !res.compiled) return void errors.push(`${where}: code does not compile\n${res.diagnostics}`);
+        if (d.compiles === false && res.compiled) errors.push(`${where}: marked compiles: false but it compiles`);
+        if (d.verify === "output") {
+          const r = res.runs[0];
+          if (!r || r.code !== 0) return void errors.push(`${where}: program failed`);
+          const out = looseOutput(normalizeOutput(r.stdout));
+          if (looseOutput(choices[answer - 1]) !== out) errors.push(`${where}: right choice "${choices[answer - 1]}" but the program prints "${normalizeOutput(r.stdout)}"`);
+          choices.forEach((c, i) => i !== answer - 1 && looseOutput(c) === out && errors.push(`${where}: choice ${i + 1} is also correct`));
+        }
+      }
+      return { ...base, prompt: d.prompt ?? "", display, answer: String(answer), choices };
+    }
     case "boss": {
       const ex = await buildExercise(where, lang, d, null);
       if (!ex) return null;
@@ -364,6 +392,64 @@ async function buildDrill(where, id, topic, lang, d) {
       errors.push(`${where}: unknown drill type ${d.type}`);
       return null;
   }
+}
+
+// ---------------------------------------------------------------- placement quiz
+async function buildPlacement(modules) {
+  const file = path.join(ROOT, "content", "placement.yaml");
+  if (!fs.existsSync(file)) return [];
+  const data = YAML.parse(fs.readFileSync(file, "utf8"));
+  const order = modules.map((m) => m.id);
+  const out = [];
+  let last = -1;
+  for (const [i, q] of (data.questions ?? []).entries()) {
+    const where = `content/placement.yaml question ${i + 1}`;
+    const at = order.indexOf(q.module);
+    if (at < 0) {
+      errors.push(`${where}: unknown module ${q.module}`);
+      continue;
+    }
+    if (at < last) errors.push(`${where}: questions must follow the curriculum order`);
+    last = at;
+    const lang = q.lang ?? modules[at].lang;
+    const d = await buildDrill(where, `placement-${i + 1}`, q.module, lang, q);
+    if (d) out.push({ ...d, module: q.module });
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------- topic reference pages
+async function buildTopics(modules) {
+  const moduleIds = new Set(modules.map((m) => m.id));
+  const visualIds = new Set(
+    readYamlDir("content/visuals")
+      .map((x) => x.data?.id)
+      .filter(Boolean),
+  );
+  const out = [];
+  const slugs = new Set();
+  for (const { file, data } of readYamlDir("content/topics")) {
+    for (const [i, t] of (data.topics ?? []).entries()) {
+      const where = `${file} topic ${i + 1} (${t.slug})`;
+      for (const k of ["slug", "title", "lang", "description", "body", "example"]) if (!t[k]) errors.push(`${where}: missing ${k}`);
+      if (!/^[a-z0-9-]+$/.test(t.slug ?? "")) errors.push(`${where}: slug must be lowercase letters, digits and dashes`);
+      if (slugs.has(t.slug)) errors.push(`${where}: duplicate slug`);
+      slugs.add(t.slug);
+      if ((t.description ?? "").length > 160) warnings.push(`${where}: description is over 160 characters`);
+      for (const m of t.modules ?? []) if (!moduleIds.has(m)) errors.push(`${where}: unknown module ${m}`);
+      if (t.visual && !visualIds.has(t.visual)) errors.push(`${where}: unknown visual ${t.visual}`);
+      const example = ensureNl(t.example);
+      const res = await execute(t.lang, example, [t.stdin ?? ""], { werror: true });
+      if (!res.compiled) {
+        errors.push(`${where}: example does not compile:\n${res.diagnostics}`);
+        continue;
+      }
+      const r = res.runs[0];
+      if (r.code !== 0 || r.timedOut) errors.push(`${where}: example exits with ${r.code}`);
+      out.push({ slug: t.slug, title: t.title, lang: t.lang, description: t.description, modules: t.modules ?? [], visual: t.visual ?? null, body: t.body, example, stdin: t.stdin ?? "", output: r.stdout });
+    }
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------- pro track
@@ -399,6 +485,8 @@ const modules = await buildLessons();
 const projects = await buildProjects();
 const drills = await buildDrills(new Set(modules.map((m) => m.id)));
 const pro = buildPro();
+const placement = await buildPlacement(modules);
+const topics = await buildTopics(modules);
 {
   const seenSteps = new Set();
   for (const m of modules) for (const st of m.steps) {
@@ -418,9 +506,9 @@ if (errors.length) {
   console.error(`\n${errors.length} content error(s).`);
   process.exit(1);
 }
-const content = { generatedAt: new Date().toISOString(), modules, projects, drills, pro };
+const content = { generatedAt: new Date().toISOString(), modules, projects, drills, pro, placement, topics };
 fs.mkdirSync(path.join(ROOT, "src/generated"), { recursive: true });
 fs.writeFileSync(path.join(ROOT, "src/generated/content.json"), JSON.stringify(content));
 const steps = modules.reduce((a, m) => a + m.steps.length, 0);
 const ms = projects.reduce((a, p) => a + p.milestones.length, 0);
-console.log(`content ok: ${modules.length} modules, ${steps} steps, ${drills.length} drills, ${projects.length} projects (${ms} milestones), ${pro.length} pro projects in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+console.log(`content ok: ${modules.length} modules, ${steps} steps, ${drills.length} drills, ${projects.length} projects (${ms} milestones), ${pro.length} pro projects, ${placement.length} placement questions, ${topics.length} topic pages in ${((Date.now() - t0) / 1000).toFixed(1)}s`);

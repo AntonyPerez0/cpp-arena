@@ -1,0 +1,25 @@
+id: reverse-two-pointers
+title: Reversing with two pointers
+lang: c
+module: c-pointers
+steps: [c-pointers-9]
+summary: One pointer from each end swaps its way to the middle.
+text: |
+  `left` starts at the first element and `right` at the last. Each pass swaps the two boxes they point at, then both arrows move one step toward each other. They stop when they meet in the middle.
+code: |
+  #include <stdio.h>
+
+  int main(void) {
+      int v[5] = {1, 2, 3, 4, 5};
+      int *left = v;
+      int *right = v + 4;
+      while (left < right) {
+          int tmp = *left;
+          *left = *right;
+          *right = tmp;
+          left++;
+          right--;
+      }
+      printf("%d %d %d %d %d\n", v[0], v[1], v[2], v[3], v[4]);
+      return 0;
+  }

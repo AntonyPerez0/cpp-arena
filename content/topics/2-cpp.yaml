@@ -1,0 +1,460 @@
+topics:
+  - slug: c-vs-cpp
+    title: "C vs C++: what's the difference?"
+    lang: cpp
+    description: How C++ builds on C with classes, references, RAII, templates and the standard library, and when each language is used.
+    modules: [cpp-basics]
+    body: |
+      C++ started as "C with classes" and almost all C code is also valid C++. What C++ adds:
+
+      - **Classes** with constructors and destructors, so objects clean up after themselves (RAII).
+      - **References**, a safer alternative to many pointer uses.
+      - **The standard library**: `std::string`, `std::vector`, `std::map`, algorithms and smart pointers, so you rarely manage memory by hand.
+      - **Templates** for generic code, and **exceptions** for error handling.
+
+      C is still the language of operating system kernels, embedded firmware and libraries that every other language calls. C++ dominates games, browsers, databases, trading systems and high-performance applications. Learning C first makes C++'s features make sense, which is why this course does it in that order.
+    example: |
+      #include <iostream>
+      #include <string>
+      #include <vector>
+
+      int main() {
+          std::vector<std::string> names{"Ada", "Linus"};
+          names.push_back("Bjarne");
+          for (const auto &n : names) std::cout << n << " ";
+          std::cout << "\n";
+          return 0;
+      }
+
+  - slug: cpp-references
+    title: References in C++
+    lang: cpp
+    description: What a C++ reference is, pass by reference vs pass by value, const references, and references vs pointers.
+    modules: [cpp-refs]
+    body: |
+      A reference is another name for an existing object: `int &r = x;` means using `r` is using `x`. Unlike a pointer, a reference must be bound when it's created, can't be null, and can't be re-pointed.
+
+      References shine as parameters:
+
+      - `void f(int &x)` lets the function change the caller's variable.
+      - `void f(const std::string &s)` avoids copying a big object while promising not to change it. This is the everyday way to pass objects you only read.
+
+      Never return a reference to a local variable: the local is destroyed when the function returns.
+    visual: references
+    example: |
+      #include <iostream>
+      #include <string>
+
+      void shout(std::string &s) { s += "!"; }
+      std::size_t len(const std::string &s) { return s.size(); }
+
+      int main() {
+          std::string msg = "hello";
+          shout(msg);
+          std::cout << msg << " " << len(msg) << "\n";
+          return 0;
+      }
+
+  - slug: cpp-classes
+    title: Classes and objects in C++
+    lang: cpp
+    description: Member variables and functions, public and private, constructors, initializer lists and const member functions.
+    modules: [cpp-classes]
+    body: |
+      A class bundles data with the functions that work on it. Keep the data `private` and expose `public` member functions, so the class can guarantee its **invariants** (rules that are always true, like "balance is never negative").
+
+      A **constructor** sets up a new object; use the member initializer list (`: balance_(start)`) to initialize fields. Mark member functions that don't change the object `const`, so they can be called on const objects.
+
+      Inside a member function, `this` points at the object it was called on.
+    visual: class-object
+    example: |
+      #include <iostream>
+
+      class Counter {
+      public:
+          explicit Counter(int start) : count_(start) {}
+          void increment() { ++count_; }
+          int value() const { return count_; }
+
+      private:
+          int count_;
+      };
+
+      int main() {
+          Counter c(10);
+          c.increment();
+          c.increment();
+          std::cout << c.value() << "\n";
+          return 0;
+      }
+
+  - slug: raii
+    title: RAII and destructors in C++
+    lang: cpp
+    description: Resource Acquisition Is Initialization explained, how destructors free resources automatically, and the rule of zero.
+    modules: [cpp-raii]
+    body: |
+      **RAII** ties a resource to an object's lifetime: the constructor acquires it and the destructor releases it. Because destructors run automatically when an object goes out of scope, including on early returns and exceptions, cleanup can't be forgotten.
+
+      The standard library is built on it: `std::vector` frees its memory, `std::fstream` closes its file, `std::lock_guard` unlocks its mutex, and `std::unique_ptr` deletes its object.
+
+      Objects are destroyed in **reverse** order of creation. Following the **rule of zero**, most classes should hold RAII members and write no destructor or copy operations at all.
+    visual: destructors
+    example: |
+      #include <iostream>
+
+      struct Guard {
+          const char *name;
+          explicit Guard(const char *n) : name(n) { std::cout << "acquire " << name << "\n"; }
+          ~Guard() { std::cout << "release " << name << "\n"; }
+      };
+
+      int main() {
+          Guard a("file");
+          {
+              Guard b("lock");
+          }
+          std::cout << "done\n";
+          return 0;
+      }
+
+  - slug: operator-overloading
+    title: Operator overloading in C++
+    lang: cpp
+    description: Make your types work with +, ==, <<, [] and more, with the conventions that keep overloaded operators unsurprising.
+    modules: [cpp-operators]
+    body: |
+      You can define what operators mean for your own types, so a `Vec2` can be added with `+` and printed with `<<`.
+
+      Guidelines:
+
+      - Only overload an operator when its meaning is obvious (math types, containers, comparisons).
+      - Implement `+=` as a member and `+` in terms of it.
+      - `operator<<` for printing takes `std::ostream &` and returns it, so calls can chain.
+      - In C++20, `bool operator==(const T &) const = default;` and `auto operator<=>(const T &) const = default;` generate comparisons for you.
+    example: |
+      #include <iostream>
+
+      struct Vec2 {
+          int x, y;
+          Vec2 &operator+=(const Vec2 &o) { x += o.x; y += o.y; return *this; }
+          bool operator==(const Vec2 &) const = default;
+      };
+      Vec2 operator+(Vec2 a, const Vec2 &b) { return a += b; }
+      std::ostream &operator<<(std::ostream &os, const Vec2 &v) { return os << "(" << v.x << ", " << v.y << ")"; }
+
+      int main() {
+          Vec2 a{1, 2}, b{3, 4};
+          std::cout << a + b << " " << (a == Vec2{1, 2}) << "\n";
+          return 0;
+      }
+
+  - slug: std-vector
+    title: std::vector in C++
+    lang: cpp
+    description: How to use std::vector, the dynamic array of C++, plus size vs capacity, reserve, and iterator invalidation.
+    modules: [cpp-vector]
+    body: |
+      `std::vector<T>` is a resizable array that manages its own memory. It's the default container in C++: fast to iterate, indexable in O(1), and `push_back` is amortized O(1).
+
+      - `v.size()` is how many elements there are; `v.capacity()` is how many fit before it must grow.
+      - When it grows, it moves everything to a bigger block, which invalidates pointers and iterators into it. `reserve(n)` avoids repeated growth when you know the size.
+      - `v[i]` doesn't check bounds; `v.at(i)` does.
+      - Loop with `for (const auto &x : v)`.
+    visual: vector-growth
+    example: |
+      #include <iostream>
+      #include <vector>
+
+      int main() {
+          std::vector<int> v;
+          v.reserve(4);
+          for (int i = 1; i <= 4; i++) v.push_back(i * i);
+          int sum = 0;
+          for (int x : v) sum += x;
+          std::cout << v.size() << " " << sum << "\n";
+          return 0;
+      }
+
+  - slug: std-map
+    title: std::map and std::unordered_map
+    lang: cpp
+    description: Key-value lookups in C++, the difference between map and unordered_map, and the operator[] insertion trap.
+    modules: [cpp-containers]
+    body: |
+      Both store key-value pairs with unique keys:
+
+      | | `std::map` | `std::unordered_map` |
+      |---|---|---|
+      | Built on | balanced tree | hash table |
+      | Lookup | O(log n) | O(1) on average |
+      | Order | sorted by key | none |
+
+      Use `unordered_map` for fast lookups and `map` when you need keys in order. Watch out: `m[key]` **inserts** a default value if the key is missing. To check without inserting, use `m.contains(key)` (C++20) or `m.find(key)`.
+    example: |
+      #include <iostream>
+      #include <map>
+      #include <string>
+
+      int main() {
+          std::map<std::string, int> ages{{"Linus", 55}, {"Ada", 36}};
+          ages["Grace"] = 85;
+          for (const auto &[name, age] : ages) std::cout << name << "=" << age << " ";
+          std::cout << "\n" << ages.contains("Alan") << " " << ages.size() << "\n";
+          return 0;
+      }
+
+  - slug: lambdas
+    title: Lambdas in C++
+    lang: cpp
+    description: Writing lambda functions in C++, capture by value and by reference, and using lambdas with STL algorithms.
+    modules: [cpp-algorithms]
+    body: |
+      A lambda is an unnamed function you can write inline: `[capture](parameters) { body }`.
+
+      The capture list decides which outside variables it can use:
+
+      - `[x]` copies `x` when the lambda is created.
+      - `[&x]` refers to the real `x` (it must outlive the lambda).
+      - `[=]` and `[&]` capture everything used, by copy or by reference.
+
+      Lambdas are most useful as arguments to algorithms like `std::sort`, `std::count_if` and `std::transform`.
+    example: |
+      #include <algorithm>
+      #include <iostream>
+      #include <vector>
+
+      int main() {
+          std::vector<int> v{5, 12, 7, 20, 3};
+          int limit = 6;
+          auto big = std::count_if(v.begin(), v.end(), [limit](int x) { return x > limit; });
+          std::sort(v.begin(), v.end(), [](int a, int b) { return a > b; });
+          std::cout << big << " " << v.front() << "\n";
+          return 0;
+      }
+
+  - slug: stl-algorithms
+    title: STL algorithms in C++
+    lang: cpp
+    description: sort, find, count_if, accumulate, transform and friends, and why algorithms beat hand-written loops.
+    modules: [cpp-algorithms, cpp-stl]
+    body: |
+      `<algorithm>` and `<numeric>` hold dozens of tested building blocks that work on any range:
+
+      - `std::sort`, `std::stable_sort`
+      - `std::find`, `std::find_if`, `std::count_if`, `std::any_of`
+      - `std::accumulate` (sum or fold), `std::transform` (map)
+      - `std::lower_bound` (binary search on sorted data)
+      - `std::erase_if` (C++20) to remove matching elements
+
+      Using a named algorithm says what the code does, and avoids off-by-one mistakes. C++20 ranges let you pass the container directly: `std::ranges::sort(v)`.
+    example: |
+      #include <algorithm>
+      #include <iostream>
+      #include <numeric>
+      #include <vector>
+
+      int main() {
+          std::vector<int> v{4, 8, 15, 16, 23, 42};
+          int total = std::accumulate(v.begin(), v.end(), 0);
+          bool has_odd = std::any_of(v.begin(), v.end(), [](int x) { return x % 2 != 0; });
+          std::erase_if(v, [](int x) { return x > 20; });
+          std::cout << total << " " << has_odd << " " << v.size() << "\n";
+          return 0;
+      }
+
+  - slug: smart-pointers
+    title: "Smart pointers: unique_ptr, shared_ptr and weak_ptr"
+    lang: cpp
+    description: How C++ smart pointers own heap objects and free them automatically, and when to use each one.
+    modules: [cpp-smart]
+    body: |
+      Smart pointers own a heap object and delete it for you:
+
+      - `std::unique_ptr<T>`: exactly one owner. Can't be copied, only moved. Zero overhead. **The default choice.** Make one with `std::make_unique<T>(args)`.
+      - `std::shared_ptr<T>`: shared ownership with a reference count; the last owner deletes it. Use only when ownership is genuinely shared.
+      - `std::weak_ptr<T>`: watches a shared object without keeping it alive, to break reference cycles.
+
+      With smart pointers and containers, modern C++ code almost never calls `new` or `delete` directly.
+    visual: unique-ptr
+    example: |
+      #include <iostream>
+      #include <memory>
+      #include <string>
+
+      struct Enemy {
+          std::string name;
+          explicit Enemy(std::string n) : name(std::move(n)) {}
+          ~Enemy() { std::cout << name << " removed\n"; }
+      };
+
+      int main() {
+          auto boss = std::make_unique<Enemy>("Boss");
+          std::unique_ptr<Enemy> owner = std::move(boss);
+          std::cout << (boss == nullptr) << " " << owner->name << "\n";
+          return 0;
+      }
+
+  - slug: move-semantics
+    title: Move semantics and std::move
+    lang: cpp
+    description: What moving means in C++, rvalue references, what std::move really does, and the rule of five.
+    modules: [cpp-move]
+    body: |
+      Copying a `std::vector` of a million elements copies a million elements. **Moving** it just hands over the internal buffer pointer, leaving the source empty. That's why returning big objects by value is cheap in modern C++.
+
+      A class supports moving with a **move constructor** `T(T &&other) noexcept` and **move assignment**. `std::move(x)` doesn't move anything itself: it's a cast that says "you may steal from x". After a move, only assign to or destroy the source.
+
+      Mark move operations `noexcept`, or `std::vector` will copy instead of move when it grows.
+    visual: move-vector
+    example: |
+      #include <iostream>
+      #include <string>
+      #include <utility>
+      #include <vector>
+
+      int main() {
+          std::string big(1000, 'x');
+          std::vector<std::string> v;
+          v.push_back(std::move(big));
+          std::cout << v[0].size() << " " << big.empty() << "\n";
+          return 0;
+      }
+
+  - slug: templates
+    title: Templates in C++
+    lang: cpp
+    description: Function and class templates in C++, type deduction, and constraining templates with C++20 concepts.
+    modules: [cpp-templates, cpp-generic]
+    body: |
+      A template is a blueprint the compiler fills in for each type you use it with. `std::vector<int>` and `std::vector<std::string>` are two different classes generated from one template.
+
+      Function templates usually deduce their types from the arguments: `max_of(3, 7)` uses `T = int`.
+
+      C++20 **concepts** state what a template needs, such as `template <std::integral T>`, which gives far clearer error messages than the old walls of template errors.
+    example: |
+      #include <concepts>
+      #include <iostream>
+      #include <string>
+
+      template <typename T>
+      T max_of(T a, T b) { return a < b ? b : a; }
+
+      template <std::integral T>
+      bool is_even(T n) { return n % 2 == 0; }
+
+      int main() {
+          std::cout << max_of(3, 7) << " " << max_of(std::string("fig"), std::string("apple")) << " " << is_even(10) << "\n";
+          return 0;
+      }
+
+  - slug: virtual-functions
+    title: Inheritance and virtual functions in C++
+    lang: cpp
+    description: Base and derived classes, virtual functions and override, abstract classes, and why virtual destructors matter.
+    modules: [cpp-oop]
+    body: |
+      A derived class inherits from a base class and can **override** its `virtual` functions. Calling a virtual function through a base pointer or reference runs the version for the object's real type: that's **runtime polymorphism**.
+
+      - Write `override` on overrides so the compiler catches signature mistakes.
+      - A pure virtual function (`= 0`) makes the class abstract: an interface that can't be instantiated.
+      - Give a polymorphic base class a `virtual` destructor, or deleting through a base pointer is undefined behavior.
+      - Pass polymorphic objects by reference or pointer; passing by value **slices** off the derived part.
+    visual: virtual-dispatch
+    example: |
+      #include <iostream>
+      #include <memory>
+      #include <vector>
+
+      struct Shape {
+          virtual double area() const = 0;
+          virtual ~Shape() = default;
+      };
+      struct Rect : Shape {
+          double w, h;
+          Rect(double w_, double h_) : w(w_), h(h_) {}
+          double area() const override { return w * h; }
+      };
+      struct Circle : Shape {
+          double r;
+          explicit Circle(double r_) : r(r_) {}
+          double area() const override { return 3.14 * r * r; }
+      };
+
+      int main() {
+          std::vector<std::unique_ptr<Shape>> shapes;
+          shapes.push_back(std::make_unique<Rect>(2, 3));
+          shapes.push_back(std::make_unique<Circle>(1));
+          double total = 0;
+          for (const auto &s : shapes) total += s->area();
+          std::cout << total << "\n";
+          return 0;
+      }
+
+  - slug: modern-cpp
+    title: "Modern C++: C++17 and C++20 features"
+    lang: cpp
+    description: The modern C++ features worth knowing, from auto and structured bindings to std::optional, concepts and ranges.
+    modules: [cpp-modern]
+    body: |
+      Modern C++ (C++11 onward, and especially C++17 and C++20) is much friendlier than older styles:
+
+      - `auto` type deduction and range-based `for`
+      - **structured bindings**: `auto [key, value] = pair;`
+      - `std::optional<T>` for "a value or nothing"
+      - `std::variant` for "one of these types"
+      - `std::string_view` and `std::span` for non-owning views
+      - C++20: **concepts**, **ranges**, `<=>` comparisons, `std::format`
+
+      Together with smart pointers and RAII, these let you write code that is both fast and hard to misuse.
+    example: |
+      #include <iostream>
+      #include <map>
+      #include <optional>
+      #include <string>
+
+      std::optional<int> find_age(const std::map<std::string, int> &m, const std::string &name) {
+          auto it = m.find(name);
+          if (it == m.end()) return std::nullopt;
+          return it->second;
+      }
+
+      int main() {
+          std::map<std::string, int> ages{{"Ada", 36}};
+          auto a = find_age(ages, "Ada");
+          auto b = find_age(ages, "Bob");
+          std::cout << a.value_or(-1) << " " << b.has_value() << "\n";
+          return 0;
+      }
+
+  - slug: error-handling
+    title: Error handling in C and C++
+    lang: cpp
+    description: Return codes, errno, exceptions, std::optional and std::expected, and how to choose between them.
+    modules: [cpp-errors]
+    body: |
+      There are several ways to report that something failed:
+
+      - **Return codes** (C style): return -1 or `NULL` and set `errno`. Simple, but easy to ignore.
+      - **Exceptions** (`throw` / `try` / `catch`): errors can't be silently ignored, and RAII cleans up as the stack unwinds. Standard C++ uses them for truly exceptional failures.
+      - **`std::optional<T>`**: "a value or nothing", when the reason doesn't matter.
+      - **`std::expected<T, E>`** (C++23): a value or an error explaining why.
+
+      Whatever you pick, be consistent within a codebase, and never let a failure pass silently.
+    example: |
+      #include <charconv>
+      #include <iostream>
+      #include <optional>
+      #include <string_view>
+
+      std::optional<int> parse_int(std::string_view s) {
+          int value = 0;
+          auto [end, ec] = std::from_chars(s.data(), s.data() + s.size(), value);
+          if (ec != std::errc() || end != s.data() + s.size()) return std::nullopt;
+          return value;
+      }
+
+      int main() {
+          std::cout << parse_int("42").value_or(-1) << " " << parse_int("4x2").has_value() << "\n";
+          return 0;
+      }

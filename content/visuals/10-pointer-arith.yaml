@@ -1,0 +1,23 @@
+id: pointer-arithmetic
+title: Pointer arithmetic walks an array
+lang: c
+module: c-pointers
+steps: [c-pointers-4]
+summary: p + 1 moves one element forward, not one byte.
+text: |
+  `p` starts at `nums[0]`. Each `p++` moves the arrow to the **next element**, however many bytes that is. `*p` reads whichever box the arrow is on.
+
+  The loop stops when `p` reaches `end`, which points one past the last element. That address is fine to compare against but never to read.
+code: |
+  #include <stdio.h>
+
+  int main(void) {
+      int nums[4] = {3, 1, 4, 1};
+      int sum = 0;
+      int *end = nums + 4;
+      for (int *p = nums; p != end; p++) {
+          sum += *p;
+      }
+      printf("sum = %d\n", sum);
+      return 0;
+  }

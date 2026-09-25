@@ -40,7 +40,7 @@ export type Project = {
   milestones: Milestone[];
 };
 
-export type DrillType = "predict" | "fill" | "bug" | "compiles" | "boss";
+export type DrillType = "predict" | "fill" | "bug" | "compiles" | "boss" | "choice";
 
 export type Drill = {
   id: string;
@@ -53,6 +53,8 @@ export type Drill = {
   accept?: string[];
   fix?: string;
   output?: string;
+  /** Options for "choice" drills; `answer` is the 1-based index of the right one. */
+  choices?: string[];
   why: string;
   exercise?: Exercise;
 };
@@ -68,10 +70,27 @@ export type ProProject = {
   readme: string;
 };
 
+export type Topic = {
+  slug: string;
+  title: string;
+  lang: "c" | "cpp";
+  description: string;
+  modules: string[];
+  visual: string | null;
+  body: string;
+  example: string;
+  stdin: string;
+  output: string;
+};
+
 export type Content = {
   generatedAt: string;
   modules: Module[];
   projects: Project[];
   drills: Drill[];
   pro: ProProject[];
+  /** Placement quiz questions, one per curriculum milestone, in order. */
+  placement: (Drill & { module: string })[];
+  /** Reference pages at /topics/<slug>. */
+  topics: Topic[];
 };

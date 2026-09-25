@@ -16,6 +16,9 @@ export default function Learn() {
       <div className="page-head">
         <h1>Curriculum</h1>
         <p className="muted">C first, because it makes memory and pointers concrete. Then C++, where RAII and the standard library solve the problems you felt in C.</p>
+        <p className="small">
+          Already know some of this? <Link to="/placement">Take the placement quiz</Link> to find your starting point.
+        </p>
       </div>
       {phases.map((ph) => (
         <section key={ph.name} className="phase">
@@ -29,7 +32,9 @@ export default function Learn() {
                 <div key={m.id} className={"module" + (complete ? " module-done" : "") + (isOpen ? " module-open" : "")}>
                   <button className="module-head" onClick={() => setOpen(isOpen ? null : m.id)} aria-expanded={isOpen} aria-controls={`module-${m.id}`}>
                     <span className={"lang-tag lang-" + m.lang}>{m.lang === "c" ? "C" : "C++"}</span>
-                    <span className="module-title">{m.title}</span>
+                    <span className="module-title">
+                      {m.title} {s.placed.includes(m.id) && !complete && <span className="module-placed">skipped by placement</span>}
+                    </span>
                     <span className="module-count">
                       <span aria-hidden="true">
                         {p.done}/{p.total}

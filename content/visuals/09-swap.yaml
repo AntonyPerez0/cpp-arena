@@ -1,0 +1,26 @@
+id: swap
+title: Swapping through pointers
+lang: c
+module: c-pointers
+steps: [c-pointers-2, c-pointers-3]
+summary: swap() receives the addresses of a and b and changes them in main's frame.
+text: |
+  `swap` gets two pointers whose arrows lead back into `main`'s frame. Writing through `*x` and `*y` changes `a` and `b` themselves.
+
+  Without pointers, `swap` would only get copies and `main` would never see the change.
+code: |
+  #include <stdio.h>
+
+  void swap(int *x, int *y) {
+      int tmp = *x;
+      *x = *y;
+      *y = tmp;
+  }
+
+  int main(void) {
+      int a = 1;
+      int b = 2;
+      swap(&a, &b);
+      printf("a = %d, b = %d\n", a, b);
+      return 0;
+  }
