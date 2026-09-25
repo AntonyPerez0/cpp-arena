@@ -7,20 +7,36 @@ steps:
   - title: Hello, C++
     id: cpp-basics-1
     text: |
-      C++ grew out of C, so almost all your C knowledge carries over. The first visible difference is output. Instead of `printf`, C++ uses **streams**:
+      Welcome to C++. It was created in the 1980s by Bjarne Stroustrup as "C with classes", and almost everything you learned in C still works: variables, `if`, loops, functions, pointers, arrays and structs. What C++ adds are tools that make programs **safer** and **shorter**: classes that clean up after themselves, a huge standard library (strings, dynamic arrays, maps, algorithms), references, templates and more.
 
-      ```cpp
+      The first difference you'll notice is output. Instead of `printf` with format specifiers, C++ uses **streams**:
+
+      ```cpp run
       #include <iostream>
 
       int main() {
-          std::cout << "Kills: " << 25 << "\n";
+          int kills = 25;
+          double accuracy = 0.61;
+          std::cout << "Kills: " << kills << "\n";
+          std::cout << "Accuracy: " << accuracy << " (" << accuracy * 100 << "%)\n";
       }
       ```
 
-      - `std::cout` is the standard output stream.
-      - `<<` sends things into it, left to right. No format specifiers needed: it knows the types.
-      - `std::` means these names live in the **standard namespace**.
-      - In C++, `main` may skip `return 0;` (it's implied).
+      ```output
+      Kills: 25
+      Accuracy: 0.61 (61%)
+      ```
+
+      ### How it works
+
+      - `#include <iostream>` brings in the stream library (C++ standard headers have no `.h`).
+      - `std::cout` is the **standard output** stream, the C++ equivalent of `stdout`.
+      - `<<` sends a value into the stream. Expressions chain from left to right: each `<<` returns the stream again, so the next `<<` continues writing.
+      - There are **no format specifiers**. The compiler knows each value's type and picks the right way to print it, so the classic `printf` mismatch bugs can't happen.
+      - `std::` is a **namespace** prefix: the standard library's names live in the namespace `std`, so they don't clash with your own names.
+      - In C++, `main` may leave out `return 0;`; reaching the end of `main` means success.
+
+      You'll see `std::endl` in older code; it prints a newline **and** flushes the stream, which is slower. `"\n"` is usually what you want.
 
       **Your turn:** print `Rounds won: 13` using cout.
     fill: |
@@ -38,15 +54,41 @@ steps:
   - title: Reading with cin
     id: cpp-basics-2
     text: |
-      `std::cin >>` reads from input, skipping whitespace, into variables of any type. No `&` needed.
+      Input works the same way in reverse: `std::cin` is the **standard input** stream, and `>>` reads a value from it into a variable.
 
-      ```cpp
-      int age;
-      std::string name;
-      std::cin >> name >> age;
+      ```cpp run
+      #include <iostream>
+      #include <string>
+
+      int main() {
+          std::string city;
+          int year;
+          double temp;
+          std::cin >> city >> year >> temp;
+          std::cout << city << " in " << year << ": " << temp << " degrees\n";
+      }
       ```
 
-      `std::string` (from `<string>`) is a real string type: it grows as needed and cleans up after itself. No more buffer sizes or `'\0'`.
+      ```input
+      Oslo 2024
+      -3.5
+      ```
+
+      ```output
+      Oslo in 2024: -3.5 degrees
+      ```
+
+      ### Compared with scanf
+
+      - **No `&`**: `>>` takes its argument by reference (you'll learn references in the next module), so it can fill the variable directly.
+      - **No format specifiers**: the variable's type decides how the text is parsed. Reading into an `int` parses a number; reading into a `std::string` reads a word.
+      - Like `scanf`, `>>` **skips whitespace** before each value, so values can be separated by spaces or newlines.
+
+      ### std::string
+
+      `std::string` (from `<string>`) is C++'s real string type. It grows automatically as needed, knows its own length, and frees its memory when it's no longer used. No fixed-size arrays, no `'\0'` bookkeeping, and no buffer overflows when a user types a long name. Reading into it with `>>` reads one **word** (up to the next whitespace).
+
+      If a read fails (say, letters where an `int` was expected), the stream goes into a **fail state** and further reads do nothing. `if (std::cin >> x)` checks whether a read worked, like checking `scanf`'s return value.
 
       **Your turn:** read a name and a number of kills and print `NAME got N kills`.
     fill: |
@@ -71,16 +113,45 @@ steps:
   - title: std::string is easy
     id: cpp-basics-3
     text: |
-      `std::string` does what C strings made painful:
+      `std::string` takes care of everything that made C strings painful. It behaves like a normal value: you can copy it with `=`, compare it with `==`, and join strings with `+`.
 
-      ```cpp
-      std::string a = "de_";
-      std::string b = a + "dust2";      // concatenation with +
-      b.size();                          // length (7)
-      b == "de_dust2";                   // real comparison with ==
-      b[0];                              // 'd'
-      b += "!";                          // append
+      ```cpp run
+      #include <iostream>
+      #include <string>
+
+      int main() {
+          std::string map = "mirage";
+          std::string title = "de_" + map;
+          title += " (competitive)";
+          std::cout << title << "\n";
+          std::cout << title.size() << " chars, first '" << title[0] << "'\n";
+          std::cout << (map == "mirage") << " " << (map < "nuke") << "\n";
+          std::string copy = map;
+          copy[0] = 'M';
+          std::cout << map << " " << copy << "\n";
+      }
       ```
+
+      ```output
+      de_mirage (competitive)
+      23 chars, first 'd'
+      1 1
+      mirage Mirage
+      ```
+
+      ### What you get
+
+      - `+` joins strings, and `+=` appends. The string grows as needed.
+      - `.size()` (or `.length()`) gives the number of characters, instantly; no counting to a terminator.
+      - `==`, `!=`, `<` and `>` compare the **text**, alphabetically. The C trap of comparing addresses is gone.
+      - `s[i]` reads or writes one character, as with arrays.
+      - Assignment **copies** the text: changing `copy` doesn't affect `map`. Each string owns its own characters.
+
+      `.size()` is a **member function**: a function that belongs to the object and is called with a dot. You'll write your own in the classes module.
+
+      ### One trap
+
+      `"de_" + map` works because one side is a `std::string`. But `"de_" + "dust2"` (two plain literals) doesn't compile: literals are C-style char arrays, and `+` on those means pointer arithmetic, not concatenation. Make sure at least one side of the first `+` is a `std::string`.
 
       **Your turn:** read a first name and a last name, then print `Hello, First Last! (N letters)` where N is the number of letters in both names (not counting the space).
     seed: |
@@ -114,18 +185,53 @@ steps:
   - title: bool, auto and range-for
     id: cpp-basics-4
     text: |
-      A few small upgrades:
+      A few small upgrades from C that you'll use constantly.
 
-      - `bool` is a real type with `true` and `false` (no include needed).
-      - `auto` lets the compiler deduce a variable's type from its initializer: `auto x = 3.5;` is a `double`.
-      - The **range-based for loop** visits every element of a string, array or container:
+      ### bool
 
-      ```cpp
-      std::string s = "awp";
-      for (char c : s) {
-          std::cout << c << "\n";
+      `bool` is a built-in type with the values `true` and `false`. Comparisons produce a `bool`. When printed with `cout` it shows as `1` or `0` (or `true`/`false` with `std::boolalpha`).
+
+      ### auto
+
+      `auto` tells the compiler to **deduce** a variable's type from its initializer: `auto n = 5;` is an `int`, `auto x = 2.5;` is a `double`. It's especially handy for long type names you'll meet later. The type is still fixed at compile time; `auto` just saves typing it.
+
+      ### The range-based for loop
+
+      This loop visits every element of a string, array or container, without an index:
+
+      ```cpp run
+      #include <iostream>
+      #include <string>
+
+      int count_digits(const std::string& s) {
+          int n = 0;
+          for (char c : s) {
+              if (c >= '0' && c <= '9') {
+                  n++;
+              }
+          }
+          return n;
+      }
+
+      int main() {
+          auto label = std::string("room 101, floor 3");
+          bool has_digits = count_digits(label) > 0;
+          std::cout << count_digits(label) << " " << has_digits << "\n";
+          int scores[] = {7, 9, 4};
+          int total = 0;
+          for (int s : scores) total += s;
+          std::cout << total << "\n";
       }
       ```
+
+      ```output
+      4 1
+      20
+      ```
+
+      Read `for (char c : s)` as "for each char `c` in `s`". On each pass, `c` is a **copy** of the next element. You can't accidentally go out of bounds, and there's no off-by-one to get wrong. Use the index form only when you actually need the index.
+
+      (`const std::string&` in the parameter avoids copying the string; the next module explains it.)
 
       **Your turn:** write `int count_vowels(std::string s)` that counts `a e i o u` (lowercase only) using a range-based for loop.
     seed: |
@@ -161,16 +267,45 @@ steps:
   - title: Namespaces and using
     id: cpp-basics-5
     text: |
-      A **namespace** groups names so different libraries don't collide. The standard library lives in `std`. You can define your own:
+      Large programs combine code from many libraries, and two libraries might both define a function called `load` or a type called `Config`. C++ avoids these clashes with **namespaces**: named scopes that group related names.
 
-      ```cpp
-      namespace game {
-          int max_players = 10;
+      ```cpp run
+      #include <iostream>
+      #include <string>
+
+      namespace audio {
+          int volume = 7;
+          std::string name() { return "audio"; }
       }
-      std::cout << game::max_players;   // :: is the scope operator
+
+      namespace video {
+          int volume = 3;
+          std::string name() { return "video"; }
+      }
+
+      using std::cout;
+
+      int main() {
+          cout << audio::name() << " " << audio::volume << "\n";
+          cout << video::name() << " " << video::volume << "\n";
+      }
       ```
 
-      `using std::string;` lets you write `string` without the prefix. (You'll often see `using namespace std;`, which pulls in *everything*. It's fine for tiny programs but a bad habit in headers and bigger code.)
+      ```output
+      audio 7
+      video 3
+      ```
+
+      - `namespace audio { ... }` puts everything inside into the `audio` namespace.
+      - `::` is the **scope resolution operator**: `audio::volume` means "the `volume` inside `audio`". Both namespaces have a `volume` and there's no conflict.
+      - The standard library lives in `std`, which is why you write `std::cout` and `std::string`.
+
+      ### Shortening names
+
+      - `using std::cout;` (a **using-declaration**) brings one name into scope, so you can write `cout`.
+      - `using namespace std;` brings in **every** name from `std`. You'll see it in tutorials, and it's fine in tiny programs, but it's a bad habit in real code: `std` contains hundreds of names, and pulling them all in invites clashes (with your own `count`, `max`, `distance`, ...). Never put it in a header, where it would affect every file that includes it.
+
+      Most professional code simply writes `std::` everywhere; it quickly becomes invisible.
 
       **Your turn:** fill in the scope operators and the using-declaration.
     fill: |
@@ -196,18 +331,50 @@ steps:
   - title: Whole lines with getline
     id: cpp-basics-6
     text: |
-      `cin >>` stops at whitespace. To read an entire line, spaces included, use `std::getline`:
+      `std::cin >> word` reads a single word and stops at whitespace, so a line like `rush b` would arrive in two pieces. To read an entire line, spaces included, use `std::getline`:
 
       ```cpp
       std::string line;
       std::getline(std::cin, line);
       ```
 
-      It returns something that converts to `false` at the end of input, so this reads every line:
+      It reads everything up to the end of the line and **removes** the newline (unlike C's `fgets`, which keeps it).
 
-      ```cpp
-      while (std::getline(std::cin, line)) { ... }
+      ### Reading every line
+
+      `getline` returns the stream, and a stream converts to `false` once reading fails, which happens at the end of the input. So the standard loop is:
+
+      ```cpp run
+      #include <iostream>
+      #include <string>
+
+      int main() {
+          std::string line;
+          int longest = 0;
+          int count = 0;
+          while (std::getline(std::cin, line)) {
+              count++;
+              if ((int)line.size() > longest) {
+                  longest = line.size();
+              }
+          }
+          std::cout << count << " lines, longest has " << longest << " chars\n";
+      }
       ```
+
+      ```input
+      to be
+      or not to be
+      that is the question
+      ```
+
+      ```output
+      3 lines, longest has 20 chars
+      ```
+
+      ### Mixing `>>` and getline
+
+      A classic trap: after `std::cin >> n;` reads a number, the newline after it is still waiting in the input. A following `getline` reads that leftover newline and returns an **empty line**. The fix is to skip it first, for example with `std::cin >> std::ws;` (which skips whitespace) before calling `getline`.
 
       **Your turn:** read lines until the end of input and print each one prefixed with its line number, like `1: first line`. Then print `total N`.
     seed: |

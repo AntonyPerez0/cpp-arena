@@ -7,18 +7,48 @@ steps:
   - title: std::map
     id: cpp-containers-1
     text: |
-      `std::map<Key, Value>` stores key/value pairs **sorted by key**. `m[key]` gets the value, creating it (as 0 or empty) if it doesn't exist yet, which makes counting easy:
+      A vector finds things by **position**: element 0, element 1, and so on. Often you want to find things by a **name** instead: the score for "ropz", the price of "awp", the phone number for "Ada". That's what a **map** is for. `std::map<Key, Value>` stores key/value pairs, keeps them **sorted by key**, and never holds the same key twice.
 
-      ```cpp
-      std::map<std::string, int> kills;
-      kills["ropz"] += 3;
-      kills["rain"]++;
-      for (const auto& [name, k] : kills) {     // sorted by name
-          std::cout << name << " " << k << "\n";
+      ```cpp run
+      #include <iostream>
+      #include <map>
+      #include <string>
+
+      int main() {
+          std::map<std::string, int> stock;
+          stock["apple"] = 5;
+          stock["pear"] = 2;
+          stock["apple"] += 3;        // the key exists, so this updates it
+          stock["kiwi"]++;            // the key is new, so it starts at 0, then becomes 1
+          std::cout << stock.size() << " kinds\n";
+          for (const auto& [fruit, n] : stock) {
+              std::cout << fruit << ": " << n << "\n";
+          }
       }
       ```
 
-      The `[name, k]` syntax is a **structured binding** that unpacks each pair.
+      ```output
+      3 kinds
+      apple: 8
+      kiwi: 1
+      pear: 2
+      ```
+
+      ### How it works
+
+      - `m[key]` gives you a **reference** to the value for `key`. If the key isn't there yet, `[]` first inserts it with a default value: `0` for numbers, `""` for strings. That's why `stock["kiwi"]++` works on a brand new key.
+      - Looping over a map visits the entries **in key order** (alphabetical for strings, ascending for numbers), no matter what order you inserted them in.
+      - Each entry is a `std::pair<const Key, Value>`. `const auto& [fruit, n]` is a **structured binding**: it unpacks the pair into two named variables. Without it you'd write `entry.first` and `entry.second`.
+      - A map is a balanced binary search tree inside, so insert and lookup take O(log n) steps.
+
+      ### The counting pattern
+
+      "How many times does each thing appear?" is one of the most common jobs in programming, and a map makes it one line: `count[thing]++`. Missing keys start at 0 automatically.
+
+      ### Common mistakes
+
+      - Writing `for (auto [k, v] : m)` copies every entry. Use `const auto&` to read without copying.
+      - Forgetting that a map keeps only one value per key. Assigning to an existing key replaces the old value.
 
       **Your turn:** count how many times each word appears in the input and print `word count` lines in alphabetical order.
     seed: |
@@ -61,15 +91,52 @@ steps:
   - title: Look up without inserting
     id: cpp-containers-2
     text: |
-      `m[key]` inserts missing keys, which is not what you want for a pure lookup. Use `find` or `contains` (C++20):
+      There's a trap in `m[key]`: it **inserts** the key when it's missing. If you only wanted to *check* a price, you've just added a bogus item with price 0. For a pure lookup, use `find` or `contains`.
 
-      ```cpp
-      auto it = prices.find("awp");
-      if (it != prices.end()) {
-          int p = it->second;       // it->first is the key
+      ```cpp run
+      #include <iostream>
+      #include <map>
+      #include <string>
+
+      int main() {
+          std::map<std::string, std::string> capital = {{"France", "Paris"}, {"Japan", "Tokyo"}};
+
+          auto it = capital.find("Japan");
+          if (it != capital.end()) {
+              std::cout << it->first << " -> " << it->second << "\n";
+          }
+          if (!capital.contains("Peru")) {
+              std::cout << "no entry for Peru\n";
+          }
+          std::cout << capital.size() << " entries\n";
+
+          std::string oops = capital["Chile"];    // inserts "Chile" with an empty string
+          std::cout << capital.size() << " entries after using []\n";
       }
-      if (prices.contains("awp")) { ... }
       ```
+
+      ```output
+      Japan -> Tokyo
+      no entry for Peru
+      2 entries
+      3 entries after using []
+      ```
+
+      ### How it works
+
+      - `m.find(key)` returns an **iterator** to the entry, or `m.end()` if the key isn't there. Always compare with `end()` before using the result.
+      - The iterator points at a pair: `it->first` is the key, `it->second` is the value.
+      - `m.contains(key)` (C++20) just answers yes or no. Use it when you don't need the value.
+      - `m.count(key)` returns 0 or 1 for a map and works in older C++ too.
+
+      ### Why const matters here
+
+      When a function takes `const std::map<...>&`, it promises not to change the map. Since `[]` might insert, the compiler **won't let you** call it on a const map. That's a helpful error: it forces you to use `find`.
+
+      ### Common mistakes
+
+      - Using `it->second` without checking `it != m.end()`. Dereferencing `end()` is undefined behavior.
+      - Using `m[key]` in an `if` to test whether something exists. The test itself creates the entry.
 
       **Your turn:** write `int price_of(const std::map<std::string, int>& prices, const std::string& item)` that returns the price, or `-1` if the item isn't in the map. (The map is `const`, so `[]` isn't even allowed.)
     seed: |
@@ -103,14 +170,49 @@ steps:
   - title: std::set
     id: cpp-containers-3
     text: |
-      `std::set<T>` holds **unique** values, **sorted**. Inserting a duplicate does nothing.
+      A **set** is a map with keys but no values. `std::set<T>` holds **unique** values in **sorted** order. Inserting something that's already there does nothing, which makes a set the natural tool for "remove duplicates" and "have I seen this before?".
+
+      ```cpp run
+      #include <iostream>
+      #include <set>
+      #include <vector>
+
+      int main() {
+          std::vector<int> rolls = {4, 2, 6, 2, 4, 4, 1};
+          std::set<int> seen(rolls.begin(), rolls.end());   // build from a range
+          seen.insert(6);                                    // already there: no change
+          seen.insert(3);
+
+          for (int x : seen) std::cout << x << " ";
+          std::cout << "\n" << seen.size() << " distinct, has 5? " << seen.contains(5) << "\n";
+
+          std::vector<int> back(seen.begin(), seen.end());  // and back to a vector
+          std::cout << "smallest " << back.front() << ", largest " << back.back() << "\n";
+      }
+      ```
+
+      ```output
+      1 2 3 4 6 
+      5 distinct, has 5? 0
+      smallest 1, largest 6
+      ```
+
+      ### How it works
+
+      - Containers can be built from **any range** given as two iterators: `std::set<int> s(v.begin(), v.end())` inserts every element of `v`. The same trick turns a set back into a vector.
+      - Iterating a set always goes in sorted order.
+      - `insert` returns a pair whose `.second` is `true` if the value was new. That lets you detect duplicates as you go:
 
       ```cpp
-      std::set<int> s = {5, 1, 5, 3};   // {1, 3, 5}
-      s.insert(2);
-      s.contains(3);                     // true (C++20)
-      s.count(9);                        // 0
+      if (!seen.insert(x).second) { /* x was a duplicate */ }
       ```
+
+      - Like `map`, a set is a balanced tree: insert, erase and lookup are O(log n).
+
+      ### Common mistakes
+
+      - Trying to change an element in place. Set elements are `const`, because changing one could break the sorted order. Erase it and insert the new value instead.
+      - Using a set when you need to keep duplicates. That's `std::multiset`, or just a sorted vector.
 
       **Your turn:** write `std::vector<std::string> unique_sorted(const std::vector<std::string>& v)` that returns the distinct strings in sorted order.
     seed: |
@@ -144,9 +246,55 @@ steps:
   - title: unordered_map
     id: cpp-containers-4
     text: |
-      `std::unordered_map` is a hash table: no ordering, but lookups are usually **O(1)** instead of O(log n). Same interface as `map` for `[]`, `find`, `contains`.
+      `std::unordered_map` has the same interface as `std::map` (`[]`, `find`, `contains`, `insert`, `erase`), but it's built on a **hash table** instead of a tree. The trade:
 
-      Classic use: remember things you've seen.
+      | | `std::map` | `std::unordered_map` |
+      |---|---|---|
+      | Order when looping | sorted by key | no useful order |
+      | Lookup cost | O(log n) | O(1) on average |
+      | Key needs | `<` comparison | a hash function |
+
+      When you don't care about order, `unordered_map` is usually faster. The classic use is **remembering what you've seen** so you don't have to search again.
+
+      ```cpp run
+      #include <iostream>
+      #include <string>
+      #include <unordered_map>
+      #include <vector>
+
+      // Index of the first repeated word, or -1.
+      int first_repeat(const std::vector<std::string>& words) {
+          std::unordered_map<std::string, int> first_seen;   // word -> index where it appeared
+          for (int i = 0; i < (int)words.size(); i++) {
+              auto it = first_seen.find(words[i]);
+              if (it != first_seen.end()) {
+                  std::cout << "'" << words[i] << "' first seen at " << it->second << "\n";
+                  return i;
+              }
+              first_seen[words[i]] = i;
+          }
+          return -1;
+      }
+
+      int main() {
+          std::cout << first_repeat({"red", "green", "blue", "green", "red"}) << "\n";
+          std::cout << first_repeat({"a", "b", "c"}) << "\n";
+      }
+      ```
+
+      ```output
+      'green' first seen at 1
+      3
+      -1
+      ```
+
+      ### Why this is fast
+
+      The naive way to find a repeat compares every pair of words: about n * n / 2 comparisons. With a hash map, each word is checked and stored once, so the whole scan is O(n). Trading a little memory for a lot of speed is one of the most important ideas in algorithms, and the "one pass with a hash map" pattern solves a huge number of interview problems.
+
+      ### The order of the check matters
+
+      Notice the loop **looks up first, then inserts**. If it inserted first, every word would immediately "find itself". The same care applies to your exercise: check for the partner before storing the current element, so an element is never paired with itself.
 
       **Your turn:** write `std::pair<int, int> two_sum(const std::vector<int>& v, int target)` that returns the indexes `{i, j}` (with `i < j`) of two numbers adding up to `target`, or `{-1, -1}`. Do it in one pass: for each element, check whether `target - v[j]` was seen before.
     seed: |
@@ -189,15 +337,57 @@ steps:
   - title: pair and tuple
     id: cpp-containers-5
     text: |
-      `std::pair<A, B>` holds two values (`.first`, `.second`). `std::tuple` holds any number. Structured bindings unpack both:
+      Sometimes a function needs to return two things, like a minimum and a maximum, or a name and a score. You could make a struct, but for quick jobs the standard library has ready-made ones:
 
-      ```cpp
-      std::pair<std::string, int> best = {"ropz", 25};
-      auto [name, kills] = best;
+      - `std::pair<A, B>` holds two values, called `.first` and `.second`.
+      - `std::tuple<A, B, C, ...>` holds any number of values. You get element `i` with `std::get<i>(t)`.
 
-      std::tuple<int, int, int> kda = {20, 5, 14};
-      auto [k, a, d] = kda;
+      **Structured bindings** unpack either one into named variables in a single line.
+
+      ```cpp run
+      #include <iostream>
+      #include <string>
+      #include <tuple>
+      #include <utility>
+
+      std::pair<int, int> div_mod(int a, int b) {
+          return {a / b, a % b};          // braces build the pair
+      }
+
+      std::tuple<std::string, int, double> profile() {
+          return {"ada", 36, 1.65};
+      }
+
+      int main() {
+          auto [q, r] = div_mod(17, 5);
+          std::cout << q << " remainder " << r << "\n";
+
+          std::pair<std::string, int> item = {"shield", 1000};
+          item.second -= 250;
+          std::cout << item.first << " costs " << item.second << "\n";
+
+          auto [name, age, height] = profile();
+          std::cout << name << " " << age << " " << height << "\n";
+          std::cout << std::get<1>(profile()) << "\n";
+      }
       ```
+
+      ```output
+      3 remainder 2
+      shield costs 750
+      ada 36 1.65
+      36
+      ```
+
+      ### How it works
+
+      - `return {a / b, a % b};` builds the return type from the braces, so you don't have to repeat `std::pair<int, int>`.
+      - `auto [q, r] = ...;` declares two new variables. You must use `auto` here: structured bindings can't name the types one by one.
+      - The number of names must match the number of elements exactly.
+
+      ### When to use a struct instead
+
+      `.first` and `.second` say nothing about what the values mean. If a pair travels far through your code, a small `struct` with real field names (`name`, `score`) is easier to read. Pairs and tuples are best for short-lived results that get unpacked right away.
 
       **Your turn:** fill in the blanks.
     fill: |
@@ -224,7 +414,67 @@ steps:
   - title: "Challenge: balanced brackets"
     id: cpp-containers-6
     text: |
-      `std::stack<T>` gives you `push`, `top`, `pop` and `empty`. It's the right tool for matching brackets: push each opener, and each closer must match the most recent opener.
+      Besides the main containers, the standard library has **adapters**: `std::stack`, `std::queue` and `std::priority_queue`. They wrap another container and allow only a few operations, which makes your intent clear.
+
+      A **stack** is last in, first out, like a pile of plates: you only touch the top.
+
+      | Operation | Meaning |
+      |---|---|
+      | `push(x)` | put `x` on top |
+      | `top()` | look at the top element |
+      | `pop()` | remove the top element (returns nothing) |
+      | `empty()`, `size()` | as usual |
+
+      Here a stack evaluates arithmetic written in **postfix** (reverse Polish) notation, where `3 4 + 2 *` means `(3 + 4) * 2`:
+
+      ```cpp run
+      #include <iostream>
+      #include <sstream>
+      #include <stack>
+      #include <string>
+
+      int eval_postfix(const std::string& expr) {
+          std::stack<int> st;
+          std::istringstream in(expr);
+          std::string tok;
+          while (in >> tok) {
+              if (tok == "+" || tok == "-" || tok == "*") {
+                  int b = st.top(); st.pop();     // the right operand is on top
+                  int a = st.top(); st.pop();
+                  if (tok == "+") st.push(a + b);
+                  else if (tok == "-") st.push(a - b);
+                  else st.push(a * b);
+              } else {
+                  st.push(std::stoi(tok));
+              }
+          }
+          return st.top();
+      }
+
+      int main() {
+          std::cout << eval_postfix("3 4 + 2 *") << "\n";
+          std::cout << eval_postfix("10 2 3 * -") << "\n";
+      }
+      ```
+
+      ```output
+      14
+      4
+      ```
+
+      ### Why a stack fits brackets
+
+      Brackets have the same shape as this problem: the most recent thing you opened is the first thing that must close. So:
+
+      1. For an opening bracket, push it.
+      2. For a closing bracket, the stack must not be empty, and its top must be the matching opener. Pop it.
+      3. At the end, the stack must be empty, or some opener was never closed.
+
+      ### Common mistakes
+
+      - Calling `top()` or `pop()` on an empty stack. That's undefined behavior, so check `empty()` first. The string `")"` must return `false`, not crash.
+      - Forgetting step 3: `"(("` has no mismatches but isn't balanced.
+      - Expecting `pop()` to return the value. Read `top()` first, then `pop()`.
 
       **Your turn:** write `bool balanced(const std::string& s)` for `()`, `[]` and `{}`. Other characters are ignored.
     seed: |

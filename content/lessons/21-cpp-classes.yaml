@@ -7,18 +7,46 @@ steps:
   - title: Member functions
     id: cpp-classes-1
     text: |
-      In C++ a struct can contain **functions** as well as data. Inside a member function, members can be used directly:
+      In C, a struct holds data, and separate functions operate on it: `void take_damage(struct Player *p, int d)`. C++ lets you put those functions **inside** the struct, as **member functions** (also called methods). Data and the operations on it live together.
 
-      ```cpp
-      struct Player {
-          int hp = 100;          // default member value
-          void take_damage(int d) { hp -= d; }
-          bool alive() { return hp > 0; }
+      ```cpp run
+      #include <iostream>
+
+      struct Counter {
+          int value = 0;
+          int step = 1;
+
+          void increment() { value += step; }
+          void reset() { value = 0; }
+          bool over(int limit) { return value > limit; }
       };
 
-      Player p;
-      p.take_damage(40);
+      int main() {
+          Counter c;
+          c.step = 5;
+          c.increment();
+          c.increment();
+          std::cout << c.value << " " << c.over(8) << "\n";
+          c.reset();
+          std::cout << c.value << "\n";
+      }
       ```
+
+      ```output
+      10 1
+      0
+      ```
+
+      ### What's new
+
+      - **Default member values**: `int value = 0;` gives every new `Counter` a starting value, so no object starts with garbage.
+      - **Member functions** are declared inside the struct. Inside them, members are used directly by name: `value += step` means "this object's `value`".
+      - You call them with a dot: `c.increment()`. Each object has its own data, and the member function works on the object it was called on.
+      - In C++ you write just `Counter c;`; the word `struct` isn't needed when you use the type.
+
+      ### How it works underneath
+
+      A member function is compiled like a normal function with a hidden extra parameter: a pointer to the object, called `this`. `c.increment()` is roughly `increment(&c)`, and `value` inside means `this->value`. The **Watch it run** example for classes shows `this` pointing back at the object.
 
       **Your turn:** complete the member function `reload` so it refills `ammo` to `mag_size`.
     fill: |
@@ -48,17 +76,52 @@ steps:
   - title: public and private
     id: cpp-classes-2
     text: |
-      A `class` is a struct whose members are **private by default**. Private members can only be touched by the class's own member functions. That lets the class protect its rules (its *invariants*):
+      With a plain struct, any code anywhere can change any member. If an account's balance must never go negative, nothing stops `acct.balance = -500;` from some far-away function. C++ lets a type **protect** its data with access specifiers:
 
-      ```cpp
-      class Account {
+      - `public:` members can be used by anyone.
+      - `private:` members can only be used by the type's own member functions.
+
+      A `class` is exactly a `struct` whose members are **private by default** (a struct's are public by default). By convention, `class` is used for types that protect their data.
+
+      ```cpp run
+      #include <iostream>
+
+      class Thermostat {
       public:
-          void deposit(int amount) { if (amount > 0) balance_ += amount; }
-          int balance() const { return balance_; }
+          void set(int degrees) {
+              if (degrees < 10) degrees = 10;
+              if (degrees > 30) degrees = 30;
+              target_ = degrees;
+          }
+          int target() const { return target_; }
+
       private:
-          int balance_ = 0;       // nobody outside can break this
+          int target_ = 20;
       };
+
+      int main() {
+          Thermostat t;
+          t.set(45);
+          std::cout << t.target() << "\n";
+          t.set(18);
+          std::cout << t.target() << "\n";
+      }
       ```
+
+      ```output
+      30
+      18
+      ```
+
+      ### Why this matters
+
+      Outside code can't write `t.target_ = 45;` (it's a compile error: `'int Thermostat::target_' is private`). The only way to change the temperature is through `set`, which enforces the 10 to 30 rule. The rule lives in **one** place, so it can't be broken by accident anywhere in a million-line program. This is **encapsulation**, the central idea of classes.
+
+      ### Conventions
+
+      - Public interface first, private data last, so readers see what they can use.
+      - A trailing underscore (`target_`) marks private data members in many codebases, avoiding clashes with method names like `target()`.
+      - A method that only reads is marked `const` (step 4 explains why).
 
       **Your turn:** write a class `Wallet` with a private `int money_` starting at 800, and public methods:
 
@@ -110,19 +173,52 @@ steps:
   - title: Constructors
     id: cpp-classes-3
     text: |
-      A **constructor** is a special member function that runs when an object is created. It has the class's name and no return type. Use a **member initializer list** (after `:`) to set members:
+      A **constructor** is a special member function that runs automatically when an object is created. It sets the object up so it's valid from the first moment. It has the same name as the class and **no return type**.
 
-      ```cpp
-      class Player {
+      ```cpp run
+      #include <iostream>
+      #include <string>
+
+      class Book {
       public:
-          Player(std::string name, int hp) : name_(name), hp_(hp) {}
+          Book(std::string title, int pages) : title_(title), pages_(pages), read_(0) {}
+
+          void read(int n) {
+              read_ += n;
+              if (read_ > pages_) read_ = pages_;
+          }
+          int percent() const { return read_ * 100 / pages_; }
+          std::string title() const { return title_; }
+
       private:
-          std::string name_;
-          int hp_;
+          std::string title_;
+          int pages_;
+          int read_;
       };
 
-      Player p("zywoo", 100);
+      int main() {
+          Book b("Dune", 400);
+          b.read(100);
+          std::cout << b.title() << ": " << b.percent() << "%\n";
+          Book c{"Emma", 300};
+          std::cout << c.title() << ": " << c.percent() << "%\n";
+      }
       ```
+
+      ```output
+      Dune: 25%
+      Emma: 0%
+      ```
+
+      ### The member initializer list
+
+      The part after the `:` is the **member initializer list**: `title_(title)` initializes the member `title_` from the parameter `title`, and so on. Members are **constructed** directly with these values, before the constructor's body runs. The body (`{}` here) can then do any extra work.
+
+      ### Creating objects
+
+      `Book b("Dune", 400);` and `Book c{"Emma", 300};` both call the constructor. The brace form (**uniform initialization**) is common in modern C++ and refuses narrowing conversions, like silently turning `3.7` into an `int`.
+
+      Once a class has a constructor with parameters, you can't create one without arguments (`Book d;` is an error) unless you also write a constructor that takes none. That's the point: there's no way to get a `Book` without a title and a page count.
 
       **Your turn:** complete the constructor's initializer list.
     fill: |
@@ -150,11 +246,53 @@ steps:
   - title: const member functions
     id: cpp-classes-4
     text: |
-      A member function marked `const` promises not to modify the object. Only const functions can be called on a `const` object or through a `const&`, so mark every method that just reads.
+      When a member function doesn't modify the object, mark it `const` by writing the keyword after the parameter list:
 
       ```cpp
       int hp() const { return hp_; }
       ```
+
+      ### Why it's required, not just polite
+
+      Through a `const` object or a `const&` reference, you may only call `const` member functions, because only those promise not to change the object. And `const&` parameters are everywhere in C++ (it's the normal way to pass objects you only read). So a reading method that isn't marked `const` can't be used by any function that receives the object as `const&`.
+
+      ```cpp run
+      #include <iostream>
+      #include <string>
+
+      class Label {
+      public:
+          explicit Label(std::string text) : text_(text) {}
+          std::string text() const { return text_; }
+          int length() const { return text_.size(); }
+          void shout() { text_ += "!"; }
+
+      private:
+          std::string text_;
+      };
+
+      void show(const Label& l) {
+          std::cout << l.text() << " (" << l.length() << ")\n";
+      }
+
+      int main() {
+          Label l("hello");
+          l.shout();
+          show(l);
+      }
+      ```
+
+      ```output
+      hello! (6)
+      ```
+
+      `show` receives a `const Label&`, so it can call `text()` and `length()` (both `const`) but not `shout()`. If `text()` weren't marked `const`, the call inside `show` wouldn't compile, with an error like `passing 'const Label' as 'this' argument discards qualifiers`. That message means: you called a non-const method on a const object.
+
+      Inside a `const` member function, the compiler also stops you from modifying members, so the promise is checked both ways.
+
+      **Rule:** mark every member function that doesn't change the object as `const`, from the start.
+
+      (`explicit` on the constructor stops a plain string from silently converting into a `Label`; it's good practice for single-argument constructors.)
 
       **Your turn:** this doesn't compile because `print_status` takes a `const Player&` but calls methods that aren't marked `const`. Press Check to see the error, then fix the class (not the function).
     seed: |
@@ -217,20 +355,47 @@ steps:
   - title: static members
     id: cpp-classes-5
     text: |
-      A `static` data member belongs to the **class**, not to any one object. All objects share it. A `static` member function can be called without an object:
+      Normally each object has its own copy of every data member. A **static** data member is different: there's exactly **one** copy, shared by the whole class, whether zero or a thousand objects exist. A **static** member function belongs to the class too, and is called without an object, as `ClassName::function()`.
 
-      ```cpp
-      class Bot {
+      ```cpp run
+      #include <iostream>
+      #include <string>
+
+      class Order {
       public:
-          Bot() { count_++; }
-          static int count() { return count_; }
+          explicit Order(std::string item) : item_(item), number_(++next_number_) {}
+          int number() const { return number_; }
+          static int total() { return next_number_; }
+
       private:
-          static inline int count_ = 0;   // 'inline' lets you initialize it here
+          std::string item_;
+          int number_;
+          static inline int next_number_ = 0;
       };
 
-      Bot a, b;
-      Bot::count();   // 2
+      int main() {
+          std::cout << Order::total() << "\n";
+          Order a("pizza");
+          Order b("salad");
+          Order c("soup");
+          std::cout << a.number() << " " << c.number() << " " << Order::total() << "\n";
+      }
       ```
+
+      ```output
+      0
+      1 3 3
+      ```
+
+      ### Reading it
+
+      - `static inline int next_number_ = 0;` declares the shared counter. `inline` (C++17) allows initializing it right in the class; older code defines it separately in a `.cpp` file.
+      - Each constructor does `++next_number_` and stores the result in the object's **own** `number_`, so every order gets the next number in sequence.
+      - `Order::total()` is static, so it can be called before any `Order` exists. A static member function has no `this` pointer, so it can only use static members.
+
+      ### When to use static members
+
+      Counters shared across instances, constants that belong to the class (`static constexpr int max_size = 64;`), and factory functions that create objects. Like global variables, mutable static data is shared state, so use it sparingly.
 
       **Your turn:** write a class `Grenade` that counts how many have ever been created (`static int created()`), and gives each one an `int id() const` in creation order starting at 1.
     seed: |
@@ -271,6 +436,59 @@ steps:
   - title: "Challenge: a Clock class"
     id: cpp-classes-6
     text: |
+      This challenge is about designing a small class from a description. Here's the process professionals use:
+
+      1. **Decide the data.** What's the smallest set of members that represents the state? For a timer, a single number of seconds remaining is enough. Minutes and seconds can be **computed** from it when needed, so they shouldn't be stored separately (two copies of the same information can get out of sync).
+      2. **Write the constructor** so every object starts valid.
+      3. **Write each method**, keeping the data valid (here: never below 0).
+      4. **Mark reading methods `const`.**
+
+      ### Formatting with padding
+
+      `M:SS` needs the seconds padded to two digits: `1:05`, not `1:5`. Building the string yourself is simple: if the seconds are below 10, add a `"0"` before them.
+
+      ```cpp run
+      #include <iostream>
+      #include <string>
+
+      class Stopwatch {
+      public:
+          void add(int seconds) {
+              if (seconds > 0) total_ += seconds;
+          }
+          std::string display() const {
+              int h = total_ / 3600;
+              int m = (total_ / 60) % 60;
+              int s = total_ % 60;
+              return std::to_string(h) + "h" + two(m) + "m" + two(s) + "s";
+          }
+
+      private:
+          static std::string two(int n) {
+              return (n < 10 ? "0" : "") + std::to_string(n);
+          }
+          int total_ = 0;
+      };
+
+      int main() {
+          Stopwatch w;
+          w.add(3725);
+          std::cout << w.display() << "\n";
+          w.add(-50);
+          w.add(40);
+          std::cout << w.display() << "\n";
+      }
+      ```
+
+      ```output
+      1h02m05s
+      1h02m45s
+      ```
+
+      `two` is a **private static helper**: it doesn't need an object, and it's an implementation detail, so it's hidden from users of the class.
+
+      Default arguments work on member functions too: `void tick(int s = 1)` lets callers write `tick()` or `tick(5)`.
+
       **Your turn:** write a class `Clock` representing a round timer in seconds:
 
       - `Clock(int seconds)` creates it
@@ -326,19 +544,60 @@ steps:
   - title: Member initializer lists
     id: cpp-classes-7
     text: |
-      A constructor's **initializer list** (after the `:`) builds each member directly. Assigning inside the body instead first default-constructs the member and then overwrites it.
+      You've been using the member initializer list since step 3. It's worth understanding exactly why it exists, because some code **only** works with it.
+
+      ### Initialization vs assignment
 
       ```cpp
-      Player(std::string name, int hp) : name_(std::move(name)), hp_(hp) {}
+      Player(std::string name) : name_(name) {}          // initializes name_
+      Player(std::string name) { name_ = name; }          // default-constructs name_, then assigns
       ```
 
-      Some members *must* be set in the initializer list, because they can't be assigned later:
+      The first **constructs** `name_` directly with the right value. The second first builds an empty `name_`, then throws that away by assigning. For a string that's a small waste; for some members it's impossible.
 
-      - `const` members
-      - reference members
-      - members whose type has no default constructor
+      ### Members that must use the list
 
-      Members are always initialized in the order they are **declared in the class**, not the order you list them. `-Wall` warns when the two orders differ (`-Wreorder`), because reading a member that isn't built yet is a real bug.
+      - `const` members: a const can be initialized but never assigned.
+      - **Reference** members: a reference must be bound when it's created.
+      - Members whose type has **no default constructor**: there's no way to build them "empty" first.
+
+      ```cpp run
+      #include <iostream>
+      #include <string>
+
+      class Sensor {
+      public:
+          Sensor(const std::string& id, double& shared_total, double scale)
+              : id_(id), total_(shared_total), scale_(scale) {}
+
+          void record(double raw) { total_ += raw * scale_; }
+          const std::string& id() const { return id_; }
+
+      private:
+          const std::string id_;
+          double& total_;
+          double scale_;
+      };
+
+      int main() {
+          double total = 0;
+          Sensor a("a1", total, 1.0);
+          Sensor b("b7", total, 0.5);
+          a.record(10);
+          b.record(10);
+          std::cout << a.id() << " " << b.id() << " total " << total << "\n";
+      }
+      ```
+
+      ```output
+      a1 b7 total 15
+      ```
+
+      Both sensors hold a **reference** to the same `total`, and each has a `const` id that can never change. Neither would compile with assignments in the constructor body.
+
+      ### Order of initialization
+
+      Members are initialized in the order they're **declared in the class**, regardless of the order in the list. If one member's initializer uses another member, the used one must be declared **earlier**. `-Wall` warns when the list order differs from the declaration order (`-Wreorder`), because it hides exactly this bug.
 
       **Your turn:** give `Player` a constructor `Player(const std::string& name, int max_hp)` that sets the const `name_`, sets `max_hp_`, and starts `hp_` at `max_hp_`. Use the initializer list for all three.
     seed: |
@@ -392,15 +651,53 @@ steps:
   - title: Keeping invariants
     id: cpp-classes-8
     text: |
-      An **invariant** is a rule that must be true for every object, at all times, from the outside. For a health bar: `0 <= hp <= max`.
+      An **invariant** is a rule about an object's data that is true at all times when viewed from outside: a health value is between 0 and its maximum; a date's month is between 1 and 12; a sorted list is sorted.
 
-      This is the real reason for `private`: if only member functions can touch the data, only they can break the rule, and you check it in one place. Every constructor must *establish* the invariant and every member function must *preserve* it.
+      Invariants are the real reason for `private`. If only member functions can touch the data, only they can break the rule, so you can check and enforce it in **one** place:
 
-      ```cpp
-      void damage(int amount) {
-          hp_ = std::max(0, hp_ - amount);   // never below 0
+      - Every **constructor** must *establish* the invariant (clean up bad inputs, or refuse them).
+      - Every **member function** must *preserve* it (never leave the object in a broken state).
+
+      ```cpp run
+      #include <algorithm>
+      #include <iostream>
+
+      class Volume {
+      public:
+          explicit Volume(int level) : level_(std::clamp(level, 0, 10)) {}
+          void up(int n) {
+              if (n > 0) level_ = std::min(10, level_ + n);
+          }
+          void down(int n) {
+              if (n > 0) level_ = std::max(0, level_ - n);
+          }
+          int level() const { return level_; }
+
+      private:
+          int level_;
+      };
+
+      int main() {
+          Volume v(25);
+          std::cout << v.level() << " ";
+          v.down(3);
+          v.down(-100);
+          v.up(1);
+          std::cout << v.level() << "\n";
       }
       ```
+
+      ```output
+      10 8
+      ```
+
+      ### Tools
+
+      `std::min(a, b)`, `std::max(a, b)` and `std::clamp(x, lo, hi)` from `<algorithm>` make boundary rules short and readable. `std::clamp(25, 0, 10)` is 10.
+
+      ### Handle bad input deliberately
+
+      A negative "down" amount would secretly turn into an increase. The class decides what to do with nonsense (here: ignore it) instead of letting it corrupt the state. Whatever the policy, every public function must leave the object valid, so users of the class never need to double-check it. When you design a class, write the invariant down in a comment first; the code follows from it.
 
       **Your turn:** write class `Health`:
 
@@ -463,14 +760,65 @@ steps:
   - title: "Challenge: a Fraction class"
     id: cpp-classes-9
     text: |
-      A value type that always keeps itself in a clean form is a great exercise in invariants. **Your turn:** write class `Fraction` whose invariant is: **always fully reduced, denominator always positive**.
+      A **value type** represents a value, like a number or a date, and a good one keeps itself in a clean, canonical form so that equal values always look the same. A fraction is a great example: 2/4, 1/2 and -3/-6 are all the same number, so the class should always store it as `1/2`.
+
+      ### The invariant
+
+      **Always fully reduced, and the denominator is always positive.** With that rule, comparing two fractions is just comparing numerators and denominators, and printing is straightforward.
+
+      ### Establishing it
+
+      The constructor normalizes whatever it's given:
+
+      1. If the denominator is negative, flip the sign of both.
+      2. Divide both by their greatest common divisor.
+
+      `std::gcd(a, b)` from `<numeric>` computes the greatest common divisor, and handles negative inputs.
+
+      ```cpp run
+      #include <iostream>
+      #include <numeric>
+      #include <string>
+
+      class Ratio {
+      public:
+          Ratio(int a, int b) : a_(a), b_(b) {
+              if (b_ < 0) {
+                  a_ = -a_;
+                  b_ = -b_;
+              }
+              int g = std::gcd(a_, b_);
+              if (g != 0) {
+                  a_ /= g;
+                  b_ /= g;
+              }
+          }
+          Ratio inverse() const { return Ratio(b_, a_); }
+          std::string str() const { return std::to_string(a_) + ":" + std::to_string(b_); }
+
+      private:
+          int a_, b_;
+      };
+
+      int main() {
+          std::cout << Ratio(6, 8).str() << " " << Ratio(3, -9).str() << " " << Ratio(-2, 10).inverse().str() << "\n";
+      }
+      ```
+
+      ```output
+      3:4 -1:3 -5:1
+      ```
+
+      ### Preserving it for free
+
+      Notice `inverse` builds its result with the **constructor**. Since the constructor always normalizes, any new value created that way is automatically valid. Do the same for `plus` and `times`: compute the raw numerator and denominator with the usual math formulas (a/b + c/d = (ad + cb) / bd, and a/b x c/d = ac / bd), and let the constructor clean up.
+
+      **Your turn:** write class `Fraction` whose invariant is: **always fully reduced, denominator always positive**.
 
       - `Fraction(int num, int den = 1)`: `Fraction(2, -4)` becomes `-1/2`. You can assume `den != 0`.
       - `int num() const`, `int den() const`
       - `Fraction plus(const Fraction& o) const` and `Fraction times(const Fraction& o) const`
       - `std::string str() const`: `"3/4"`, or just `"2"` when the denominator is 1
-
-      `std::gcd(a, b)` from `<numeric>` gives the greatest common divisor (it handles negative numbers).
     seed: |
       #include <numeric>
       #include <string>

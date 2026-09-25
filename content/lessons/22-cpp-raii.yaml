@@ -7,19 +7,52 @@ steps:
   - title: Destructors
     id: cpp-raii-1
     text: |
-      A **destructor** runs automatically when an object's lifetime ends, for example when a local variable goes out of scope. It's named `~ClassName()`:
+      In C, cleaning up (calling `free`, `fclose`, unlocking) was your job, on every path out of every function. Forget it once and you have a leak. C++ has a feature that changes everything: the **destructor**.
 
-      ```cpp
-      struct Noisy {
-          Noisy()  { std::cout << "hello\n"; }
-          ~Noisy() { std::cout << "bye\n"; }
+      A destructor is a member function named `~ClassName()` that runs **automatically** when an object's lifetime ends. For a local variable, that's when execution leaves the block (`{ }`) it was declared in, whatever the reason: reaching the end, `return`, or `break`.
+
+      ```cpp run
+      #include <iostream>
+      #include <string>
+
+      struct Timer {
+          std::string name;
+          explicit Timer(std::string n) : name(n) { std::cout << "start " << name << "\n"; }
+          ~Timer() { std::cout << "stop " << name << "\n"; }
       };
 
+      int work(int x) {
+          Timer t("work");
+          if (x < 0) {
+              return -1;
+          }
+          std::cout << "working on " << x << "\n";
+          return x * 2;
+      }
+
       int main() {
-          Noisy n;              // prints hello
-          std::cout << "work\n";
-      }                         // prints bye here, automatically
+          work(5);
+          work(-1);
+          std::cout << "done\n";
+      }
       ```
+
+      ```output
+      start work
+      working on 5
+      stop work
+      start work
+      stop work
+      done
+      ```
+
+      ### What to notice
+
+      - The constructor runs when `t` is created; the destructor runs when `work` returns.
+      - On the early `return -1`, the destructor **still** runs. You didn't write any cleanup at that `return`; the compiler inserted it.
+      - A destructor takes no parameters and returns nothing, and you never call it yourself.
+
+      This guarantee ("the destructor always runs when the object goes away") is the foundation of safe resource management in C++, which the next steps build on. The **Watch it run** link shows the output appearing as each object is created and destroyed.
 
       **Your turn:** complete the destructor so the program prints the three lines shown in the tests.
     fill: |
@@ -42,7 +75,49 @@ steps:
   - title: Order of destruction
     id: cpp-raii-2
     text: |
-      Objects are destroyed in the **reverse order** of construction (last in, first out), and a `{ }` block ends the lifetime of everything declared inside it.
+      When several objects live in the same scope, the order in which they're destroyed follows a simple rule: **reverse order of construction**. The last object created is the first destroyed, like a stack of plates.
+
+      ```cpp run
+      #include <iostream>
+      #include <string>
+
+      struct Step {
+          std::string name;
+          explicit Step(std::string n) : name(n) { std::cout << "open " << name << "\n"; }
+          ~Step() { std::cout << "close " << name << "\n"; }
+      };
+
+      int main() {
+          Step outer("database");
+          {
+              Step inner("transaction");
+              std::cout << "  doing work\n";
+          }
+          Step last("log");
+          std::cout << "end of main\n";
+      }
+      ```
+
+      ```output
+      open database
+      open transaction
+        doing work
+      close transaction
+      open log
+      end of main
+      close log
+      close database
+      ```
+
+      ### Why reverse order?
+
+      Later objects often **depend on** earlier ones: a transaction uses a database connection, so the transaction must be closed before the connection. Destroying in reverse order makes that correct automatically.
+
+      ### Blocks control lifetime
+
+      A `{ }` block ends the lifetime of everything declared inside it. The inner block above closes the transaction **before** `log` is even created. Adding a block is the standard way to end an object's life early, for example to release a lock as soon as the critical work is done.
+
+      Members of a class are destroyed in reverse order of their **declaration**, after the class's own destructor body runs, following the same logic.
 
       **Your turn:** without changing the struct, reorder and group the lines in `main` so the output is exactly:
 
@@ -100,18 +175,61 @@ steps:
   - title: RAII
     id: cpp-raii-3
     text: |
-      **RAII** (Resource Acquisition Is Initialization) means: acquire a resource in a constructor, release it in the destructor. Since destructors always run, you can't forget to clean up, even on early `return`.
+      **RAII** stands for "Resource Acquisition Is Initialization". It's an awkward name for the most important idea in C++:
 
-      ```cpp
-      class IntArray {
+      > Tie every resource to an object. Acquire it in the constructor, release it in the destructor.
+
+      Because destructors always run when the object goes away, the resource is always released: on normal exit, early return, or an exception. You can't forget, and you can't get the order wrong. Memory, files, locks, network connections and database transactions are all managed this way.
+
+      ### new and delete
+
+      C++'s versions of `malloc` and `free`:
+
+      - `new T(args)` creates one object on the heap and returns a pointer; `delete p` destroys it.
+      - `new T[n]` creates an array; `delete[] p` destroys it. Mixing them up (`delete` on an array) is undefined behavior.
+      - `new int[n]()`: the `()` zero-initializes the elements.
+
+      Unlike `malloc`, `new` runs constructors and `delete` runs destructors.
+
+      ```cpp run
+      #include <iostream>
+
+      class Buffer {
       public:
-          IntArray(int n) : data_(new int[n]()), n_(n) {}
-          ~IntArray() { delete[] data_; }
-          ...
+          explicit Buffer(int n) : data_(new double[n]()), n_(n) {
+              std::cout << "allocated " << n_ << "\n";
+          }
+          ~Buffer() {
+              delete[] data_;
+              std::cout << "freed " << n_ << "\n";
+          }
+          double& at(int i) { return data_[i]; }
+          int size() const { return n_; }
+
+      private:
+          double* data_;
+          int n_;
       };
+
+      int main() {
+          Buffer b(3);
+          b.at(0) = 1.5;
+          b.at(2) = b.at(0) * 2;
+          std::cout << b.at(0) + b.at(1) + b.at(2) << "\n";
+      }
       ```
 
-      `new T[n]` / `delete[] p` are C++'s versions of `malloc`/`free` for arrays (`new T` / `delete p` for one object). The `()` after `new int[n]` zero-initializes the elements.
+      ```output
+      allocated 3
+      4.5
+      freed 3
+      ```
+
+      `main` never calls `delete`. The `Buffer` owns its array and frees it in its destructor.
+
+      ### Returning a reference
+
+      `double& at(int i)` returns a **reference** to the element, so `b.at(0) = 1.5` writes into the array. Returning `double` would return a copy, and the assignment would change the copy.
 
       **Your turn:** finish `IntArray`: the destructor, plus `int size() const`, `int& at(int i)` (returns a reference so callers can write through it) and `int sum() const`.
     seed: |
@@ -169,18 +287,56 @@ steps:
   - title: The copy problem
     id: cpp-raii-4
     text: |
-      By default, copying an object copies each member. For `IntArray` that copies the **pointer**, so two objects share one array. When both destructors run, the array is deleted twice (a crash, or worse).
+      RAII classes have a hidden trap. When you copy an object, C++ by default copies each **member**. For a class holding a raw pointer, that copies the **pointer**, not the data it points to. Now two objects point at the same array:
 
-      Fix it by writing a **copy constructor** that makes a *deep copy*:
+      ```
+      a.data_ ──┐
+                ├──> [ 1 2 3 ]
+      b.data_ ──┘
+      ```
 
-      ```cpp
-      IntArray(const IntArray& other)
-          : data_(new int[other.n_]), n_(other.n_) {
-          for (int i = 0; i < n_; i++) data_[i] = other.data_[i];
+      Changing `b` changes `a`. Worse, when both are destroyed, both destructors `delete[]` the same array: a **double free**, which crashes or corrupts memory.
+
+      ### The fix: a deep copy
+
+      Write a **copy constructor**, the constructor that builds a new object from an existing one of the same type. It takes a `const` reference to the original and allocates **new** memory with the same contents:
+
+      ```cpp run
+      #include <iostream>
+      #include <cstring>
+
+      class Name {
+      public:
+          explicit Name(const char* s) : text_(new char[std::strlen(s) + 1]) { std::strcpy(text_, s); }
+          Name(const Name& other) : text_(new char[std::strlen(other.text_) + 1]) {
+              std::strcpy(text_, other.text_);
+          }
+          ~Name() { delete[] text_; }
+          Name& operator=(const Name&) = delete;
+          void upper_first() { text_[0] = text_[0] - 'a' + 'A'; }
+          const char* c_str() const { return text_; }
+
+      private:
+          char* text_;
+      };
+
+      int main() {
+          Name a("ada");
+          Name b = a;
+          b.upper_first();
+          std::cout << a.c_str() << " " << b.c_str() << "\n";
       }
       ```
 
-      This is the **rule of three**: if a class needs a destructor, it almost always needs a copy constructor and copy assignment too.
+      ```output
+      ada Ada
+      ```
+
+      `Name b = a;` calls the copy constructor, which gives `b` its own characters. Changing `b` doesn't affect `a`, and each destructor frees its own memory.
+
+      ### The rule of three
+
+      If a class needs a custom **destructor**, it almost certainly needs a custom **copy constructor** and **copy assignment operator** too, because all three deal with the same owned resource. (Here copy assignment is simply forbidden with `= delete`; the next steps cover both options.)
 
       **Your turn:** add the deep-copy constructor. (Copy assignment is provided.)
     seed: |
@@ -250,15 +406,56 @@ steps:
   - title: Non-copyable classes
     id: cpp-raii-5
     text: |
-      Sometimes copying makes no sense (a file handle, a network socket, a unique game session). Say so explicitly with `= delete`, and the compiler rejects any attempt to copy:
+      For some resources, copying makes no sense at all. What would it mean to copy an open network connection, a lock on a mutex, or a handle to a unique hardware device? Two objects would both think they own it and both try to release it.
 
-      ```cpp
-      class Session {
+      The right answer is to **forbid copying**. Write the copy operations and mark them `= delete`:
+
+      ```cpp run
+      #include <iostream>
+      #include <type_traits>
+
+      class Connection {
       public:
-          Session(const Session&) = delete;
-          Session& operator=(const Session&) = delete;
+          explicit Connection(int id) : id_(id) { std::cout << "connect " << id_ << "\n"; }
+          ~Connection() { std::cout << "disconnect " << id_ << "\n"; }
+          Connection(const Connection&) = delete;
+          Connection& operator=(const Connection&) = delete;
+          int id() const { return id_; }
+
+      private:
+          int id_;
       };
+
+      void use(const Connection& c) {
+          std::cout << "using " << c.id() << "\n";
+      }
+
+      int main() {
+          Connection c(7);
+          use(c);
+          std::cout << std::is_copy_constructible_v<Connection> << "\n";
+      }
       ```
+
+      ```output
+      connect 7
+      using 7
+      0
+      disconnect 7
+      ```
+
+      Now `Connection d = c;` is a compile error: `use of deleted function`. The mistake is caught before the program ever runs. Passing by reference (`const Connection&`) still works, because no copy is made.
+
+      ### Two assignment operators
+
+      There are two copy operations to delete:
+
+      - The **copy constructor** `Connection(const Connection&)`, used for `Connection d = c;`.
+      - The **copy assignment operator** `Connection& operator=(const Connection&)`, used for `d = c;` when `d` already exists.
+
+      `std::is_copy_constructible_v<T>` (from `<type_traits>`) asks the compiler, at compile time, whether a type can be copied. It's how the tests on this step check your class.
+
+      Non-copyable types can still be **moved** (handing over ownership), which is covered in the move semantics module. `std::unique_ptr` is the standard library's best-known non-copyable type.
 
       **Your turn:** make `Lock` non-copyable. The tests check it at compile time with `std::is_copy_constructible_v`.
     seed: |
@@ -290,26 +487,57 @@ steps:
   - title: Copy assignment with copy-and-swap
     id: cpp-raii-6
     text: |
-      Copy **assignment** (`a = b;` on an existing `a`) is harder than the copy constructor: `a` already owns memory that must be released, and `a = a;` must not destroy itself.
+      **Copy assignment** (`a = b;` where `a` already exists) is trickier than the copy constructor, because `a` already owns a resource. A correct version must:
 
-      The standard trick is **copy-and-swap**:
+      1. Make a copy of `b`'s data.
+      2. Release `a`'s old data.
+      3. Handle **self-assignment** (`a = a;`), which a naive version breaks by freeing the data before copying it.
+      4. Ideally, leave `a` unchanged if making the copy fails.
 
-      ```cpp
-      void swap(IntArray& other) noexcept {
-          std::swap(data_, other.data_);
-          std::swap(n_, other.n_);
-      }
-      IntArray& operator=(IntArray other) {   // by value: a copy is made here
-          swap(other);                        // take the copy's guts
-          return *this;                       // other's destructor frees our old data
+      The classic solution is **copy-and-swap**. Take the parameter **by value** (so the compiler makes the copy using your copy constructor), then **swap** your members with the copy's:
+
+      ```cpp run
+      #include <iostream>
+      #include <utility>
+
+      class Box {
+      public:
+          explicit Box(int v) : p_(new int(v)) {}
+          Box(const Box& o) : p_(new int(*o.p_)) {}
+          ~Box() { delete p_; }
+          void swap(Box& o) noexcept { std::swap(p_, o.p_); }
+          Box& operator=(Box other) {
+              swap(other);
+              return *this;
+          }
+          int get() const { return *p_; }
+
+      private:
+          int* p_;
+      };
+
+      int main() {
+          Box a(1), b(2);
+          a = b;
+          a = a;
+          Box c(3);
+          c = a;
+          std::cout << a.get() << " " << b.get() << " " << c.get() << "\n";
       }
       ```
 
-      Why professionals like it:
+      ```output
+      2 2 2
+      ```
 
-      - It reuses the copy constructor, so there's no duplicated copying code.
-      - Self-assignment is automatically safe.
-      - If the copy throws (runs out of memory), `*this` is untouched. That's called the **strong exception guarantee**.
+      ### Why it works
+
+      - The parameter `other` is already a fresh copy. If copying fails, it fails **before** anything in `*this` changed.
+      - `swap` gives `*this` the new data and gives `other` the old data.
+      - When `operator=` returns, `other` goes out of scope and its destructor frees the old data. No explicit `delete` needed.
+      - Self-assignment is safe automatically: you copy first, then swap.
+
+      `operator=` returns `*this` by reference, so assignments can chain (`a = b = c`). The `swap` member is marked `noexcept` because swapping two pointers can't fail, and the standard library relies on that promise.
 
       **Your turn:** write the member `swap` and the copy-and-swap `operator=`.
     seed: |
@@ -384,17 +612,51 @@ steps:
   - title: The rule of zero
     id: cpp-raii-7
     text: |
-      Everything in the last few steps (destructor, deep copy, copy-and-swap) is only needed because the class held a **raw owning pointer**. Replace it with a member that already manages itself, like `std::vector`, `std::string` or `std::unique_ptr`, and you write **none** of them. The compiler-generated versions just do the right thing, member by member.
+      The last few steps showed how much careful code a class needs when it holds a **raw owning pointer**: a destructor, a deep-copying copy constructor, copy assignment, and (later) move operations. Getting all of them right is hard, and it's easy to forget one.
 
-      That's the **rule of zero**, and it's how most modern C++ classes are written. Writing your own destructor or copy operations is the exception, reserved for low-level resource wrappers.
+      The modern answer: **don't hold raw owning pointers**. Use members that already manage themselves:
 
-      ```cpp
-      class Loadout {
-          std::vector<std::string> items_;   // copies, moves and frees itself
+      - `std::vector<T>` instead of `new T[n]`
+      - `std::string` instead of `new char[n]`
+      - `std::unique_ptr<T>` instead of `new T`
+
+      Their own destructors, copies and moves are correct, and the compiler-generated versions for **your** class simply call theirs, member by member. So you write none of the special functions. This is the **rule of zero**, and it's how most classes in modern C++ are written.
+
+      ```cpp run
+      #include <iostream>
+      #include <string>
+      #include <vector>
+
+      class Playlist {
       public:
-          void add(std::string item) { items_.push_back(std::move(item)); }
+          void add(const std::string& song) { songs_.push_back(song); }
+          int count() const { return songs_.size(); }
+          const std::string& first() const { return songs_.front(); }
+
+      private:
+          std::string name_ = "mix";
+          std::vector<std::string> songs_;
       };
+
+      int main() {
+          Playlist a;
+          a.add("intro");
+          a.add("outro");
+          Playlist b = a;
+          b.add("bonus");
+          std::cout << a.count() << " " << b.count() << " " << b.first() << "\n";
+      }
       ```
+
+      ```output
+      2 3 intro
+      ```
+
+      Copying `a` into `b` makes a real, independent copy of the vector of strings, with no code from you. Destroying both frees everything correctly.
+
+      ### When do you still write them?
+
+      Only in low-level classes whose whole job is to wrap one resource (like the `IntArray` you just wrote, or a wrapper for a C library handle). Everything else composes those building blocks and follows the rule of zero.
 
       **Your turn:** write class `Inventory` with the rule of zero: `void add(const std::string& item)`, `int count() const`, `bool has(const std::string& item) const`, `void clear()`. No `new`, no `delete`, no destructor.
     seed: |
@@ -452,11 +714,50 @@ steps:
   - title: "Challenge: a scope guard"
     id: cpp-raii-8
     text: |
-      RAII isn't only for memory. Any "undo" action (close a file, unlock a mutex, roll back a transaction, restore a setting) can be tied to a destructor, so it runs however the scope is left: normal end, early `return`, or an exception.
+      RAII isn't only about memory. **Any** action that must happen when you leave a scope can be tied to a destructor: closing a file, unlocking a mutex, rolling back a half-finished transaction, restoring a setting you changed temporarily, printing "done" in a log.
 
-      A **scope guard** holds a function and calls it in its destructor, unless you `dismiss()` it first (for example, because the operation succeeded and there's nothing to undo). Many large codebases have one; C++ proposals call it `scope_exit`.
+      A **scope guard** is a small, general-purpose RAII class: it holds a function and calls it from its destructor. Many large codebases have one (C++ proposals call it `scope_exit`).
 
-      `std::function<void()>` can hold any callable that takes no arguments, including a lambda.
+      ### std::function and lambdas
+
+      `std::function<void()>` (from `<functional>`) can store **any** callable that takes no arguments and returns nothing: a plain function, or a **lambda**. A lambda is an unnamed function written inline, with a **capture list** saying which outside variables it may use: `[&count]() { count++; }` captures `count` by reference. Lambdas get a full module later; this is enough to use them here.
+
+      ```cpp run
+      #include <functional>
+      #include <iostream>
+
+      class OnExit {
+      public:
+          explicit OnExit(std::function<void()> f) : f_(f) {}
+          ~OnExit() { f_(); }
+          OnExit(const OnExit&) = delete;
+          OnExit& operator=(const OnExit&) = delete;
+
+      private:
+          std::function<void()> f_;
+      };
+
+      int main() {
+          int depth = 0;
+          {
+              depth++;
+              OnExit undo([&depth]() { depth--; });
+              std::cout << "inside, depth " << depth << "\n";
+          }
+          std::cout << "after, depth " << depth << "\n";
+      }
+      ```
+
+      ```output
+      inside, depth 1
+      after, depth 0
+      ```
+
+      ### Dismissing
+
+      A scope guard is often used for **rollback**: set it up at the start of an operation, and if the operation completes successfully, call `dismiss()` so the undo doesn't run. On any early exit (an error return), the destructor still rolls things back. A `bool` member that `dismiss()` sets is enough; the destructor checks it before calling the function.
+
+      A guard must not be copyable, or two copies would run the action twice.
 
       **Your turn:** write class `ScopeGuard`:
 

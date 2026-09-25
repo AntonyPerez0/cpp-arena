@@ -7,17 +7,42 @@ steps:
   - title: operator+
     id: cpp-operators-1
     text: |
-      You can define what operators mean for your types. An operator is just a function with a special name:
+      Built-in types work with operators: `a + b`, `a == b`, `std::cout << a`. C++ lets **your** types work with them too. This is called **operator overloading**, and it's why `std::string` can be joined with `+` and compared with `==`: the standard library overloads those operators.
 
-      ```cpp
-      struct Vec2 { double x, y; };
+      An operator is just a function with a special name: `operator+`, `operator==`, `operator<<`, and so on. When the compiler sees `a + b` with your types, it calls `operator+(a, b)`.
 
-      Vec2 operator+(Vec2 a, Vec2 b) {
-          return {a.x + b.x, a.y + b.y};
+      ```cpp run
+      #include <iostream>
+
+      struct Money {
+          long long cents;
+      };
+
+      Money operator+(Money a, Money b) { return {a.cents + b.cents}; }
+      Money operator*(Money a, int n) { return {a.cents * n}; }
+      bool operator<(Money a, Money b) { return a.cents < b.cents; }
+
+      int main() {
+          Money coffee{350};
+          Money cake{425};
+          Money bill = coffee * 2 + cake;
+          std::cout << bill.cents / 100 << "." << bill.cents % 100 << "\n";
+          std::cout << (cake < coffee) << "\n";
       }
-
-      Vec2 c = Vec2{1, 2} + Vec2{3, 4};   // {4, 6}
       ```
+
+      ```output
+      11.25
+      0
+      ```
+
+      `coffee * 2 + cake` reads exactly like math. The usual precedence still applies (`*` before `+`), because overloading changes what operators **do**, not how expressions are parsed.
+
+      ### Guidelines
+
+      - Overload an operator only when its meaning is **obvious**: arithmetic on math-like types, comparisons, `<<` for printing, `[]` for indexing. `+` should never secretly delete a file.
+      - Keep the usual behavior: `+` shouldn't change its operands; `==` should be consistent with `!=`.
+      - `return {a.cents + b.cents};` builds the result with braces, filling the struct's members in order.
 
       **Your turn:** complete `operator-` and `operator*` (vector times a number).
     fill: |
@@ -40,14 +65,51 @@ steps:
   - title: operator== and !=
     id: cpp-operators-2
     text: |
-      For comparisons, define `operator==`. Since C++20 the compiler automatically gives you `!=` from it. You can even ask it to generate `==` for you, comparing every member:
+      To compare your own types with `==`, define `operator==`. It returns a `bool` and usually takes both sides by `const&`:
 
-      ```cpp
+      ```cpp run
+      #include <iostream>
+      #include <string>
+
+      struct Version {
+          int major, minor;
+          std::string label;
+      };
+
+      bool operator==(const Version& a, const Version& b) {
+          return a.major == b.major && a.minor == b.minor;
+      }
+
       struct Point {
           int x, y;
           bool operator==(const Point&) const = default;
       };
+
+      int main() {
+          Version v1{2, 1, "stable"};
+          Version v2{2, 1, "rc"};
+          std::cout << (v1 == v2) << (v1 != v2) << "\n";
+          std::cout << (Point{1, 2} == Point{1, 2}) << (Point{1, 2} == Point{2, 1}) << "\n";
+      }
       ```
+
+      ```output
+      10
+      10
+      ```
+
+      ### You decide what "equal" means
+
+      `Version`'s `==` deliberately ignores the label: two versions with the same numbers count as equal. Writing `==` by hand lets you choose which members matter.
+
+      ### C++20 conveniences
+
+      - Define `==` and the compiler automatically rewrites `a != b` as `!(a == b)`. You don't need to write `!=` any more.
+      - `bool operator==(const Point&) const = default;` asks the compiler to generate `==` comparing **every** member in order. That's the right choice when equality really means "all members equal".
+
+      ### Member or free function?
+
+      `Point`'s operator is a **member** (declared inside the struct, with one parameter: the right-hand side, while `*this` is the left). `Version`'s is a **free function** with both sides as parameters. Both work. Free functions are often preferred for symmetric operators like `==` and `+`, since they treat both sides the same way.
 
       **Your turn:** write `operator==` for `Score` by hand. Two scores are equal if both teams' round counts match; the map name doesn't matter.
     seed: |
@@ -87,13 +149,53 @@ steps:
   - title: Printing with operator<<
     id: cpp-operators-3
     text: |
-      To make `std::cout << obj` work, overload `<<` for `std::ostream`. It must return the stream so calls can chain:
+      `std::cout << x` works for built-in types because the standard library defines `operator<<` for each of them. You can add one for your own types, and then they print like anything else, including into files and string streams.
 
-      ```cpp
-      std::ostream& operator<<(std::ostream& os, const Vec2& v) {
-          return os << "(" << v.x << ", " << v.y << ")";
+      ```cpp run
+      #include <iostream>
+      #include <sstream>
+      #include <string>
+
+      struct Date {
+          int y, m, d;
+      };
+
+      std::ostream& operator<<(std::ostream& os, const Date& date) {
+          os << date.y << "-";
+          if (date.m < 10) os << "0";
+          os << date.m << "-";
+          if (date.d < 10) os << "0";
+          return os << date.d;
+      }
+
+      int main() {
+          Date launch{1969, 7, 20};
+          std::cout << "launch: " << launch << "\n";
+          std::ostringstream text;
+          text << launch;
+          std::string s = text.str();
+          std::cout << s.size() << " chars\n";
       }
       ```
+
+      ```output
+      launch: 1969-07-20
+      10 chars
+      ```
+
+      ### The required shape
+
+      ```cpp
+      std::ostream& operator<<(std::ostream& os, const T& value)
+      ```
+
+      - The **left** operand is the stream, so this must be a free function (you can't add members to `std::ostream`).
+      - Take the value by `const&`: printing shouldn't copy or change it.
+      - **Return the stream** by reference. That's what makes chaining work: `std::cout << "launch: " << launch << "\n"` is evaluated as `((std::cout << "launch: ") << launch) << "\n"`, so each `<<` needs the stream back from the previous one.
+
+      Because it takes any `std::ostream`, the same operator writes to `std::cout`, to a file (`std::ofstream`), or to a string (`std::ostringstream`), as the example shows.
+
+      Don't print a trailing newline inside `operator<<`; let the caller decide.
 
       **Your turn:** make `Score` printable as `T 13 - 7 CT`.
     seed: |
@@ -134,12 +236,52 @@ steps:
   - title: operator[]
     id: cpp-operators-4
     text: |
-      `operator[]` must be a **member** function. Returning a reference lets callers assign through it. Usually you provide a const and a non-const version:
+      `operator[]` lets your type be indexed like an array: `obj[i]`. It must be a **member** function. Two versions are usually provided:
 
       ```cpp
-      int& operator[](int i) { return data_[i]; }
-      const int& operator[](int i) const { return data_[i]; }
+      T& operator[](int i);               // for non-const objects: allows obj[i] = x
+      const T& operator[](int i) const;   // for const objects: read-only
       ```
+
+      Returning a **reference** is what makes assignment through it work.
+
+      ```cpp run
+      #include <iostream>
+      #include <string>
+
+      class Week {
+      public:
+          std::string& operator[](int day) { return plans_[day - 1]; }
+          const std::string& operator[](int day) const { return plans_[day - 1]; }
+
+      private:
+          std::string plans_[7] = {"gym", "", "", "", "", "", "rest"};
+      };
+
+      void show(const Week& w) {
+          std::cout << w[1] << ", " << w[3] << ", " << w[7] << "\n";
+      }
+
+      int main() {
+          Week w;
+          w[3] = "swim";
+          show(w);
+      }
+      ```
+
+      ```output
+      gym, swim, rest
+      ```
+
+      ### Custom indexing
+
+      The operator is a normal function, so it can translate the index. `Week` uses days **1 to 7** (as people count them) and converts to array positions 0 to 6 inside. The conversion lives in one place.
+
+      ### Const overloads
+
+      `show` receives a `const Week&`, so only the `const` version of `operator[]` can be called; it returns a `const std::string&`, so `w[1] = "x"` inside `show` wouldn't compile. `main` has a non-const `Week`, so it gets the version that allows writing. The compiler picks the right one automatically.
+
+      Like `[]` on arrays and `std::vector`, `operator[]` usually doesn't check the index (that's what `.at()` is for in the standard library).
 
       **Your turn:** give `Loadout` an `operator[]` taking a slot number 1 to 5 (not 0 to 4!) and returning the weapon name in that slot.
     seed: |
@@ -179,14 +321,53 @@ steps:
   - title: operator< and sorting
     id: cpp-operators-5
     text: |
-      `std::sort` (from `<algorithm>`) orders anything that has a `<`. Define `operator<` and your own type becomes sortable:
+      Many standard library tools need to know how to **order** your objects: `std::sort`, `std::set`, `std::map` keys, `std::min` and `std::max`. By default they all use `operator<`. Define it, and your type works with all of them.
 
-      ```cpp
-      std::vector<Player> team = ...;
-      std::sort(team.begin(), team.end());
+      ```cpp run
+      #include <algorithm>
+      #include <iostream>
+      #include <string>
+      #include <vector>
+
+      struct Task {
+          std::string name;
+          int priority;
+      };
+
+      bool operator<(const Task& a, const Task& b) {
+          if (a.priority != b.priority) {
+              return a.priority > b.priority;
+          }
+          return a.name < b.name;
+      }
+
+      int main() {
+          std::vector<Task> tasks = {{"email", 1}, {"deploy", 3}, {"backup", 3}, {"lunch", 2}};
+          std::sort(tasks.begin(), tasks.end());
+          for (const Task& t : tasks) std::cout << t.name << " ";
+          std::cout << "\n";
+      }
       ```
 
-      (Vectors are the next module; for now just know `team.begin(), team.end()` means "the whole vector".)
+      ```output
+      backup deploy lunch email 
+      ```
+
+      ### "Less than" means "comes first"
+
+      `operator<` doesn't have to mean numerically smaller. It answers "should `a` come **before** `b`?" Here higher priority comes first, so for priorities it uses `>`. Ties are broken alphabetically by name. This "compare the most important key; if equal, compare the next" pattern is how multi-key sorting always works.
+
+      ### It must be a consistent ordering
+
+      `std::sort` requires a **strict weak ordering**. In practice:
+
+      - `a < a` must be false (use `>` or `<`, never `>=` or `<=`).
+      - If `a < b` then `!(b < a)`.
+      - It must be transitive: `a < b` and `b < c` means `a < c`.
+
+      Breaking these (for example using `<=`) is undefined behavior: sort can misorder elements, loop forever, or crash.
+
+      (`std::vector` and `begin()`/`end()` are covered properly in the next module.)
 
       **Your turn:** define `operator<` for `Player` so sorting puts the **most kills first**, and for equal kills, the name alphabetically first.
     seed: |

@@ -7,13 +7,56 @@ steps:
   - title: unique_ptr
     id: cpp-smart-1
     text: |
-      `std::unique_ptr<T>` (from `<memory>`) owns one heap object and deletes it automatically when the unique_ptr goes away. It's RAII for heap memory, and it costs nothing extra at runtime.
+      In C, every `malloc` needs exactly one `free`, and forgetting it (or doing it twice) is a bug. C++'s raw `new` and `delete` have the same problem. A **smart pointer** is a small object that owns a heap object and deletes it for you in its destructor. It's RAII applied to heap memory.
 
-      ```cpp
-      auto p = std::make_unique<Player>("ropz", 100);
-      p->take_damage(30);     // use it like a pointer
-      // no delete needed, ever
+      `std::unique_ptr<T>` (from `<memory>`) is the one to use by default. It has one owner, and it costs nothing extra at run time compared with a raw pointer.
+
+      ```cpp run
+      #include <iostream>
+      #include <memory>
+      #include <string>
+      #include <utility>
+
+      struct Robot {
+          std::string name;
+          int battery;
+          Robot(std::string n, int b) : name(std::move(n)), battery(b) { std::cout << name << " built\n"; }
+          ~Robot() { std::cout << name << " scrapped\n"; }
+      };
+
+      int main() {
+          auto r = std::make_unique<Robot>("R2", 80);   // arguments go to Robot's constructor
+          r->battery -= 30;                              // -> works like a raw pointer
+          std::cout << (*r).name << " at " << r->battery << "%\n";
+          {
+              auto temp = std::make_unique<Robot>("C3", 100);
+              std::cout << "inner block ends\n";
+          }                                              // temp deletes its Robot here
+          std::cout << "main ends\n";
+      }                                                  // r deletes its Robot here
       ```
+
+      ```output
+      R2 built
+      R2 at 50%
+      C3 built
+      inner block ends
+      C3 scrapped
+      main ends
+      R2 scrapped
+      ```
+
+      ### How it works
+
+      - `std::make_unique<T>(args...)` allocates a `T` on the heap, passes `args` to its constructor, and returns a `unique_ptr<T>` owning it. It's the only line where the allocation happens, and there's never a matching `delete` in your code.
+      - `p->member` and `*p` work exactly like a raw pointer.
+      - When the `unique_ptr` goes out of scope, its destructor deletes the object. The output shows each robot scrapped at the end of its own block.
+      - `auto` saves writing `std::unique_ptr<Robot>` twice.
+
+      ### Common mistakes
+
+      - Writing `std::unique_ptr<Robot> r(new Robot(...))`. It works, but `make_unique` is shorter and never leaks if something goes wrong in between.
+      - Creating a `unique_ptr` for something that could just be a normal local variable. Use the heap only when you need it: the object must outlive the scope, it's very large, or it's polymorphic.
 
       **Your turn:** create the object with `make_unique` and access it through the pointer.
     fill: |
@@ -40,15 +83,51 @@ steps:
   - title: Unique means unique
     id: cpp-smart-2
     text: |
-      A `unique_ptr` can't be **copied** (two owners would both delete). It can be **moved**, which transfers ownership and leaves the source empty (null):
+      "Unique" means exactly one owner at a time. If you could copy a `unique_ptr`, two of them would both try to delete the same object: a double free. So copying is **deleted**: it's a compile error. What you can do is **move** it, which hands ownership over and leaves the source empty (`nullptr`).
 
-      ```cpp
-      auto a = std::make_unique<int>(5);
-      // auto b = a;               // compile error: copying is deleted
-      auto b = std::move(a);       // ok: b owns it, a is now nullptr
+      ```cpp run
+      #include <iostream>
+      #include <memory>
+      #include <string>
+      #include <utility>
+      #include <vector>
+
+      struct Song {
+          std::string title;
+          int seconds;
+      };
+
+      int main() {
+          auto a = std::make_unique<Song>(Song{"Intro", 95});
+          // auto b = a;                  // error: use of deleted copy constructor
+          auto b = std::move(a);          // ownership moves to b
+          std::cout << (a ? "a owns it" : "a is empty") << ", b has " << b->title << "\n";
+
+          std::vector<std::unique_ptr<Song>> playlist;
+          playlist.push_back(std::move(b));
+          playlist.push_back(std::make_unique<Song>(Song{"Outro", 130}));   // a temporary moves in by itself
+
+          int total = 0;
+          for (const auto& s : playlist) total += s->seconds;
+          std::cout << playlist.size() << " songs, " << total << " seconds\n";
+      }
       ```
 
-      Functions that take ownership accept `std::unique_ptr<T>` by value; callers must `std::move` into them.
+      ```output
+      a is empty, b has Intro
+      2 songs, 225 seconds
+      ```
+
+      ### How it works
+
+      - `std::move(a)` says "I'm giving this away". After it, `a` is null, and `if (a)` is false.
+      - A `vector` of `unique_ptr` owns all its objects. When the vector is destroyed, each element deletes its object.
+      - `push_back(std::make_unique<...>(...))` needs no `std::move`: a temporary is already about to disappear, so it's moved automatically.
+      - Loop with `const auto&`. A plain `auto` would try to **copy** each `unique_ptr`, which doesn't compile.
+
+      ### Taking ownership in a function
+
+      A parameter of type `std::unique_ptr<T>` (by value) means "this function takes ownership". The caller must write `std::move(ptr)`, which makes the hand-over visible in the code. Inside the function, move it again to store it: `items_.push_back(std::move(item));`.
 
       **Your turn:** complete `Inventory::add`, which takes ownership of an item and stores it in the vector. Then `count()` and `total_value()`.
     seed: |
@@ -120,15 +199,53 @@ steps:
   - title: Returning ownership
     id: cpp-smart-3
     text: |
-      Returning a `unique_ptr` from a function hands ownership to the caller. It's the modern replacement for "returns a pointer you must delete":
+      A function that **creates** an object on the heap should return a `unique_ptr`. Then the return type itself documents "you own this now", and the caller can't forget to delete it. In old C and C++ code, the same function would return a raw pointer and a comment saying "caller must free", which people forget.
 
-      ```cpp
-      std::unique_ptr<Enemy> spawn(int level) {
-          return std::make_unique<Enemy>(level * 100);
+      A `unique_ptr` can also be **empty**. Returning `nullptr` is a clean way to say "I couldn't make one".
+
+      ```cpp run
+      #include <iostream>
+      #include <memory>
+      #include <string>
+
+      struct Shape {
+          std::string kind;
+          double area;
+      };
+
+      std::unique_ptr<Shape> make_shape(const std::string& kind, double size) {
+          if (kind == "square") return std::make_unique<Shape>(Shape{kind, size * size});
+          if (kind == "circle") return std::make_unique<Shape>(Shape{kind, 3.14 * size * size});
+          return nullptr;                           // unknown kind: nothing to own
+      }
+
+      int main() {
+          for (const char* k : {"square", "hexagon", "circle"}) {
+              auto s = make_shape(k, 2);
+              if (s) {
+                  std::cout << s->kind << " " << s->area << "\n";
+              } else {
+                  std::cout << "can't make a " << k << "\n";
+              }
+          }
       }
       ```
 
-      It can also be empty: return `nullptr` to say "nothing".
+      ```output
+      square 4
+      can't make a hexagon
+      circle 12.56
+      ```
+
+      ### How it works
+
+      - Returning a `unique_ptr` by value moves it to the caller automatically. No `std::move` needed on `return`.
+      - `return nullptr;` converts to an empty `unique_ptr`.
+      - The caller must check `if (s)` before using `s->...`. Dereferencing an empty `unique_ptr` is undefined behavior, just like a null raw pointer.
+
+      ### Building the string
+
+      Your function returns a pointer to a new `std::string`. `std::make_unique<std::string>("bomb " + site)` constructs it from the concatenated text.
 
       **Your turn:** write `std::unique_ptr<std::string> make_callout(const std::string& site)` that returns a new string `"bomb " + site` for sites `A` and `B`, and `nullptr` for anything else.
     seed: |
@@ -162,14 +279,55 @@ steps:
   - title: shared_ptr
     id: cpp-smart-4
     text: |
-      `std::shared_ptr<T>` allows **several owners**. It keeps a reference count and deletes the object when the last owner goes away. `use_count()` shows how many owners there are.
+      Sometimes there really isn't one owner. Several parts of a program need the same object, and it should live until the **last** of them is done with it. For that there's `std::shared_ptr<T>`.
 
-      ```cpp
-      auto a = std::make_shared<int>(7);   // count 1
-      auto b = a;                          // copying is fine: count 2
+      A `shared_ptr` keeps a **reference count** next to the object: how many `shared_ptr`s currently own it. Copying a `shared_ptr` adds one, destroying one subtracts one, and when the count reaches zero the object is deleted. `use_count()` shows the current count.
+
+      ```cpp run
+      #include <iostream>
+      #include <memory>
+      #include <string>
+      #include <vector>
+
+      struct Texture {
+          std::string file;
+          ~Texture() { std::cout << "unload " << file << "\n"; }
+      };
+
+      int main() {
+          std::vector<std::shared_ptr<Texture>> sprites;
+          {
+              auto grass = std::make_shared<Texture>(Texture{"grass.png"});
+              std::cout << "count " << grass.use_count() << "\n";
+              sprites.push_back(grass);
+              sprites.push_back(grass);
+              std::cout << "count " << grass.use_count() << "\n";
+          }
+          std::cout << "block done, count " << sprites[0].use_count() << "\n";
+          sprites.clear();
+          std::cout << "end of main\n";
+      }
       ```
 
-      Prefer `unique_ptr` by default. Reach for `shared_ptr` only when ownership is genuinely shared.
+      ```output
+      unload grass.png
+      count 1
+      count 3
+      block done, count 2
+      unload grass.png
+      end of main
+      ```
+
+      ### Reading the output
+
+      - The first `unload` line is the **temporary** `Texture{"grass.png"}` passed to `make_shared`. It's copied into the shared object and then destroyed. The real texture is only unloaded later.
+      - The count goes 1, then 3 after two copies into the vector.
+      - When the block ends, the local `grass` is gone, but the vector still holds two owners, so the texture stays loaded.
+      - `sprites.clear()` destroys the last two owners, the count hits zero, and the texture is unloaded.
+
+      ### When to use which
+
+      Prefer `unique_ptr`. It's simpler and faster. `shared_ptr` costs an extra allocation for the count and an atomic update on every copy. Reach for it only when ownership is genuinely shared and there's no single obvious owner.
 
       **Your turn:** make the program print `1 2 3 2` by filling in the blanks.
     fill: |
@@ -196,18 +354,57 @@ steps:
   - title: weak_ptr
     id: cpp-smart-5
     text: |
-      A `std::weak_ptr` watches a shared object **without owning it**. It doesn't keep the object alive. To use it, call `lock()`, which returns a `shared_ptr` that's empty if the object is already gone.
+      `shared_ptr` has one weakness: **cycles**. If object A holds a `shared_ptr` to B and B holds one back to A, each keeps the other's count above zero, so neither is ever deleted. That's a memory leak.
 
-      ```cpp
-      std::weak_ptr<Player> target = some_shared_player;
-      if (auto p = target.lock()) {
-          // p is a valid shared_ptr here
-      } else {
-          // the player was deleted
+      `std::weak_ptr` solves it. It **watches** a shared object without owning it: it doesn't add to the count and doesn't keep the object alive. To use the object, call `lock()`. You get a `shared_ptr` that's valid while you hold it, or an empty one if the object is already gone.
+
+      ```cpp run
+      #include <iostream>
+      #include <memory>
+      #include <string>
+
+      struct Room {
+          std::string name;
+      };
+
+      void check(const std::weak_ptr<Room>& w) {
+          if (auto r = w.lock()) {
+              std::cout << "still there: " << r->name << " (owners " << r.use_count() << ")\n";
+          } else {
+              std::cout << "room is gone\n";
+          }
+      }
+
+      int main() {
+          std::weak_ptr<Room> last_visited;
+          {
+              auto kitchen = std::make_shared<Room>(Room{"kitchen"});
+              last_visited = kitchen;                 // does not add an owner
+              std::cout << "owners " << kitchen.use_count() << "\n";
+              check(last_visited);
+          }                                           // the only owner dies here
+          check(last_visited);
+          std::cout << "expired: " << last_visited.expired() << "\n";
       }
       ```
 
-      This breaks **reference cycles** (two shared_ptrs pointing at each other would never be freed) and models "I'm tracking this, but I don't own it".
+      ```output
+      owners 1
+      still there: kitchen (owners 2)
+      room is gone
+      expired: 1
+      ```
+
+      ### How it works
+
+      - Assigning a `shared_ptr` to a `weak_ptr` makes it watch the object. The count stays 1.
+      - `if (auto r = w.lock())` declares `r` and tests it in one step. Inside the `if`, `r` is a real owner, which is why the count shows 2 there: the object can't vanish while you're using it.
+      - Once the last real owner is gone, `lock()` returns an empty pointer and `expired()` is true.
+
+      ### Where it's used
+
+      - Breaking cycles: a child points to its parent with a `weak_ptr`, while the parent owns the child with a `shared_ptr`.
+      - Caches and observers: "remember this object if it's still around, but don't keep it alive just for me".
 
       **Your turn:** write `std::string describe(const std::weak_ptr<std::string>& w)` returning `"tracking NAME"` if the object is alive and `"lost"` otherwise.
     seed: |

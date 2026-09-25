@@ -7,15 +7,63 @@ steps:
   - title: Parsing with istringstream
     id: cpp-streams-1
     text: |
-      A `std::istringstream` turns a string into an input stream, so everything you know about `std::cin` works on it:
+      `std::cin` reads from the keyboard (or piped input). But a lot of text you need to parse is already sitting in a `std::string`: a line you just read, a command, a config value. A `std::istringstream` (from `<sstream>`) wraps a string so you can read from it **exactly like `std::cin`**.
 
-      ```cpp
-      std::istringstream in("12 7 30");
-      int a, b, c;
-      in >> a >> b >> c;
+      ```cpp run
+      #include <iostream>
+      #include <sstream>
+      #include <string>
+
+      int main() {
+          std::string line;
+          while (std::getline(std::cin, line)) {
+              std::istringstream in(line);
+              std::string item;
+              int qty;
+              double price;
+              if (!(in >> item >> qty >> price)) {
+                  std::cout << "skipping bad line: [" << line << "]\n";
+                  continue;
+              }
+              std::cout << item << " costs " << qty * price << "\n";
+          }
+      }
       ```
 
-      The stream converts to `false` once a read fails, so `while (in >> x)` reads until the data runs out **or** hits something that isn't a number. The most common pattern is to read a whole line with `std::getline`, then parse that line on its own.
+      ```input
+      pen 3 1.5
+      oops
+      book 2 12
+      ```
+
+      ```output
+      pen costs 4.5
+      skipping bad line: [oops]
+      book costs 24
+      ```
+
+      ### Why read a line first?
+
+      `std::cin >> x` skips over newlines, so it can't tell where one line ends and the next begins. When the **line structure matters** (one record per line, a variable number of values per line), use this two-step pattern:
+
+      1. `std::getline(std::cin, line)` reads one whole line into a string (without the newline).
+      2. A fresh `std::istringstream in(line)` parses just that line. When it runs out, you know the line is done.
+
+      ### Reading until the data runs out
+
+      A stream converts to `false` once a read fails. So this loop reads every number on a line, however many there are, including zero:
+
+      ```cpp
+      int x;
+      while (in >> x) { /* use x */ }
+      ```
+
+      The loop also stops at something that isn't a number, like the word `abc`.
+
+      ### Common mistakes
+
+      - Reusing one `istringstream` for several lines. After it hits the end, it's in a failed state. Create a new one inside the loop, as above.
+      - Mixing `std::cin >> n` with `std::getline`. The `>>` leaves the newline behind, so the next `getline` returns an empty line.
 
       **Your turn:** each input line holds a player name followed by some round scores (possibly none). For each line print `NAME TOTAL`.
     seed: |
@@ -61,7 +109,7 @@ steps:
   - title: Formatting tables with iomanip
     id: cpp-streams-2
     text: |
-      `<iomanip>` controls how values are printed:
+      Printing numbers in neat columns needs control over **width**, **alignment** and **decimal places**. In C that's `printf("%-10s%6.2f")`. In C++ it's the manipulators from `<iomanip>`:
 
       | Manipulator | Effect |
       |---|---|
@@ -72,9 +120,37 @@ steps:
 
       "Sticky" settings stay on the stream until you change them. `setw` resets after each item.
 
-      ```cpp
-      std::cout << std::left << std::setw(8) << "ropz" << std::right << std::setw(6) << 1.25 << "\n";
+      ```cpp run
+      #include <iomanip>
+      #include <iostream>
+
+      int main() {
+          std::cout << std::fixed << std::setprecision(2);
+          std::cout << std::left << std::setw(8) << "item" << std::right << std::setw(8) << "price" << "\n";
+          std::cout << std::left << std::setw(8) << "tea" << std::right << std::setw(8) << 3.5 << "\n";
+          std::cout << std::left << std::setw(8) << "cake" << std::right << std::setw(8) << 12.999 << "\n";
+          std::cout << std::setfill('0') << std::setw(2) << 7 << ":" << std::setw(2) << 5 << "\n";
+      }
       ```
+
+      ```output
+      item       price
+      tea         3.50
+      cake       13.00
+      07:05
+      ```
+
+      ### Reading the example
+
+      - `std::fixed << std::setprecision(2)` is set once at the top and applies to every floating point number after it. Without `std::fixed`, `setprecision(2)` would mean "2 significant digits" and print `3.5` as `3.5` and `12.999` as `13`.
+      - `std::setw(8)` is written **before every item** that needs padding, because it only lasts for one item.
+      - `std::left` and `std::right` are sticky, so a table that mixes alignments has to switch back and forth, as each row does here.
+      - `12.999` rounds to `13.00`: `setprecision` rounds, it never just chops digits off.
+      - If a value is **wider** than the `setw`, it's printed in full; the column just gets pushed over. Nothing is ever cut off.
+
+      ### The K/D detail in your task
+
+      `kills / deaths` with two `int`s does integer division. Convert one side first: `static_cast<double>(kills) / d`. And handle the "0 deaths counts as 1" rule before dividing.
 
       **Your turn:** read `name kills deaths` rows and print a table: name left-aligned in 10 columns, kills and deaths right-aligned in 4 columns each, then the K/D ratio right-aligned in 6 columns with 2 decimals (use 0 deaths as 1 death).
     seed: |
@@ -122,15 +198,57 @@ steps:
   - title: Building strings with ostringstream
     id: cpp-streams-3
     text: |
-      `std::ostringstream` is the output twin: write to it with `<<` like `std::cout`, then take the result with `.str()`. It's how you build formatted text without `printf`-style buffers:
+      `std::ostringstream` is the output twin of `istringstream`. You write to it with `<<`, exactly as you would to `std::cout`, and then take the finished text with `.str()`. It's the easy way to **build a string** from numbers and pieces, with all the formatting tools from the last step.
 
-      ```cpp
+      ```cpp run
+      #include <iomanip>
+      #include <iostream>
+      #include <sstream>
+      #include <string>
+      #include <vector>
+
       std::string money(long cents) {
           std::ostringstream out;
           out << "$" << cents / 100 << "." << std::setw(2) << std::setfill('0') << cents % 100;
           return out.str();
       }
+
+      std::string bullet_list(const std::vector<std::string>& items) {
+          std::ostringstream out;
+          for (const auto& s : items) out << "- " << s << "\n";
+          return out.str();
+      }
+
+      int main() {
+          std::cout << money(1999) << " " << money(5) << " " << money(120) << "\n";
+          std::cout << bullet_list({"eggs", "milk"});
+      }
       ```
+
+      ```output
+      $19.99 $0.05 $1.20
+      - eggs
+      - milk
+      ```
+
+      ### How it works
+
+      - Each call makes its own `ostringstream`, so formatting settings like `setfill('0')` don't leak into `std::cout`.
+      - `.str()` returns a copy of everything written so far.
+      - Anything that can be printed with `<<` can be written into it, including your own types once you've written `operator<<` for them.
+
+      ### Separators: the fencepost problem
+
+      Joining values with a separator is a classic off-by-one trap. With 3 values there are only 2 separators, so a naive loop that writes `value, sep` each time leaves a trailing separator. Two common fixes:
+
+      ```cpp
+      for (size_t i = 0; i < v.size(); i++) {
+          if (i > 0) out << sep;     // separator before every item except the first
+          out << v[i];
+      }
+      ```
+
+      or write the first item before the loop and `sep, item` inside it (after checking the vector isn't empty). Test with an empty vector and a single element: they should give `""` and `"7"`.
 
       (C++20 also has `std::format`, covered later. Streams are still everywhere in existing code.)
 
@@ -170,16 +288,60 @@ steps:
   - title: Reading files with ifstream
     id: cpp-streams-4
     text: |
-      `std::ifstream` opens a file as an input stream. Everything you know from `std::cin` and `std::getline` applies:
+      Files use the same stream interface once more. `std::ifstream` (from `<fstream>`) opens a file for reading, and then `>>` and `std::getline` work exactly as they do on `std::cin`.
 
-      ```cpp
-      std::ifstream in("roster.txt");
-      if (!in) { /* couldn't open it */ }
-      std::string line;
-      while (std::getline(in, line)) { ... }
+      ```cpp run
+      #include <fstream>
+      #include <iostream>
+      #include <string>
+
+      int main() {
+          {
+              std::ofstream out("notes.txt");       // create a small file to read back
+              out << "first line\n\nthird line\n";
+          }                                         // out is destroyed here, closing the file
+
+          std::ifstream in("notes.txt");
+          if (!in) {
+              std::cout << "could not open notes.txt\n";
+              return 1;
+          }
+          std::string line;
+          int n = 0;
+          while (std::getline(in, line)) {
+              n++;
+              std::cout << n << ": [" << line << "]\n";
+          }
+
+          std::ifstream missing("no_such_file.txt");
+          std::cout << "missing opened? " << (missing ? "yes" : "no") << "\n";
+      }
       ```
 
-      There's no `close()` to forget: the destructor closes the file when `in` goes out of scope. That's RAII again.
+      ```output
+      1: [first line]
+      2: []
+      3: [third line]
+      missing opened? no
+      ```
+
+      ### How it works
+
+      - `std::ifstream in(path);` tries to open the file. If it fails (the file doesn't exist, or you lack permission), the stream starts in a failed state, so `if (!in)` catches it. Always check.
+      - `std::getline` strips the newline, and an empty line comes back as an empty string, which is why line 2 prints `[]`.
+      - There's **no `close()` to forget**. The stream's destructor closes the file when it goes out of scope. That's RAII, and the inner `{ }` block in the example uses it to make sure the file is fully written before it's read.
+
+      ### Returning "maybe a value"
+
+      Your function needs to say either "here are the lines" or "couldn't open the file". `std::optional<T>` (from `<optional>`) is made for that: it either holds a `T` or holds nothing.
+
+      ```cpp
+      std::optional<int> parse_age(const std::string& s);   // declaration
+      return 42;             // an optional holding 42
+      return std::nullopt;   // an empty optional
+      ```
+
+      The caller checks with `if (result)` and reads the value with `*result`. Error handling gets its own module later.
 
       **Your turn:** write `std::optional<std::vector<std::string>> read_lines(const std::string& path)` returning the file's lines without their newlines, skipping empty lines, or `std::nullopt` if the file can't be opened.
     seed: |
@@ -227,14 +389,53 @@ steps:
   - title: Writing files with ofstream
     id: cpp-streams-5
     text: |
-      `std::ofstream` writes a file. By default it truncates (like `"w"` in C). Pass `std::ios::app` to append instead:
+      `std::ofstream` writes a file with `<<`. By default opening it **truncates**: the old contents are thrown away, like `"w"` in C's `fopen`. Pass `std::ios::app` to **append** to the end instead.
 
-      ```cpp
-      std::ofstream out("log.txt", std::ios::app);
-      out << "round " << n << "\n";
+      ```cpp run
+      #include <fstream>
+      #include <iostream>
+      #include <string>
+
+      bool log_line(const std::string& path, const std::string& msg) {
+          std::ofstream out(path, std::ios::app);
+          out << msg << "\n";
+          return static_cast<bool>(out);           // false if the open or the write failed
+      }
+
+      int main() {
+          std::ofstream("log.txt") << "start\n";   // truncate and write one line
+          log_line("log.txt", "round 1");
+          log_line("log.txt", "round 2");
+
+          std::ifstream in("log.txt");
+          std::string line;
+          while (std::getline(in, line)) std::cout << line << "\n";
+
+          std::cout << log_line("no_such_dir/log.txt", "x") << "\n";
+      }
       ```
 
-      Check the stream after writing if the data matters: disks fill up. `if (!out)` catches failed writes as well as failed opens.
+      ```output
+      start
+      round 1
+      round 2
+      0
+      ```
+
+      ### How it works
+
+      - Every `log_line` call opens the file in append mode, adds one line and closes it again when `out` is destroyed.
+      - The last call fails because the folder doesn't exist, and the function reports that by returning `false` (printed as `0`).
+      - `static_cast<bool>(out)` asks the stream "did everything so far succeed?". A stream remembers failures, so checking once at the end covers the open **and** every write.
+
+      ### Why check after writing?
+
+      Opening can succeed and a later write can still fail: the disk fills up, a USB stick is removed, a quota is exceeded. If the data matters, check the stream after writing, and report failure to the caller rather than pretending all is well.
+
+      ### Common mistakes
+
+      - Forgetting `std::ios::app` and wiping a log every time the program starts.
+      - Writing a file and reading it back in the same scope while the `ofstream` is still open. Its data may still be in a buffer. Let it go out of scope (or call `flush()`) first.
 
       **Your turn:** write `bool save_scores(const std::string& path, const std::map<std::string, int>& scores)` that writes one `name=score` line per entry (the map's order), replacing any existing file. Return whether everything succeeded.
     seed: |
@@ -280,22 +481,75 @@ steps:
   - title: "Challenge: operator>> for your own type"
     id: cpp-streams-6
     text: |
-      Just like `operator<<` prints your types, `operator>>` lets streams **read** them. If the input is malformed, the convention is to put the stream into a failed state with `in.setstate(std::ios::failbit)`, so `while (in >> p)` stops and callers can check.
+      You've seen that `operator<<` teaches `std::cout` to print your types. The reverse, `operator>>`, teaches any input stream to **read** them. Once it exists, `std::cin >> p`, `file >> p` and `while (in >> p)` all just work.
 
-      ```cpp
-      std::istream& operator>>(std::istream& in, Point& p) {
-          char open, comma, close;
-          int x, y;
-          if (in >> open >> x >> comma >> y >> close && open == '(' && comma == ',' && close == ')') {
-              p = {x, y};
+      The conventions for a good `operator>>`:
+
+      1. Take the stream and the target **by reference**, and return the stream, so reads can be chained: `in >> a >> b`.
+      2. Read into **temporaries** first, and only change the target when the whole value was read correctly.
+      3. If the text is malformed, call `in.setstate(std::ios::failbit)`. That makes the stream convert to `false`, which stops `while (in >> x)` loops, just like reading `abc` into an `int` would.
+
+      ```cpp run
+      #include <iostream>
+      #include <sstream>
+
+      struct Time {
+          int h = 0, m = 0;
+      };
+
+      std::istream& operator>>(std::istream& in, Time& t) {
+          int h, m;
+          char colon;
+          if (in >> h >> colon >> m && colon == ':' && h >= 0 && h < 24 && m >= 0 && m < 60) {
+              t = {h, m};
           } else {
               in.setstate(std::ios::failbit);
           }
           return in;
       }
+
+      int main() {
+          std::istringstream in("9:30 13:05 25:00 18:00");
+          Time t;
+          int total = 0;
+          while (in >> t) {
+              std::cout << "read " << t.h << "h" << t.m << "\n";
+              total += t.h * 60 + t.m;
+          }
+          std::cout << "minutes " << total << ", stopped early: " << !in.eof() << "\n";
+      }
       ```
 
-      Notice `p` is only changed when the whole value was read correctly.
+      ```output
+      read 9h30
+      read 13h5
+      minutes 1355, stopped early: 1
+      ```
+
+      ### Reading the example
+
+      - `25:00` has the right shape but an invalid hour, so the operator sets `failbit` and the loop stops. `18:00` is never read.
+      - `t` still holds `13:05` after the failure, because rule 2 kept the bad value out.
+      - After the loop, `in.eof()` tells the two endings apart: `true` means the input simply ran out, `false` means a bad value stopped it.
+
+      ### The format for your task
+
+      Your `Point` uses the text `(x,y)`. The same recipe applies: read into temporaries, check every piece of punctuation, and only then assign.
+
+      ```cpp
+      char open, comma, close;
+      int x, y;
+      if (in >> open >> x >> comma >> y >> close && open == '(' && comma == ',' && close == ')') {
+          p = {x, y};
+      } else {
+          in.setstate(std::ios::failbit);
+      }
+      return in;
+      ```
+
+      ### Chars and whitespace
+
+      `in >> ch` for a `char` skips spaces first and then reads one character. So `( 3 , 4 )` with spaces would also parse with the pattern in your task, which is usually what you want. When checking punctuation, compare every character you read: accepting `[3,3]` as a point would be a bug.
 
       **Your turn:** write `operator>>` for `Point` using the `(x,y)` format above. The provided `main` reads points until one fails, then prints the path length (sum of Manhattan distances between consecutive points) and whether the input ended cleanly.
     seed: |
