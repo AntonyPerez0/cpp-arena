@@ -60,3 +60,37 @@ drills:
       for (char e : std::string("ppxp")) if (auto n = flip(s, e)) { s = *n; accepted++; }
       std::cout << accepted << (s == S::On) << "\n";
     why: Three p events are accepted (Off, On, Off, On); the x is rejected.
+  - type: choice
+    prompt: "`std::function<int(int)>` can hold a lambda, a function pointer or a functor, and they don't share a base class. What technique makes that work?"
+    choices:
+      - Type erasure, a hidden interface with a template model class per stored type
+      - Multiple inheritance from every callable type
+      - The compiler converts everything to a function pointer
+      - Macros
+    answer: 1
+    why: "Inside, a template Model<T> derives from an internal Concept interface and forwards the call. The wrapper only ever sees the interface, so the stored type is \"erased\"."
+  - type: predict
+    pre: |
+      class Scorer {
+          struct Concept { virtual ~Concept() = default; virtual int get() const = 0; };
+          template <typename T> struct Model : Concept {
+              T obj;
+              explicit Model(T o) : obj(o) {}
+              int get() const override { return obj.value(); }
+          };
+          std::unique_ptr<Concept> p_;
+      public:
+          template <typename T> Scorer(T obj) : p_(std::make_unique<Model<T>>(obj)) {}
+          int get() const { return p_->get(); }
+      };
+      struct Kill { int value() const { return 1; } };
+      struct Plant { int value() const { return 20; } };
+    body: |
+      std::vector<Scorer> events;
+      events.emplace_back(Kill{});
+      events.emplace_back(Plant{});
+      events.emplace_back(Kill{});
+      int total = 0;
+      for (const auto& e : events) total += e.get();
+      std::cout << total << "\n";
+    why: "Kill and Plant share no base class, only a value() member. Each is wrapped in its own Model<T>, and the vector holds one type, Scorer. 1 + 20 + 1 is 22."

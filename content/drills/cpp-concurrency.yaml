@@ -174,3 +174,30 @@ drills:
     hints:
       - "Loop over the parts, and inside that over each part's `[word, n]` pairs."
       - "`total[word] += n;` starts missing words at 0."
+  - type: choice
+    prompt: What does `memory_order_relaxed` guarantee for `counter.fetch_add(1, std::memory_order_relaxed)`?
+    choices:
+      - The add itself is atomic, but it orders no other memory reads or writes
+      - Every thread sees every write in the same order as the program text
+      - The add happens before all later code in every thread
+      - Nothing, relaxed operations can lose updates
+    answer: 1
+    why: Relaxed operations never tear and never lose updates, which is all a statistics counter needs. They just don't publish other data, so never use them for a "ready" flag.
+  - type: choice
+    prompt: "Thread A fills `data`, then does `ready.store(true, std::memory_order_release)`. Thread B loops on `ready.load(std::memory_order_acquire)` until it's true. What may B assume afterwards?"
+    choices:
+      - Every write A made before the release store is visible to B
+      - Only `ready` itself is guaranteed to be up to date
+      - Nothing, B still needs a mutex to read `data`
+      - B sees A's writes only if they were atomic
+    answer: 1
+    why: An acquire load that reads the value written by a release store synchronizes with it. Everything A did before the store happens before everything B does after the load.
+  - type: predict
+    body: |
+      std::atomic_flag f;
+      bool a = f.test_and_set();
+      bool b = f.test_and_set();
+      f.clear();
+      bool c = f.test_and_set();
+      std::cout << a << b << c << "\n";
+    why: "Since C++20 a default-constructed atomic_flag starts clear. test_and_set sets it and returns the old value: false, then true. After clear() the next call sees false again. A spinlock is exactly this: lock loops until test_and_set returns false."

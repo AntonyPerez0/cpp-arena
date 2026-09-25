@@ -514,6 +514,364 @@ steps:
       - "Inside: `{ s.area() } -> std::convertible_to<double>;` and the same for name() with std::string."
       - "Then `template <Shape S> double total_area(const std::vector<S>& shapes)` just loops and adds."
 
+  - title: Value categories and reference collapsing
+    id: cpp-generic-7
+    text: |
+      Move semantics and perfect forwarding rest on one idea the standard calls **value categories**. Every expression has a type (`int`, `std::string`) and a category, which answers two questions: does it have an **identity** (is it a particular object you could refer to again)? And **may its resources be taken** (moved from)?
+
+      | Category | Identity? | Movable? | Examples |
+      |---|---|---|---|
+      | **lvalue** | yes | no | a variable `s`, `*p`, `v[0]`, a call returning `T&` |
+      | **prvalue** ("pure rvalue") | no | yes | `42`, `a + b`, `std::string("x")`, a call returning `T` by value |
+      | **xvalue** ("expiring value") | yes | yes | `std::move(s)`, a call returning `T&&` |
+
+      Two group names cover them: **rvalues** are prvalues and xvalues (anything you may move from), and **glvalues** are lvalues and xvalues (anything with an identity). Overload resolution uses the category: an rvalue prefers a `T&&` parameter, an lvalue binds to `T&` or `const T&`.
+
+      ```cpp run
+      #include <iostream>
+      #include <string>
+      #include <utility>
+
+      std::string make() { return "temp"; }
+      void which(const std::string&) { std::cout << "lvalue\n"; }
+      void which(std::string&&) { std::cout << "rvalue\n"; }
+
+      int main() {
+          std::string s = "named";
+          which(s);                 // lvalue
+          which(make());            // prvalue
+          which(std::move(s));      // xvalue
+          which(s + "!");           // prvalue
+          std::string&& r = make();
+          which(r);                 // a NAMED rvalue reference is an lvalue
+      }
+      ```
+
+      ```output
+      lvalue
+      rvalue
+      rvalue
+      rvalue
+      lvalue
+      ```
+
+      The last line surprises everyone once. `r`'s **type** is `std::string&&`, but the expression `r` is a name, so its **category** is lvalue. Anything with a name is an lvalue. That's why a function taking `std::string&& s` still has to write `std::move(s)` to pass it on as an rvalue.
+
+      ### Reference collapsing
+
+      In a template, `T&&` with a deduced `T` is a **forwarding reference**. Pass an lvalue `std::string` and `T` is deduced as `std::string&`, which makes the parameter `std::string& &&`. You can't write a reference to a reference yourself, but when one appears through templates or aliases it **collapses**:
+
+      | Combined | Collapses to |
+      |---|---|
+      | `& &`, `& &&`, `&& &` | `&` |
+      | `&& &&` | `&&` |
+
+      If either side is `&`, the result is `&`. So an lvalue argument gives an lvalue reference parameter, and an rvalue argument (where `T` is plain `std::string`) gives `std::string&&`. `std::forward<T>(x)` then casts `x` back to an rvalue **only** when `T` isn't a reference, which is exactly "only when the caller passed an rvalue". You can ask the same question directly with `std::is_lvalue_reference_v<T>`.
+
+      **Your turn:** write `category(x)`, which returns `"lvalue"` or `"rvalue"` for whatever the caller passed, and `keep(out, x)`, which adds `x` to the vector, copying lvalues and moving rvalues. The tests use a `Tracker` type that counts its copies and moves.
+    seed: |
+      #include <string>
+      #include <type_traits>
+      #include <utility>
+      #include <vector>
+
+      struct Tracker {
+          static inline int copies = 0;
+          static inline int moves = 0;
+          Tracker() = default;
+          Tracker(const Tracker&) { copies++; }
+          Tracker(Tracker&&) noexcept { moves++; }
+      };
+
+      template <typename T>
+      std::string category(T&& x) {
+
+      }
+
+      template <typename T>
+      void keep(std::vector<Tracker>& out, T&& x) {
+
+      }
+    solution: |
+      #include <string>
+      #include <type_traits>
+      #include <utility>
+      #include <vector>
+
+      struct Tracker {
+          static inline int copies = 0;
+          static inline int moves = 0;
+          Tracker() = default;
+          Tracker(const Tracker&) { copies++; }
+          Tracker(Tracker&&) noexcept { moves++; }
+      };
+
+      template <typename T>
+      std::string category(T&& x) {
+          (void)x;
+          return std::is_lvalue_reference_v<T> ? "lvalue" : "rvalue";
+      }
+
+      template <typename T>
+      void keep(std::vector<Tracker>& out, T&& x) {
+          out.push_back(std::forward<T>(x));
+      }
+    require:
+      - pattern: "std::forward"
+        message: keep should pass x on with std::forward<T>(x), so lvalues are copied and rvalues moved.
+    harness: |
+      int main() {
+          std::string s = "hi";
+          const int c = 3;
+          CHECK_EQ("a variable", category(s), std::string("lvalue"));
+          CHECK_EQ("a const variable", category(c), std::string("lvalue"));
+          CHECK_EQ("a literal", category(42), std::string("rvalue"));
+          CHECK_EQ("std::move(s)", category(std::move(s)), std::string("rvalue"));
+          CHECK_EQ("a temporary string", category(std::string("x")), std::string("rvalue"));
+          std::vector<Tracker> v;
+          v.reserve(10);
+          Tracker a;
+          keep(v, a);
+          CHECK("an lvalue is copied", Tracker::copies == 1 && Tracker::moves == 0);
+          keep(v, Tracker{});
+          CHECK("a temporary is moved", Tracker::copies == 1 && Tracker::moves == 1);
+          keep(v, std::move(a));
+          CHECK("std::move(a) is moved", Tracker::copies == 1 && Tracker::moves == 2);
+          CHECK_EQ("three kept", v.size(), 3u);
+      }
+    hints:
+      - "For an lvalue argument, `T` is deduced as a reference type; for an rvalue, it isn't. `std::is_lvalue_reference_v<T>` tells them apart."
+      - "`(void)x;` silences the unused-parameter warning in category."
+      - "keep: `out.push_back(std::forward<T>(x));` copies or moves according to what the caller passed."
+  - title: SFINAE and enable_if
+    id: cpp-generic-8
+    text: |
+      Concepts arrived in C++20. Before that, templates were constrained with a trick you'll still meet in older code and in almost every library written before 2020, including parts of the standard library: **SFINAE**, "Substitution Failure Is Not An Error".
+
+      The rule: when the compiler tries a function template during overload resolution, it substitutes the deduced types into the template's **signature**. If that produces something invalid (a type that doesn't exist, an expression that doesn't compile), the compiler doesn't report an error. It just quietly drops that template from the candidates and tries the others. Libraries use this on purpose to switch overloads on and off.
+
+      `std::enable_if_t<condition, T>` (from `<type_traits>`) is the usual switch: it means `T` when the condition is true, and names **no type at all** when it's false, which makes the signature invalid and removes the overload.
+
+      ```cpp run
+      #include <iostream>
+      #include <string>
+      #include <type_traits>
+      #include <utility>
+
+      template <typename T>
+      std::enable_if_t<std::is_integral_v<T>, std::string> describe(T) { return "integer"; }
+
+      template <typename T>
+      std::enable_if_t<std::is_floating_point_v<T>, std::string> describe(T) { return "floating point"; }
+
+      // Detection idiom: does T have a size() member?
+      template <typename T, typename = void>
+      struct has_size : std::false_type {};
+
+      template <typename T>
+      struct has_size<T, std::void_t<decltype(std::declval<const T&>().size())>> : std::true_type {};
+
+      int main() {
+          std::cout << describe(42) << ", " << describe(2.5) << "\n";
+          std::cout << has_size<std::string>::value << has_size<int>::value << "\n";
+      }
+      ```
+
+      ```output
+      integer, floating point
+      10
+      ```
+
+      ### How it works
+
+      - For `describe(42)`, both templates are tried with `T = int`. In the second, `std::enable_if_t<false, std::string>` doesn't exist, so that overload silently disappears and the first one is chosen. `describe("text")` would match neither, and that **is** an error: "no matching function".
+      - The **detection idiom** has two parts. The general `has_size` says `false`. The specialization applies only when `std::void_t<decltype(...)>` is valid, that is, when `std::declval<const T&>().size()` compiles. `std::declval<T>()` pretends to produce a `T` inside `decltype` without constructing one. For `int`, the expression is invalid, the specialization is dropped, and the general version answers `false`.
+      - Only the **signature** counts. An error inside a function's body is still a hard error; SFINAE only applies during substitution into the declaration.
+
+      ### The same thing with concepts
+
+      ```cpp
+      template <std::integral T> std::string describe(T) { return "integer"; }
+      template <typename T> concept HasSize = requires(const T& t) { t.size(); };
+      ```
+
+      Concepts say the same thing directly, and their error messages name the requirement that failed instead of listing every rejected overload. Write concepts in new code, and recognize `enable_if` and `void_t` when you read older code.
+
+      **Your turn:** without concepts or `requires`, write the detection trait `has_begin<T>` (true when `std::declval<const T&>().begin()` is valid), and two `count_items` overloads using `enable_if_t`: for types with `begin()`, return the number of elements (`std::distance(c.begin(), c.end())`); for everything else, return 1.
+    seed: |
+      #include <cstddef>
+      #include <iterator>
+      #include <type_traits>
+      #include <utility>
+
+      template <typename T, typename = void>
+      struct has_begin : std::false_type {};
+
+      // your specialization of has_begin here
+
+      // your two count_items overloads here
+    solution: |
+      #include <cstddef>
+      #include <iterator>
+      #include <type_traits>
+      #include <utility>
+
+      template <typename T, typename = void>
+      struct has_begin : std::false_type {};
+
+      template <typename T>
+      struct has_begin<T, std::void_t<decltype(std::declval<const T&>().begin())>> : std::true_type {};
+
+      template <typename T>
+      std::enable_if_t<has_begin<T>::value, std::size_t> count_items(const T& c) {
+          return static_cast<std::size_t>(std::distance(c.begin(), c.end()));
+      }
+
+      template <typename T>
+      std::enable_if_t<!has_begin<T>::value, std::size_t> count_items(const T&) {
+          return 1;
+      }
+    forbid:
+      - pattern: "requires|concept\\b"
+        message: Use enable_if and void_t on this step, not concepts.
+    require:
+      - pattern: "void_t"
+        message: Build has_begin with std::void_t, the detection idiom from the lesson.
+      - pattern: "enable_if"
+        message: Choose between the count_items overloads with std::enable_if_t.
+    harness: |
+      #include <list>
+      #include <map>
+      int main() {
+          CHECK("vector has begin()", has_begin<std::vector<int>>::value);
+          CHECK("string has begin()", has_begin<std::string>::value);
+          CHECK("int doesn't", !has_begin<int>::value);
+          CHECK("a pointer doesn't", !has_begin<int*>::value);
+          CHECK_EQ("a vector of 3", count_items(std::vector<int>{1, 2, 3}), 3u);
+          CHECK_EQ("a string of 2", count_items(std::string("ab")), 2u);
+          CHECK_EQ("a list of 4", count_items(std::list<int>{4, 3, 2, 1}), 4u);
+          CHECK_EQ("an empty map", count_items(std::map<int, int>{}), 0u);
+          CHECK_EQ("a plain int counts as 1", count_items(5), 1u);
+          CHECK_EQ("a double counts as 1", count_items(2.5), 1u);
+      }
+    hints:
+      - "Copy the lesson's has_size specialization and change `.size()` to `.begin()`."
+      - "Return type of the container version: `std::enable_if_t<has_begin<T>::value, std::size_t>`. The other uses `!has_begin<T>::value`."
+      - "`std::distance` returns a signed count, so convert it with `static_cast<std::size_t>`."
+  - title: CRTP and static polymorphism
+    id: cpp-generic-9
+    text: |
+      Virtual functions choose which code to run **at run time**, through a hidden pointer to a table of functions. That's flexible, but every call is an indirect jump the compiler usually can't inline. When the concrete type is known at compile time anyway, the **Curiously Recurring Template Pattern** (CRTP) gets the same "the base class calls the derived class's version" effect with ordinary, inlinable calls. The name comes from its odd shape: a class inherits from a template instantiated with **itself**.
+
+      ```cpp run
+      #include <iostream>
+      #include <string>
+
+      template <typename Derived>
+      struct Greeter {
+          void greet() const {
+              // The base knows its real type at compile time, so no virtual call is needed.
+              const auto& self = static_cast<const Derived&>(*this);
+              std::cout << "Hello from " << self.name() << "\n";
+          }
+      };
+
+      struct London : Greeter<London> {
+          std::string name() const { return "London"; }
+      };
+
+      struct Madrid : Greeter<Madrid> {
+          std::string name() const { return "Madrid"; }
+      };
+
+      template <typename T>
+      void welcome(const Greeter<T>& g) { g.greet(); }
+
+      int main() {
+          welcome(London{});
+          welcome(Madrid{});
+      }
+      ```
+
+      ```output
+      Hello from London
+      Hello from Madrid
+      ```
+
+      ### How it works
+
+      - `struct London : Greeter<London>` hands the base class the derived type as a template argument. Inside `Greeter<London>`, `Derived` **is** `London`, so the `static_cast` is safe and `self.name()` is a direct call.
+      - No `virtual`, no vtable, no pointer to follow. The compiler sees the exact function and can inline it.
+      - The price: `Greeter<London>` and `Greeter<Madrid>` are **unrelated types**. There's no common base, so you can't put a London and a Madrid in one `std::vector` and loop over them. Code that uses them must itself be a template, like `welcome`. When you need a mixed collection chosen at run time, virtual functions (or type erasure, in the design patterns module) are the tool.
+
+      ### What CRTP is used for
+
+      - **Mixins**: write a feature once in a base template and add it to any class, like comparison operators generated from one `<`, or cloning, or printing.
+      - **Per-type bookkeeping**: static data in a CRTP base is separate for every derived class, because every `Base<X>` is a different class. That's the exercise.
+      - **Static interfaces** in performance-critical libraries (math, graphics, simulations), where virtual calls in tight loops would cost too much.
+
+      C++23 added "deducing this" (`void greet(this const auto& self)`), which covers many of these uses without the curious inheritance. You'll still see CRTP everywhere in existing code.
+
+      **Your turn:** write a CRTP base `Counted<T>` that tracks how many objects of each derived type are alive. Its constructor and copy constructor add one to a counter, its destructor subtracts one, and `static int alive()` returns the count. Because the counter lives in `Counted<Enemy>` and `Counted<Bullet>` separately, each type gets its own count.
+    seed: |
+      template <typename T>
+      class Counted {
+      public:
+
+      };
+
+      struct Enemy : Counted<Enemy> {
+          int hp = 100;
+      };
+
+      struct Bullet : Counted<Bullet> {
+          int damage = 30;
+      };
+    solution: |
+      template <typename T>
+      class Counted {
+      public:
+          Counted() { count_++; }
+          Counted(const Counted&) { count_++; }
+          Counted& operator=(const Counted&) = default;
+          ~Counted() { count_--; }
+          static int alive() { return count_; }
+
+      private:
+          static inline int count_ = 0;
+      };
+
+      struct Enemy : Counted<Enemy> {
+          int hp = 100;
+      };
+
+      struct Bullet : Counted<Bullet> {
+          int damage = 30;
+      };
+    forbid:
+      - pattern: "virtual"
+        message: CRTP needs no virtual functions.
+    harness: |
+      int main() {
+          CHECK("nothing alive at the start", Enemy::alive() == 0 && Bullet::alive() == 0);
+          Enemy a, b;
+          CHECK_EQ("two enemies", Enemy::alive(), 2);
+          CHECK_EQ("bullets are counted separately", Bullet::alive(), 0);
+          {
+              Bullet x, y, z;
+              Enemy c = a;
+              CHECK_EQ("three bullets", Bullet::alive(), 3);
+              CHECK_EQ("a copy counts too", Enemy::alive(), 3);
+          }
+          CHECK_EQ("bullets gone at the end of the block", Bullet::alive(), 0);
+          CHECK_EQ("the copy is gone too", Enemy::alive(), 2);
+          std::vector<Enemy> wave(5);
+          CHECK_EQ("five more in a vector", Enemy::alive(), 7);
+      }
+    hints:
+      - "Keep the count in `static inline int count_ = 0;`. Every `Counted<X>` is a separate class, so each gets its own `count_`."
+      - "Constructor and copy constructor: `count_++`. Destructor: `count_--`. `static int alive() { return count_; }`."
+      - "Declaring a copy constructor stops the compiler generating copy assignment, so add `Counted& operator=(const Counted&) = default;` (assignment doesn't change how many objects exist)."
   - title: "Challenge: compile-time computation"
     id: cpp-generic-6
     text: |

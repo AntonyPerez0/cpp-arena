@@ -793,6 +793,103 @@ steps:
       - "`strchr(start, ' ')` finds the next space, or returns NULL for the last word."
       - "free_words frees every word, then the array. `free(NULL)` is safe, so the empty case needs nothing special."
 
+  - title: Where a program's data lives
+    id: c-memory-10
+    text: |
+      You've used three kinds of storage: locals, globals and `static` variables, and `malloc` memory. They live in different regions of the program's memory, and knowing the map explains most lifetime rules and many bugs. On a typical Linux or macOS program, the regions are:
+
+      | Region | What's in it | Lifetime |
+      |---|---|---|
+      | **text** | the machine code of your functions | whole run, read-only |
+      | **rodata** | string literals, `const` globals | whole run, read-only |
+      | **data** | globals and `static` variables with a non-zero initial value | whole run |
+      | **bss** | globals and `static` variables that start at zero | whole run |
+      | **heap** | blocks from `malloc`, until `free` | until you free it |
+      | **stack** | locals, parameters, return addresses | until the function returns |
+
+      ```c
+      #include <stdlib.h>
+
+      int high_score = 100;          /* data */
+      int players;                   /* bss: zero-initialized */
+      const char *title = "Arena";   /* the pointer is in data; the text "Arena" is in rodata */
+
+      int main(void) {
+          static int calls;          /* bss, lives for the whole run */
+          int round = 1;             /* stack */
+          int *scores = malloc(10 * sizeof *scores);   /* the pointer is on the stack; the block is on the heap */
+          free(scores);
+          return 0;
+      }
+      ```
+
+      - The **bss** region takes no space in the program file: the file only records its size, and the operating system provides zeroed memory at startup. That's one reason uninitialized globals are guaranteed to start at 0 while uninitialized locals hold garbage: locals reuse whatever the stack last held.
+      - Writing to **rodata** is what makes modifying a string literal crash on most systems: those pages are marked read-only.
+      - On a Linux machine, `size ./program` prints the text, data and bss sizes of a compiled program, and `nm` lists which symbols landed where.
+      - Where exactly these regions sit in memory changes on every run (**address space layout randomization**, a security measure), so never rely on actual address values.
+
+      ### Stack frames and calling conventions
+
+      Each function call pushes a **stack frame** holding the return address, saved registers and the function's locals, and pops it on return. That's why returning a pointer to a local is a bug: the frame, and the local in it, is gone.
+
+      How arguments get passed is fixed by the platform's **calling convention**, part of its **ABI** (application binary interface, the rules compiled code from different compilers must share). On 64-bit Linux and macOS (the System V convention), the first six integer or pointer arguments travel in registers (`rdi`, `rsi`, `rdx`, `rcx`, `r8`, `r9`), the return value comes back in `rax`, and further arguments go on the stack. 64-bit Windows uses four registers (`rcx`, `rdx`, `r8`, `r9`). You rarely write this yourself, but it's why functions with few arguments are cheap to call, and it's what a debugger shows you in a backtrace.
+
+      **Your turn:** each function below must return something that is still valid after it returns. `make_scores(n)` returns a new heap array of `n` zeros (the caller frees it), `level_name(lvl)` returns the name for levels 1 to 3 (`"easy"`, `"normal"`, `"hard"`) or `"unknown"`, and `next_ticket()` returns 1, 2, 3, ... on successive calls. Pick the right storage for each: heap, string literal (rodata), and a `static` local (bss).
+    seed: |
+      #include <stdlib.h>
+
+      int *make_scores(int n) {
+
+      }
+
+      const char *level_name(int lvl) {
+
+      }
+
+      int next_ticket(void) {
+
+      }
+    solution: |
+      #include <stdlib.h>
+
+      int *make_scores(int n) {
+          return calloc((size_t)n, sizeof(int));
+      }
+
+      const char *level_name(int lvl) {
+          switch (lvl) {
+          case 1: return "easy";
+          case 2: return "normal";
+          case 3: return "hard";
+          default: return "unknown";
+          }
+      }
+
+      int next_ticket(void) {
+          static int last;
+          return ++last;
+      }
+    harness: |
+      int main(void) {
+          int *s = make_scores(5);
+          CHECK("make_scores allocates", s != NULL);
+          int zeros = 1;
+          for (int i = 0; s && i < 5; i++) if (s[i] != 0) zeros = 0;
+          CHECK("all zeros", zeros);
+          if (s) s[4] = 99;
+          free(s);
+          CHECK_STR("level 1", level_name(1), "easy");
+          CHECK_STR("level 3", level_name(3), "hard");
+          CHECK_STR("level 7", level_name(7), "unknown");
+          CHECK_INT("first ticket", next_ticket(), 1);
+          CHECK_INT("second ticket", next_ticket(), 2);
+          CHECK_INT("third ticket", next_ticket(), 3);
+          return 0;
+      }
+    hints:
+      - "A local array dies with the function, so make_scores needs the heap: `calloc(n, sizeof(int))` also zeroes it."
+      - "String literals live in rodata for the whole run, so returning `\"easy\"` directly is safe."
+      - "`static int last;` starts at 0 and keeps its value between calls: `return ++last;`."
   - title: "Challenge: a string builder"
     id: c-memory-9
     text: |

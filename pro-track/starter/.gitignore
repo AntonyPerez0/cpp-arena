@@ -8,3 +8,6 @@ compile_commands.json
 core
 core.*
 vgcore.*
+obj/
+*.d
+projects/01-toolchain/wordfreq

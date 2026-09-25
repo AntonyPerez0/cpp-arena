@@ -116,3 +116,35 @@ drills:
     hints:
       - Two nested loops, j starting after i.
     why: optional carries "found or not" in the type.
+  - type: compiles
+    pre: |
+      consteval int square(int x) { return x * x; }
+    body: |
+      int n = 3;
+      std::cout << square(n) << "\n";
+    answer: "no"
+    why: "A consteval function must run at compile time, and n is an ordinary variable. constexpr int n = 3; would compile, and so would a constexpr function, which may also run at run time."
+  - type: compiles
+    pre: |
+      int load_limit() { return 64; }
+      constinit int limit = load_limit();
+    body: |
+      std::cout << limit << "\n";
+    answer: "no"
+    why: "constinit demands that the variable's initial value is computed at compile time. load_limit isn't constexpr, so it can't be. Marking it constexpr fixes it."
+  - type: predict
+    pre: |
+      consteval int square(int x) { return x * x; }
+      constexpr int area = square(7);
+    body: |
+      std::cout << area << "\n";
+    why: 7 is a constant, so square(7) runs during compilation and area is just the number 49 in the program.
+  - type: choice
+    prompt: "What does `[[nodiscard]]` on `int save(const std::string& path)` do?"
+    choices:
+      - The compiler warns when a caller ignores the return value
+      - The function can't be called without using the result, or it won't compile
+      - The return value is never discarded from memory
+      - It stops the function from being optimized away
+    answer: 1
+    why: "It's a warning, not an error (unless you build with -Werror). Use it on error codes and on functions whose only effect is their result, where ignoring it is almost always a bug."

@@ -99,3 +99,25 @@ drills:
     hints:
       - "Build with `+=` one character at a time."
     why: std::string supports += with single chars.
+  - type: predict
+    body: |
+      std::cout << sizeof('a') << "\n";
+    why: "In C++ a character literal has type char, so its size is 1. In C, 'a' is an int, and the same expression prints 4 on most machines."
+  - type: compiles
+    pre: |
+      #include <cstdlib>
+    body: |
+      int *p = std::malloc(4 * sizeof(int));
+      std::free(p);
+      std::cout << "ok\n";
+    answer: "no"
+    why: "C converts void * to any object pointer automatically. C++ doesn't, so malloc needs static_cast<int *>(...). Better still, use std::vector or new."
+  - type: choice
+    prompt: Which of these is valid C99 but not standard C++?
+    choices:
+      - "`int a[n];` with `n` a variable (a variable-length array)"
+      - "`const int N = 10; int a[N];`"
+      - "`struct P { int x, y; }; P p = {1, 2};`"
+      - "`for (int i = 0; i < 3; i++) {}`"
+    answer: 1
+    why: "C++ has no VLAs. GCC and Clang accept them as an extension (Clang warns with -Wvla-cxx-extension), but portable C++ uses std::vector. The other three are fine in both languages (P p needs struct P in C)."

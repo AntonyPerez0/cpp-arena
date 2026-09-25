@@ -565,3 +565,122 @@ steps:
     hints:
       - Sum the first k elements, then slide the window one step at a time.
       - "Sliding: add the element entering the window and subtract the one leaving it."
+  - title: Attributes, consteval and constinit
+    id: cpp-modern-7
+    text: |
+      Modern C++ adds small annotations that tell the compiler what you mean, so it can catch mistakes or optimize, without changing what correct code does.
+
+      ### Attributes
+
+      Attributes go in double square brackets:
+
+      | Attribute | Meaning |
+      |---|---|
+      | `[[nodiscard]]` | warn if a caller ignores the return value (an error code, a newly allocated object) |
+      | `[[maybe_unused]]` | don't warn that this variable or parameter is unused |
+      | `[[fallthrough]]` | this `case` deliberately continues into the next one |
+      | `[[deprecated("use x")]]` | warn anyone who still calls this |
+      | `[[likely]]` / `[[unlikely]]` (C++20) | a hint about which branch usually runs |
+
+      `[[nodiscard]]` is the one worth adding everywhere it applies. `[[nodiscard]] bool save(const Config&);` turns `save(cfg);` (forgetting to check) into a compiler warning.
+
+      ### constexpr, consteval, constinit
+
+      - `constexpr` function: **may** run at compile time, when its arguments are constants and the result is needed as a constant, and runs at run time otherwise.
+      - `consteval` function (C++20): **must** run at compile time. Calling it with a value only known at run time is a compile error. Use it when a run-time call would be a mistake, like hashing a fixed string or validating a format.
+      - `constinit` variable (C++20): must be **initialized** at compile time, but can change later. It's for globals: it guarantees no run-time initialization order problems (the "static initialization order fiasco", where one global's constructor reads another global that isn't set up yet).
+
+      ```cpp run
+      #include <iostream>
+
+      consteval int kib(int n) { return n * 1024; }            // compile time only
+      constexpr int square(int n) { return n * n; }           // either
+      constinit int buffer_size = kib(4);                     // set before main runs; still changeable
+
+      [[nodiscard]] bool resize(int& size, int wanted) {
+          if (wanted <= 0) return false;
+          size = wanted;
+          return true;
+      }
+
+      int main() {
+          static_assert(kib(2) == 2048);
+          int n = 5;
+          std::cout << square(n) << " " << buffer_size << "\n";   // square at run time here
+          if (!resize(buffer_size, kib(8))) return 1;
+          std::cout << buffer_size << "\n";
+      }
+      ```
+
+      ```output
+      25 4096
+      8192
+      ```
+
+      Calling `kib(n)` with the run-time variable `n` would not compile, and writing `resize(buffer_size, 100);` without checking the result gets a warning.
+
+      ### The classic use: switching on strings
+
+      A `switch` only works on integers, and each `case` needs a compile-time constant. A `consteval` hash turns fixed strings into constants, and a `constexpr` version of the same hash handles the run-time input.
+
+      **Your turn:** write `fnv1a(s)` as a `constexpr` 32-bit FNV-1a hash (start from 2166136261; for each character, XOR in the character as an `unsigned char`, then multiply by 16777619), `id_of(s)` as a `consteval` wrapper around it, and `command_code(cmd)`, which switches on `fnv1a(cmd)` with `case id_of("start")`, `id_of("stop")` and `id_of("pause")` returning 1, 2 and 3, and -1 for anything else. Mark `command_code` `[[nodiscard]]`.
+    seed: |
+      #include <cstdint>
+      #include <string_view>
+
+      constexpr std::uint32_t fnv1a(std::string_view s) {
+
+      }
+
+      consteval std::uint32_t id_of(std::string_view s) {
+
+      }
+
+      int command_code(std::string_view cmd) {
+
+      }
+    solution: |
+      #include <cstdint>
+      #include <string_view>
+
+      constexpr std::uint32_t fnv1a(std::string_view s) {
+          std::uint32_t h = 2166136261u;
+          for (char c : s) {
+              h ^= static_cast<unsigned char>(c);
+              h *= 16777619u;
+          }
+          return h;
+      }
+
+      consteval std::uint32_t id_of(std::string_view s) {
+          return fnv1a(s);
+      }
+
+      [[nodiscard]] int command_code(std::string_view cmd) {
+          switch (fnv1a(cmd)) {
+          case id_of("start"): return 1;
+          case id_of("stop"): return 2;
+          case id_of("pause"): return 3;
+          default: return -1;
+          }
+      }
+    require:
+      - pattern: "\\[\\[nodiscard\\]\\]"
+        message: Mark command_code [[nodiscard]]; ignoring its result is always a mistake.
+      - pattern: "case id_of"
+        message: Use id_of("...") in the case labels, so the strings are hashed at compile time.
+    harness: |
+      int main() {
+          static_assert(fnv1a("") == 2166136261u, "empty string");
+          static_assert(id_of("a") == 0xe40c292cu, "FNV-1a of \"a\"");
+          CHECK("runtime and compile-time hashes agree", fnv1a(std::string("start")) == id_of("start"));
+          CHECK_EQ("start", command_code("start"), 1);
+          CHECK_EQ("stop", command_code("stop"), 2);
+          CHECK_EQ("pause", command_code(std::string("pa") + "use"), 3);
+          CHECK_EQ("unknown", command_code("jump"), -1);
+          CHECK_EQ("empty", command_code(""), -1);
+      }
+    hints:
+      - "fnv1a: `std::uint32_t h = 2166136261u;` then for each char `h ^= static_cast<unsigned char>(c); h *= 16777619u;`. Unsigned arithmetic wraps, which the hash relies on."
+      - "id_of just returns `fnv1a(s)`; being `consteval` forces it to happen at compile time."
+      - "`switch (fnv1a(cmd)) { case id_of(\"start\"): return 1; ... default: return -1; }`"

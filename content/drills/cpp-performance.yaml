@@ -1,0 +1,115 @@
+topic: cpp-performance
+lang: cpp
+drills:
+  - type: choice
+    prompt: How much memory does the CPU move from RAM into the cache in one go, on a typical x86 or ARM machine?
+    choices:
+      - One 64-byte cache line
+      - Exactly the bytes the instruction asked for
+      - One 4 KB page
+      - The whole array the address belongs to
+    answer: 1
+    why: Caches work in lines, usually 64 bytes. Reading one int pulls in its 15 neighbors too, which is why walking memory in order is so fast.
+  - type: choice
+    prompt: A 2D array `int g[4096][4096]` is summed column by column (`g[r][c]` with `r` in the inner loop). Why is that much slower than row by row?
+    choices:
+      - Each step jumps 16 KB ahead, so almost every read lands in a new cache line
+      - Column order does more additions
+      - The compiler can't add columns
+      - Rows are stored in a different part of RAM than columns
+    answer: 1
+    why: C and C++ store 2D arrays row by row. Going down a column skips a whole row (4096 ints) each step, so the 60 other bytes of every fetched line are wasted.
+  - type: predict
+    pre: |
+      struct Particle { double x, y, z, vx, vy, vz, mass, charge; };
+    body: |
+      std::cout << sizeof(Particle) << "\n";
+      std::cout << sizeof(Particle) * 1000 << " " << sizeof(double) * 1000 << "\n";
+    why: "A loop that only updates x reads whole 64-byte particles as an array of structs (64000 bytes for 1000), but only the x array as a struct of arrays (8000 bytes)."
+  - type: choice
+    prompt: When does a struct of arrays (one vector per field) beat an array of structs?
+    choices:
+      - When hot loops touch only a few fields of many objects
+      - When code usually reads every field of one object together
+      - When there are only a handful of objects
+      - Always, it's strictly better
+    answer: 1
+    why: SoA packs the fields a loop needs next to each other, so every cache line is full of useful data. If you usually use a whole object at once, AoS keeps it in one line and wins.
+  - type: predict
+    body: |
+      int a = 3, b = 9;
+      int m = a ^ ((a ^ b) & -static_cast<int>(b > a));
+      std::cout << m << "\n";
+    why: "b > a is 1, so the mask is -1 (all ones) and a ^ (a ^ b) is b. When b > a is 0 the mask is 0 and the result is a."
+  - type: predict
+    body: |
+      std::vector<int> v{5, 12, 7, 30, 10, 2};
+      int n = 0;
+      for (int x : v) n += (x >= 5) & (x <= 10);
+      std::cout << n << "\n";
+    why: "5, 7 and 10 are in range. Each comparison is 0 or 1 and & combines them, so the loop adds without a branch the CPU has to predict."
+  - type: choice
+    prompt: A loop does `if (x >= 128) sum += x;` over random bytes. Sorting the data first makes the loop faster (when the compiler keeps the branch). Why?
+    choices:
+      - Sorted data makes the branch go the same way for long runs, so the branch predictor is almost always right
+      - Sorted data takes fewer bytes
+      - Sorting removes the if statement
+      - The CPU skips elements it has already seen
+    answer: 1
+    why: A mispredicted branch throws away the work the CPU did ahead of time, often 15 or more cycles. Random data mispredicts about half the time; sorted data almost never.
+  - type: choice
+    prompt: Two threads each increment their own atomic counter, but the counters sit next to each other in one struct. What is the likely performance problem?
+    choices:
+      - False sharing, the shared cache line bounces between the two cores
+      - A data race on the counters
+      - A deadlock
+      - Nothing, they are different variables
+    answer: 1
+    why: The program is correct, since they are different atomics. But both live in one 64-byte line, and each write forces the other core to reload that line. Padding each counter to its own line fixes it.
+  - type: fill
+    prompt: Give each counter its own 64-byte cache line.
+    pre: |
+      struct [[alignas]](64) Slot {
+          long long value = 0;
+      };
+    body: |
+      Slot s[2];
+      std::cout << sizeof(Slot) << " " << sizeof(s) << "\n";
+    why: "alignas(64) makes each Slot start on a 64-byte boundary, and sizeof rounds up to a multiple of the alignment, so neighbors never share a line."
+  - type: predict
+    pre: |
+      struct Plain { std::atomic<long long> a{0}, b{0}; };
+      struct alignas(64) Padded { std::atomic<long long> v{0}; };
+      struct Split { Padded a, b; };
+    body: |
+      std::cout << sizeof(Plain) << " " << sizeof(Split) << "\n";
+    why: Plain packs both counters into 16 bytes of one cache line. Split gives each counter its own 64-byte slot, 128 bytes total.
+  - type: choice
+    prompt: What does `deallocate` do on a `std::pmr::monotonic_buffer_resource`?
+    choices:
+      - Nothing, memory is only given back when the resource itself is released or destroyed
+      - It returns the block to the operating system immediately
+      - It puts the block on a free list for reuse
+      - It is not allowed and throws
+    answer: 1
+    why: "A monotonic resource just bumps a pointer forward, which makes allocation very cheap. The price is that individual frees do nothing; it's for bursts of work that end all at once, like one frame or one request."
+  - type: compiles
+    pre: |
+      #include <memory_resource>
+    body: |
+      std::pmr::vector<int> a{1, 2, 3};
+      std::vector<int> b = a;
+      std::cout << b.size() << "\n";
+    answer: "no"
+    why: "std::pmr::vector<int> is std::vector<int, std::pmr::polymorphic_allocator<int>>, a different type from std::vector<int>. You can copy the elements with b.assign(a.begin(), a.end()) instead."
+  - type: predict
+    pre: |
+      #include <memory_resource>
+    body: |
+      char buf[256];
+      std::pmr::monotonic_buffer_resource pool(buf, sizeof buf, std::pmr::null_memory_resource());
+      std::pmr::vector<int> v(&pool);
+      v.reserve(8);
+      for (int i = 1; i <= 8; i++) v.push_back(i * i);
+      std::cout << v.back() << " " << v.size() << "\n";
+    why: "All 8 ints fit in the 256-byte stack buffer, so the vector never touches the heap. If it needed more, null_memory_resource would make the allocation fail instead of silently using the heap."
