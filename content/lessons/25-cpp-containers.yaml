@@ -462,6 +462,8 @@ steps:
       4
       ```
 
+      (`std::istringstream` splits the text into words the way `std::cin` would; the next module covers it properly. `std::stoi` converts a string like `"42"` into the int 42.)
+
       ### Why a stack fits brackets
 
       Brackets have the same shape as this problem: the most recent thing you opened is the first thing that must close. So:

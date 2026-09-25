@@ -245,7 +245,7 @@ steps:
     text: |
       **Depth-first search** follows one path as far as it can before backtracking, like exploring a maze by always taking the next unexplored corridor. It's the natural tool for "which things are connected?": pick an unvisited vertex, DFS from it to mark its whole **connected component**, and count how many times you had to start.
 
-      Recursive DFS is elegant, but each call uses stack space, and a big component can **overflow the call stack** (the default stack is only about 1 MB, and on this site even less). Production code often uses an **explicit stack**: a `std::vector` on the heap that holds the vertices still to explore.
+      Recursive DFS is elegant, but each call uses stack space, and a big component can **overflow the call stack** (a thread's stack is typically only 1 to 8 MB, and on this site it's smaller still). Production code often uses an **explicit stack**: a `std::vector` on the heap that holds the vertices still to explore.
 
       ```cpp run
       #include <iostream>

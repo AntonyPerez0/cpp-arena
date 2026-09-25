@@ -54,6 +54,17 @@ questions:
       printf("%d %d\n", a[1], *(p + 1));
     why: "`p++` moves to `a[1]`, which becomes 21; `*(p + 1)` is `a[2]`."
 
+  - module: c-structs
+    type: predict
+    pre: |
+      struct point { int x; int y; };
+    body: |
+      struct point a = {1, 2};
+      struct point *q = &a;
+      q->x = 9;
+      printf("%d %d\n", a.x, q->y);
+    why: "`q` points at `a`, so `q->x = 9` changes `a.x`."
+
   - module: c-memory
     type: choice
     prompt: What's wrong with this code?
@@ -71,17 +82,6 @@ questions:
     answer: 1
     compiles: true
     why: '"hello" needs 6 bytes including the terminator. `malloc(strlen(src) + 1)` is the safe pattern.'
-
-  - module: c-structs
-    type: predict
-    pre: |
-      struct point { int x; int y; };
-    body: |
-      struct point a = {1, 2};
-      struct point *q = &a;
-      q->x = 9;
-      printf("%d %d\n", a.x, q->y);
-    why: "`q` points at `a`, so `q->x = 9` changes `a.x`."
 
   - module: cpp-refs
     type: predict

@@ -17,7 +17,7 @@ steps:
       | O(n log n) | 10,000 | 20,000,000 | good sorting |
       | O(n²) | 1,000,000 | 1,000,000,000,000 | comparing every pair |
 
-      A computer does roughly 10⁸ to 10⁹ simple operations per second. So at a million items, O(n²) takes **hours** while O(n log n) takes milliseconds. Interviews test this, and so does production traffic.
+      A computer does roughly 10⁸ to 10⁹ simple operations per second. So at a million items, O(n²) takes **minutes to hours** (a trillion steps) while O(n log n) takes milliseconds. Interviews test this, and so does production traffic.
 
       ### Counting the work
 
@@ -176,7 +176,7 @@ steps:
 
       - `lo <= hi`, not `lo < hi`: when `lo == hi` there's still one element left to check.
       - `lo = mid + 1` and `hi = mid - 1`: `mid` was already checked, so exclude it. Writing `lo = mid` can loop forever when `hi == lo + 1`.
-      - `lo + (hi - lo) / 2` instead of `(lo + hi) / 2`: for huge arrays, `lo + hi` can overflow an `int`. This exact bug sat in Java's standard library for nine years.
+      - `lo + (hi - lo) / 2` instead of `(lo + hi) / 2`: for huge arrays, `lo + hi` can overflow an `int`. This exact bug sat in Java's standard library for about nine years.
       - When the loop ends without finding it, `lo > hi` and the target isn't there. Also note `lo` is where the target **would** be inserted, which is the idea behind `lower_bound` in the next step.
 
       Binary search is famously easy to get subtly wrong. Write it carefully once and understand every `+ 1` and `- 1`.

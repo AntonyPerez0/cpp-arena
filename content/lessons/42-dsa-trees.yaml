@@ -191,7 +191,7 @@ steps:
 
       ### Balance
 
-      On a **balanced** tree, each step discards about half the nodes, so search and insert are O(log n). But insert the keys in sorted order (1, 2, 3, 4, ...) and every node goes to the right: the "tree" becomes a linked list, and operations become O(n). `std::map` and `std::set` are **self-balancing** BSTs (red-black trees) that rotate nodes to keep the height O(log n) no matter the insertion order.
+      On a **balanced** tree, each step discards about half the nodes, so search and insert are O(log n). But insert the keys in sorted order (1, 2, 3, 4, ...) and every node goes to the right: the "tree" becomes a linked list, and operations become O(n). `std::map` and `std::set` are **self-balancing** BSTs (red-black trees in every major standard library) that rotate nodes to keep the height O(log n) no matter the insertion order.
 
       ### Your task
 
