@@ -11,7 +11,7 @@ import AxeBuilder from "@axe-core/playwright";
 
 const DIST = path.resolve("dist");
 const PORT = 4789;
-const BASE_PATH = process.env.BASE_PATH ?? "/cpp-arena/";
+const BASE_PATH = process.env.BASE_PATH ?? "/";
 const BASE = `http://localhost:${PORT}${BASE_PATH}`;
 const shotsIdx = process.argv.indexOf("--shots");
 const SHOTS = shotsIdx > 0 ? process.argv[shotsIdx + 1] : null;

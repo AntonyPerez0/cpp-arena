@@ -1,5 +1,7 @@
 # C/C++ Arena
 
+Live at **https://cpparena.com**.
+
 Learn C and C++ from zero to advanced, freeCodeCamp style, with **real compilation in your browser**.
 
 - **Learn**: 44 modules, 277 steps, from `printf` to professional C++. C first (basics, pointers, memory, structs, linked lists, bits, then real-world C: files, function pointers and callbacks, integer types and undefined behavior, organizing programs with headers, `static`/`extern`, `argv` and exit codes). Then C++ (classes, RAII, operators, the STL, streams, iterators, lambdas, smart pointers, move semantics, templates, polymorphism, C++20, error handling), professional C++ (writing iterators and containers, variadic templates and type traits, `std::format` and `chrono`, design patterns), data structures and algorithms (complexity, searching, sorting, hash tables, trees and heaps, graphs), and a code-review capstone. Early steps are fill-in-the-blank; later steps have you write most of the code. Every step has hints you reveal one at a time and a "show solution" escape hatch.
@@ -25,13 +27,15 @@ Everything you submit is compiled by Clang 20 running as WebAssembly in a Web Wo
 
 3. On GitHub, open **Settings > Pages** and set **Source** to **GitHub Actions**.
 
-The workflow in `.github/workflows/deploy.yml` then runs on every push to `main`. It installs dependencies, compiles and runs every lesson solution, drill and project milestone with GCC (the build fails if any expected output is wrong), builds the site, runs the browser tests (including the accessibility checks), and publishes it at `https://<you>.github.io/<repo>/`. The workflow passes the repository name to the build, so any repository name works.
+The workflow in `.github/workflows/deploy.yml` then runs on every push to `main`. It installs dependencies, compiles and runs every lesson solution, drill and project milestone with GCC (the build fails if any expected output is wrong), builds the site, runs the browser tests (including the accessibility checks), and publishes it.
+
+The site address is set by `CUSTOM_DOMAIN` at the top of the workflow (`cpparena.com` here). To use your own domain, change it and enter the same domain under **Settings > Pages > Custom domain**. To publish at `https://<you>.github.io/<repo>/` instead, set `CUSTOM_DOMAIN` to an empty string; the workflow then passes the repository name to the build, so any repository name works.
 
 ## Run locally
 
 ```bash
 npm install        # also copies the Clang toolchain into public/toolchain
-npm run dev        # http://localhost:5173/cpp-arena/
+npm run dev        # http://localhost:5173/
 ```
 
 Other scripts:
@@ -55,7 +59,7 @@ Other scripts:
 ## Accessibility and SEO
 
 - **Accessibility** targets WCAG 2.2 AA: a skip link, focus moved to each new page's heading, visible focus rings, labeled editor and blanks, results announced to screen readers, keyboard access to every drill, an option to turn off single-key shortcuts, 24px tap targets, sufficient contrast (including syntax colors), and reduced motion support. `npm run test:e2e` runs axe-core on every page type and on interactive states (results, drills, the death screen), and CI fails on any violation.
-- **SEO**: every page has a real URL (`/<repo>/learn/c-hello/1`); old `#/` links redirect. `scripts/prerender.mjs` writes a static HTML file per route with its own title, description, canonical link, Open Graph tags, structured data (`Course`, `LearningResource`) and the lesson text, plus `sitemap.xml`, `robots.txt` and `404.html`. Set `BASE_PATH` and `SITE_URL` when building for another address.
+- **SEO**: every page has a real URL (`/learn/c-hello/1`); old `#/` links redirect. `scripts/prerender.mjs` writes a static HTML file per route with its own title, description, canonical link, Open Graph tags, structured data (`Course`, `LearningResource`) and the lesson text, plus `sitemap.xml`, `robots.txt` and `404.html`. The build reads `BASE_PATH` (default `/`) and `SITE_URL` (default `https://cpparena.com`); the workflow sets both from `CUSTOM_DOMAIN`.
 
 ## Known limits
 
