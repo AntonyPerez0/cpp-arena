@@ -1,0 +1,561 @@
+id: cpp-performance
+title: Performance and the machine
+lang: cpp
+phase: "C++: Professional C++"
+summary: Why the same algorithm can run ten times faster or slower. Caches and contiguous memory, arrays of structs vs structs of arrays, branch prediction, false sharing and alignment, and custom allocators with std::pmr.
+steps:
+  - title: Caches and contiguous memory
+    id: cpp-performance-1
+    text: |
+      Big-O tells you how work grows with the input. It says nothing about the **constant factor**, and on modern hardware that factor is decided mostly by memory. A processor can do an addition in well under a nanosecond, but fetching a value from main memory takes on the order of 100 nanoseconds. To hide that gap, every core has small, fast **caches**:
+
+      | Level | Typical size | Typical time to read |
+      |---|---|---|
+      | L1 cache | 32 to 64 KB per core | about 1 ns (4 or 5 cycles) |
+      | L2 cache | hundreds of KB to a few MB | about 3 to 5 ns |
+      | L3 cache | several to tens of MB, shared | about 10 to 20 ns |
+      | main memory (RAM) | gigabytes | about 60 to 100 ns |
+
+      Memory moves into the caches in fixed blocks called **cache lines**: 64 bytes on x86 and most ARM chips (Apple's M-series use 128). Read one `int`, and its 15 neighbors arrive in the same line for free. Processors also **prefetch**: when they notice you walking through memory in order, they fetch the next lines before you ask.
+
+      So the fastest code reads memory **sequentially**, using every byte of each line it pays for. This program counts how often two traversals of the same grid have to move to a new cache line:
+
+      ```cpp run
+      #include <iostream>
+
+      int main() {
+          const int n = 64;                                   // a 64 x 64 grid of 4-byte ints, stored row by row
+          auto line_of = [](int index) { return index * 4 / 64; };
+          int row_switches = 0, col_switches = 0, last = -1;
+          for (int r = 0; r < n; r++)
+              for (int c = 0; c < n; c++) {
+                  int line = line_of(r * n + c);
+                  if (line != last) row_switches++;
+                  last = line;
+              }
+          last = -1;
+          for (int c = 0; c < n; c++)
+              for (int r = 0; r < n; r++) {
+                  int line = line_of(r * n + c);
+                  if (line != last) col_switches++;
+                  last = line;
+              }
+          std::cout << n * n << " reads: row by row changes line " << row_switches
+                    << " times, column by column " << col_switches << " times\n";
+      }
+      ```
+
+      ```output
+      4096 reads: row by row changes line 256 times, column by column 4096 times
+      ```
+
+      Row by row, each 64-byte line serves 16 reads. Column by column, every single read lands in a different line. On real hardware the difference is dramatic: summing a 4096 × 4096 grid of ints took **10 ms** row by row and **155 ms** column by column (GCC `-O2` on a 4-core Linux machine). Same algorithm, same number of additions, 15 times slower.
+
+      ### What this means for your code
+
+      - **Contiguous containers win.** `std::vector` and `std::array` keep elements side by side. A `std::list` or `std::map` scatters nodes around the heap, so walking one is a chain of cache misses. That's why a vector often beats a list even where Big-O favors the list.
+      - **Loop in storage order.** For a 2D grid stored row by row, the inner loop should walk along a row.
+      - **Keep hot data small.** The less memory a loop touches, the more of it fits in the caches.
+      - **Measure.** Caches make performance hard to guess; profile before and after (the Pro Track's performance project does exactly this).
+
+      **Your turn:** write `distinct_lines(offsets, line_size)`, the number of different cache lines a list of byte offsets touches (offset / line_size is the line number), and `column_sums(grid, rows, cols)`, the sum of each column of a row-major grid. Compute the column sums with the **row** as the outer loop, adding each row into a vector of sums, so memory is read in order.
+    seed: |
+      #include <cstddef>
+      #include <vector>
+
+      int distinct_lines(const std::vector<std::size_t>& offsets, std::size_t line_size) {
+
+      }
+
+      std::vector<long long> column_sums(const std::vector<int>& grid, int rows, int cols) {
+
+      }
+    solution: |
+      #include <cstddef>
+      #include <set>
+      #include <vector>
+
+      int distinct_lines(const std::vector<std::size_t>& offsets, std::size_t line_size) {
+          std::set<std::size_t> lines;
+          for (std::size_t off : offsets) lines.insert(off / line_size);
+          return static_cast<int>(lines.size());
+      }
+
+      std::vector<long long> column_sums(const std::vector<int>& grid, int rows, int cols) {
+          std::vector<long long> sums(cols, 0);
+          for (int r = 0; r < rows; r++)
+              for (int c = 0; c < cols; c++)
+                  sums[c] += grid[r * cols + c];
+          return sums;
+      }
+    harness: |
+      int main() {
+          CHECK_EQ("16 ints in one line", distinct_lines({0, 4, 8, 60}, 64), 1);
+          CHECK_EQ("crossing into the next line", distinct_lines({60, 64}, 64), 2);
+          CHECK_EQ("strided reads", distinct_lines({0, 256, 512, 768}, 64), 4);
+          CHECK_EQ("128-byte lines", distinct_lines({0, 100, 127, 128}, 128), 2);
+          CHECK_EQ("nothing", distinct_lines({}, 64), 0);
+          std::vector<int> g = {1, 2, 3, 4, 5, 6};   // 2 rows, 3 columns
+          CHECK_EQ("2 x 3 grid", column_sums(g, 2, 3), (std::vector<long long>{5, 7, 9}));
+          std::vector<int> big(1000 * 1000, 2);
+          auto s = column_sums(big, 1000, 1000);
+          CHECK("1000 x 1000 grid", s.size() == 1000 && s[0] == 2000 && s[999] == 2000);
+      }
+    hints:
+      - "distinct_lines: put `offset / line_size` for each offset into a `std::set` and return its size."
+      - "column_sums: `std::vector<long long> sums(cols, 0);` then loop rows outside, columns inside, `sums[c] += grid[r * cols + c];`."
+
+  - title: Arrays of structs vs structs of arrays
+    id: cpp-performance-2
+    text: |
+      Object-oriented code naturally stores each thing as one struct, and many things as an array of those structs (**AoS**, array of structs):
+
+      ```cpp
+      struct Particle { double x, y, z, vx, vy, vz, mass, charge; };   // 64 bytes
+      std::vector<Particle> particles;
+      for (auto& p : particles) p.x += p.vx * dt;                   // uses 16 of every 64 bytes
+      ```
+
+      Each `Particle` is exactly one 64-byte cache line, and this loop needs only `x` and `vx` from it. Three quarters of every line it loads is wasted bandwidth.
+
+      A **struct of arrays** (**SoA**) flips the layout: one array per field.
+
+      ```cpp
+      struct Particles {
+          std::vector<double> x, y, z, vx, vy, vz, mass, charge;
+      };
+      for (std::size_t i = 0; i < ps.x.size(); i++) ps.x[i] += ps.vx[i] * dt;   // every byte loaded is used
+      ```
+
+      Now the loop streams through two dense arrays, and every byte it loads is useful. The compiler can also process several elements per instruction (**SIMD**, the vector units in every modern processor), because the `x` values sit next to each other. For 4 million particles and 10 passes, the AoS loop took **254 ms** and the SoA loop **34 ms** (GCC `-O2`, 4-core Linux machine): 7 times faster for the same arithmetic.
+
+      ```cpp run
+      #include <iostream>
+      #include <vector>
+
+      struct Particle { double x, y, z, vx, vy, vz, mass, charge; };
+
+      int main() {
+          std::size_t n = 1'000'000;
+          std::cout << "one particle: " << sizeof(Particle) << " bytes\n";
+          std::cout << "x += vx touches " << n * sizeof(Particle) / 1'000'000 << " MB as AoS, "
+                    << n * 2 * sizeof(double) / 1'000'000 << " MB as SoA\n";
+      }
+      ```
+
+      ```output
+      one particle: 64 bytes
+      x += vx touches 64 MB as AoS, 16 MB as SoA
+      ```
+
+      ### When to use which
+
+      - SoA wins when hot loops use **a few fields of many objects**: physics, particle systems, analytics over columns (column-oriented databases like ClickHouse are SoA at the storage level), game engines' entity systems.
+      - AoS wins when code uses **most fields of one object at a time**, and it's simpler to read and write. It's the right default.
+      - Designing around how data is accessed, rather than around objects, is called **data-oriented design**. Measure before converting: the gain comes only in loops that are actually memory-bound.
+
+      **Your turn:** write `Particles`, a struct-of-arrays store for 2D particles: `add(x, y, vx, vy)` appends one, `step(dt)` moves every living particle by its velocity times `dt`, `kill(i)` marks particle `i` dead, and `alive_count()` counts the living. Keep each field in its own `std::vector`.
+    seed: |
+      #include <cstddef>
+      #include <vector>
+
+      struct Particles {
+          std::vector<float> x, y, vx, vy;
+          std::vector<char> alive;   // 1 or 0 (not vector<bool>, which packs bits)
+
+          void add(float px, float py, float pvx, float pvy) {
+
+          }
+
+          void step(float dt) {
+
+          }
+
+          void kill(std::size_t i) {
+
+          }
+
+          std::size_t alive_count() const {
+
+          }
+      };
+    solution: |
+      #include <cstddef>
+      #include <vector>
+
+      struct Particles {
+          std::vector<float> x, y, vx, vy;
+          std::vector<char> alive;   // 1 or 0 (not vector<bool>, which packs bits)
+
+          void add(float px, float py, float pvx, float pvy) {
+              x.push_back(px);
+              y.push_back(py);
+              vx.push_back(pvx);
+              vy.push_back(pvy);
+              alive.push_back(1);
+          }
+
+          void step(float dt) {
+              for (std::size_t i = 0; i < x.size(); i++) {
+                  if (!alive[i]) continue;
+                  x[i] += vx[i] * dt;
+                  y[i] += vy[i] * dt;
+              }
+          }
+
+          void kill(std::size_t i) {
+              alive[i] = 0;
+          }
+
+          std::size_t alive_count() const {
+              std::size_t n = 0;
+              for (char a : alive) n += (a != 0);
+              return n;
+          }
+      };
+    harness: |
+      int main() {
+          Particles p;
+          p.add(0, 0, 1, 2);
+          p.add(10, 10, -1, 0);
+          p.add(5, 5, 0, 0);
+          CHECK_EQ("three alive", p.alive_count(), 3u);
+          p.step(2);
+          CHECK("first moved by (2, 4)", p.x[0] == 2 && p.y[0] == 4);
+          CHECK("second moved by (-2, 0)", p.x[1] == 8 && p.y[1] == 10);
+          p.kill(1);
+          CHECK_EQ("two alive", p.alive_count(), 2u);
+          p.step(1);
+          CHECK("the dead one stays put", p.x[1] == 8);
+          CHECK("the living keep moving", p.x[0] == 3 && p.y[0] == 6);
+          CHECK("each field is its own array", p.x.size() == 3 && p.vy.size() == 3 && p.alive.size() == 3);
+      }
+    hints:
+      - "add pushes one value onto each vector, and `1` onto `alive`."
+      - "step loops over the indexes and skips particles with `alive[i] == 0`."
+      - "alive_count adds up the 1s in `alive`."
+
+  - title: Branches and branch prediction
+    id: cpp-performance-3
+    text: |
+      Modern processors are **pipelined**: they work on many instructions at once, and they start on the instructions after an `if` before they know which way it goes. To do that, a **branch predictor** guesses, based on what the branch did before. A correct guess costs almost nothing. A wrong guess means throwing away the work in flight and starting again, roughly 15 to 20 cycles.
+
+      A branch the predictor can learn (always taken, or taken in long runs) is nearly free. A branch that's random is expensive. The classic demonstration adds up only the values that are 128 or more, from 10 million random bytes:
+
+      ```cpp
+      for (int x : data) if (x >= 128) sum += x;
+      ```
+
+      With the compiler's branch-removing optimizations switched off, this loop took **292 ms** over random data and **52 ms** over the same data sorted, where the branch becomes predictable (false for the first half, true for the second). With normal `g++ -O2`, the compiler replaced the `if` with branch-free instructions on its own, and both versions took about **45 ms** (4-core Linux machine). Two lessons in one: unpredictable branches are costly, and compilers already remove the simple ones.
+
+      ### Writing branch-free code
+
+      When a hot loop has an unpredictable decision the compiler can't remove, turn the condition into arithmetic. A comparison is `0` or `1`, so it can be multiplied or added:
+
+      ```cpp run
+      #include <iostream>
+      #include <vector>
+
+      long sum_big_branchy(const std::vector<int>& v) {
+          long s = 0;
+          for (int x : v) if (x >= 128) s += x;
+          return s;
+      }
+
+      long sum_big_branchless(const std::vector<int>& v) {
+          long s = 0;
+          for (int x : v) s += (x >= 128) * x;      // (x >= 128) is 0 or 1
+          return s;
+      }
+
+      int main() {
+          std::vector<int> v = {5, 200, 130, 7, 255, 0, 128};
+          std::cout << sum_big_branchy(v) << " " << sum_big_branchless(v) << "\n";
+      }
+      ```
+
+      ```output
+      713 713
+      ```
+
+      Other tools: `[[likely]]` and `[[unlikely]]` (C++20) tell the compiler which way a branch usually goes, so it lays out the common path first. Sorting or partitioning data before processing it makes branches predictable. And lookup tables replace chains of `if`s.
+
+      Don't do this everywhere. Branch-free code is harder to read, and it always does both sides of the work. It pays off only in hot loops over unpredictable data, and only a profiler (`perf stat` reports "branch-misses") can tell you that you have one.
+
+      **Your turn:** write both functions without `if`, `?:`, `&&`, `||` or library min/max. `count_in_range(v, lo, hi)` counts values with `lo <= x <= hi` (combine two comparisons with `&` or `*`), and `max_branchless(a, b)` returns the larger int using the mask trick: `-(b > a)` is all 1-bits when `b` is bigger and 0 otherwise, so `a ^ ((a ^ b) & -(b > a))` picks `b` or `a`.
+    seed: |
+      #include <vector>
+
+      int count_in_range(const std::vector<int>& v, int lo, int hi) {
+
+      }
+
+      int max_branchless(int a, int b) {
+
+      }
+    solution: |
+      #include <vector>
+
+      int count_in_range(const std::vector<int>& v, int lo, int hi) {
+          int count = 0;
+          for (int x : v) count += (x >= lo) & (x <= hi);
+          return count;
+      }
+
+      int max_branchless(int a, int b) {
+          return a ^ ((a ^ b) & -static_cast<int>(b > a));
+      }
+    forbid:
+      - pattern: "\\bif\\s*\\(|\\?|&&|\\|\\||std::max|std::min|std::clamp"
+        message: Write these without branches, conditional operators or library min/max.
+    harness: |
+      int main() {
+          std::vector<int> v = {1, 5, 10, 15, 20, -3, 10};
+          CHECK_EQ("5..15", count_in_range(v, 5, 15), 4);
+          CHECK_EQ("bounds are inclusive", count_in_range(v, 10, 10), 2);
+          CHECK_EQ("negatives", count_in_range(v, -5, 0), 1);
+          CHECK_EQ("none", count_in_range(v, 100, 200), 0);
+          CHECK_EQ("empty", count_in_range({}, 0, 9), 0);
+          CHECK_EQ("max(3, 9)", max_branchless(3, 9), 9);
+          CHECK_EQ("max(9, 3)", max_branchless(9, 3), 9);
+          CHECK_EQ("max(-4, -7)", max_branchless(-4, -7), -4);
+          CHECK_EQ("equal", max_branchless(6, 6), 6);
+          CHECK_EQ("extremes", max_branchless(-2147483647 - 1, 2147483647), 2147483647);
+      }
+    hints:
+      - "`(x >= lo) & (x <= hi)` is 1 exactly when both comparisons are true; add it to the count."
+      - "`-static_cast<int>(b > a)` is -1 (all bits set) or 0."
+      - "`a ^ ((a ^ b) & mask)`: with a full mask it's `a ^ a ^ b`, which is `b`; with a zero mask it's `a`."
+
+  - title: False sharing and alignment
+    id: cpp-performance-4
+    text: |
+      Caches work on whole lines, and that has a nasty consequence for threads. When one core writes to a cache line, the **cache coherence** protocol invalidates that line in every other core's cache. If two threads keep writing to **different** variables that happen to sit in the **same** line, the line bounces between their cores on every write, even though the threads never touch each other's data. That's **false sharing**.
+
+      ```cpp
+      struct Counters { std::atomic<long long> a{0}; std::atomic<long long> b{0}; };   // 8 bytes apart: one line
+      // thread 1 increments counters.a 20 million times; thread 2 increments counters.b
+      ```
+
+      Two threads doing exactly that took **640 ms**. With each counter moved onto its own cache line, the same work took **135 ms** (GCC `-O2`, 4-core Linux machine), nearly 5 times faster, with no change to the logic.
+
+      ### Padding with alignas
+
+      `alignas(64)` makes the compiler start a type (or a variable) at an address that's a multiple of 64, and rounds its size up to match, so two of them can never share a line:
+
+      ```cpp run
+      #include <atomic>
+      #include <iostream>
+
+      struct Counters {
+          std::atomic<long long> a{0};
+          std::atomic<long long> b{0};
+      };
+
+      struct alignas(64) Padded {
+          std::atomic<long long> n{0};
+      };
+
+      struct PaddedCounters {
+          Padded a;
+          Padded b;
+      };
+
+      int main() {
+          Counters c;
+          PaddedCounters p;
+          auto gap = [](const void* x, const void* y) {
+              return static_cast<const char*>(y) - static_cast<const char*>(x);
+          };
+          std::cout << "plain:  " << sizeof(Counters) << " bytes, counters " << gap(&c.a, &c.b) << " bytes apart\n";
+          std::cout << "padded: " << sizeof(PaddedCounters) << " bytes, counters " << gap(&p.a, &p.b) << " bytes apart\n";
+      }
+      ```
+
+      ```output
+      plain:  16 bytes, counters 8 bytes apart
+      padded: 128 bytes, counters 64 bytes apart
+      ```
+
+      - The padding costs memory (128 bytes for two 8-byte counters), so use it only for data that different threads write often: per-thread counters, the head and tail indexes of a concurrent queue, the slots of a thread pool.
+      - C++17's `std::hardware_destructive_interference_size` (in `<new>`) names the right distance for the platform. GCC's and Clang's libraries provide it, and it's 64 on x86, but it's a compile-time guess about the processor the program will run on. Many projects simply write 64 (or 128 for Apple's chips).
+      - The simpler cure is often not to share at all: give each thread its own counter in a local variable and combine them once at the end, as the threads module showed.
+
+      **Your turn:** write `PaddedCounter`, aligned to 64 bytes and holding a `std::atomic<long long> value`, with `add(n)` (a relaxed `fetch_add`, since nobody reads it until the threads are done) and `get()`. Then write `Stats` holding two of them, `hits` and `misses`, so the two can never share a cache line.
+    seed: |
+      #include <atomic>
+
+      struct PaddedCounter {
+
+      };
+
+      struct Stats {
+
+      };
+    solution: |
+      #include <atomic>
+
+      struct alignas(64) PaddedCounter {
+          std::atomic<long long> value{0};
+          void add(long long n) { value.fetch_add(n, std::memory_order_relaxed); }
+          long long get() const { return value.load(); }
+      };
+
+      struct Stats {
+          PaddedCounter hits;
+          PaddedCounter misses;
+      };
+    require:
+      - pattern: "alignas\\s*\\(\\s*64\\s*\\)"
+        message: Align PaddedCounter to 64 bytes with alignas(64).
+    harness: |
+      int main() {
+          CHECK("PaddedCounter is 64-byte aligned", alignof(PaddedCounter) >= 64);
+          CHECK("and at least 64 bytes big", sizeof(PaddedCounter) >= 64);
+          Stats s;
+          auto gap = reinterpret_cast<const char*>(&s.misses) - reinterpret_cast<const char*>(&s.hits);
+          CHECK("hits and misses are a cache line apart", gap >= 64);
+          s.hits.add(3);
+          s.hits.add(4);
+          s.misses.add(1);
+          CHECK("hits count", s.hits.get() == 7);
+          CHECK("misses count", s.misses.get() == 1);
+          Stats arr[2];
+          auto gap2 = reinterpret_cast<const char*>(&arr[1].hits) - reinterpret_cast<const char*>(&arr[0].misses);
+          CHECK("even neighbors in an array stay apart", gap2 >= 64);
+      }
+    hints:
+      - "`struct alignas(64) PaddedCounter { std::atomic<long long> value{0}; ... };`"
+      - "add: `value.fetch_add(n, std::memory_order_relaxed);` and get: `return value.load();`."
+      - "Stats just holds `PaddedCounter hits;` and `PaddedCounter misses;`; the alignment keeps them apart."
+
+  - title: Custom allocators with std::pmr
+    id: cpp-performance-5
+    text: |
+      `new` and `malloc` are general-purpose: they handle any size, any order of frees, from any thread. That generality costs. An allocation may take a lock, search free lists, or ask the operating system for more memory, and its time varies. Low-latency code (games, trading, audio) often forbids heap allocation in its hot loop entirely, and uses **arenas** and **pools** instead:
+
+      - An **arena** (monotonic buffer) hands out memory by moving a pointer forward through one big block, and frees everything at once when it's reset. Allocation is a few instructions. You built one in the allocator project.
+      - A **pool** keeps free lists of fixed-size blocks, so allocating and freeing a block is a push or pop.
+
+      C++17's **polymorphic memory resources** (`std::pmr`, header `<memory_resource>`) let standard containers use them. A `std::pmr::vector<int>` is a vector that asks a `std::pmr::memory_resource*`, chosen at run time, for its memory:
+
+      ```cpp run
+      #include <array>
+      #include <cstddef>
+      #include <iostream>
+      #include <memory_resource>
+      #include <vector>
+
+      int main() {
+          std::array<std::byte, 4096> buffer;                   // lives on the stack
+          std::pmr::monotonic_buffer_resource arena(
+              buffer.data(), buffer.size(),
+              std::pmr::null_memory_resource());                // no fallback: never touch the heap
+          std::pmr::vector<int> squares(&arena);
+          squares.reserve(100);
+          for (int i = 0; i < 100; i++) squares.push_back(i * i);
+          std::pmr::vector<int> firsts(squares.begin(), squares.begin() + 10, &arena);
+          std::cout << squares.back() << " " << firsts.size() << "\n";
+      }                                                         // the arena releases everything at once
+      ```
+
+      ```output
+      9801 10
+      ```
+
+      ### How it works
+
+      - `monotonic_buffer_resource` hands out pieces of `buffer`. Freeing an individual piece does nothing; all of it is released when the arena is destroyed. Perfect for "build some data, use it, throw it all away", like handling one request.
+      - The last argument is the **upstream** resource, used when the buffer runs out. `null_memory_resource()` refuses every request (it throws `std::bad_alloc`), which turns "we accidentally allocated on the heap" into an immediate failure instead of a silent slowdown.
+      - `std::pmr::unsynchronized_pool_resource` and `synchronized_pool_resource` (thread-safe) are pools, and `new_delete_resource()` is the normal heap.
+      - A `std::pmr::vector<int>` is a **different type** from `std::vector<int>` (their allocator types differ), so the two don't mix without copying. There are `pmr` versions of `string`, `map` and the other containers.
+      - You write your own resource by deriving from `std::pmr::memory_resource` and overriding three functions: `do_allocate(bytes, alignment)`, `do_deallocate(p, bytes, alignment)` and `do_is_equal(other)`.
+
+      **Your turn:** write `CountingResource`, a memory resource that passes every request on to an upstream resource (the normal heap by default) and counts: `allocations()` is the number of allocations so far, and `bytes_in_use()` is the number of bytes currently allocated and not yet freed. It's a tool for proving that code allocates as little as you think.
+    seed: |
+      #include <cstddef>
+      #include <memory_resource>
+
+      class CountingResource : public std::pmr::memory_resource {
+      public:
+          explicit CountingResource(std::pmr::memory_resource* upstream = std::pmr::new_delete_resource())
+              : upstream_(upstream) {}
+
+          int allocations() const { return allocations_; }
+          std::size_t bytes_in_use() const { return in_use_; }
+
+      private:
+          void* do_allocate(std::size_t bytes, std::size_t alignment) override {
+
+          }
+
+          void do_deallocate(void* p, std::size_t bytes, std::size_t alignment) override {
+
+          }
+
+          bool do_is_equal(const std::pmr::memory_resource& other) const noexcept override {
+
+          }
+
+          std::pmr::memory_resource* upstream_;
+          int allocations_ = 0;
+          std::size_t in_use_ = 0;
+      };
+    solution: |
+      #include <cstddef>
+      #include <memory_resource>
+
+      class CountingResource : public std::pmr::memory_resource {
+      public:
+          explicit CountingResource(std::pmr::memory_resource* upstream = std::pmr::new_delete_resource())
+              : upstream_(upstream) {}
+
+          int allocations() const { return allocations_; }
+          std::size_t bytes_in_use() const { return in_use_; }
+
+      private:
+          void* do_allocate(std::size_t bytes, std::size_t alignment) override {
+              void* p = upstream_->allocate(bytes, alignment);
+              allocations_++;
+              in_use_ += bytes;
+              return p;
+          }
+
+          void do_deallocate(void* p, std::size_t bytes, std::size_t alignment) override {
+              upstream_->deallocate(p, bytes, alignment);
+              in_use_ -= bytes;
+          }
+
+          bool do_is_equal(const std::pmr::memory_resource& other) const noexcept override {
+              return this == &other;
+          }
+
+          std::pmr::memory_resource* upstream_;
+          int allocations_ = 0;
+          std::size_t in_use_ = 0;
+      };
+    harness: |
+      int main() {
+          CountingResource counter;
+          {
+              std::pmr::vector<int> v(&counter);
+              v.reserve(50);
+              for (int i = 0; i < 50; i++) v.push_back(i);
+              CHECK_EQ("reserve means one allocation", counter.allocations(), 1);
+              CHECK("at least 200 bytes in use", counter.bytes_in_use() >= 50 * sizeof(int));
+          }
+          CHECK_EQ("everything freed when the vector goes", counter.bytes_in_use(), 0u);
+          {
+              std::pmr::vector<int> grow(&counter);
+              for (int i = 0; i < 1000; i++) grow.push_back(i);
+              CHECK("growing without reserve allocates several times", counter.allocations() > 3);
+          }
+          CHECK_EQ("freed again", counter.bytes_in_use(), 0u);
+          CountingResource other;
+          CHECK("a resource equals itself", counter.is_equal(counter));
+          CHECK("two separate counters are different resources", !counter.is_equal(other));
+      }
+    hints:
+      - "do_allocate: `void* p = upstream_->allocate(bytes, alignment);`, then count the allocation and add `bytes` to what's in use, and return `p`."
+      - "do_deallocate: pass the call on to `upstream_->deallocate(p, bytes, alignment)` and subtract `bytes`."
+      - "do_is_equal: memory from this resource can only be freed by this same object, so `return this == &other;`."

@@ -888,3 +888,131 @@ steps:
       - "push: if `full()`, return false. Otherwise write at `(head_ + count_) % buf_.size()` and increase `count_`."
       - "pop: if `empty()`, return `std::nullopt`. Otherwise read `buf_[head_]`, move `head_` forward with `% buf_.size()`, and decrease `count_`."
       - "The `%` is what wraps the indexes around the end of the array."
+  - title: Memory ordering
+    id: cpp-concurrency-7
+    text: |
+      Every atomic operation so far used the default ordering, `std::memory_order_seq_cst` ("sequentially consistent"). It's the easiest to reason about: all threads agree on one single order of every `seq_cst` operation. For most code that's the right choice. But to read real concurrent libraries, and to write the fastest code, you need to know the weaker orderings too.
+
+      ### Why ordering is a question at all
+
+      To go faster, compilers and processors **reorder** ordinary memory accesses. A processor may let a later read go ahead of an earlier write that's still sitting in its store buffer, and a compiler may move a write past an unrelated one. Inside one thread you can never tell. Between threads you can: another thread may see your writes in a different order than you made them. Atomic operations with an ordering are how you forbid the reorderings that matter.
+
+      ### Release and acquire: publishing data
+
+      The most common pattern: one thread prepares some ordinary data, then sets a flag; another waits for the flag, then reads the data.
+
+      ```cpp native
+      #include <atomic>
+      #include <iostream>
+      #include <string>
+      #include <thread>
+
+      std::string message;                // ordinary, non-atomic data
+      std::atomic<bool> ready{false};
+
+      int main() {
+          std::thread producer([] {
+              message = "config loaded";                        // 1. write the data
+              ready.store(true, std::memory_order_release);     // 2. publish it
+          });
+          std::thread consumer([] {
+              while (!ready.load(std::memory_order_acquire)) {} // 3. wait for the flag
+              std::cout << message << "\n";                     // 4. sees what step 1 wrote
+          });
+          producer.join();
+          consumer.join();
+      }
+      ```
+
+      ```output
+      config loaded
+      ```
+
+      - A **release** store promises that every read and write **before** it in that thread stays before it: nothing gets reordered past the store.
+      - An **acquire** load promises that every read and write **after** it stays after it.
+      - When an acquire load reads the value written by a release store, the two threads **synchronize**: everything the producer did before the release is guaranteed to be visible to the consumer after the acquire. That's the "happens-before" relationship, and it's why reading the plain `std::string` here is not a data race (ThreadSanitizer agrees).
+      - Without it (with `memory_order_relaxed` on both sides), the consumer could see `ready == true` and still read a half-written `message`.
+
+      ### Relaxed: atomic, nothing more
+
+      `memory_order_relaxed` keeps the operation itself indivisible, but orders nothing around it. It's right for a statistics counter that other threads read only after `join()` (which synchronizes by itself): `hits.fetch_add(1, std::memory_order_relaxed);`. It's wrong for anything that signals "the data is ready".
+
+      There's also `memory_order_acq_rel`, for read-modify-write operations such as `exchange` or `compare_exchange` that both take and publish, as a lock does.
+
+      ### How to use this in practice
+
+      - Stay with the default `seq_cst` unless profiling shows the atomic is a bottleneck. Wrong orderings create the rarest, hardest bugs there are.
+      - x86 processors reorder very little, so code with too-weak orderings often works there by luck and then fails on ARM (phones, Apple silicon, many cloud servers). Test on ARM, and run ThreadSanitizer, which understands orderings.
+      - The classic use of acquire and release is a lock: taking it is an acquire (nothing inside the critical section may move before it), and releasing it is a release (nothing may move after it).
+
+      **Your turn:** build that lock. A **spinlock** is the simplest possible mutex: an atomic flag that a thread keeps trying to set until it wins. Write `try_lock` (set the flag with `test_and_set` using acquire ordering; it succeeds if the flag was clear), `lock` (retry `try_lock` until it succeeds) and `unlock` (`clear` with release ordering). Real code should use `std::mutex`, which puts waiting threads to sleep instead of burning a core, but inside every mutex is something like this.
+    seed: |
+      #include <atomic>
+
+      class SpinLock {
+      public:
+          bool try_lock() {
+
+          }
+
+          void lock() {
+
+          }
+
+          void unlock() {
+
+          }
+
+      private:
+          std::atomic_flag flag_;   // starts clear (C++20)
+      };
+    solution: |
+      #include <atomic>
+
+      class SpinLock {
+      public:
+          bool try_lock() {
+              return !flag_.test_and_set(std::memory_order_acquire);
+          }
+
+          void lock() {
+              while (!try_lock()) {
+              }
+          }
+
+          void unlock() {
+              flag_.clear(std::memory_order_release);
+          }
+
+      private:
+          std::atomic_flag flag_;   // starts clear (C++20)
+      };
+    require:
+      - pattern: "memory_order_acquire"
+        message: Taking the lock should use memory_order_acquire, so the critical section can't move before it.
+      - pattern: "memory_order_release"
+        message: Releasing the lock should use memory_order_release, so the critical section can't move after it.
+    harness: |
+      int main() {
+          SpinLock s;
+          CHECK("a fresh lock can be taken", s.try_lock());
+          CHECK("a held lock can't be taken again", !s.try_lock());
+          s.unlock();
+          CHECK("after unlock it can be taken", s.try_lock());
+          s.unlock();
+          s.lock();
+          CHECK("lock() takes it", !s.try_lock());
+          s.unlock();
+          int total = 0;
+          for (int i = 0; i < 1000; i++) {
+              s.lock();
+              total++;
+              s.unlock();
+          }
+          CHECK_EQ("a thousand lock/unlock rounds", total, 1000);
+          CHECK("and it ends unlocked", s.try_lock());
+      }
+    hints:
+      - "`flag_.test_and_set(std::memory_order_acquire)` sets the flag and returns what it was before. If it was clear (`false`), you now own the lock."
+      - "lock: `while (!try_lock()) {}` keeps trying until it wins."
+      - "unlock: `flag_.clear(std::memory_order_release);`"

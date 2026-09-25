@@ -51,3 +51,61 @@ drills:
       static_assert(square(12) == 144);
       std::cout << "ok\n";
     why: constexpr functions can run during compilation, so static_assert can check them.
+  - type: predict
+    pre: |
+      template <typename T>
+      const char* cat(T&&) { return std::is_lvalue_reference_v<T> ? "L" : "R"; }
+    body: |
+      int x = 1;
+      std::cout << cat(x) << cat(5) << cat(std::move(x)) << cat(x + 1) << "\n";
+    why: "A named variable is an lvalue, so T deduces to int& (and T&& collapses to int&). 5, std::move(x) and x + 1 are rvalues, so T is plain int."
+  - type: choice
+    prompt: In a template with `T = int&`, what type is `T&&`?
+    choices:
+      - "`int&`"
+      - "`int&&`"
+      - "`int`"
+      - It's a compile error, references to references aren't allowed
+    answer: 1
+    why: "Reference collapsing: if either side is an lvalue reference (& &, & &&, && &), the result is &. Only && && stays &&. That's what lets a forwarding reference T&& bind to lvalues."
+  - type: predict
+    pre: |
+      template <typename T, std::enable_if_t<std::is_integral_v<T>, int> = 0>
+      const char* kind(T) { return "int"; }
+      template <typename T, std::enable_if_t<std::is_floating_point_v<T>, int> = 0>
+      const char* kind(T) { return "float"; }
+    body: |
+      std::cout << kind(3) << " " << kind(2.5) << " " << kind('a') << "\n";
+    why: "For each call exactly one enable_if_t is valid and the other overload silently drops out (SFINAE). char is an integral type, so kind('a') picks the int overload."
+  - type: compiles
+    pre: |
+      template <typename T, std::enable_if_t<std::is_integral_v<T>, int> = 0>
+      const char* kind(T) { return "int"; }
+    body: |
+      std::cout << kind("hi") << "\n";
+    answer: "no"
+    why: "const char* isn't integral, so the only overload is removed and there's nothing left to call. The error is \"no matching function\"."
+  - type: predict
+    pre: |
+      template <typename Derived>
+      struct Base {
+          void hello() const {
+              std::cout << "I am " << static_cast<const Derived&>(*this).name() << "\n";
+          }
+      };
+      struct Cat : Base<Cat> {
+          const char* name() const { return "a cat"; }
+      };
+    body: |
+      Cat c;
+      c.hello();
+    why: The base knows the derived type from its template argument, so it casts to it and calls name() directly. No virtual function and no vtable.
+  - type: choice
+    prompt: What do you give up by using CRTP instead of virtual functions?
+    choices:
+      - You can't keep different derived types in one container behind a common base pointer
+      - Calls become slower
+      - Derived classes can't have their own data
+      - You can't use templates anywhere else in the program
+    answer: 1
+    why: "Base<Cat> and Base<Dog> are unrelated types, so there is no common base to point at. CRTP trades runtime flexibility for calls the compiler resolves and can inline."

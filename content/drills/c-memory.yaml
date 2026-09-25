@@ -178,3 +178,40 @@ drills:
       view[0] = 'x';
       free(s);
     why: Writing through a `const char *` is rejected, even though the memory itself is writable.
+  - type: choice
+    prompt: Where does the text of a string literal like `"Game over"` usually live?
+    choices:
+      - In a read-only data section (.rodata), for the whole run of the program
+      - On the stack of the function that uses it
+      - On the heap, allocated when the line runs
+      - In a CPU register
+    answer: 1
+    why: "Literals are baked into the executable and mapped read-only. That's why returning one from a function is safe, and why writing to one usually crashes."
+  - type: predict
+    pre: |
+      int next_ticket(void) {
+          static int ticket = 100;
+          return ++ticket;
+      }
+    body: |
+      next_ticket();
+      next_ticket();
+      printf("%d\n", next_ticket());
+    why: A static local is created once, before main, in the data section. It keeps its value between calls, so the third call returns 103.
+  - type: choice
+    prompt: "A global `int scores[100000];` with no initializer. Where does it live, and what's in it at startup?"
+    choices:
+      - In .bss, all zeros; it takes no space in the executable file
+      - On the stack, garbage
+      - On the heap, garbage
+      - In .data, and the 400 KB of zeros are stored in the executable
+    answer: 1
+    why: The file only records how big .bss is. The loader hands the program zero-filled pages for it, so zero-initialized globals are free on disk.
+  - type: bug
+    body: |
+      char *name = "hero"; // BUG
+      name[0] = 'H';
+      printf("%s\n", name);
+    fix: 'char name[] = "hero";'
+    why: "name points into read-only memory, so writing to it is undefined behavior (usually a crash). char name[] = \"hero\" makes a writable array copy on the stack."
+    ub: true

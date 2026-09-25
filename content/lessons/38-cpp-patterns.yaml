@@ -687,6 +687,147 @@ steps:
       - "`using File = std::unique_ptr<std::FILE, FileCloser>;` and open_file returns `File(std::fopen(path.c_str(), mode))`."
       - "In first_line, `fgets` into a buffer, build a std::string and drop a trailing '\\n'."
 
+  - title: Type erasure
+    id: cpp-patterns-7
+    text: |
+      `std::function<int(int)>` can hold a plain function, a lambda with captures, or any object with a matching `operator()`. None of them inherit from anything, yet one type holds them all, and you can copy it like a value. That technique is **type erasure**: the wrapper forgets ("erases") the concrete type, but still knows how to call, copy and destroy what's inside.
+
+      Classic polymorphism asks every type to inherit from a base class. That's intrusive: you can't make `int` or a third-party class inherit from your `Shape`, and a `std::vector<std::unique_ptr<Shape>>` gives you pointers and heap allocations instead of values. Type erasure keeps the inheritance **inside** the wrapper:
+
+      ```cpp run
+      #include <iostream>
+      #include <memory>
+      #include <vector>
+
+      class Shape {
+      public:
+          template <typename T>
+          Shape(T value) : self_(std::make_unique<Model<T>>(std::move(value))) {}
+          Shape(const Shape& other) : self_(other.self_->clone()) {}
+          Shape& operator=(const Shape& other) {
+              self_ = other.self_->clone();
+              return *this;
+          }
+          Shape(Shape&&) noexcept = default;
+          Shape& operator=(Shape&&) noexcept = default;
+
+          double area() const { return self_->area(); }
+
+      private:
+          struct Concept {                                   // the interface, hidden inside
+              virtual ~Concept() = default;
+              virtual double area() const = 0;
+              virtual std::unique_ptr<Concept> clone() const = 0;
+          };
+          template <typename T>
+          struct Model : Concept {                           // one per concrete type, generated
+              T value;
+              explicit Model(T v) : value(std::move(v)) {}
+              double area() const override { return value.area(); }
+              std::unique_ptr<Concept> clone() const override { return std::make_unique<Model>(*this); }
+          };
+          std::unique_ptr<Concept> self_;
+      };
+
+      struct Circle { double r; double area() const { return 3.14159 * r * r; } };   // no base class
+      struct Square { double s; double area() const { return s * s; } };
+
+      int main() {
+          std::vector<Shape> shapes{Circle{1}, Square{2}, Square{3}};   // values, not pointers
+          std::vector<Shape> copy = shapes;                              // deep copies
+          double total = 0;
+          for (const Shape& s : copy) total += s.area();
+          std::cout << total << "\n";
+      }
+      ```
+
+      ```output
+      16.1416
+      ```
+
+      ### How it works
+
+      - `Concept` is an ordinary abstract base class, but it's **private** to `Shape`. Users never see it.
+      - `Model<T>` is a class template that wraps any `T` and implements `Concept` by forwarding to `T`'s own `area()`. The templated constructor creates the right `Model<T>` for whatever you pass, so `Circle` and `Square` need no base class, only a matching `area()` function.
+      - `clone()` makes copying work: copying a `Shape` asks the hidden model to copy the real object. So `Shape` behaves like a value: you can copy it, store it in vectors directly, and pass it around by value.
+      - The requirements are **duck-typed**: anything with `double area() const` works, including types written long before `Shape` existed.
+
+      `std::function`, `std::any` and `std::shared_ptr`'s deleter all work this way. Libraries add a "small buffer optimization" to store small objects inside the wrapper without a heap allocation, but the idea is the same.
+
+      **Your turn:** write `Task`, a type-erased wrapper for anything with `int run() const`. It needs the templated constructor, copying (with `clone`) and `int run() const`. The tests keep tasks of unrelated types in one `std::vector<Task>` and check that copies still work after the originals are gone.
+    seed: |
+      #include <memory>
+      #include <utility>
+
+      class Task {
+      public:
+
+      private:
+
+      };
+    solution: |
+      #include <memory>
+      #include <utility>
+
+      class Task {
+      public:
+          template <typename T>
+          Task(T value) : self_(std::make_unique<Model<T>>(std::move(value))) {}
+          Task(const Task& other) : self_(other.self_->clone()) {}
+          Task& operator=(const Task& other) {
+              self_ = other.self_->clone();
+              return *this;
+          }
+          Task(Task&&) noexcept = default;
+          Task& operator=(Task&&) noexcept = default;
+
+          int run() const { return self_->run(); }
+
+      private:
+          struct Concept {
+              virtual ~Concept() = default;
+              virtual int run() const = 0;
+              virtual std::unique_ptr<Concept> clone() const = 0;
+          };
+          template <typename T>
+          struct Model : Concept {
+              T value;
+              explicit Model(T v) : value(std::move(v)) {}
+              int run() const override { return value.run(); }
+              std::unique_ptr<Concept> clone() const override { return std::make_unique<Model>(*this); }
+          };
+          std::unique_ptr<Concept> self_;
+      };
+    harness: |
+      struct Add { int a, b; int run() const { return a + b; } };
+      struct Constant { int v; int run() const { return v; } };
+      struct Greeting { std::string text; int run() const { return static_cast<int>(text.size()); } };
+      int main() {
+          std::vector<Task> tasks;
+          tasks.push_back(Add{2, 3});
+          tasks.push_back(Constant{42});
+          tasks.push_back(Greeting{"hello"});
+          int total = 0;
+          for (const Task& t : tasks) total += t.run();
+          CHECK_EQ("5 + 42 + 5", total, 52);
+          std::vector<Task> copy;
+          {
+              Task temp = Greeting{"a longer text"};
+              copy.push_back(temp);
+              copy.push_back(tasks[0]);
+          }
+          CHECK_EQ("a copy outlives the original", copy[0].run(), 13);
+          CHECK_EQ("copying from the vector", copy[1].run(), 5);
+          Task t = Constant{1};
+          t = tasks[1];
+          CHECK_EQ("copy assignment", t.run(), 42);
+          Task moved = std::move(t);
+          CHECK_EQ("move", moved.run(), 42);
+      }
+    hints:
+      - "Follow the lesson's `Shape` exactly, renaming `area` to `run` and `double` to `int`."
+      - "Private parts: a `Concept` base with `run()` and `clone()`, a `Model<T>` template holding a `T value`, and a `std::unique_ptr<Concept> self_`."
+      - "The copy constructor is `self_(other.self_->clone())`; the moves can be `= default`."
   - title: "Challenge: a table-driven state machine"
     id: cpp-patterns-6
     text: |

@@ -483,6 +483,124 @@ steps:
       - "scale starts at 1.0 and grows to |a| or |b| if either is bigger."
       - "`return absd(a - b) <= eps * scale;`"
 
+  - title: Type punning and strict aliasing
+    id: c-types-8
+    text: |
+      Sometimes you need the raw bits of a value: hashing a `float`, writing it to a network message, inspecting how it's stored. The tempting way is to cast the pointer:
+
+      ```c
+      float f = 1.0f;
+      uint32_t bits = *(uint32_t *)&f;     /* undefined behavior */
+      ```
+
+      This is undefined behavior because of the **strict aliasing rule**: an object may only be read or written through an expression of its own type (or a signed/unsigned version of it, or a character type). A `float` must not be accessed as a `uint32_t`.
+
+      ### Why the rule exists
+
+      The rule lets the compiler assume that pointers to **different** types never point at the same memory, and optimize based on that:
+
+      ```c
+      int f(int *i, float *fp) {
+          *i = 1;
+          *fp = 2.0f;
+          return *i;
+      }
+      ```
+
+      GCC with `-O2` compiles this to "store 1, store 2.0, return 1": it doesn't read `*i` again, because a store through a `float *` can't have changed an `int`. If a caller passes the same address for both, the function returns 1 even though the memory now holds the bits of 2.0. Casting pointers between unrelated types breaks this assumption, and the optimizer produces code that seems to ignore your writes.
+
+      ### The right way: copy the bytes
+
+      `memcpy` copies bytes, and reading any object's bytes is always allowed. Compilers recognize a small fixed-size `memcpy` and turn it into a single register move, so it costs nothing:
+
+      ```c run
+      #include <stdint.h>
+      #include <stdio.h>
+      #include <string.h>
+
+      int main(void) {
+          float values[] = {1.0f, -0.0f, 0.5f};
+          for (int i = 0; i < 3; i++) {
+              uint32_t bits;
+              memcpy(&bits, &values[i], sizeof bits);
+              printf("%5.1f -> %08x\n", values[i], (unsigned)bits);
+          }
+          return 0;
+      }
+      ```
+
+      ```output
+        1.0 -> 3f800000
+       -0.0 -> 80000000
+        0.5 -> 3f000000
+      ```
+
+      A `float` is 32 bits: 1 **sign** bit, 8 **exponent** bits and 23 **fraction** bits (the IEEE 754 format that every mainstream processor uses). That's why `-0.0` differs from `0.0` only in the top bit, `0x80000000`.
+
+      ### The rules in short
+
+      - Reading or writing any object through `char *` or `unsigned char *` is allowed. That's how `memcpy`, hashing and serialization code look at bytes.
+      - To reinterpret a value as another type, `memcpy` it. In C, reading a different member of a union also works (the unions step covers it). In C++ use `std::bit_cast` (C++20) or `memcpy`; union punning is undefined behavior there.
+      - GCC and Clang's `-fno-strict-aliasing` turns the optimization off, and the Linux kernel is built with it. Portable code shouldn't rely on it.
+
+      **Your turn:** write `float_bits(f)`, returning a float's 32 bits, `bits_to_float(bits)`, the reverse, and `sign_bit(f)`, returning 1 if the sign bit is set (so `sign_bit(-0.0f)` is 1) and 0 otherwise. Use `memcpy`, not pointer casts.
+    seed: |
+      #include <stdint.h>
+      #include <string.h>
+
+      uint32_t float_bits(float f) {
+
+      }
+
+      float bits_to_float(uint32_t bits) {
+
+      }
+
+      int sign_bit(float f) {
+
+      }
+    solution: |
+      #include <stdint.h>
+      #include <string.h>
+
+      uint32_t float_bits(float f) {
+          uint32_t bits;
+          memcpy(&bits, &f, sizeof bits);
+          return bits;
+      }
+
+      float bits_to_float(uint32_t bits) {
+          float f;
+          memcpy(&f, &bits, sizeof f);
+          return f;
+      }
+
+      int sign_bit(float f) {
+          return (int)(float_bits(f) >> 31);
+      }
+    require:
+      - pattern: "memcpy"
+        message: Copy the bytes with memcpy; casting a float * to a uint32_t * breaks the strict aliasing rule.
+    forbid:
+      - pattern: "\\(\\s*(const\\s+)?(uint32_t|unsigned|int|float)\\s*\\*\\s*\\)"
+        message: No pointer casts between float and integer types; that's the undefined behavior this step is about.
+    harness: |
+      int main(void) {
+          CHECK("1.0f is 0x3f800000", float_bits(1.0f) == 0x3f800000u);
+          CHECK("0.0f is all zeros", float_bits(0.0f) == 0u);
+          CHECK("-2.0f is 0xc0000000", float_bits(-2.0f) == 0xc0000000u);
+          CHECK_DBL("0x40490fdb is pi as a float", bits_to_float(0x40490fdbu), 3.14159274101257);
+          CHECK_DBL("round trip", bits_to_float(float_bits(123.25f)), 123.25);
+          CHECK_INT("sign of -0.0f", sign_bit(-0.0f), 1);
+          CHECK_INT("sign of 0.0f", sign_bit(0.0f), 0);
+          CHECK_INT("sign of -7.5f", sign_bit(-7.5f), 1);
+          CHECK_INT("sign of 7.5f", sign_bit(7.5f), 0);
+          return 0;
+      }
+    hints:
+      - "`uint32_t bits; memcpy(&bits, &f, sizeof bits); return bits;`"
+      - "bits_to_float is the same copy in the other direction."
+      - "The sign is the top bit: `float_bits(f) >> 31` is 1 or 0."
   - title: "Challenge: hunt the undefined behavior"
     id: c-types-7
     text: |

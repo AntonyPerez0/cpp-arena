@@ -109,3 +109,28 @@ drills:
       }
     hints:
       - "Compare against INT_MIN and INT_MAX while still in long long."
+  - type: predict
+    body: |
+      float f = 1.0f;
+      uint32_t bits;
+      memcpy(&bits, &f, sizeof bits);
+      printf("%08x\n", (unsigned)bits);
+    why: "memcpy is the safe way to look at a float's bits. 1.0f is sign 0, exponent 127 (0x7f), mantissa 0, which packs to 0x3f800000."
+  - type: choice
+    prompt: "Why is `uint32_t u = *(uint32_t *)&f;` (where `f` is a `float`) a problem?"
+    choices:
+      - It breaks the strict aliasing rule, so it's undefined behavior and the optimizer may assume the two never alias
+      - It's too slow
+      - It only works on big-endian machines
+      - It rounds the float first
+    answer: 1
+    why: "C lets you access an object only through its own type (or a character type). memcpy into a uint32_t says the same thing legally, and compilers turn it into a single register move."
+  - type: choice
+    prompt: Through which pointer type may you legally read the bytes of any object?
+    choices:
+      - "`unsigned char *` (or `char *`)"
+      - "`void *`"
+      - "`uint8_t *` only if it's not a typedef"
+      - "`int *`"
+    answer: 1
+    why: Character types are the exception to strict aliasing. That's how memcpy, hex dumps and serializers can see any object as bytes. (void * can't be dereferenced at all.)
