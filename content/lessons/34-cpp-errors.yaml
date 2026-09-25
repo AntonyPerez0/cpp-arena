@@ -54,7 +54,7 @@ steps:
       }
       ```
 
-      **This site's compiler targets WebAssembly without exception support**, so `throw` won't compile here. That's a real-world situation too: many games, embedded systems and large codebases build with exceptions turned off or avoid them by policy (Google's C++ style guide, for example, doesn't use them). The rest of this module covers the exception-free patterns they use.
+      **This site's compiler targets WebAssembly without exception support**, so `throw` won't compile here. That's a real-world situation too: many games, embedded systems and large codebases build with exceptions turned off or avoid them by policy (Google's C++ style guide, for example, doesn't use them). The next steps cover the exception-free patterns they use, and step 6 shows real exceptions, compiled and run on a real machine.
 
       **Your turn:** add an `assert` that `n` is positive. With a valid call the program prints `ok`.
     fill: |
@@ -467,6 +467,160 @@ steps:
       - "Loop: find the next comma with `s.find(',')`, parse `s.substr(0, comma)`, then `s.remove_prefix(comma + 1)`."
       - "If `parse_int` returns nullopt, immediately `return std::nullopt;`."
       - "When `find` returns `std::string_view::npos`, that was the last part."
+
+  - title: Exceptions, on a real machine
+    id: cpp-errors-7
+    text: |
+      This site's compiler builds without exception support, so the examples in this step were compiled with GCC (`g++ -std=c++20`) and run on Linux by the site's build; the output shown is what they printed. Everything here is standard C++, and most professional codebases use it.
+
+      ### throw, try and catch
+
+      ```cpp native
+      #include <iostream>
+      #include <stdexcept>
+      #include <string>
+
+      int parse_percent(const std::string& s) {
+          int v = std::stoi(s);          // throws std::invalid_argument for "abc"
+          if (v < 0 || v > 100) throw std::out_of_range("percent must be 0 to 100: " + s);
+          return v;
+      }
+
+      int main() {
+          for (std::string s : {"42", "150", "abc"}) {
+              try {
+                  std::cout << parse_percent(s) << "\n";
+              } catch (const std::out_of_range& e) {
+                  std::cout << "range error: " << e.what() << "\n";
+              } catch (const std::exception& e) {
+                  std::cout << "other error: " << e.what() << "\n";
+              }
+          }
+      }
+      ```
+
+      ```output
+      42
+      range error: percent must be 0 to 100: 150
+      other error: stoi
+      ```
+
+      - `throw` creates an exception object and abandons the current function immediately. Control jumps to the nearest enclosing `try` block that has a matching `catch`, skipping everything in between. `parse_percent` doesn't need an `if` to pass the failure up: that happens automatically.
+      - `catch` clauses are tried **in order**, and a handler for a base class also catches every derived class. So list specific types first: `std::out_of_range` before `std::exception`, which is the base of all standard exceptions.
+      - `e.what()` returns the message. The standard library's own messages differ between implementations: GCC's `std::stoi` just says `stoi`.
+      - If nothing catches an exception, the program calls `std::terminate` and dies.
+
+      ### Stack unwinding runs destructors
+
+      On the way from the `throw` to the `catch`, every local object in every abandoned function is destroyed, in reverse order. That's why RAII matters so much: cleanup happens even when a function is left by an exception.
+
+      ```cpp native
+      #include <iostream>
+      #include <stdexcept>
+      #include <string>
+
+      struct Guard {
+          std::string name;
+          explicit Guard(std::string n) : name(n) { std::cout << "open " << name << "\n"; }
+          ~Guard() { std::cout << "close " << name << "\n"; }
+      };
+
+      void load() {
+          Guard file("config.txt");
+          Guard lock("cache lock");
+          throw std::runtime_error("disk read failed");
+      }
+
+      int main() {
+          try {
+              load();
+          } catch (const std::exception& e) {
+              std::cout << "caught: " << e.what() << "\n";
+          }
+      }
+      ```
+
+      ```output
+      open config.txt
+      open cache lock
+      close cache lock
+      close config.txt
+      caught: disk read failed
+      ```
+
+      ### The rules professionals follow
+
+      - **Throw by value, catch by `const&`.** Catching by value copies the exception and slices derived types down to the base.
+      - **Derive your own types from the standard ones**, usually `std::runtime_error`, and add the details a handler needs: `struct ParseError : std::runtime_error { int line; ... };`.
+      - **`throw;`** (with nothing after it) inside a `catch` re-throws the same exception, after logging or partial cleanup.
+      - **Destructors must not throw.** They're `noexcept` by default; a destructor that throws during unwinding terminates the program.
+      - **Mark moves and swaps `noexcept`** so containers can use them safely (the move semantics module showed why).
+      - Exceptions cost almost nothing when nothing is thrown, with the compilers used for desktops and servers, but throwing one is slow. Use them for genuinely exceptional failures, not for ordinary control flow like "key not found".
+
+      ### Exception safety
+
+      When a function fails halfway, what state is left behind? The guarantees, from weakest to strongest:
+
+      - **Basic**: nothing leaks and every object is still valid, but values may have changed.
+      - **Strong**: all or nothing. If the operation fails, it's as if it never started.
+      - **No-throw**: it can't fail (`noexcept`).
+
+      The standard recipe for the strong guarantee works with or without exceptions: do all the work on a **copy**, and only when everything has succeeded, **swap** the copy into place. Swapping can't fail, so the original is either completely updated or untouched.
+
+      **Your turn:** use that recipe, exception-free. `apply_all` applies a list of transfers between accounts, in order. If any transfer uses an account that doesn't exist or would make a balance negative, it must change **nothing** and return `false`; otherwise it applies them all and returns `true`.
+    seed: |
+      #include <vector>
+
+      struct Transfer {
+          int from;
+          int to;
+          int amount;
+      };
+
+      bool apply_all(std::vector<int>& balances, const std::vector<Transfer>& transfers) {
+
+      }
+    solution: |
+      #include <vector>
+
+      struct Transfer {
+          int from;
+          int to;
+          int amount;
+      };
+
+      bool apply_all(std::vector<int>& balances, const std::vector<Transfer>& transfers) {
+          std::vector<int> work = balances;
+          int n = static_cast<int>(work.size());
+          for (const Transfer& t : transfers) {
+              if (t.from < 0 || t.from >= n || t.to < 0 || t.to >= n) return false;
+              if (work[t.from] < t.amount) return false;
+              work[t.from] -= t.amount;
+              work[t.to] += t.amount;
+          }
+          balances.swap(work);
+          return true;
+      }
+    harness: |
+      int main() {
+          std::vector<int> b = {100, 50, 0};
+          CHECK_EQ("valid transfers succeed", apply_all(b, {{0, 2, 30}, {1, 2, 50}, {2, 0, 10}}), true);
+          CHECK_EQ("and are all applied", b, (std::vector<int>{80, 0, 70}));
+          std::vector<int> c = {100, 50, 0};
+          CHECK_EQ("the third transfer overdraws", apply_all(c, {{0, 1, 60}, {1, 2, 100}, {2, 0, 101}}), false);
+          CHECK_EQ("so nothing changes", c, (std::vector<int>{100, 50, 0}));
+          std::vector<int> d = {10, 10};
+          CHECK_EQ("an unknown account fails", apply_all(d, {{0, 1, 5}, {1, 7, 1}}), false);
+          CHECK_EQ("and changes nothing", d, (std::vector<int>{10, 10}));
+          std::vector<int> e = {5};
+          CHECK_EQ("no transfers is fine", apply_all(e, {}), true);
+          std::vector<int> f = {0, 20};
+          CHECK_EQ("money received earlier can be spent later", apply_all(f, {{1, 0, 20}, {0, 1, 20}}), true);
+      }
+    hints:
+      - "Copy `balances` into a local vector and apply every transfer to the copy, checking each one first."
+      - "If a transfer is invalid, just `return false`: the caller's `balances` hasn't been touched."
+      - "After the loop, `balances.swap(copy)` commits everything at once, then return true."
 
   - title: "Challenge: load a config"
     id: cpp-errors-6

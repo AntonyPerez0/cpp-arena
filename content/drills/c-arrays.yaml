@@ -76,7 +76,7 @@ drills:
       int a[2] = {1, 2, 3};
       printf("%d\n", a[0]);
     answer: "yes"
-    why: Too many initializers is only a warning in C (the extra values are dropped). Still a bug!
+    why: The C standard forbids extra initializers, but GCC and Clang (this site's compiler) only warn and drop the extra values, so it compiles. It's still a bug, and in C++ it's an error.
   - type: boss
     prompt: |
       Write `int count_above(const int a[], int n, int limit)` returning how many elements are strictly greater than `limit`.
@@ -130,3 +130,20 @@ drills:
     hints:
       - Save a[0], shift everything left, then put the saved value at the end.
     why: Save the first element before overwriting it, shift, then place it last.
+  - type: predict
+    body: |
+      srand(7);
+      int a = rand();
+      srand(7);
+      int b = rand();
+      printf("%d\n", a == b);
+    why: The same seed restarts the same sequence, so both calls return the same number, whatever formula the C library uses.
+  - type: choice
+    prompt: A game calls `srand(time(NULL))` right before every `rand()`. What goes wrong?
+    choices:
+      - Within the same second the generator restarts at the same point, so it returns the same number again and again
+      - Nothing; reseeding makes the numbers more random
+      - rand() stops working after the second srand
+      - time(NULL) is always 0
+    answer: 1
+    why: Seed once, at the start of the program. Each srand restarts the sequence, and time(NULL) only changes once per second.

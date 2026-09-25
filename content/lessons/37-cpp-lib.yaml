@@ -436,6 +436,111 @@ steps:
       - "`auto [ptr, ec] = std::from_chars(s.data(), s.data() + s.size(), v);`"
       - "Succeed only if `ec == std::errc()` **and** ptr reached the end of s."
 
+  - title: Random numbers with <random>
+    id: cpp-lib-7
+    text: |
+      C's `rand()` works in C++ too, but modern code uses `<random>`, which separates two jobs:
+
+      - An **engine** produces raw random bits. `std::mt19937` (the "Mersenne Twister") is the usual choice: fast, with a very long period and good statistical quality.
+      - A **distribution** turns those bits into the numbers you actually want: whole numbers in a range, decimals, coin flips, bell curves.
+
+      ```cpp run
+      #include <iostream>
+      #include <random>
+
+      int main() {
+          std::mt19937 gen(42);                          // seeded: the same sequence every run
+          std::cout << gen() << " " << gen() << "\n";    // raw 32-bit numbers
+
+          std::uniform_int_distribution<int> die(1, 6);          // 1 to 6, inclusive
+          std::uniform_real_distribution<double> unit(0.0, 1.0); // from 0.0 up to (not including) 1.0
+          int good = 0;
+          for (int i = 0; i < 1000; i++) {
+              int r = die(gen);
+              double x = unit(gen);
+              if (r >= 1 && r <= 6 && x >= 0.0 && x < 1.0) good++;
+          }
+          std::cout << good << " of 1000 in range\n";
+      }
+      ```
+
+      ```output
+      1608637542 3421126067
+      1000 of 1000 in range
+      ```
+
+      ### Seeding
+
+      - A **fixed seed** (`std::mt19937 gen(42)`) gives the same sequence every run. That's what you want for tests, simulations you need to reproduce, and debugging.
+      - For different numbers each run, seed from `std::random_device`, which on mainstream platforms gets real randomness from the operating system: `std::mt19937 gen(std::random_device{}());`.
+      - Create **one** engine and pass it around by reference. Creating a new engine for every number, especially from the clock, gives poor and repeating results.
+
+      ### What's the same everywhere, and what isn't
+
+      The C++ standard defines exactly what each **engine** produces: the two numbers above are the same with every compliant compiler, and the standard even requires that the 10,000th number from a default-constructed `std::mt19937` is 4123659995. The **distributions** are only required to have the right statistical behavior; each library implements them its own way. With seed 1, `uniform_int_distribution<int>(1, 6)` rolls 6 4 5 1 2 on this site (Clang's library) but 3 6 5 6 1 with GCC's library. `std::shuffle` differs the same way. So a test can rely on a fixed seed on **one** platform, but never hard-code random results that must match across compilers.
+
+      Two more rules: never reduce with `gen() % n` (a distribution does the range correctly), and don't use `mt19937` for passwords or tokens. Its future output can be predicted after seeing enough of it.
+
+      **Your turn:** write `roll(gen, sides)`, a number from 1 to `sides` using a `uniform_int_distribution`, and `deal(n, seed)`, the numbers 0 to n - 1 in a random order, shuffled with `std::shuffle` and a `std::mt19937` seeded with `seed`, so the same seed always deals the same order.
+    seed: |
+      #include <algorithm>
+      #include <random>
+      #include <vector>
+
+      int roll(std::mt19937& gen, int sides) {
+
+      }
+
+      std::vector<int> deal(int n, unsigned seed) {
+
+      }
+    solution: |
+      #include <algorithm>
+      #include <numeric>
+      #include <random>
+      #include <vector>
+
+      int roll(std::mt19937& gen, int sides) {
+          std::uniform_int_distribution<int> dist(1, sides);
+          return dist(gen);
+      }
+
+      std::vector<int> deal(int n, unsigned seed) {
+          std::vector<int> cards(n);
+          std::iota(cards.begin(), cards.end(), 0);
+          std::mt19937 gen(seed);
+          std::shuffle(cards.begin(), cards.end(), gen);
+          return cards;
+      }
+    forbid:
+      - pattern: "rand\\(|%"
+        message: Use a distribution for the range (no rand() and no %), as the lesson explains.
+    harness: |
+      #include <algorithm>
+      int main() {
+          std::mt19937 gen(7);
+          int lo = 100, hi = 0;
+          for (int i = 0; i < 2000; i++) {
+              int r = roll(gen, 6);
+              lo = std::min(lo, r);
+              hi = std::max(hi, r);
+          }
+          CHECK("rolls stay in 1..6 and reach both ends", lo == 1 && hi == 6);
+          CHECK("roll(gen, 1) is always 1", roll(gen, 1) == 1);
+          std::vector<int> d = deal(10, 42);
+          std::vector<int> sorted = d;
+          std::sort(sorted.begin(), sorted.end());
+          CHECK_EQ("a deal holds each card once", sorted, (std::vector<int>{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}));
+          CHECK("the same seed deals the same order", deal(10, 42) == d);
+          CHECK("a different seed deals a different order", deal(10, 43) != d);
+          CHECK("it's actually shuffled", d != sorted);
+          CHECK("empty deal", deal(0, 1).empty());
+      }
+    hints:
+      - "roll: `std::uniform_int_distribution<int> dist(1, sides); return dist(gen);`"
+      - "deal: fill a vector with 0 to n - 1 (`std::iota` from `<numeric>` does it), make `std::mt19937 gen(seed);`, then `std::shuffle(v.begin(), v.end(), gen)`."
+      - "Creating the engine inside `deal` from the seed is what makes the same seed give the same deal."
+
   - title: "Challenge: a log formatter"
     id: cpp-lib-6
     text: |

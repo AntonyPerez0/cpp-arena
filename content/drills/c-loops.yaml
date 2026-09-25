@@ -153,3 +153,21 @@ drills:
     hints:
       - Loop 1..limit and count `i % k == 0`.
     why: Loop over the range and count the ones with no remainder (or just return limit / k).
+  - type: predict
+    stdin: "ab\ncd\n"
+    body: |
+      int c, n = 0;
+      while ((c = getchar()) != EOF) {
+          if (c != '\n') n++;
+      }
+      printf("%d\n", n);
+    why: getchar returns every character of the input, newlines included, until EOF. Skipping the two newlines leaves 4 letters.
+  - type: choice
+    prompt: Why must the variable that receives `getchar()` be an `int`, not a `char`?
+    choices:
+      - getchar can return every byte value plus EOF, one more value than a char can hold
+      - A char is too slow in loops
+      - getchar only returns digits
+      - It doesn't matter; a char works the same
+    answer: 1
+    why: With a char, either EOF is never recognized (where char can't be negative) or a real byte with value 255 is mistaken for EOF.

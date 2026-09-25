@@ -256,3 +256,21 @@ drills:
       Clock c;
       std::cout << c.now() << "\n";
     why: Clock is abstract (it has a pure virtual function), so it can't be instantiated.
+  - type: predict
+    pre: |
+      struct Base { virtual ~Base() = default; };
+      struct A : Base {};
+      struct B : Base {};
+    body: |
+      std::unique_ptr<Base> p = std::make_unique<A>();
+      std::cout << (dynamic_cast<A*>(p.get()) != nullptr) << (dynamic_cast<B*>(p.get()) != nullptr) << "\n";
+    why: dynamic_cast checks the object's real type at run time. It's an A, so the cast to B* gives nullptr.
+  - type: choice
+    prompt: Why do C++ style guides discourage C-style casts like `(Derived*)p`?
+    choices:
+      - They silently pick whichever conversion compiles, including dangerous ones, and they're hard to search for
+      - They're slower than static_cast
+      - They don't compile in C++
+      - They always do a run-time check
+    answer: 1
+    why: The named casts (static_cast, dynamic_cast, const_cast, reinterpret_cast) state the intent, so a risky conversion stands out in the code.

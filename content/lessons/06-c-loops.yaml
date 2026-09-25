@@ -508,3 +508,85 @@ steps:
       - stdin: "1\n"
       - stdin: "6\n"
         hidden: true
+
+  - title: One character at a time
+    id: c-loops-7
+    text: |
+      `scanf` reads numbers and words. Sometimes you want the raw text instead, one character at a time: counting lines, copying input, cleaning up spacing, or writing your own parser. `getchar()` (from `<stdio.h>`) returns the next character of input, and `putchar(c)` prints one.
+
+      When the input runs out, `getchar()` returns the special value **`EOF`** ("end of file", a negative number, usually -1). So the classic loop reads until then:
+
+      ```c run
+      #include <stdio.h>
+
+      int main(void) {
+          int c;
+          int chars = 0, lines = 0;
+          while ((c = getchar()) != EOF) {
+              chars++;
+              if (c == '\n') {
+                  lines++;
+              }
+          }
+          printf("%d characters, %d lines\n", chars, lines);
+          return 0;
+      }
+      ```
+
+      ```input
+      gg
+      wp
+      ```
+
+      ```output
+      6 characters, 2 lines
+      ```
+
+      ### How it works
+
+      - `(c = getchar()) != EOF` does two things: it stores the next character in `c`, then compares it with `EOF`. The inner parentheses are required, because `!=` binds tighter than `=`: without them, `c` would get the result of the comparison (0 or 1) instead of the character.
+      - The newline at the end of each line is a character too (`'\n'`), which is why two 2-letter lines count as 6 characters.
+      - `c` is an **`int`**, not a `char`, and this matters. `getchar()` must be able to return every possible byte value **and** `EOF`, which is one more value than a `char` can hold. With `char c`, either the loop never ends (on systems where `char` can't be negative) or a real byte with value 255 is mistaken for the end of input.
+
+      ### Where does input end?
+
+      On this site the input is everything in the input box, so it ends when that text ends. When you run a program in a terminal and type the input yourself, you signal the end with **Ctrl+D** on Linux and macOS, or **Ctrl+Z** then Enter on Windows. When input comes from a file (`./program < data.txt`), it ends at the end of the file.
+
+      ### Remembering the previous character
+
+      Many character-level tasks depend on what came **before**: a word starts where a letter follows a space, a paragraph ends at two newlines in a row. Keep the previous character in a variable and update it at the end of each pass.
+
+      **Your turn:** copy the input to the output, but replace every run of two or more spaces with a single space. Everything else, including newlines, passes through unchanged.
+    seed: |
+      #include <stdio.h>
+
+      int main(void) {
+          int c;
+
+          return 0;
+      }
+    solution: |
+      #include <stdio.h>
+
+      int main(void) {
+          int c;
+          int prev = 0;
+          while ((c = getchar()) != EOF) {
+              if (c == ' ' && prev == ' ') {
+                  continue;
+              }
+              putchar(c);
+              prev = c;
+          }
+          return 0;
+      }
+    hints:
+      - "Loop with `while ((c = getchar()) != EOF)` and print each character with `putchar(c)`."
+      - "Keep an `int prev` holding the last character you printed. Skip the character when both it and `prev` are spaces."
+      - "`continue` skips the rest of the loop body, so the `putchar` and the update of `prev` don't happen for skipped spaces."
+    tests:
+      - stdin: "gg  wp\n"
+      - stdin: "no double spaces here\n"
+      - stdin: "a   b    c\nsecond     line\n"
+      - stdin: " x  \n\n  y\n"
+        hidden: true

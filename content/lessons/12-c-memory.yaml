@@ -597,7 +597,7 @@ steps:
 
       If row 2 of 5 fails, rows 0 and 1 are already allocated. Returning `NULL` without freeing them would leak. The example handles it: free every row made so far, then the pointer array, then report failure. Handling partial failure is a big part of writing robust C.
 
-      (Another layout is one big block of `rows * cols` cells indexed as `cells[r * cols + c]`: a single allocation and faster, but less convenient.)
+      (Another layout is one big block of `rows * cols` cells indexed as `cells[r * cols + c]`: a single allocation and usually faster, but less convenient.)
 
       **Your turn:** write `make_grid` (all cells zero) and `free_grid`.
     seed: |

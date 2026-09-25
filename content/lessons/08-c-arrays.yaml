@@ -446,3 +446,127 @@ steps:
       - stdin: "0 0 0\n0 0 0\n0 0 1\n"
       - stdin: "5 -1 2\n3 3 3\n-9 4 10\n"
         hidden: true
+
+  - title: Random numbers and shuffling
+    id: c-arrays-7
+    text: |
+      Games, simulations and tests all need random numbers. C's standard library has a simple generator in `<stdlib.h>`:
+
+      - `rand()` returns a number from 0 to `RAND_MAX` (at least 32767; on this site and on Linux it's 2147483647).
+      - `srand(seed)` sets the **seed**, the starting point of the sequence.
+
+      ```c run
+      #include <stdio.h>
+      #include <stdlib.h>
+      #include <time.h>
+
+      int main(void) {
+          srand((unsigned) time(NULL));        // seed once, from the clock
+          int counts[7] = {0};
+          for (int i = 0; i < 6000; i++) {
+              int roll = rand() % 6 + 1;       // 1 to 6
+              counts[roll]++;
+          }
+          int even = 1;
+          for (int face = 1; face <= 6; face++) {
+              if (counts[face] < 800 || counts[face] > 1200) even = 0;
+          }
+          printf("every face came up about 1000 times: %s\n", even ? "yes" : "no");
+          return 0;
+      }
+      ```
+
+      ```output
+      every face came up about 1000 times: yes
+      ```
+
+      ### Pseudo-random
+
+      `rand()` isn't truly random. It's a formula that turns each number into the next, so the whole sequence is decided by the seed. That has consequences:
+
+      - Without `srand`, every run starts from seed 1 and produces **the same numbers**. That's handy for debugging, useless for a game.
+      - `srand(time(NULL))` seeds from the current time in seconds, so each run differs. Call it **once**, at the start of `main`. Calling it before every `rand()` restarts the sequence, and within the same second you'd get the same number over and over.
+      - Different C libraries use different formulas. After `srand(1)`, `rand() % 100` is 0 on this site but 83 with GCC's library on Linux. Never write a test that expects particular random values.
+      - `rand() % n` gives 0 to n - 1. When `RAND_MAX + 1` isn't a multiple of `n`, the smaller results come up very slightly more often. That's fine for a game, not for statistics.
+      - `rand()` is **not** for passwords, tokens or anything security-related: its output is predictable. Operating systems provide secure sources for that.
+
+      ### Shuffling fairly
+
+      To shuffle an array, the correct algorithm is the **Fisher-Yates shuffle**. Walk from the last element down to the second; for each position `i`, pick a random position `j` from 0 to `i` (inclusive) and swap the two:
+
+      ```
+      for i from n - 1 down to 1:
+          j = random number from 0 to i
+          swap a[i] and a[j]
+      ```
+
+      Every ordering comes out exactly equally likely. The tempting shortcut, swapping each element with a random position anywhere in the array, is **biased**: for 3 elements it makes 3 × 3 × 3 = 27 equally likely choices, which can't be split evenly among the 6 possible orders, so some orders come up more often than others.
+
+      **Your turn:** write `roll(sides)`, returning a random number from 1 to `sides`, and `shuffle(a, n)`, a Fisher-Yates shuffle of the `n` elements of `a`. The tests seed the generator themselves and check that every order of a 3-element array is equally likely, so the biased shortcut won't pass.
+    seed: |
+      #include <stdlib.h>
+
+      int roll(int sides) {
+
+      }
+
+      void shuffle(int a[], int n) {
+
+      }
+    solution: |
+      #include <stdlib.h>
+
+      int roll(int sides) {
+          return rand() % sides + 1;
+      }
+
+      void shuffle(int a[], int n) {
+          for (int i = n - 1; i > 0; i--) {
+              int j = rand() % (i + 1);
+              int tmp = a[i];
+              a[i] = a[j];
+              a[j] = tmp;
+          }
+      }
+    forbid:
+      - pattern: "srand"
+        message: Don't seed inside your functions; the program (here, the tests) seeds once at the start.
+    harness: |
+      int main(void) {
+          srand(2024);
+          int lo = 100, hi = 0;
+          for (int i = 0; i < 1000; i++) {
+              int r = roll(6);
+              if (r < lo) lo = r;
+              if (r > hi) hi = r;
+          }
+          CHECK_INT("roll(6) is never below 1", lo, 1);
+          CHECK_INT("roll(6) is never above 6", hi, 6);
+          int always_one = 1;
+          for (int i = 0; i < 100; i++) if (roll(1) != 1) always_one = 0;
+          CHECK("roll(1) is always 1", always_one);
+          int a[5] = {1, 2, 3, 4, 5};
+          shuffle(a, 5);
+          int seen[6] = {0}, perm = 1;
+          for (int i = 0; i < 5; i++) {
+              if (a[i] < 1 || a[i] > 5 || seen[a[i]]++) perm = 0;
+          }
+          CHECK("shuffle keeps every value exactly once", perm);
+          int one[1] = {7};
+          shuffle(one, 1);
+          CHECK_INT("a single element stays put", one[0], 7);
+          int counts[6] = {0};
+          for (int t = 0; t < 60000; t++) {
+              int b[3] = {0, 1, 2};
+              shuffle(b, 3);
+              counts[b[0] * 2 + (b[1] > b[2])]++;
+          }
+          int fair = 1;
+          for (int k = 0; k < 6; k++) if (counts[k] < 9000 || counts[k] > 11000) fair = 0;
+          CHECK("all 6 orders of 3 items come up equally often", fair);
+          return 0;
+      }
+    hints:
+      - "roll: `rand() % sides` is 0 to sides - 1, so add 1."
+      - "shuffle: loop `i` from `n - 1` down to 1, pick `j = rand() % (i + 1)`, and swap `a[i]` with `a[j]`."
+      - "`j` must range over 0 to `i` only, not the whole array; that's what makes it fair."

@@ -105,6 +105,13 @@ steps:
 
       `strlen` counts the characters of text currently stored (10 here). `sizeof greeting` is the size of the whole array (40), no matter what's in it.
 
+      ### More of `<string.h>`
+
+      - `strncpy(dst, src, n)` looks like a safe `strcpy`, but when `src` has `n` or more characters it does **not** add the `'\0'`, so the result isn't a string. Prefer `snprintf`.
+      - `strchr(s, c)` and `strstr(s, sub)` find a character or a substring. They return a pointer to it, or `NULL` if it isn't there (pointers are the next module).
+      - `strtok` splits a string on separators, but it writes `'\0'`s into your string and remembers its position in a hidden variable, so it can't work on a string literal or on two strings at once.
+      - `memset`, `memcpy` and `memmove` work on raw bytes of any type. `memcpy` must not be used when the source and destination overlap; `memmove` handles overlap correctly.
+
       **Your turn:** read two words and print them joined with a `-` between, followed by the total length. Input `de dust2` prints `de-dust2 8`.
     seed: |
       #include <stdio.h>

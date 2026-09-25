@@ -58,7 +58,7 @@ drills:
       const int v[] = {1, 2, 3};
       printf("%d\n", total(v, 3));
     answer: "yes"
-    why: "It compiles in C, but only with a warning about discarding const. total only reads a, so its parameter should be `const int *`."
+    why: "C requires a diagnostic here, but GCC and Clang only warn about discarding const, so it compiles. total only reads a, so its parameter should be `const int *`."
   - type: predict
     pre: |
       int main2(int argc, char **argv) {
@@ -109,3 +109,26 @@ drills:
         allowEmpty: true
     hints:
       - "Check `argc != 2` first; print the usage with `fprintf(stderr, ...)` and `return 2;`"
+  - type: predict
+    pre: |
+      #include <stdarg.h>
+      int sum(int count, ...) {
+          va_list args;
+          va_start(args, count);
+          int s = 0;
+          for (int i = 0; i < count; i++) s += va_arg(args, int);
+          va_end(args);
+          return s;
+      }
+    body: |
+      printf("%d %d\n", sum(3, 1, 2, 3), sum(0));
+    why: The first argument says how many extras follow. With a count of 0, va_arg is never called and the sum stays 0.
+  - type: choice
+    prompt: A variadic function is passed a `float`. How must it read it?
+    choices:
+      - "`va_arg(args, double)`, because a float passed through `...` is promoted to double"
+      - "`va_arg(args, float)`"
+      - "`va_arg(args, int)`"
+      - It can't receive floats at all
+    answer: 1
+    why: Extra arguments go through the default promotions (char and short become int, float becomes double). Reading one as the wrong type is undefined behavior.
