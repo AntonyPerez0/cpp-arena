@@ -1,7 +1,7 @@
 id: cpp-vector
 title: vector and string
 lang: cpp
-phase: "C++: Standard Library"
+phase: "C++: A Better C"
 summary: std::vector, the dynamic array you'll use every day, and the most useful std::string operations.
 steps:
   - title: std::vector basics
@@ -39,10 +39,10 @@ steps:
       - `std::vector<T>` holds elements of type `T`: `std::vector<int>`, `std::vector<std::string>`. The `<T>` is a **template argument** (templates get their own module).
       - `push_back(x)` appends; `pop_back()` removes the last element.
       - `size()`, `empty()`, `front()`, `back()`.
-      - `v[i]` indexes without checking, like a C array. `v.at(i)` checks and stops the program with an error if `i` is out of range.
+      - `v[i]` indexes without checking, like a C array. `v.at(i)` checks, and reports an out-of-range error instead of reading garbage (in standard C++ it throws an exception, which ends the program unless something catches it).
       - `std::vector<int> zeros(5)` makes 5 zero-initialized elements; `(3, 7)` makes three 7s. Braces `{3, 7}` would instead mean "the two elements 3 and 7".
 
-      Internally, a vector keeps a heap buffer with a **capacity** and doubles it when full, exactly like your `realloc` exercise. The **Watch it run** link shows the buffer moving to a bigger heap block as it grows.
+      Internally, a vector keeps a heap buffer with a **capacity** and grows it by a constant factor (GCC's library doubles it) when full, exactly like your `realloc` exercise. The **Watch it run** link shows the buffer moving to a bigger heap block as it grows.
 
       **Your turn:** fill in the blanks.
     fill: |
@@ -237,7 +237,7 @@ steps:
       15
       ```
 
-      ### Reading the constructor
+      ### Reading the declaration
 
       `std::vector<std::vector<int>> grid(rows, std::vector<int>(cols, 0))` means: `rows` copies of "a vector of `cols` zeros". Each row is its own independent vector.
 
@@ -324,7 +324,7 @@ steps:
 
       ### Store find's result as size_t
 
-      `find` returns a `std::size_t`. Storing it in an `int` loses the ability to compare with `npos` correctly. Use `std::size_t` (or `auto`).
+      `find` returns a `std::size_t`. Storing it in an `int` is a bad habit: comparing that `int` with `npos` only works through a conversion quirk, the compiler warns about mixing signed and unsigned, and it breaks for very long strings. Use `std::size_t` (or `auto`).
 
       **Your turn:** write `std::string map_name(const std::string& s)` that strips a prefix ending in the first `_`. `"de_dust2"` becomes `"dust2"`; a string without `_` is returned unchanged.
     seed: |

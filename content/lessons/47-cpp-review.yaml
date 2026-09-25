@@ -503,7 +503,7 @@ steps:
 
       ### The four checks
 
-      - **Overflow**: can an intermediate result exceed the type's range? An `int` holds about ±2.1 billion. `a * 100` overflows when `a` is only 22 million. Signed overflow is undefined behavior, not just a wrong number. Do the math in a wider type (`long long`) **before** the operation, not after.
+      - **Overflow**: can an intermediate result exceed the type's range? An `int` holds about ±2.1 billion. `a * 100` overflows once `a` is just over 21 million. Signed overflow is undefined behavior, not just a wrong number. Do the math in a wider type (`long long`) **before** the operation, not after.
       - **Division by zero**: is the divisor ever 0? For `int` it's undefined behavior (often a crash); for `double` it gives `inf` or `nan`.
       - **Unsigned wraparound**: `size_t` can't be negative. `v.size() - n` with `n > v.size()` wraps to a gigantic number.
       - **Empty input**: what does the function return for no data? The spec usually says.

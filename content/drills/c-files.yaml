@@ -77,7 +77,7 @@ drills:
       printf("%ld\n", size_of("missing.txt"));
     fix: "if (f == NULL) return -1; while (fgetc(f) != EOF) n++;"
     ub: true
-    why: fopen can fail. Using the NULL handle crashes; check it first.
+    why: fopen can fail. Passing the NULL handle to fgetc is undefined behavior, usually a crash; check it first.
   - type: compiles
     body: |
       FILE f = fopen("x.txt", "w");

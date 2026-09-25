@@ -41,7 +41,7 @@ WIFSIGNALED(status) && WTERMSIG(status);    // killed by a signal
 
 A **pipe** is a one-way channel: `pipe(fds)` gives a read end and a write end. `dup2(fds[1], STDOUT_FILENO)` in the child makes its stdout go into the pipe. That's exactly how shells implement `a | b`.
 
-Between `fork` and `exec` in the child, only call *async-signal-safe* functions (`dup2`, `close`, `execvp`, `_exit`). No memory allocation, no `std::cout`.
+Between `fork` and `exec` in the child, keep to plain system calls like `dup2`, `close`, `execvp` and `_exit`. If another thread was holding a lock (inside `malloc`, say) at the moment of the `fork`, that lock stays locked forever in the child. So no memory allocation and no `std::cout` there.
 
 ### TCP sockets
 

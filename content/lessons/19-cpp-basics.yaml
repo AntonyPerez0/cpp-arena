@@ -7,7 +7,7 @@ steps:
   - title: Hello, C++
     id: cpp-basics-1
     text: |
-      Welcome to C++. It was created in the 1980s by Bjarne Stroustrup as "C with classes", and almost everything you learned in C still works: variables, `if`, loops, functions, pointers, arrays and structs. What C++ adds are tools that make programs **safer** and **shorter**: classes that clean up after themselves, a huge standard library (strings, dynamic arrays, maps, algorithms), references, templates and more.
+      Welcome to C++. Bjarne Stroustrup started it in 1979 as "C with Classes" and renamed it C++ in 1983, and almost everything you learned in C still works: variables, `if`, loops, functions, pointers, arrays and structs. What C++ adds are tools that make programs **safer** and **shorter**: classes that clean up after themselves, a huge standard library (strings, dynamic arrays, maps, algorithms), references, templates and more.
 
       The first difference you'll notice is output. Instead of `printf` with format specifiers, C++ uses **streams**:
 
@@ -151,7 +151,7 @@ steps:
 
       ### One trap
 
-      `"de_" + map` works because one side is a `std::string`. But `"de_" + "dust2"` (two plain literals) doesn't compile: literals are C-style char arrays, and `+` on those means pointer arithmetic, not concatenation. Make sure at least one side of the first `+` is a `std::string`.
+      `"de_" + map` works because one side is a `std::string`. But `"de_" + "dust2"` (two plain literals) doesn't compile (`invalid operands to binary expression`): literals are C-style char arrays, which turn into pointers, and C++ has no `+` that joins two pointers. Make sure at least one side of the first `+` is a `std::string`.
 
       **Your turn:** read a first name and a last name, then print `Hello, First Last! (N letters)` where N is the number of letters in both names (not counting the space).
     seed: |

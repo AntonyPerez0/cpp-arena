@@ -59,7 +59,7 @@ steps:
 
       ### The `=` versus `==` trap
 
-      `=` **assigns** and `==` **compares**. `if (x = 5)` doesn't check whether `x` is 5: it stores 5 in `x`, and since 5 is non-zero the condition is always true. The compiler warns about this (`suggest parentheses around assignment used as truth value`); when you see that warning, you almost certainly meant `==`.
+      `=` **assigns** and `==` **compares**. `if (x = 5)` doesn't check whether `x` is 5: it stores 5 in `x`, and since 5 is non-zero the condition is always true. The compiler warns about this (`using the result of an assignment as a condition without parentheses`); when you see that warning, you almost certainly meant `==`.
 
       **Your turn:** read a health value and print `alive` if it's greater than 0, otherwise `dead`.
     fill: |

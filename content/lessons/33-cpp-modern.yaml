@@ -9,7 +9,7 @@ steps:
     text: |
       Many functions sometimes have **no answer**: searching for something that isn't there, parsing text that isn't a number. Old code signals that with a magic value like `-1`, `0` or `nullptr`, and every caller has to know (and remember) which value means "nothing". Worse, sometimes `-1` is a perfectly valid answer.
 
-      `std::optional<T>` (from `<optional>`) makes "maybe" part of the type. It holds either a `T` or nothing, and the caller can't use the value without dealing with the "nothing" case.
+      `std::optional<T>` (from `<optional>`) makes "maybe" part of the type. It holds either a `T` or nothing, so the "nothing" case is visible right in the function's signature and hard to overlook.
 
       ```cpp run
       #include <iostream>
@@ -196,7 +196,7 @@ steps:
   - title: std::string_view
     id: cpp-modern-3
     text: |
-      A function that only **reads** a string often takes `const std::string&`. That works, but when a caller passes a literal like `"hello"`, a temporary `std::string` must be built first, allocating and copying. And taking a piece of a string with `substr` makes yet another copy.
+      A function that only **reads** a string often takes `const std::string&`. That works, but when a caller passes a literal like `"hello"`, a temporary `std::string` must be built first, copying the characters (and allocating heap memory if the text is long). And taking a piece of a string with `substr` makes yet another copy.
 
       `std::string_view` (from `<string_view>`) is a lightweight **view**: just a pointer to some characters and a length. It never owns or copies the text. It accepts literals, `std::string`s and parts of either for free.
 
@@ -240,7 +240,7 @@ steps:
 
       - `substr`, `remove_prefix` and `remove_suffix` on a view only adjust its pointer and length. Nothing is copied, so they're O(1).
       - A view has most of `std::string`'s read-only interface: `size`, `[]`, `find`, `rfind`, `starts_with`, `ends_with`, `substr`, and range-for.
-      - Take `std::string_view` **by value**. It's two words, cheaper to copy than a reference is to follow.
+      - Take `std::string_view` **by value**. It's just a pointer and a length, so copying it is as cheap as passing a reference.
 
       ### The danger: views don't keep text alive
 

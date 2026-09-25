@@ -40,7 +40,7 @@ steps:
       ```
 
       - Asserts are for **programmer** mistakes. Never use them to check user input: a user typing a bad value shouldn't crash the program.
-      - Release builds often define `NDEBUG`, which removes every `assert`. So never put code with side effects inside one: `assert(v.pop_back(), ...)` would vanish in release.
+      - Release builds often define `NDEBUG`, which removes every `assert`. So never put code with side effects inside one: in `assert(save_file() == 0)`, the file would never be saved in a release build. Call the function first, then assert on its result.
 
       ### Exceptions, and why this site doesn't use them
 
@@ -54,7 +54,7 @@ steps:
       }
       ```
 
-      **This site's compiler targets WebAssembly without exception support**, so `throw` won't compile here. That's a real-world situation too: games, embedded systems and many large codebases (Google's, for example) build with exceptions turned off. The rest of this module covers the exception-free patterns they use.
+      **This site's compiler targets WebAssembly without exception support**, so `throw` won't compile here. That's a real-world situation too: many games, embedded systems and large codebases build with exceptions turned off or avoid them by policy (Google's C++ style guide, for example, doesn't use them). The rest of this module covers the exception-free patterns they use.
 
       **Your turn:** add an `assert` that `n` is positive. With a valid call the program prints `ok`.
     fill: |
@@ -150,7 +150,7 @@ steps:
   - title: optional for "maybe"
     id: cpp-errors-3
     text: |
-      When the only possible failure is "there's no result", `std::optional` says it right in the return type: the function returns **either** a value **or** nothing. There's no separate out-parameter, and the caller can't use the value without facing the empty case.
+      When the only possible failure is "there's no result", `std::optional` says it right in the return type: the function returns **either** a value **or** nothing. There's no separate out-parameter, and the empty case is part of the type, so callers see it and check it (reading an empty optional with `*` is still a bug).
 
       ```cpp run
       #include <iostream>
@@ -183,7 +183,7 @@ steps:
       | | status code | `std::optional` |
       |---|---|---|
       | Result delivered | out-parameter | return value |
-      | Caller forgets to check | wrong data used silently | the value simply isn't there to use |
+      | Caller forgets to check | wrong data used silently | the missing case is spelled out in the type, so it's hard to forget |
       | Says why it failed | no | no |
 
       ### Why not return -1?

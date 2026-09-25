@@ -104,7 +104,7 @@ steps:
 
       A swap function is the classic example: it must change **two** of the caller's variables, which `return` can't do. The body is the same three-step swap you used with arrays (save one value in a temporary, copy the other over it, put the saved value in the second), just done through `*a` and `*b`.
 
-      Calling it requires addresses: `swap(&x, &y)`. Passing `x` and `y` without `&` is a compile error, because an `int` isn't an `int *`.
+      Calling it requires addresses: `swap(&x, &y)`. Passing `x` and `y` without `&` is rejected here (`incompatible integer to pointer conversion`), because an `int` isn't an `int *`. Some older compilers only warn about it, but the program would then treat the numbers as addresses, so always treat that message as an error.
 
       **Your turn:** write `void swap(int *a, int *b)` that exchanges the two values.
     seed: |
@@ -282,7 +282,7 @@ steps:
 
       ### Never dereference NULL
 
-      Following a `NULL` pointer is undefined behavior. On desktop operating systems it immediately crashes the program with a **segmentation fault** (in the browser you'll see a crash message). So whenever a pointer **might** be `NULL`, check it before using it:
+      Following a `NULL` pointer is undefined behavior. On desktop operating systems it usually crashes the program immediately with a **segmentation fault**. But undefined means *anything* can happen: in WebAssembly, which runs your code on this site, address 0 is ordinary memory, so reading through `NULL` here may quietly give you 0 instead of crashing. The same bug can crash on one machine and silently produce wrong answers on another, which is exactly why you must never rely on it. Whenever a pointer **might** be `NULL`, check it before using it:
 
       ```c run
       #include <stdio.h>
@@ -377,7 +377,7 @@ steps:
 
       ### String literals are read-only
 
-      A literal like `"programming in c"` is stored in read-only memory. You can point at it with a `const char *`, but you must never write through that pointer. Declaring parameters as `const char *` lets callers pass literals safely, and the compiler will stop you if the function tries to modify them.
+      A literal like `"programming in c"` must never be modified: writing to it is undefined behavior. On most desktop systems literals live in read-only memory, so an attempt crashes; on others it silently misbehaves. You can point at a literal with a `const char *`, and the `const` makes the compiler stop you from writing through it. Declaring parameters as `const char *` lets callers pass literals safely, and the compiler will stop you if the function tries to modify them.
 
       **Your turn:** write `int count_char(const char *s, char ch)` that returns how many times `ch` appears in `s`.
     seed: |
@@ -522,7 +522,7 @@ steps:
 
       ### Returning a pointer into the input
 
-      A search can return a **pointer to the element it found**, instead of an index, and `NULL` for "not found". If the input was `const`, the returned pointer must be `const` too; otherwise the caller could use it to modify data that was promised to be read-only, and the compiler rejects that (`discards 'const' qualifier`).
+      A search can return a **pointer to the element it found**, instead of an index, and `NULL` for "not found". If the input was `const`, the returned pointer should be `const` too; otherwise the caller could use it to modify data that was promised to be read-only. Returning a `const char *` as a plain `char *` makes the compiler warn (`discards qualifiers`); in C++ it's an outright error.
 
       Note that `s++` is allowed above: `s` is a pointer to const chars, and moving the pointer doesn't change any chars.
 

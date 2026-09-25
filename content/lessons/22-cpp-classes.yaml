@@ -115,7 +115,7 @@ steps:
 
       ### Why this matters
 
-      Outside code can't write `t.target_ = 45;` (it's a compile error: `'int Thermostat::target_' is private`). The only way to change the temperature is through `set`, which enforces the 10 to 30 rule. The rule lives in **one** place, so it can't be broken by accident anywhere in a million-line program. This is **encapsulation**, the central idea of classes.
+      Outside code can't write `t.target_ = 45;` (it's a compile error: `'target_' is a private member of 'Thermostat'`). The only way to change the temperature is through `set`, which enforces the 10 to 30 rule. The rule lives in **one** place, so it can't be broken by accident anywhere in a million-line program. This is **encapsulation**, the central idea of classes.
 
       ### Conventions
 
@@ -286,7 +286,7 @@ steps:
       hello! (6)
       ```
 
-      `show` receives a `const Label&`, so it can call `text()` and `length()` (both `const`) but not `shout()`. If `text()` weren't marked `const`, the call inside `show` wouldn't compile, with an error like `passing 'const Label' as 'this' argument discards qualifiers`. That message means: you called a non-const method on a const object.
+      `show` receives a `const Label&`, so it can call `text()` and `length()` (both `const`) but not `shout()`. If `text()` weren't marked `const`, the call inside `show` wouldn't compile, with an error like `'this' argument to member function 'text' has type 'const Label', but function is not marked const`. (GCC words it as `passing 'const Label' as 'this' argument discards qualifiers`.) Both mean: you called a non-const method on a const object.
 
       Inside a `const` member function, the compiler also stops you from modifying members, so the promise is checked both ways.
 
@@ -597,7 +597,7 @@ steps:
 
       ### Order of initialization
 
-      Members are initialized in the order they're **declared in the class**, regardless of the order in the list. If one member's initializer uses another member, the used one must be declared **earlier**. `-Wall` warns when the list order differs from the declaration order (`-Wreorder`), because it hides exactly this bug.
+      Members are initialized in the order they're **declared in the class**, regardless of the order in the list. If one member's initializer uses another member, the used one must be declared **earlier**. `-Wall` warns when the list order differs from the declaration order (`field 'a_' will be initialized after field 'b_'`), because it hides exactly this bug.
 
       **Your turn:** give `Player` a constructor `Player(const std::string& name, int max_hp)` that sets the const `name_`, sets `max_hp_`, and starts `hp_` at `max_hp_`. Use the initializer list for all three.
     seed: |

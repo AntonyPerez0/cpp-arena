@@ -670,7 +670,7 @@ steps:
       class EventBus {
       public:
           int on(const std::string& event, std::function<void(const std::string&)> fn) {
-              handlers_.push_back({++last_id_, event, std::move(fn)});
+              handlers_.push_back({++last_id_, event, fn});
               return last_id_;
           }
           bool off(int id) {

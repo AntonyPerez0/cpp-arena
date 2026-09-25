@@ -26,7 +26,7 @@ steps:
 
       Line by line:
 
-      - `#include <stdio.h>` pulls in the **st**andar**d** **i**nput/**o**utput library. It tells the compiler what `printf` is. Without it the compiler doesn't know the name and refuses to build.
+      - `#include <stdio.h>` pulls in the **st**andar**d** **i**nput/**o**utput library. It tells the compiler what `printf` is. Without it the compiler doesn't know the name and reports an error.
       - `int main(void)` starts a **function** called `main`. Every C program begins running at `main`, no matter how big it is. `int` says it gives back a whole number when it finishes, and `(void)` says it takes no inputs.
       - The curly braces `{ }` hold the function's **body**: the instructions that run, in order.
       - `printf("Hi!\n");` calls the `printf` function to print text. The text goes inside double quotes. `\n` is a *newline*: it ends the line, like pressing Enter.
@@ -34,7 +34,7 @@ steps:
 
       ### Common mistakes
 
-      - **Spelling and capitals matter.** `Printf` or `print` are different names, and the compiler will say something like `implicit declaration of function 'print'`.
+      - **Spelling and capitals matter.** `Printf` or `print` are different names, and the compiler will say something like `call to undeclared function 'print'`.
       - **Forgetting `#include <stdio.h>`** gives a similar error about `printf`.
       - **Forgetting the `;`** at the end of a statement. You'll practice reading that error in step 5.
 
@@ -77,7 +77,7 @@ steps:
 
       ### Why exact output matters
 
-      The tests on this site compare your program's output with the expected output character by character (ignoring only trailing spaces at the ends of lines). Real programs work the same way: another program reading your output, or a grader at work, won't guess what you meant. `I am learning c` is not the same as `I am learning C`.
+      The tests on this site compare your program's output with the expected output character by character (ignoring only spaces at the ends of lines and blank lines at the very end). Real programs work the same way: another program reading your output, or a grader at work, won't guess what you meant. `I am learning c` is not the same as `I am learning C`.
 
       **Your turn:** make the program print exactly:
 
@@ -243,14 +243,14 @@ steps:
       When your code isn't valid C, the compiler stops and reports an error. Learning to read these messages is one of the most useful skills in programming. A typical error looks like this:
 
       ```text
-      main.c:4:25: error: expected ';' before 'return'
+      main.c:4:25: error: expected ';' after expression
       ```
 
       - `main.c` is the file, `4` is the **line** and `25` the **column** where the compiler noticed the problem.
       - `error:` means it can't continue. A `warning:` means the code compiles but is suspicious; take warnings seriously too.
       - The message describes what it expected.
 
-      One important detail: the compiler reports where it **noticed** the problem, which is often the line *after* the real mistake. A missing semicolon at the end of line 3 is usually reported on line 4, because that's where the compiler realized the statement didn't end.
+      One important detail: the compiler reports where it **noticed** the problem, which isn't always where the mistake is. For a missing semicolon, modern compilers point right at the spot where the `;` belongs. But for other mistakes, such as a missing closing quote or `}`, the error can appear a line or more *later*, because that's where the compiler realized something was wrong. If the line it names looks fine, look at the lines just above it.
 
       When there are several errors, **fix the first one first**. One mistake can confuse the compiler into reporting extra errors that disappear once the first is fixed.
 

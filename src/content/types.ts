@@ -81,6 +81,8 @@ export type Topic = {
   example: string;
   stdin: string;
   output: string;
+  /** Uses threads: compiled and run with GCC at build time, since the browser compiler has none. */
+  native?: boolean;
 };
 
 export type Content = {

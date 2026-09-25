@@ -107,7 +107,7 @@ steps:
       for (size_t i = n - 1; i >= 0; i--)   /* i >= 0 is ALWAYS true */
       ```
 
-      When `i` is 0 and gets decremented, it wraps to the maximum value instead of becoming -1, so the condition never fails. (If `n` is 0, `n - 1` is already the maximum.) The compiler even warns: `comparison of unsigned expression >= 0 is always true`.
+      When `i` is 0 and gets decremented, it wraps to the maximum value instead of becoming -1, so the condition never fails. (If `n` is 0, `n - 1` is already the maximum.) GCC warns about this with `-Wextra` (`comparison of unsigned expression in '>= 0' is always true`), but the compiler on this site doesn't, so you have to recognize the pattern yourself.
 
       The idiomatic fix, used in the example, tests **before** decrementing: `for (size_t i = n; i-- > 0; )`. The condition uses the old value of `i` (is it above 0?) and then decrements, so the body sees n-1 down to 0, and it's correct even when n is 0.
 
@@ -355,7 +355,7 @@ steps:
       1
       ```
 
-      The first line asks "is 3 greater than -1?" and gets **false**, because -1 converted to `size_t` is the largest possible value. The second line handles the negative case **first**, before any conversion happens, and gets the right answer. The third converts the unsigned side to `int` instead, which is safe here because 1 fits.
+      The first line asks "is 3 greater than -1?" and gets **false**, because -1 converted to `size_t` is the largest possible value. (The example writes the conversion out as `(size_t)n` so it compiles without warnings, but plain `len > n` does exactly the same conversion behind your back.) The second line handles the negative case **first**, before any conversion happens, and gets the right answer. The third converts the unsigned side to `int` instead, which is safe here because 1 fits.
 
       ### Where this bites
 

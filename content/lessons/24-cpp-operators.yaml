@@ -26,7 +26,8 @@ steps:
           Money coffee{350};
           Money cake{425};
           Money bill = coffee * 2 + cake;
-          std::cout << bill.cents / 100 << "." << bill.cents % 100 << "\n";
+          long long c = bill.cents % 100;
+          std::cout << bill.cents / 100 << "." << (c < 10 ? "0" : "") << c << "\n";   // pad cents to 2 digits
           std::cout << (cake < coffee) << "\n";
       }
       ```
@@ -366,8 +367,6 @@ steps:
       - It must be transitive: `a < b` and `b < c` means `a < c`.
 
       Breaking these (for example using `<=`) is undefined behavior: sort can misorder elements, loop forever, or crash.
-
-      (`std::vector` and `begin()`/`end()` are covered properly in the next module.)
 
       **Your turn:** define `operator<` for `Player` so sorting puts the **most kills first**, and for equal kills, the name alphabetically first.
     seed: |

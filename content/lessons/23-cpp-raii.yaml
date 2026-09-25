@@ -444,9 +444,9 @@ steps:
       disconnect 7
       ```
 
-      Now `Connection d = c;` is a compile error: `use of deleted function`. The mistake is caught before the program ever runs. Passing by reference (`const Connection&`) still works, because no copy is made.
+      Now `Connection d = c;` is a compile error: `call to deleted constructor of 'Connection'`. The mistake is caught before the program ever runs. Passing by reference (`const Connection&`) still works, because no copy is made.
 
-      ### Two assignment operators
+      ### Two copy operations
 
       There are two copy operations to delete:
 
@@ -455,7 +455,7 @@ steps:
 
       `std::is_copy_constructible_v<T>` (from `<type_traits>`) asks the compiler, at compile time, whether a type can be copied. It's how the tests on this step check your class.
 
-      Non-copyable types can still be **moved** (handing over ownership), which is covered in the move semantics module. `std::unique_ptr` is the standard library's best-known non-copyable type.
+      A non-copyable type can still be made **movable** (able to hand over ownership) by writing move operations, which the move semantics module covers. But note that declaring the copy operations, even as `= delete`, stops the compiler from generating move operations for you, so `Connection` above can't be moved either. `std::unique_ptr` is the standard library's best-known type that can't be copied but can be moved.
 
       **Your turn:** make `Lock` non-copyable. The tests check it at compile time with `std::is_copy_constructible_v`.
     seed: |
@@ -781,7 +781,7 @@ steps:
 
       class ScopeGuard {
       public:
-          explicit ScopeGuard(std::function<void()> f) : f_(std::move(f)) {}
+          explicit ScopeGuard(std::function<void()> f) : f_(f) {}
           ~ScopeGuard() {
               if (active_ && f_) f_();
           }

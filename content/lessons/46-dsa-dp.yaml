@@ -1,0 +1,642 @@
+id: dsa-dp
+title: Dynamic programming
+lang: cpp
+phase: "Data Structures and Algorithms"
+summary: Solve each small problem once and build big answers from small ones. Memoization, bottom-up tables, coin change, paths through a grid, longest common subsequence, knapsack, and edit distance.
+steps:
+  - title: Memoization
+    id: dsa-dp-1
+    text: |
+      Backtracking explores every possibility. Often, though, the same sub-question comes up again and again inside that search, and answering it from scratch every time is what makes the search slow. **Dynamic programming** (DP) is the fix: answer each distinct sub-question **once**, store the answer, and look it up the next time.
+
+      The classic example is the Fibonacci numbers: 0, 1, 1, 2, 3, 5, 8, 13, ..., where each number is the sum of the two before it. The definition translates straight into recursion, and that recursion is terribly slow:
+
+      ```cpp run
+      #include <iostream>
+      #include <vector>
+
+      long long calls = 0;
+
+      long long fib_slow(int n) {
+          calls++;
+          if (n < 2) return n;
+          return fib_slow(n - 1) + fib_slow(n - 2);
+      }
+
+      long long fib_memo(int n, std::vector<long long>& memo) {
+          calls++;
+          if (n < 2) return n;
+          if (memo[n] != -1) return memo[n];        // solved before: reuse the answer
+          memo[n] = fib_memo(n - 1, memo) + fib_memo(n - 2, memo);
+          return memo[n];
+      }
+
+      int main() {
+          long long a = fib_slow(30);
+          std::cout << "slow: fib(30) = " << a << " after " << calls << " calls\n";
+          calls = 0;
+          std::vector<long long> memo(31, -1);       // -1 means "not solved yet"
+          long long b = fib_memo(30, memo);
+          std::cout << "memo: fib(30) = " << b << " after " << calls << " calls\n";
+      }
+      ```
+
+      ```output
+      slow: fib(30) = 832040 after 2692537 calls
+      memo: fib(30) = 832040 after 59 calls
+      ```
+
+      ### Why the slow version is slow
+
+      `fib_slow(30)` calls `fib_slow(29)` and `fib_slow(28)`. But `fib_slow(29)` **also** calls `fib_slow(28)`, and each of those calls `fib_slow(27)`, and so on. The same few values are recomputed an enormous number of times: the call count grows about 1.6 times with every step of n. `fib_slow(50)` would take about 40 billion calls.
+
+      There are only 31 **different** questions here (`fib(0)` to `fib(30)`). **Memoization** stores each answer the first time it's computed, in a `memo` table indexed by the question. After that, asking again costs one lookup. Every value is computed once, so the work drops from exponential to linear: 59 calls.
+
+      ### When does this work?
+
+      DP applies when a problem has two properties:
+
+      - **Overlapping subproblems**: the recursion asks the same smaller questions many times.
+      - **Optimal substructure**: the answer to a problem can be built from the answers to smaller versions of it.
+
+      The recipe for memoization is always the same: write the plain recursive solution, add a table keyed by the function's arguments, check it at the top of the function, and fill it before returning.
+
+      **Your turn:** a staircase has `n` steps, and you can climb 1, 2 or 3 steps at a time. Write `ways(n)`, the number of different sequences of moves that reach the top. There's 1 way to climb 0 steps (do nothing), and for example 4 ways to climb 3 (`1+1+1`, `1+2`, `2+1`, `3`). `n` goes up to 60, where plain recursion would never finish, so memoize.
+    seed: |
+      long long ways(int n) {
+
+      }
+    solution: |
+      #include <vector>
+
+      long long count(int n, std::vector<long long>& memo) {
+          if (n < 0) return 0;
+          if (n == 0) return 1;
+          if (memo[n] != -1) return memo[n];
+          memo[n] = count(n - 1, memo) + count(n - 2, memo) + count(n - 3, memo);
+          return memo[n];
+      }
+
+      long long ways(int n) {
+          std::vector<long long> memo(n + 1, -1);
+          return count(n, memo);
+      }
+    harness: |
+      int main() {
+          CHECK_EQ("0 steps: do nothing", ways(0), 1LL);
+          CHECK_EQ("1 step", ways(1), 1LL);
+          CHECK_EQ("2 steps: 1+1 or 2", ways(2), 2LL);
+          CHECK_EQ("3 steps", ways(3), 4LL);
+          CHECK_EQ("4 steps", ways(4), 7LL);
+          CHECK_EQ("10 steps", ways(10), 274LL);
+          CHECK_EQ("50 steps", ways(50), 10562230626642LL);
+          CHECK_EQ("60 steps (needs memoization)", ways(60), 4680045560037375LL);
+      }
+    hints:
+      - "The last move was 1, 2 or 3 steps, so `ways(n) = ways(n - 1) + ways(n - 2) + ways(n - 3)`, with `ways(0) = 1` and 0 ways for negative n."
+      - "Use a helper that takes a `std::vector<long long>& memo` of size `n + 1`, filled with -1."
+      - "At the top of the helper, if `memo[n] != -1`, return it. Otherwise compute, store in `memo[n]`, and return."
+
+  - title: Bottom-up tables and coin change
+    id: dsa-dp-2
+    text: |
+      Memoization works top-down: start from the big question and recurse, caching as you go. The other way to do DP is **bottom-up** (also called tabulation): fill the table starting from the smallest questions, in an order where everything an entry needs is already filled in. No recursion at all, so there's no risk of running out of stack, and it's usually a bit faster.
+
+      For Fibonacci, bottom-up is a simple loop: `f[0] = 0; f[1] = 1;` then `f[i] = f[i - 1] + f[i - 2]` for `i` from 2 up.
+
+      ### When greedy fails
+
+      Paying an amount with as few coins as possible sounds easy: take the biggest coin that fits, repeat. With euro or dollar coins that "greedy" rule happens to be optimal. With coins 1, 3 and 4 and an amount of 6, greedy takes 4 + 1 + 1 (three coins), but 3 + 3 uses two. Greedy commits to a choice without checking what it costs later. DP checks every option, but only once per amount.
+
+      This program shows greedy's answer, then builds a bottom-up table for a related question: in how many different ways can each amount be made?
+
+      ```cpp run
+      #include <iostream>
+      #include <vector>
+
+      int greedy(const std::vector<int>& biggest_first, int amount) {
+          int count = 0;
+          for (int c : biggest_first)
+              while (amount >= c) {
+                  amount -= c;
+                  count++;
+              }
+          return count;
+      }
+
+      int main() {
+          std::vector<int> coins = {1, 3, 4};
+          int amount = 6;
+          std::cout << "greedy uses " << greedy({4, 3, 1}, amount) << " coins\n";
+
+          // ways[a] = how many different coin combinations make the amount a
+          std::vector<long long> ways(amount + 1, 0);
+          ways[0] = 1;                            // one way to make 0: use no coins
+          for (int c : coins)                     // coins in the outer loop: combinations, not orderings
+              for (int a = c; a <= amount; a++)
+                  ways[a] += ways[a - c];
+          for (int a = 0; a <= amount; a++) std::cout << ways[a] << " ";
+          std::cout << "\n";
+      }
+      ```
+
+      ```output
+      greedy uses 3 coins
+      1 1 1 2 3 3 4
+      ```
+
+      ### How it works
+
+      - `ways[0] = 1` is the base case: the empty combination.
+      - Processing one coin at a time, `ways[a] += ways[a - c]` adds every combination for `a - c` with one more coin `c` on top. Because each coin is fully processed before the next, a combination like 1 + 3 is counted once, not also as 3 + 1.
+      - Amount 6 can be made 4 ways: 1+1+1+1+1+1, 1+1+1+3, 1+1+4 and 3+3.
+
+      ### The fewest coins
+
+      Minimum coins uses the same table shape with a different rule. Let `best[a]` be the fewest coins that make `a`. The last coin used is one of the coins `c`, and before it you had `a - c`, made in `best[a - c]` coins. So:
+
+      ```
+      best[0] = 0
+      best[a] = 1 + (the smallest best[a - c] over every coin c <= a that can be made)
+      ```
+
+      Fill `best` for `a = 1, 2, 3, ...` in order, so every `best[a - c]` is ready when it's needed. Amounts that can't be made (like 3 with only 2-coins) need a marker meaning "impossible", such as a very large number, that must never win the "smallest" comparison or be added to.
+
+      **Your turn:** write `min_coins(coins, amount)`, returning the fewest coins that add up to `amount` (each coin value can be used any number of times), or -1 if it can't be done.
+    seed: |
+      #include <vector>
+
+      int min_coins(const std::vector<int>& coins, int amount) {
+
+      }
+    solution: |
+      #include <vector>
+
+      int min_coins(const std::vector<int>& coins, int amount) {
+          const int IMPOSSIBLE = amount + 1;          // more coins than could ever be needed
+          std::vector<int> best(amount + 1, IMPOSSIBLE);
+          best[0] = 0;
+          for (int a = 1; a <= amount; a++)
+              for (int c : coins)
+                  if (c <= a && best[a - c] + 1 < best[a]) best[a] = best[a - c] + 1;
+          return best[amount] == IMPOSSIBLE ? -1 : best[amount];
+      }
+    harness: |
+      int main() {
+          CHECK_EQ("6 with {1, 3, 4}: 3 + 3", min_coins({1, 3, 4}, 6), 2);
+          CHECK_EQ("impossible: 3 with only 2s", min_coins({2}, 3), -1);
+          CHECK_EQ("amount 0 needs no coins", min_coins({7}, 0), 0);
+          CHECK_EQ("99 cents in US coins", min_coins({1, 5, 10, 25}, 99), 9);
+          CHECK_EQ("unsorted coins, big amount", min_coins({186, 419, 83, 408}, 6249), 20);
+          CHECK_EQ("the coin itself", min_coins({5, 2}, 5), 1);
+      }
+    hints:
+      - "Make `std::vector<int> best(amount + 1, IMPOSSIBLE)` with `best[0] = 0`. `amount + 1` works as IMPOSSIBLE, since no answer can use more coins than that."
+      - "For each `a` from 1 to `amount`, for each coin `c <= a`: `best[a] = min(best[a], best[a - c] + 1)`. Impossible stays impossible, because `IMPOSSIBLE + 1` never beats it."
+      - "Return -1 if `best[amount]` is still IMPOSSIBLE."
+
+  - title: Paths through a grid
+    id: dsa-dp-3
+    text: |
+      Many DP tables are two-dimensional. A robot starts in the top-left corner of a grid and may only move **right** or **down**. How many different routes reach the bottom-right corner?
+
+      The last move into any cell came either from the cell above it or from the cell to its left, so:
+
+      ```
+      paths[r][c] = paths[r - 1][c] + paths[r][c - 1]
+      ```
+
+      The top row and the left column have exactly one route each (straight along the edge). Filling the table row by row, left to right, guarantees the cell above and the cell to the left are already done:
+
+      ```cpp run
+      #include <iomanip>
+      #include <iostream>
+      #include <vector>
+
+      int main() {
+          int rows = 3, cols = 4;
+          std::vector<std::vector<long long>> paths(rows, std::vector<long long>(cols, 0));
+          for (int r = 0; r < rows; r++) {
+              for (int c = 0; c < cols; c++) {
+                  if (r == 0 || c == 0) paths[r][c] = 1;                  // along an edge
+                  else paths[r][c] = paths[r - 1][c] + paths[r][c - 1];   // from above + from the left
+              }
+          }
+          for (const auto& row : paths) {
+              for (long long v : row) std::cout << std::setw(3) << v;
+              std::cout << "\n";
+          }
+          std::cout << "routes: " << paths[rows - 1][cols - 1] << "\n";
+      }
+      ```
+
+      ```output
+        1  1  1  1
+        1  2  3  4
+        1  3  6 10
+      routes: 10
+      ```
+
+      Compare this with the backtracking module, where following every path one by one took time proportional to the number of paths. A 30 × 30 grid has over 30 quadrillion right/down routes; listing them would take years, but the table has only 900 cells, and each one takes a single addition.
+
+      ### Obstacles and costs
+
+      Two common variations use the same table:
+
+      - **Blocked cells**: a wall has 0 routes through it. The edge rule changes too: a cell on the top row can only be reached from its left, so once a wall appears on an edge, every cell after it along that edge has 0 routes.
+      - **Cheapest path**: each cell has a cost, and you want the smallest total cost of a right/down path. Replace "add the two neighbors" with "take the cheaper neighbor, plus this cell's cost": `best[r][c] = cost[r][c] + min(best[r - 1][c], best[r][c - 1])`. On the edges, there's only one neighbor to take.
+
+      **Your turn:** write `count_paths(grid)`, counting right/down routes from the top-left to the bottom-right cell that avoid `#` walls (0 if the start or end is a wall), and `min_path_sum(cost)`, the smallest total of the cell costs along a right/down path, including both corners.
+    seed: |
+      #include <string>
+      #include <vector>
+
+      long long count_paths(const std::vector<std::string>& grid) {
+
+      }
+
+      int min_path_sum(const std::vector<std::vector<int>>& cost) {
+
+      }
+    solution: |
+      #include <algorithm>
+      #include <string>
+      #include <vector>
+
+      long long count_paths(const std::vector<std::string>& grid) {
+          std::size_t rows = grid.size(), cols = grid[0].size();
+          std::vector<std::vector<long long>> p(rows, std::vector<long long>(cols, 0));
+          for (std::size_t r = 0; r < rows; r++) {
+              for (std::size_t c = 0; c < cols; c++) {
+                  if (grid[r][c] == '#') continue;                 // walls stay 0
+                  if (r == 0 && c == 0) p[r][c] = 1;
+                  else p[r][c] = (r > 0 ? p[r - 1][c] : 0) + (c > 0 ? p[r][c - 1] : 0);
+              }
+          }
+          return p[rows - 1][cols - 1];
+      }
+
+      int min_path_sum(const std::vector<std::vector<int>>& cost) {
+          std::size_t rows = cost.size(), cols = cost[0].size();
+          std::vector<std::vector<int>> best(rows, std::vector<int>(cols, 0));
+          for (std::size_t r = 0; r < rows; r++) {
+              for (std::size_t c = 0; c < cols; c++) {
+                  if (r == 0 && c == 0) best[r][c] = cost[r][c];
+                  else if (r == 0) best[r][c] = cost[r][c] + best[r][c - 1];
+                  else if (c == 0) best[r][c] = cost[r][c] + best[r - 1][c];
+                  else best[r][c] = cost[r][c] + std::min(best[r - 1][c], best[r][c - 1]);
+              }
+          }
+          return best[rows - 1][cols - 1];
+      }
+    harness: |
+      int main() {
+          CHECK_EQ("open 3 x 4", count_paths({"....", "....", "...."}), 10LL);
+          CHECK_EQ("wall in the middle", count_paths({"...", ".#.", "..."}), 2LL);
+          CHECK_EQ("wall on the left edge", count_paths({"..", "#."}), 1LL);
+          CHECK_EQ("start is a wall", count_paths({"#..", "..."}), 0LL);
+          CHECK_EQ("end is a wall", count_paths({"..", ".#"}), 0LL);
+          CHECK_EQ("one cell", count_paths({"."}), 1LL);
+          std::vector<std::string> big(30, std::string(30, '.'));
+          CHECK_EQ("30 x 30 open grid", count_paths(big), 30067266499541040LL);
+          CHECK_EQ("cheapest path", min_path_sum({{1, 3, 1}, {1, 5, 1}, {4, 2, 1}}), 7);
+          CHECK_EQ("single cell", min_path_sum({{5}}), 5);
+          CHECK_EQ("single row", min_path_sum({{1, 2, 3}}), 6);
+          CHECK_EQ("single column", min_path_sum({{2}, {9}, {1}}), 12);
+      }
+    hints:
+      - "count_paths: a table of `long long` the size of the grid, all 0. Walls stay 0. The start is 1 (unless it's a wall). Every other open cell is `(above, or 0 on the top row) + (left, or 0 in the first column)`."
+      - "min_path_sum: `best[0][0] = cost[0][0]`. The top row can only come from the left, the left column only from above, and every other cell adds its cost to the smaller of the two."
+      - "Fill both tables row by row, left to right, and return the bottom-right entry."
+
+  - title: Longest common subsequence
+    id: dsa-dp-4
+    text: |
+      A **subsequence** keeps some characters of a string, in order, but not necessarily next to each other: `ace` is a subsequence of `abcde`. The **longest common subsequence** (LCS) of two strings is the longest string that's a subsequence of both. It's what `diff` and `git` use to line up two versions of a file (with lines instead of characters): everything in the LCS is unchanged, and the rest was added or deleted. Biologists use the same idea to compare DNA.
+
+      ### The table
+
+      Let `L[i][j]` be the LCS length of the first `i` characters of `a` and the first `j` characters of `b`. Look at the last character of each prefix, `a[i - 1]` and `b[j - 1]`:
+
+      - If they're **equal**, that character can end the common subsequence: `L[i][j] = L[i - 1][j - 1] + 1`.
+      - If they differ, at least one of them isn't used, so drop one or the other and keep the better result: `L[i][j] = max(L[i - 1][j], L[i][j - 1])`.
+
+      Row 0 and column 0 (an empty prefix) are all 0.
+
+      ```cpp run
+      #include <algorithm>
+      #include <iostream>
+      #include <string>
+      #include <vector>
+
+      int main() {
+          std::string a = "ABCBDAB", b = "BDCABA";
+          std::size_t n = a.size(), m = b.size();
+          std::vector<std::vector<int>> L(n + 1, std::vector<int>(m + 1, 0));
+          for (std::size_t i = 1; i <= n; i++)
+              for (std::size_t j = 1; j <= m; j++)
+                  L[i][j] = (a[i - 1] == b[j - 1]) ? L[i - 1][j - 1] + 1
+                                                   : std::max(L[i - 1][j], L[i][j - 1]);
+
+          std::cout << "    ";
+          for (char c : b) std::cout << c << " ";
+          std::cout << "\n";
+          for (std::size_t i = 1; i <= n; i++) {
+              std::cout << a[i - 1] << " | ";
+              for (std::size_t j = 1; j <= m; j++) std::cout << L[i][j] << " ";
+              std::cout << "\n";
+          }
+          std::cout << "LCS length: " << L[n][m] << "\n";
+      }
+      ```
+
+      ```output
+          B D C A B A
+      A | 0 0 0 1 1 1
+      B | 1 1 1 1 2 2
+      C | 1 1 2 2 2 2
+      B | 1 1 2 2 3 3
+      D | 1 2 2 2 3 3
+      A | 1 2 2 3 3 4
+      B | 1 2 2 3 4 4
+      LCS length: 4
+      ```
+
+      The table has (n + 1) × (m + 1) entries, each filled in O(1), so LCS takes O(n × m) time. Trying every subsequence of `a` instead would take 2ⁿ.
+
+      ### Getting the string back
+
+      The table stores lengths, but it also records **which choice** produced each entry, so the subsequence itself can be recovered by walking backward from `L[n][m]`:
+
+      - If `a[i - 1] == b[j - 1]`, that character is part of the LCS. Add it, and move diagonally to `(i - 1, j - 1)`.
+      - Otherwise, move to whichever of `(i - 1, j)` and `(i, j - 1)` has the larger value (either one on a tie).
+      - Stop when `i` or `j` reaches 0.
+
+      The characters come out **last first**, so reverse the string at the end. Often several different strings share the maximum length (`BCBA` and `BDAB` both work above); any one of them is a correct answer.
+
+      **Your turn:** write `lcs(a, b)`, returning one longest common subsequence of `a` and `b`.
+    seed: |
+      #include <string>
+
+      std::string lcs(const std::string& a, const std::string& b) {
+
+      }
+    solution: |
+      #include <algorithm>
+      #include <string>
+      #include <vector>
+
+      std::string lcs(const std::string& a, const std::string& b) {
+          std::size_t n = a.size(), m = b.size();
+          std::vector<std::vector<int>> L(n + 1, std::vector<int>(m + 1, 0));
+          for (std::size_t i = 1; i <= n; i++)
+              for (std::size_t j = 1; j <= m; j++)
+                  L[i][j] = (a[i - 1] == b[j - 1]) ? L[i - 1][j - 1] + 1 : std::max(L[i - 1][j], L[i][j - 1]);
+          std::string out;
+          std::size_t i = n, j = m;
+          while (i > 0 && j > 0) {
+              if (a[i - 1] == b[j - 1]) {
+                  out.push_back(a[i - 1]);
+                  i--;
+                  j--;
+              } else if (L[i - 1][j] >= L[i][j - 1]) {
+                  i--;
+              } else {
+                  j--;
+              }
+          }
+          std::reverse(out.begin(), out.end());
+          return out;
+      }
+    harness: |
+      bool is_subseq(const std::string& s, const std::string& t) {
+          std::size_t k = 0;
+          for (char c : t) if (k < s.size() && s[k] == c) k++;
+          return k == s.size();
+      }
+      bool ok(const std::string& got, const std::string& a, const std::string& b, std::size_t want_len) {
+          return got.size() == want_len && is_subseq(got, a) && is_subseq(got, b);
+      }
+      int main() {
+          std::string r = lcs("ABCBDAB", "BDCABA");
+          CHECK("ABCBDAB and BDCABA: length 4, in both", ok(r, "ABCBDAB", "BDCABA", 4));
+          CHECK_EQ("AGGTAB and GXTXAYB", lcs("AGGTAB", "GXTXAYB"), std::string("GTAB"));
+          CHECK("kitten and sitting", ok(lcs("kitten", "sitting"), "kitten", "sitting", 4));
+          CHECK_EQ("nothing in common", lcs("abc", "xyz"), std::string(""));
+          CHECK_EQ("one empty string", lcs("", "abc"), std::string(""));
+          CHECK_EQ("identical strings", lcs("same", "same"), std::string("same"));
+          std::string x, y;
+          for (int i = 0; i < 1500; i++) {
+              x += "ab"[i % 2];
+              y += "ba"[i % 3 == 0];
+          }
+          std::string big = lcs(x, y);
+          CHECK("1500-character strings: longest (1250) and common", ok(big, x, y, 1250));
+      }
+    hints:
+      - "Build `L` with `n + 1` rows and `m + 1` columns of zeros. For `i, j` from 1: equal characters give `L[i - 1][j - 1] + 1`, otherwise `max(L[i - 1][j], L[i][j - 1])`."
+      - "Walk back from `i = n, j = m` while both are above 0. On a match, push `a[i - 1]` and decrease both; otherwise decrease `i` if `L[i - 1][j] >= L[i][j - 1]`, else `j`."
+      - "The characters are collected last first: `std::reverse(out.begin(), out.end())` before returning."
+
+  - title: The 0/1 knapsack
+    id: dsa-dp-5
+    text: |
+      A thief's bag holds a limited weight. Each item has a weight and a value, and each item can be taken **once or not at all** (that's the "0/1"). Which items give the most value without going over the limit? The same problem shows up as picking features for a release within a time budget, or choosing ads within a size limit.
+
+      Greedy fails again: taking the most valuable item first, or the best value per kilogram first, can leave awkward space unused. DP tries both choices for every item, once per remaining capacity.
+
+      ### The table
+
+      Let `best[i][w]` be the most value you can get from the first `i` items with capacity `w`. For item `i` (weight `wt`, value `val`) there are two choices:
+
+      - **Skip it**: `best[i - 1][w]`.
+      - **Take it** (only if `wt <= w`): `val + best[i - 1][w - wt]`, the item's value plus the best use of the capacity that's left, using only the earlier items.
+
+      ```cpp run
+      #include <algorithm>
+      #include <iostream>
+      #include <vector>
+
+      int main() {
+          std::vector<int> weight = {1, 3, 4, 5};
+          std::vector<int> value  = {1, 4, 5, 7};
+          int cap = 7;
+          std::size_t n = weight.size();
+
+          std::vector<std::vector<int>> best(n + 1, std::vector<int>(cap + 1, 0));
+          for (std::size_t i = 1; i <= n; i++) {
+              for (int w = 0; w <= cap; w++) {
+                  best[i][w] = best[i - 1][w];                                   // skip item i
+                  if (weight[i - 1] <= w)                                        // or take it
+                      best[i][w] = std::max(best[i][w], value[i - 1] + best[i - 1][w - weight[i - 1]]);
+              }
+          }
+          std::cout << "best value: " << best[n][cap] << "\n";
+      }
+      ```
+
+      ```output
+      best value: 9
+      ```
+
+      The best choice is the items of weight 3 and 4 (value 4 + 5 = 9). Taking the most valuable item first (weight 5, value 7) leaves room only for the weight-1 item, for a total of 8.
+
+      ### One row is enough
+
+      Each row only reads the row above it, so a single 1D array can replace the whole table, **if** you loop over the capacity **downward**:
+
+      ```cpp
+      std::vector<int> best(cap + 1, 0);
+      for (std::size_t i = 0; i < n; i++)
+          for (int w = cap; w >= weight[i]; w--)
+              best[w] = std::max(best[w], value[i] + best[w - weight[i]]);
+      ```
+
+      Going downward means `best[w - weight[i]]` hasn't been updated for item `i` yet: it still holds the "earlier items only" value, just like the row above in the 2D table. Looping upward would let an item be taken twice (once at `w - weight[i]`, then again at `w`), which is the unlimited version of the problem, like the coins in step 2.
+
+      ### Yes/no knapsacks
+
+      The same shape answers yes/no questions. "Can some of these numbers add up to exactly `t`?" uses a `std::vector<bool> can(t + 1)` with `can[0] = true`, and for each number `x`, loops `w` downward setting `can[w] = can[w] || can[w - x]`.
+
+      **Your turn:** write `can_partition(nums)`: can the numbers be split into two groups with equal sums? Every number goes into exactly one group, and an empty list can be split (two empty groups). Numbers are positive, up to 100 of them, each at most 100.
+    seed: |
+      #include <vector>
+
+      bool can_partition(const std::vector<int>& nums) {
+
+      }
+    solution: |
+      #include <numeric>
+      #include <vector>
+
+      bool can_partition(const std::vector<int>& nums) {
+          int total = std::accumulate(nums.begin(), nums.end(), 0);
+          if (total % 2 != 0) return false;
+          int half = total / 2;
+          std::vector<bool> can(half + 1, false);
+          can[0] = true;
+          for (int x : nums)
+              for (int w = half; w >= x; w--)
+                  if (can[w - x]) can[w] = true;
+          return can[half];
+      }
+    harness: |
+      int main() {
+          CHECK_EQ("{1, 5, 11, 5}: 11 = 1 + 5 + 5", can_partition({1, 5, 11, 5}), true);
+          CHECK_EQ("{1, 2, 3, 5}: sum 11 is odd", can_partition({1, 2, 3, 5}), false);
+          CHECK_EQ("{3, 3, 3, 4, 5}: 3 + 3 + 3 = 4 + 5", can_partition({3, 3, 3, 4, 5}), true);
+          CHECK_EQ("{2, 2}", can_partition({2, 2}), true);
+          CHECK_EQ("{1}", can_partition({1}), false);
+          CHECK_EQ("{1, 1, 4}: even sum, still impossible", can_partition({1, 1, 4}), false);
+          CHECK_EQ("empty list", can_partition({}), true);
+          std::vector<int> big;
+          for (int i = 1; i <= 100; i++) big.push_back(i);
+          CHECK_EQ("1 to 100", can_partition(big), true);
+          std::vector<int> odd(99, 100);
+          odd.push_back(2);
+          CHECK_EQ("ninety-nine 100s and a 2", can_partition(odd), false);
+      }
+    hints:
+      - "If the total is odd, it can't split evenly. Otherwise the question is: can some of the numbers add up to exactly `total / 2`?"
+      - "`std::vector<bool> can(half + 1, false); can[0] = true;` means \"sum 0 is reachable with no numbers\"."
+      - "For each `x`, loop `w` from `half` down to `x`: if `can[w - x]`, set `can[w] = true`. Return `can[half]`."
+
+  - title: Edit distance
+    id: dsa-dp-6
+    text: |
+      How different are two words? The **edit distance** (or Levenshtein distance) is the smallest number of single-character edits that turn one into the other, where an edit is **inserting** a character, **deleting** one, or **replacing** one with another. `kitten` → `sitting` takes 3: replace k with s, replace e with i, insert g. Spell checkers suggest the dictionary words closest to what you typed, search engines use it for "did you mean", and DNA tools use variations of it.
+
+      ### The recurrence
+
+      Let `D[i][j]` be the edit distance between the first `i` characters of `a` and the first `j` characters of `b`.
+
+      - Turning `i` characters into nothing takes `i` deletions: `D[i][0] = i`. Turning nothing into `j` characters takes `j` insertions: `D[0][j] = j`.
+      - If `a[i - 1] == b[j - 1]`, the last characters already match and cost nothing: `D[i][j] = D[i - 1][j - 1]`.
+      - Otherwise, the last edit is one of three, each costing 1:
+        - **replace** `a[i - 1]` with `b[j - 1]`: `D[i - 1][j - 1] + 1`
+        - **delete** `a[i - 1]`: `D[i - 1][j] + 1`
+        - **insert** `b[j - 1]` at the end: `D[i][j - 1] + 1`
+
+        and `D[i][j]` is the smallest of the three.
+
+      Here's the full table for `cat` → `cut`:
+
+      | | "" | c | u | t |
+      |---|---|---|---|---|
+      | "" | 0 | 1 | 2 | 3 |
+      | c | 1 | **0** | 1 | 2 |
+      | a | 2 | 1 | **1** | 2 |
+      | t | 3 | 2 | 2 | **1** |
+
+      Read it like the LCS table: `D[1][1]` is 0 because `c` matches `c`; `D[2][2]` is 1 because `a` ≠ `u`, and the cheapest option is replacing (`D[1][1] + 1`); `D[3][3]` is 1 because `t` matches `t` and costs nothing on top of `D[2][2]`. The answer is the bottom-right entry: one replacement.
+
+      ### A tiny spell checker
+
+      With `edit_distance` written, a suggestion is just the dictionary word with the smallest distance to the typed word. Plain edit distance counts swapping two neighboring letters (`teh` → `the`) as **two** replacements. The Damerau-Levenshtein variant adds a "transpose" edit to fix that; real spell checkers also weight edits by which keys sit next to each other.
+
+      ### Recognizing DP problems
+
+      Across this module, the problems had the same signs: a question about the **best** (fewest, most, longest) or **how many**, a choice at each step (which coin, take or skip, which edit), and sub-questions that repeat. Solving one always went the same way: define what a table entry means, write how an entry is built from smaller ones, set the base cases, and fill the table in an order where everything needed is ready.
+
+      **Your turn:** write `edit_distance(a, b)`, then `suggest(word, dictionary)`, returning the dictionary word with the smallest edit distance to `word` (the earliest one in the list on a tie). The dictionary is never empty.
+    seed: |
+      #include <string>
+      #include <vector>
+
+      int edit_distance(const std::string& a, const std::string& b) {
+
+      }
+
+      std::string suggest(const std::string& word, const std::vector<std::string>& dictionary) {
+
+      }
+    solution: |
+      #include <algorithm>
+      #include <string>
+      #include <vector>
+
+      int edit_distance(const std::string& a, const std::string& b) {
+          std::size_t n = a.size(), m = b.size();
+          std::vector<std::vector<int>> D(n + 1, std::vector<int>(m + 1, 0));
+          for (std::size_t i = 0; i <= n; i++) D[i][0] = static_cast<int>(i);
+          for (std::size_t j = 0; j <= m; j++) D[0][j] = static_cast<int>(j);
+          for (std::size_t i = 1; i <= n; i++) {
+              for (std::size_t j = 1; j <= m; j++) {
+                  if (a[i - 1] == b[j - 1]) D[i][j] = D[i - 1][j - 1];
+                  else D[i][j] = 1 + std::min({D[i - 1][j - 1], D[i - 1][j], D[i][j - 1]});
+              }
+          }
+          return D[n][m];
+      }
+
+      std::string suggest(const std::string& word, const std::vector<std::string>& dictionary) {
+          std::string best = dictionary[0];
+          int best_d = edit_distance(word, best);
+          for (const std::string& w : dictionary) {
+              int d = edit_distance(word, w);
+              if (d < best_d) {
+                  best_d = d;
+                  best = w;
+              }
+          }
+          return best;
+      }
+    harness: |
+      int main() {
+          CHECK_EQ("kitten to sitting", edit_distance("kitten", "sitting"), 3);
+          CHECK_EQ("cat to cut", edit_distance("cat", "cut"), 1);
+          CHECK_EQ("empty to abc: 3 inserts", edit_distance("", "abc"), 3);
+          CHECK_EQ("abc to empty: 3 deletes", edit_distance("abc", ""), 3);
+          CHECK_EQ("flaw to lawn", edit_distance("flaw", "lawn"), 2);
+          CHECK_EQ("intention to execution", edit_distance("intention", "execution"), 5);
+          CHECK_EQ("identical", edit_distance("same", "same"), 0);
+          CHECK_EQ("speling", suggest("speling", {"peeling", "spelling", "spieling"}), std::string("spelling"));
+          CHECK_EQ("teh: a swap costs 2, so ten wins", suggest("teh", {"the", "ten", "tea"}), std::string("ten"));
+          CHECK_EQ("exact match", suggest("awp", {"ak", "awp", "aug"}), std::string("awp"));
+          std::string x(800, 'a'), y(800, 'b');
+          CHECK_EQ("800 replacements", edit_distance(x, y), 800);
+      }
+    hints:
+      - "Make a `(n + 1) × (m + 1)` table. Fill column 0 with `i` and row 0 with `j`."
+      - "For each `i, j` from 1: if `a[i - 1] == b[j - 1]`, copy `D[i - 1][j - 1]`; otherwise take 1 plus the smallest of `D[i - 1][j - 1]`, `D[i - 1][j]` and `D[i][j - 1]` (`std::min({x, y, z})` takes three)."
+      - "suggest: start with the first word and its distance; replace it only when a later word is strictly closer, so ties keep the earlier word."

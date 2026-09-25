@@ -232,6 +232,8 @@ await test("deathmatch: every drill type answered correctly builds a streak (inc
       await page.keyboard.press(d.answer === "yes" ? "y" : "n");
     } else if (d.type === "bug") {
       await page.locator(".bugline").nth(+d.answer - 1).click();
+    } else if (d.type === "choice") {
+      await page.locator(`.rep .choice[data-choice="${+d.answer - 1}"]`).click();
     } else if (d.type === "boss") {
       await setEditor(d.exercise.solution);
       const t0 = Date.now();

@@ -1,0 +1,117 @@
+topic: dsa-dp
+lang: cpp
+drills:
+  - type: predict
+    pre: |
+      int calls = 0;
+      long long f(int n, std::vector<long long>& memo) {
+          calls++;
+          if (n < 2) return n;
+          if (memo[n] != 0) return memo[n];
+          return memo[n] = f(n - 1, memo) + f(n - 2, memo);
+      }
+    body: |
+      std::vector<long long> memo(11, 0);
+      std::cout << f(10, memo) << " " << calls << "\n";
+    why: fib(10) is 55. With the memo, each value from 2 to 10 is computed once, so there are only 19 calls instead of 177.
+  - type: predict
+    body: |
+      std::vector<int> ways(6, 0);
+      ways[0] = 1;
+      for (int c : {1, 2})
+          for (int a = c; a <= 5; a++) ways[a] += ways[a - c];
+      std::cout << ways[5] << "\n";
+    why: "Coins 1 and 2 make 5 in three ways: 1+1+1+1+1, 1+1+1+2 and 1+2+2. With the coins in the outer loop, 1+2+2 and 2+1+2 count once."
+  - type: predict
+    body: |
+      int p[3][3];
+      for (int r = 0; r < 3; r++)
+          for (int c = 0; c < 3; c++)
+              p[r][c] = (r == 0 || c == 0) ? 1 : p[r - 1][c] + p[r][c - 1];
+      std::cout << p[2][2] << "\n";
+    why: Each cell is reached from above or from the left. The 3 × 3 table fills in as 1 1 1 / 1 2 3 / 1 3 6.
+  - type: choice
+    prompt: Which two properties make a problem a good fit for dynamic programming?
+    choices:
+      - Overlapping subproblems and optimal substructure
+      - Sorted input and a unique answer
+      - A tree structure and no cycles
+      - Small input and a greedy choice that's always right
+    answer: 1
+    why: The same smaller questions come up repeatedly (so caching pays), and the best answer can be built from the best answers to smaller questions.
+  - type: choice
+    prompt: With coins 1, 3 and 4, why does "always take the biggest coin that fits" fail for the amount 6?
+    choices:
+      - It takes 4 + 1 + 1 (three coins), but 3 + 3 needs only two
+      - It can't make 6 at all
+      - It takes 3 + 3, but 4 + 1 + 1 is better
+      - It never fails; greedy is always optimal for coins
+    answer: 1
+    why: Greedy commits to the 4 without checking what it costs later. DP compares every last-coin choice for every amount.
+  - type: fill
+    prompt: Complete the longest common subsequence rule for characters that don't match.
+    body: |
+      std::string a = "abc", b = "ac";
+      std::vector<std::vector<int>> L(4, std::vector<int>(3, 0));
+      for (int i = 1; i <= 3; i++)
+          for (int j = 1; j <= 2; j++)
+              L[i][j] = a[i - 1] == b[j - 1] ? L[i - 1][j - 1] + 1 : std::[[max]](L[i - 1][j], L[i][j - 1]);
+      std::cout << L[3][2] << "\n";
+    why: When the last characters differ, one of them isn't in the LCS, so drop either one and keep the better result.
+  - type: bug
+    body: |
+      std::vector<int> weight = {2}, value = {3};
+      std::vector<int> best(5, 0);
+      for (std::size_t i = 0; i < weight.size(); i++)
+          for (int w = weight[i]; w <= 4; w++) // BUG
+              best[w] = std::max(best[w], value[i] + best[w - weight[i]]);
+      std::cout << best[4] << "\n";
+    fix: "for (int w = 4; w >= weight[i]; w--)"
+    why: Looping capacity upward lets best[w - weight] already include this item, so the single item is counted twice. The 0/1 knapsack loops downward.
+  - type: choice
+    prompt: What's the edit distance from `cat` to `cast`?
+    choices:
+      - "1"
+      - "2"
+      - "3"
+      - "4"
+    answer: 1
+    why: Inserting one s turns cat into cast. Edit distance counts the fewest single-character inserts, deletes and replacements.
+  - type: boss
+    why: best[i] only depends on earlier best[j] values, so one left-to-right pass fills the table.
+    prompt: |
+      Write `int lis(const std::vector<int>& v)` returning the length of the longest **strictly increasing** subsequence of `v` (not necessarily contiguous). For `{10, 9, 2, 5, 3, 7, 101, 18}` it's 4 (for example 2, 3, 7, 18).
+    seed: |
+      #include <vector>
+
+      int lis(const std::vector<int>& v) {
+
+      }
+    solution: |
+      #include <algorithm>
+      #include <vector>
+
+      int lis(const std::vector<int>& v) {
+          std::vector<int> best(v.size(), 1);   // best[i]: longest increasing run ending at v[i]
+          int answer = 0;
+          for (std::size_t i = 0; i < v.size(); i++) {
+              for (std::size_t j = 0; j < i; j++)
+                  if (v[j] < v[i]) best[i] = std::max(best[i], best[j] + 1);
+              answer = std::max(answer, best[i]);
+          }
+          return answer;
+      }
+    harness: |
+      int main() {
+          CHECK_EQ("example", lis({10, 9, 2, 5, 3, 7, 101, 18}), 4);
+          CHECK_EQ("empty", lis({}), 0);
+          CHECK_EQ("all equal: strictly increasing means 1", lis({5, 5, 5}), 1);
+          CHECK_EQ("already sorted", lis({1, 2, 3, 4}), 4);
+          CHECK_EQ("decreasing", lis({4, 3, 2, 1}), 1);
+          std::vector<int> saw;
+          for (int i = 0; i < 1000; i++) saw.push_back(i % 10);
+          CHECK_EQ("0 to 9 repeated 100 times", lis(saw), 10);
+      }
+    hints:
+      - "Let `best[i]` be the length of the longest increasing subsequence that ends exactly at `v[i]`. On its own, every element gives 1."
+      - "For each `i`, look at every earlier `j` with `v[j] < v[i]`: `best[i] = max(best[i], best[j] + 1)`. The answer is the largest `best[i]`."

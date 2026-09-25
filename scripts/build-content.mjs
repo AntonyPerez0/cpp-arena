@@ -37,6 +37,8 @@ const FLAGS = {
   // The extra -Werror= flags make GCC reject what Clang (the browser compiler) rejects by default.
   c: ["-x", "c", "-std=c17", "-O1", "-Wall", "-Wextra", "-Wno-unused-result", "-U_FORTIFY_SOURCE", "-Werror=int-conversion", "-Werror=implicit-function-declaration", "-Werror=incompatible-pointer-types", "-Werror=implicit-int", "-fdiagnostics-color=never"],
   cpp: ["-x", "c++", "-std=c++20", "-O2", "-fno-exceptions", "-Wall", "-Wextra", "-Wno-unused-result", "-U_FORTIFY_SOURCE", "-fdiagnostics-color=never"],
+  // ```cpp native examples: real threads, which the browser compiler can't build. Checked here only.
+  cppnative: ["-x", "c++", "-std=c++20", "-O2", "-pthread", "-Wall", "-Wextra", "-Wno-unused-result", "-fdiagnostics-color=never"],
 };
 
 function run(cmd, args, { input = "", timeout = 10000, cwd } = {}) {
@@ -211,31 +213,43 @@ async function buildExercise(where, lang, raw, prevSolution) {
  * Lesson text can include complete example programs as ```c run (or ```cpp run)
  * blocks. Each one is compiled and run; if the next block is ```output, the
  * program must print exactly that. Returns the text with plain info strings.
+ *
+ * ```cpp native blocks are the same, but for code the browser can't build
+ * (threads): they're compiled with -pthread and run three times here, and must
+ * print the same output every time.
  */
 async function checkExamples(where, text) {
-  if (!text || !/```(c|cpp) run/.test(text)) return text;
+  if (!text || !/```(c|cpp) (run|native)/.test(text)) return text;
   const blocks = [...text.matchAll(/^```([^\n]*)\n([\s\S]*?)^```[ \t]*$/gm)];
   for (let i = 0; i < blocks.length; i++) {
-    const m = blocks[i][1].trim().match(/^(c|cpp) run$/);
+    const m = blocks[i][1].trim().match(/^(c|cpp) (run|native)$/);
     if (!m) continue;
-    const lang = m[1];
+    const native = m[2] === "native";
+    if (native && m[1] !== "cpp") {
+      errors.push(`${where}: only cpp examples can be native`);
+      continue;
+    }
+    const lang = native ? "cppnative" : m[1];
     const code = blocks[i][2];
     // An ```input block right after the example is what the program reads.
     const hasInput = blocks[i + 1]?.[1].trim() === "input";
     const stdin = hasInput ? blocks[i + 1][2] : "";
-    const res = await execute(lang, code, [stdin], { werror: true });
+    const res = await execute(lang, code, native ? [stdin, stdin, stdin] : [stdin], { werror: true });
     if (!res.compiled) {
       errors.push(`${where}: example ${i + 1} in the text does not compile:\n${res.diagnostics}`);
       continue;
     }
     const r = res.runs[0];
     if (r.code !== 0 || r.timedOut) errors.push(`${where}: example in the text exits with ${r.code}`);
+    if (res.runs.some((x) => normalizeOutput(x.stdout) !== normalizeOutput(r.stdout))) {
+      errors.push(`${where}: native example ${i + 1} printed different output on different runs`);
+    }
     const next = blocks[i + (hasInput ? 2 : 1)];
     if (next && next[1].trim() === "output" && normalizeOutput(next[2]) !== normalizeOutput(r.stdout)) {
       errors.push(`${where}: example in the text says it prints\n${next[2]}\nbut it prints\n${r.stdout}`);
     }
   }
-  return text.replace(/^```(c|cpp) run[ \t]*$/gm, "```$1").replace(/^```(output|input)[ \t]*$/gm, "```text");
+  return text.replace(/^```(c|cpp) (run|native)[ \t]*$/gm, "```$1").replace(/^```(output|input)[ \t]*$/gm, "```text");
 }
 
 // ---------------------------------------------------------------- lessons
@@ -472,14 +486,18 @@ async function buildTopics(modules) {
       for (const m of t.modules ?? []) if (!moduleIds.has(m)) errors.push(`${where}: unknown module ${m}`);
       if (t.visual && !visualIds.has(t.visual)) errors.push(`${where}: unknown visual ${t.visual}`);
       const example = ensureNl(t.example);
-      const res = await execute(t.lang, example, [t.stdin ?? ""], { werror: true });
+      // native: the example uses threads, so it's built with -pthread and must print the same thing on every run.
+      if (t.native && t.lang !== "cpp") errors.push(`${where}: only cpp topics can be native`);
+      const inputs = t.native ? [t.stdin ?? "", t.stdin ?? "", t.stdin ?? ""] : [t.stdin ?? ""];
+      const res = await execute(t.native ? "cppnative" : t.lang, example, inputs, { werror: true });
       if (!res.compiled) {
         errors.push(`${where}: example does not compile:\n${res.diagnostics}`);
         continue;
       }
       const r = res.runs[0];
       if (r.code !== 0 || r.timedOut) errors.push(`${where}: example exits with ${r.code}`);
-      out.push({ slug: t.slug, title: t.title, lang: t.lang, description: t.description, modules: t.modules ?? [], visual: t.visual ?? null, body: t.body, example, stdin: t.stdin ?? "", output: r.stdout });
+      if (res.runs.some((x) => x.stdout !== r.stdout)) errors.push(`${where}: native example printed different output on different runs`);
+      out.push({ slug: t.slug, title: t.title, lang: t.lang, description: t.description, modules: t.modules ?? [], visual: t.visual ?? null, body: t.body, example, stdin: t.stdin ?? "", output: r.stdout, ...(t.native ? { native: true } : {}) });
     }
   }
   return out;

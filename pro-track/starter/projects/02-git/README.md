@@ -73,8 +73,9 @@ Do these in order. Every step lists terminal commands; you can use the GitHub we
    ```
    Open and merge a PR for `feature/captain-a`. Now open a PR for `feature/captain-b`: GitHub reports a **conflict**. Resolve it either with the **Resolve conflicts** button, or locally:
    ```bash
+   git fetch origin        # your local main doesn't have captain-a's merge yet
    git switch feature/captain-b
-   git merge main          # CONFLICT in roster.txt
+   git merge origin/main   # CONFLICT in roster.txt
    # edit roster.txt: delete the <<<<<<< ======= >>>>>>> markers and keep a line
    # like "captain: karrigan", plus "vice-captain: ropz" if you like
    git add projects/02-git/roster.txt

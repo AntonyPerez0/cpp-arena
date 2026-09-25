@@ -20,7 +20,7 @@ steps:
       struct Robot {
           std::string name;
           int battery;
-          Robot(std::string n, int b) : name(std::move(n)), battery(b) { std::cout << name << " built\n"; }
+          Robot(std::string n, int b) : name(n), battery(b) { std::cout << name << " built\n"; }
           ~Robot() { std::cout << name << " scrapped\n"; }
       };
 
@@ -83,7 +83,7 @@ steps:
   - title: Unique means unique
     id: cpp-smart-2
     text: |
-      "Unique" means exactly one owner at a time. If you could copy a `unique_ptr`, two of them would both try to delete the same object: a double free. So copying is **deleted**: it's a compile error. What you can do is **move** it, which hands ownership over and leaves the source empty (`nullptr`).
+      "Unique" means exactly one owner at a time. If you could copy a `unique_ptr`, two of them would both try to delete the same object: a double free. So copying is **deleted**: it's a compile error. What you can do is **move** it, which hands ownership over and leaves the source empty (`nullptr`, C++'s type-safe version of C's `NULL`).
 
       ```cpp run
       #include <iostream>
@@ -327,7 +327,7 @@ steps:
 
       ### When to use which
 
-      Prefer `unique_ptr`. It's simpler and faster. `shared_ptr` costs an extra allocation for the count and an atomic update on every copy. Reach for it only when ownership is genuinely shared and there's no single obvious owner.
+      Prefer `unique_ptr`. It's simpler and faster. `shared_ptr` needs a separate control block for the count (`make_shared` puts it in the same allocation as the object, which is one reason to prefer it) and an atomic update on every copy. Reach for it only when ownership is genuinely shared and there's no single obvious owner.
 
       **Your turn:** make the program print `1 2 3 2` by filling in the blanks.
     fill: |

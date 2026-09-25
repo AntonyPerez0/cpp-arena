@@ -5,7 +5,7 @@ topics:
     description: How C++ builds on C with classes, references, RAII, templates and the standard library, and when each language is used.
     modules: [cpp-basics]
     body: |
-      C++ started as "C with classes" and almost all C code is also valid C++. What C++ adds:
+      C++ started as "C with classes" and most C code is also valid C++, with a few differences (C++ needs a cast on `malloc`'s result, for example). What C++ adds:
 
       - **Classes** with constructors and destructors, so objects clean up after themselves (RAII).
       - **References**, a safer alternative to many pointer uses.
@@ -301,11 +301,11 @@ topics:
     description: What moving means in C++, rvalue references, what std::move really does, and the rule of five.
     modules: [cpp-move]
     body: |
-      Copying a `std::vector` of a million elements copies a million elements. **Moving** it just hands over the internal buffer pointer, leaving the source empty. That's why returning big objects by value is cheap in modern C++.
+      Copying a `std::vector` of a million elements copies a million elements. **Moving** it just hands over the internal buffer pointer, and in practice leaves the source empty. That's why returning big objects by value is cheap in modern C++.
 
       A class supports moving with a **move constructor** `T(T &&other) noexcept` and **move assignment**. `std::move(x)` doesn't move anything itself: it's a cast that says "you may steal from x". After a move, only assign to or destroy the source.
 
-      Mark move operations `noexcept`, or `std::vector` will copy instead of move when it grows.
+      Mark move operations `noexcept`, or `std::vector` will copy instead of move when it grows (for any type that can be copied).
     visual: move-vector
     example: |
       #include <iostream>
@@ -456,5 +456,44 @@ topics:
 
       int main() {
           std::cout << parse_int("42").value_or(-1) << " " << parse_int("4x2").has_value() << "\n";
+          return 0;
+      }
+
+  - slug: threads-and-mutexes
+    title: "Threads, mutexes and data races in C++"
+    lang: cpp
+    description: Start threads with std::thread, protect shared data with std::mutex and lock_guard, and understand data races, atomics and deadlock.
+    modules: [cpp-concurrency]
+    native: true
+    body: |
+      A **thread** is an independent path of execution inside your program. All threads share the program's memory, which is what makes them fast to coordinate and also what makes them dangerous.
+
+      - `std::thread t(f);` starts running `f` right away. `t.join()` waits for it to finish. Every `std::thread` must be joined (or detached) before it's destroyed, or the program terminates. C++20's `std::jthread` joins automatically.
+      - A **data race** is two threads touching the same memory at the same time, at least one writing, with nothing to synchronize them. It's undefined behavior, and even `counter++` races, because it's a separate load, add and store.
+      - A `std::mutex` lets one thread at a time into a **critical section**. Lock it with `std::lock_guard`, which unlocks automatically at the end of the scope.
+      - `std::atomic<int>` makes single operations like `++` and `fetch_add` indivisible, with no mutex needed.
+      - Two threads locking two mutexes in opposite orders can **deadlock**. Lock several at once with `std::scoped_lock`, or always lock in one agreed order.
+
+      The browser compiler on this site has no threads, so this example was compiled with `g++ -std=c++20 -pthread` and run on Linux. Build with `-fsanitize=thread` while developing: ThreadSanitizer reports data races and lock-order problems as they happen.
+    example: |
+      #include <iostream>
+      #include <mutex>
+      #include <thread>
+      #include <vector>
+
+      int main() {
+          long long total = 0;
+          std::mutex m;
+          std::vector<std::thread> workers;
+          for (int t = 0; t < 4; t++) {
+              workers.emplace_back([&total, &m, t] {
+                  long long mine = 0;                      // work on private data...
+                  for (int i = 1; i <= 1000; i++) mine += i * (t + 1);
+                  std::lock_guard<std::mutex> lock(m);     // ...then lock once to combine
+                  total += mine;
+              });
+          }
+          for (auto& w : workers) w.join();
+          std::cout << "total " << total << "\n";
           return 0;
       }

@@ -152,6 +152,8 @@ milestones:
       int secret = (int)((state / 65536u) % 100u) + 1;
       ```
 
+      `unsigned int` is an integer type that can't be negative; read it with `%u`. When unsigned arithmetic goes past the largest value it wraps around to 0 and keeps counting (well defined, unlike signed overflow), which is exactly what an LCG needs.
+
       Now the first line of input is a **seed** instead of the secret. Compute the secret from it with one LCG step.
 
       Also limit the player to **7 attempts**. After the 7th wrong guess print `out of guesses, it was N` and stop. (Running out of input still prints `out of guesses, it was N`.)

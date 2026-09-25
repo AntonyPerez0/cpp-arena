@@ -242,16 +242,18 @@ drills:
     why: A `const` variable can be initialized from a run-time value. `constexpr` variables can be used where a compile-time constant is required, like array sizes.
 
   - type: bug
-    prompt: This should print 3 (the vector's final size). Click the line with the bug.
+    prompt: This should print 2 (the vector's final size). Click the line with the bug.
     body: |
-      std::vector<int> v{1, 2, 3, 4, 5, 6};
-      for (auto it = v.begin(); it != v.end(); ++it) {
-          if (*it % 2 == 0) v.erase(it); // BUG
+      std::vector<int> v{3, -1, -2, 4, -5};
+      auto it = v.begin();
+      while (it != v.end()) {
+          if (*it < 0) v.erase(it); // BUG
+          else ++it;
       }
       std::cout << v.size() << "\n";
-    fix: "if (*it % 2 == 0) { it = v.erase(it); --it; }"
+    fix: "if (*it < 0) it = v.erase(it);"
     ub: true
-    why: "`erase` invalidates `it`. Use the iterator it returns, or better, the erase-remove idiom: `std::erase_if(v, [](int x) { return x % 2 == 0; });` in C++20."
+    why: "`erase` invalidates `it`. Carry on from the iterator erase returns, or skip the loop entirely: in C++20, `std::erase_if(v, [](int x) { return x < 0; });` does it in one line."
 
   - type: choice
     prompt: What does `noexcept` on a move constructor buy you?

@@ -53,7 +53,7 @@ cmake -S . -B build-tsan -G Ninja -DARENA_SANITIZE=thread
 cmake --build build-tsan && ctest --test-dir build-tsan --output-on-failure
 ```
 
-TSan instruments every memory access and reports races with **both** stack traces: the two conflicting accesses. It needs no luck: a race is reported even if it didn't corrupt anything on that run.
+TSan instruments every memory access and reports races with **both** stack traces: the two conflicting accesses. The race doesn't have to do visible damage: if two threads touched the same memory without synchronization during the run, TSan reports it even when the answer happened to come out right. (It can only see code that actually ran, so the tests need to exercise the shared paths.)
 
 ## Your tasks
 

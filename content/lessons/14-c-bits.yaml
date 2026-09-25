@@ -36,7 +36,7 @@ steps:
 
       - Macro names are written in `UPPER_CASE`, so readers know text replacement is happening.
       - Use them for values used in many places, so changing one line updates them all.
-      - In modern C, `const` variables and `enum` constants are often preferable because they have types and obey scope. But `#define` is still everywhere in real C code, including all the standard headers, and it's the only option for some jobs, like array sizes in older C and conditional compilation (`#ifdef DEBUG`).
+      - In modern C, `const` variables and `enum` constants are often preferable because they have types and obey scope. But `#define` is still everywhere in real C code, including all the standard headers, and it's the only option for some jobs, like conditional compilation (`#ifdef DEBUG`). One C quirk: unlike in C++, a `const int` is not a true compile-time constant in C, so it can't size an array declared outside a function; a `#define` or an `enum` constant can.
 
       **Your turn:** define `TEAM_SIZE` as `5` so the program prints `10 players`.
     fill: |

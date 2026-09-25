@@ -72,7 +72,7 @@ drills:
       std::cout << *a << "\n"; // BUG
     fix: 'std::cout << (a == nullptr) << "\n";'
     ub: true
-    why: After the move, a is null. Dereferencing it is undefined behaviour.
+    why: After the move, a is null. Dereferencing it is undefined behavior.
   - type: compiles
     body: |
       auto a = std::make_unique<int>(1);

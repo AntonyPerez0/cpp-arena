@@ -34,7 +34,7 @@ steps:
 
       `printf` only needs a variable's **value**, so you pass `age`. `scanf` needs to change the variable, so it needs to know **where** the variable lives in memory. `&age` means "the address of `age`". Think of it as giving `scanf` the location of the box so it can put the number inside.
 
-      Forgetting the `&` is the most common `scanf` bug. The compiler warns (`format '%d' expects argument of type 'int *'`) and the program usually crashes when it runs, because `scanf` treats the garbage value as an address. You'll understand addresses fully in the pointers module; for now, remember: **`scanf` needs `&` before number and character variables.**
+      Forgetting the `&` is the most common `scanf` bug. The compiler warns (`format specifies type 'int *' but the argument has type 'int'`), and when the program runs, `scanf` treats the variable's value as an address and writes somewhere it shouldn't. That's undefined behavior: the program may crash, or it may quietly corrupt other data. You'll understand addresses fully in the pointers module; for now, remember: **`scanf` needs `&` before number and character variables.**
 
       ### Input on this site
 

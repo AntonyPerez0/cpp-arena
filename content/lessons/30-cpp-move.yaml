@@ -44,7 +44,7 @@ steps:
       C++ decides between copying and moving by looking at the **kind of expression**:
 
       - An **lvalue** has a name and lives on after this line: `a`, `book`, `v[0]`. Stealing from it would surprise you later, so C++ **copies**.
-      - An **rvalue** is a temporary about to die: `make_vector()`, `a + b`, a literal. Nobody can use it again, so C++ **moves** from it automatically.
+      - An **rvalue** is a temporary about to die: `make_vector()`, `a + b`, a number like `42`. Nobody can use it again, so C++ **moves** from it automatically.
 
       ### What std::move really does
 

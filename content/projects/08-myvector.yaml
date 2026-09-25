@@ -2,7 +2,7 @@ id: myvector
 title: "Your own vector<T>"
 lang: cpp
 level: Advanced
-after: cpp-move
+after: cpp-templates
 summary: Re-implement std::vector as a class template. Growth, deep copies, moves, iterators, so it works with range-for and std::sort.
 seed: |
   #include <cstddef>
@@ -171,9 +171,9 @@ milestones:
 
   - title: Moves
     text: |
-      Add a move constructor and a move assignment. They steal the pointer and leave the source empty (`nullptr`, size 0, capacity 0). Mark them `noexcept`.
+      Add a move constructor. It steals the pointer and leaves the source empty (`nullptr`, size 0, capacity 0). Mark it `noexcept`.
 
-      Because copy assignment takes its parameter by value, the move assignment is optional (the by-value parameter can be move-constructed), but write the move constructor for sure.
+      You don't need a separate move assignment. Because copy assignment takes its parameter by value, `a = std::move(b)` move-constructs that parameter (cheap now) and swaps. In fact, adding `Vec& operator=(Vec&&)` next to `Vec& operator=(Vec)` makes `a = std::move(b)` ambiguous, and it won't compile.
     solution: |
       #include <cstddef>
       #include <utility>

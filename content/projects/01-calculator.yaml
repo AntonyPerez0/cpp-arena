@@ -2,7 +2,7 @@ id: calculator
 title: Command-line calculator
 lang: c
 level: Beginner
-after: c-if
+after: c-loops
 summary: Read expressions like `3 + 4`, handle every operator, refuse division by zero, and keep going until the user types q.
 seed: |
   #include <stdio.h>
@@ -141,19 +141,14 @@ milestones:
       6.00
       ```
 
-      Tip: read the first thing as a string with `scanf("%s", word)`, stop if it's `q`, otherwise convert it with `atof(word)` from `<stdlib.h>`. Or check scanf's return value: `scanf("%lf %c %lf", ...)` returns 3 when it read all three values.
+      Tip: `scanf` returns how many values it read. `scanf("%lf %c %lf", &a, &op, &b)` returns 3 for a full expression, but when it meets `q` it can't read a number, so it returns 0. Loop while it returns 3 and the `q` ends the loop for you.
     solution: |
       #include <stdio.h>
-      #include <stdlib.h>
-      #include <string.h>
 
       int main(void) {
-          char word[64];
-          while (scanf("%63s", word) == 1) {
-              if (strcmp(word, "q") == 0) break;
-              double a = atof(word), b;
-              char op;
-              if (scanf(" %c %lf", &op, &b) != 2) break;
+          double a, b;
+          char op;
+          while (scanf("%lf %c %lf", &a, &op, &b) == 3) {
               switch (op) {
                   case '+': printf("%.2f\n", a + b); break;
                   case '-': printf("%.2f\n", a - b); break;
@@ -173,6 +168,5 @@ milestones:
       - stdin: "2.5 * 4\n100 / 8\nq\n"
         hidden: true
     hints:
-      - Wrap the reading and printing in `while (...)`. Decide how to stop when you see `q`.
-      - "`strcmp(word, \"q\") == 0` is true when the word is exactly q (needs `<string.h>`)."
-      - After a result is printed, `continue` to the next line instead of `return 0`.
+      - "Put the scanf call in the loop condition: `while (scanf(\"%lf %c %lf\", &a, &op, &b) == 3)`."
+      - The division-by-zero and unknown-operator cases now print their error and carry on to the next line, so replace their `return 0` with `break` (which leaves the switch, not the loop).

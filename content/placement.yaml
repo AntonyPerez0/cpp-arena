@@ -54,6 +54,17 @@ questions:
       printf("%d %d\n", a[1], *(p + 1));
     why: "`p++` moves to `a[1]`, which becomes 21; `*(p + 1)` is `a[2]`."
 
+  - module: c-structs
+    type: predict
+    pre: |
+      struct point { int x; int y; };
+    body: |
+      struct point a = {1, 2};
+      struct point *q = &a;
+      q->x = 9;
+      printf("%d %d\n", a.x, q->y);
+    why: "`q` points at `a`, so `q->x = 9` changes `a.x`."
+
   - module: c-memory
     type: choice
     prompt: What's wrong with this code?
@@ -71,17 +82,6 @@ questions:
     answer: 1
     compiles: true
     why: '"hello" needs 6 bytes including the terminator. `malloc(strlen(src) + 1)` is the safe pattern.'
-
-  - module: c-structs
-    type: predict
-    pre: |
-      struct point { int x; int y; };
-    body: |
-      struct point a = {1, 2};
-      struct point *q = &a;
-      q->x = 9;
-      printf("%d %d\n", a.x, q->y);
-    why: "`q` points at `a`, so `q->x = 9` changes `a.x`."
 
   - module: cpp-refs
     type: predict
@@ -145,6 +145,17 @@ questions:
       std::cout << a->sound() << "\n";
     why: "`sound` is virtual, so the call goes to the real object's override."
 
+  - module: cpp-concurrency
+    type: choice
+    prompt: Two threads each run `counter++` a million times on a shared `int`, with no mutex or atomic. What's true?
+    choices:
+      - It's a data race, which is undefined behavior; updates can be lost
+      - It always ends at exactly 2,000,000
+      - It doesn't compile
+      - The second thread automatically waits for the first to finish
+    answer: 1
+    why: "`counter++` is a load, an add and a store, and the two threads' steps can interleave. Protect it with a `std::mutex` or make it a `std::atomic<int>`."
+
   - module: dsa-complexity
     type: choice
     prompt: About how many comparisons does binary search need to find a value among 1,000,000 sorted numbers?
@@ -155,3 +166,16 @@ questions:
       - About 1,000,000
     answer: 1
     why: Each comparison halves the range, and 2 to the power 20 is about a million.
+
+  - module: dsa-dp
+    type: predict
+    pre: |
+      long long memo[51];
+      long long fib(int n) {
+          if (n < 2) return n;
+          if (memo[n] != 0) return memo[n];
+          return memo[n] = fib(n - 1) + fib(n - 2);
+      }
+    body: |
+      std::cout << fib(50) << "\n";
+    why: Memoization computes each fib(n) once, so fib(50) is instant. Plain recursion would need about 40 billion calls.

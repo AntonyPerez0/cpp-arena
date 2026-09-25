@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { allSteps, pro } from "../content";
+import { allSteps, modules, pro } from "../content";
 import { patchSettings, useStore, type State } from "../state/store";
 import { rankFor } from "../state/derived";
 import ShareButton from "../components/ShareButton";
@@ -39,7 +39,7 @@ function CertCard({ c }: { c: Cert }) {
       <div className="cert-title">{TITLES[c.kind]}</div>
       {c.kind === "course" ? (
         <div className="cert-detail">
-          {c.steps} compiled exercises across 44 modules, from pointers and memory to modern C++, data structures and algorithms · {c.clean} solved with no
+          {c.steps} compiled exercises across {modules.length} modules, from pointers and memory to modern C++, data structures and algorithms · {c.clean} solved with no
           hints · Deathmatch rank: {c.rank}
         </div>
       ) : (

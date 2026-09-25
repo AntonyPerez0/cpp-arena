@@ -316,7 +316,7 @@ steps:
       ### Writing comparators correctly
 
       - `(a > b) - (a < b)` gives -1, 0 or 1. The shortcut `return a - b;` looks tempting for ints but **overflows** for large values of opposite signs, which is undefined behavior and silently misorders elements.
-      - For several sort keys, compare the most important first, and only if it's a tie move on to the next (here, name as a tie-breaker). This gives a stable, predictable order.
+      - For several sort keys, compare the most important first, and only if it's a tie move on to the next (here, name as a tie-breaker). This gives a predictable order. It matters because `qsort` is not **stable**: it may put equal elements in any order, so without a tie-breaker, items with the same price could come out differently on different systems.
       - For descending order, swap the roles of `a` and `b`.
 
       The pointer conversion `const Item *a = pa;` works without a cast in C, because a `void *` converts to any object pointer automatically.
