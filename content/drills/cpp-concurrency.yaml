@@ -1,0 +1,176 @@
+topic: cpp-concurrency
+lang: cpp
+drills:
+  - type: choice
+    prompt: What does `t.join()` do for a `std::thread t`?
+    choices:
+      - Waits until the thread has finished running
+      - Starts the thread running
+      - Stops the thread immediately
+      - Copies the thread's variables back into main
+    answer: 1
+    why: A std::thread starts as soon as it's constructed. join() blocks the caller until that thread's function returns; after it, everything the thread wrote is safe to read.
+  - type: choice
+    prompt: A `std::thread` object is destroyed while its thread was never joined or detached. What happens?
+    choices:
+      - "`std::terminate` is called and the program dies"
+      - It joins automatically
+      - It detaches automatically
+      - Nothing, the thread keeps running
+    answer: 1
+    why: A joinable std::thread's destructor calls std::terminate. C++20's std::jthread is the RAII version that joins in its destructor.
+  - type: choice
+    prompt: What's the bug in this loop?
+    pre: |
+      #include <thread>
+      void work(int id) { (void)id; }
+    body: |
+      std::vector<std::thread> ts;
+      for (int i = 0; i < 3; i++) {
+          ts.emplace_back([&] { work(i); });
+      }
+      for (auto& t : ts) t.join();
+    choices:
+      - "`i` is captured by reference, so a thread can read it after the loop has changed it"
+      - The threads must be joined in reverse order
+      - "`emplace_back` can't store threads, only `push_back` can"
+      - Nothing, each thread gets its own `i`
+    answer: 1
+    why: "`[&]` captures the loop variable itself, which keeps changing (and is gone after the loop) while the threads run. That's a data race. Capture it by copy: `[i] { work(i); }`."
+  - type: choice
+    prompt: Which of these is a data race?
+    choices:
+      - Two threads write the same `int` with no mutex or atomic
+      - Two threads read the same `const` vector at the same time
+      - Two threads write different elements of the same vector
+      - Two threads increment the same `std::atomic<int>`
+    answer: 1
+    why: A data race needs the same memory location, at least one write, and no synchronization. Reads alone are fine, different elements are different locations, and atomic operations never race.
+  - type: choice
+    prompt: "`counter++` on a shared `int` from two threads sometimes loses updates. Why?"
+    choices:
+      - It's really three steps (load, add, store), and the threads' steps can interleave
+      - Integers can't be shared between threads
+      - The second thread always overwrites the first thread's whole loop
+      - "`++` is slower than `+= 1`"
+    answer: 1
+    why: If both threads load the same old value before either stores, one increment is lost. It's also undefined behavior, so optimizations can make things stranger still.
+  - type: predict
+    body: |
+      std::atomic<int> n{5};
+      int a = n.fetch_add(2);
+      int b = n++;
+      std::cout << a << " " << b << " " << n.load() << "\n";
+    why: fetch_add and post-increment both return the value from before the change. 5 plus 2 is 7, plus 1 is 8.
+  - type: predict
+    body: |
+      std::atomic<bool> taken{false};
+      bool first = taken.exchange(true);
+      bool second = taken.exchange(true);
+      std::cout << first << second << "\n";
+    why: exchange returns the old value. Only the first caller sees false, which is how "exactly one thread wins" is built.
+  - type: predict
+    body: |
+      std::atomic<int> x{3};
+      int expected = 5;
+      bool ok = x.compare_exchange_strong(expected, 9);
+      std::cout << ok << " " << expected << " " << x.load() << "\n";
+    why: x isn't 5, so nothing is swapped. A failed compare-exchange copies the current value (3) into expected, ready for the next try.
+  - type: fill
+    prompt: Make the counter safe to increment from several threads at once.
+    body: |
+      std::[[atomic]]<int> hits{0};
+      hits++;
+      hits += 2;
+      std::cout << hits.load() << "\n";
+    why: std::atomic makes each ++ and += one indivisible operation, so increments from different threads can't be lost.
+  - type: choice
+    prompt: Thread 1 locks mutex `a` and then `b`. Thread 2 locks `b` and then `a`. What can happen?
+    choices:
+      - Each holds one lock and waits forever for the other (deadlock)
+      - Nothing, mutexes can be locked in any order
+      - The program won't compile
+      - The second thread always wins
+    answer: 1
+    why: Opposite lock orders form a cycle. Fix it with `std::scoped_lock lock(a, b);` or by making every thread lock in the same order.
+  - type: choice
+    prompt: What's the right way to hold two mutexes at once?
+    choices:
+      - "`std::scoped_lock lock(m1, m2);`"
+      - "`m1.lock(); m2.lock();` in whatever order is convenient"
+      - Mark both mutexes `volatile`
+      - "`std::lock_guard lock(m1); std::lock_guard lock2(m2);` in each caller's preferred order"
+    answer: 1
+    why: std::scoped_lock locks all of them with a deadlock-avoidance algorithm. Hand-ordered locking also works, but only if every thread uses the same order.
+  - type: choice
+    prompt: Why should `cv.wait(lock, condition)` always be given a condition?
+    choices:
+      - Threads can wake up without a notification, and a notification sent before waiting would otherwise be missed
+      - Without it, wait never returns
+      - The condition makes the wait faster
+      - It's required so the code compiles
+    answer: 1
+    why: Spurious wakeups are allowed, and notifications aren't stored. Checking the real condition (under the lock) handles both.
+  - type: choice
+    prompt: Why does `condition_variable::wait` take a `std::unique_lock` rather than a `std::lock_guard`?
+    choices:
+      - It has to unlock the mutex while sleeping and lock it again on waking
+      - unique_lock is faster
+      - lock_guard can't lock a std::mutex
+      - unique_lock also notifies other threads
+    answer: 1
+    why: A lock_guard can't be unlocked early. wait releases the mutex so producers can get in, then re-acquires it before checking the condition.
+  - type: predict
+    body: |
+      std::vector<int> buf(4);
+      std::size_t head = 3, count = 2;
+      std::size_t next_write = (head + count) % buf.size();
+      std::size_t after_pop = (head + 1) % buf.size();
+      std::cout << next_write << " " << after_pop << "\n";
+    why: "A ring buffer's indexes wrap with %: (3 + 2) % 4 is 1, and moving head from the last slot (3) wraps to 0."
+  - type: bug
+    body: |
+      std::vector<int> buf = {7, 8, 9};
+      std::size_t head = 2, count = 2;   // holds 9, then 7 (wrapped around)
+      int first = buf[head];
+      head = head + 1; // BUG
+      count--;
+      std::cout << first << " " << buf[head] << " " << count << "\n";
+    fix: "head = (head + 1) % buf.size();"
+    ub: true
+    why: Without the %, head runs off the end of the array (index 3 of a 3-element vector). A ring buffer's head must wrap back to 0.
+  - type: boss
+    why: Giving each thread its own result and combining once at the end avoids locking entirely.
+    prompt: |
+      Each thread counted words into its own map. Write `std::map<std::string, int> merge_counts(const std::vector<std::map<std::string, int>>& parts)` that adds them all into one map.
+    seed: |
+      #include <map>
+      #include <string>
+      #include <vector>
+
+      std::map<std::string, int> merge_counts(const std::vector<std::map<std::string, int>>& parts) {
+
+      }
+    solution: |
+      #include <map>
+      #include <string>
+      #include <vector>
+
+      std::map<std::string, int> merge_counts(const std::vector<std::map<std::string, int>>& parts) {
+          std::map<std::string, int> total;
+          for (const auto& part : parts)
+              for (const auto& [word, n] : part) total[word] += n;
+          return total;
+      }
+    harness: |
+      int main() {
+          std::vector<std::map<std::string, int>> parts = {{{"gg", 2}, {"wp", 1}}, {{"gg", 1}, {"ez", 3}}, {}};
+          auto t = merge_counts(parts);
+          CHECK_EQ("three different words", t.size(), 3u);
+          CHECK_EQ("gg added across parts", t["gg"], 3);
+          CHECK_EQ("ez from one part", t["ez"], 3);
+          CHECK_EQ("no parts", merge_counts({}).size(), 0u);
+      }
+    hints:
+      - "Loop over the parts, and inside that over each part's `[word, n]` pairs."
+      - "`total[word] += n;` starts missing words at 0."

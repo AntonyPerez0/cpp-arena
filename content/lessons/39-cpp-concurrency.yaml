@@ -1,0 +1,890 @@
+id: cpp-concurrency
+title: Threads and concurrency
+lang: cpp
+phase: "C++: Professional C++"
+summary: Doing several things at once. Threads and join, why data races happen, mutexes and lock_guard, atomics, deadlock and lock ordering, and producer/consumer queues with condition variables.
+steps:
+  - title: Threads and splitting work
+    id: cpp-concurrency-1
+    text: |
+      Every program so far did one thing at a time: one line, then the next. A modern CPU has several **cores**, each able to run instructions at the same moment. A **thread** is one path of execution through your program. A program can start several threads, and the operating system runs them in parallel on different cores (or takes turns on one core). All threads of a program **share the same memory**: the same globals, the same heap, and any variable they're given a reference to.
+
+      Programs use threads to finish big jobs faster (four cores summing four quarters of the data), to keep working while waiting (a server handling one client while another is slow), and to keep an app responsive (the interface keeps drawing while a file loads).
+
+      ### A note about this module
+
+      The compiler in your browser runs programs as WebAssembly without thread support, so `std::thread` doesn't exist there. The examples in this module that start threads were compiled with GCC (`-std=c++20 -pthread`) and run on a Linux machine by the site's build, several times, and the output shown is what they printed every time. To run them yourself, save one as `demo.cpp` on a computer and build it with `g++ -std=c++20 -pthread demo.cpp -o demo`. The exercises practice the logic around threads, which works the same in the browser. The Pro Track's concurrency project then has you build real threaded code with ThreadSanitizer checking it.
+
+      ### Starting and joining threads
+
+      This program sums a million numbers with four threads, each summing its own quarter:
+
+      ```cpp native
+      #include <iostream>
+      #include <numeric>
+      #include <thread>
+      #include <vector>
+
+      int main() {
+          std::vector<int> data(1'000'000);
+          std::iota(data.begin(), data.end(), 1);        // 1, 2, ..., 1000000
+
+          const std::size_t parts = 4;
+          std::vector<long long> partial(parts, 0);       // one result slot per thread
+          std::vector<std::thread> workers;
+          std::size_t chunk = data.size() / parts;
+
+          for (std::size_t t = 0; t < parts; t++) {
+              std::size_t lo = t * chunk;
+              std::size_t hi = (t == parts - 1) ? data.size() : lo + chunk;
+              workers.emplace_back([&data, &partial, t, lo, hi] {
+                  long long s = 0;
+                  for (std::size_t i = lo; i < hi; i++) s += data[i];
+                  partial[t] = s;                         // each thread writes only its own slot
+              });
+          }
+          for (auto& w : workers) w.join();               // wait for all four to finish
+
+          long long total = std::accumulate(partial.begin(), partial.end(), 0LL);
+          std::cout << "total " << total << "\n";
+      }
+      ```
+
+      ```output
+      total 500000500000
+      ```
+
+      ### How it works
+
+      - `std::thread` (from `<thread>`) starts running the function you give it **immediately**, alongside `main`. Here each thread runs a lambda. `workers.emplace_back(...)` constructs the thread directly inside the vector.
+      - The capture list matters. `data` and `partial` are captured by reference because the threads must work on the real vectors. `t`, `lo` and `hi` are captured **by copy**: the loop changes them while the threads are still running, so a reference to them would read whatever value the loop had reached by then.
+      - `join()` waits until that thread has finished. After the joins, main can safely read everything the threads wrote.
+      - Every `std::thread` must be joined (or detached, which lets it run on unsupervised) before the `std::thread` object is destroyed. Otherwise the program calls `std::terminate` and dies. C++20's `std::jthread` joins automatically in its destructor, which is RAII again.
+      - The threads write to **different elements** of `partial`, which is safe: different elements are different memory locations. If they all added into one shared `long long total`, that would be a **data race**, the subject of the next step.
+      - Threads finish in an unpredictable order. That's why the program only prints after joining.
+
+      ### Splitting the work fairly
+
+      The example gives the last thread whatever is left over, so with 10 items and 3 threads the chunks are 3, 3 and 4. A better split spreads the remainder: 4, 3 and 3. The rule is that each part gets `n / parts` items, and the first `n % parts` parts get one extra. The parts are **half-open ranges** `[lo, hi)`, like iterators: `lo` is included and `hi` is not, so an empty range has `lo == hi`.
+
+      **Your turn:** write `split(n, parts)` returning `parts` ranges that cover `0` to `n` in order, with sizes that differ by at most one (the first `n % parts` ranges get the extra item; `parts` is at least 1). Then write `sum_range(v, lo, hi)`, the job each thread would run.
+    seed: |
+      #include <cstddef>
+      #include <utility>
+      #include <vector>
+
+      using Range = std::pair<std::size_t, std::size_t>;   // [first, second)
+
+      std::vector<Range> split(std::size_t n, std::size_t parts) {
+
+      }
+
+      long long sum_range(const std::vector<int>& v, std::size_t lo, std::size_t hi) {
+
+      }
+    solution: |
+      #include <cstddef>
+      #include <utility>
+      #include <vector>
+
+      using Range = std::pair<std::size_t, std::size_t>;   // [first, second)
+
+      std::vector<Range> split(std::size_t n, std::size_t parts) {
+          std::vector<Range> out;
+          std::size_t base = n / parts;
+          std::size_t extra = n % parts;
+          std::size_t lo = 0;
+          for (std::size_t i = 0; i < parts; i++) {
+              std::size_t len = base + (i < extra ? 1 : 0);
+              out.push_back({lo, lo + len});
+              lo += len;
+          }
+          return out;
+      }
+
+      long long sum_range(const std::vector<int>& v, std::size_t lo, std::size_t hi) {
+          long long s = 0;
+          for (std::size_t i = lo; i < hi; i++) s += v[i];
+          return s;
+      }
+    harness: |
+      int main() {
+          auto r = split(10, 3);
+          CHECK_EQ("10 into 3 gives 3 ranges", r.size(), 3u);
+          CHECK("10 into 3 is [0,4) [4,7) [7,10)", r.size() == 3 && r[0] == Range{0, 4} && r[1] == Range{4, 7} && r[2] == Range{7, 10});
+          auto even = split(8, 4);
+          CHECK("8 into 4 is 2 each", even.size() == 4 && even[0] == Range{0, 2} && even[3] == Range{6, 8});
+          auto tiny = split(2, 4);
+          CHECK("more parts than items: empty ranges at the end", tiny.size() == 4 && tiny[0] == Range{0, 1} && tiny[1] == Range{1, 2} && tiny[2] == Range{2, 2} && tiny[3] == Range{2, 2});
+          CHECK("one part is everything", split(5, 1).size() == 1 && split(5, 1)[0] == Range{0, 5});
+          std::vector<int> v = {5, 1, 4, 2, 3};
+          CHECK_EQ("sum_range [1,4)", sum_range(v, 1, 4), 7LL);
+          CHECK_EQ("empty range sums to 0", sum_range(v, 2, 2), 0LL);
+          long long total = 0;
+          for (auto [lo, hi] : split(v.size(), 3)) total += sum_range(v, lo, hi);
+          CHECK_EQ("the chunks add up to the whole", total, 15LL);
+          std::vector<int> big(1000001, 3);
+          long long t2 = 0;
+          for (auto [lo, hi] : split(big.size(), 7)) t2 += sum_range(big, lo, hi);
+          CHECK_EQ("a million and one items in 7 parts", t2, 3000003LL);
+      }
+    hints:
+      - "`base = n / parts` and `extra = n % parts`. Range `i` holds `base + 1` items if `i < extra`, otherwise `base`."
+      - "Keep a running `lo`. Each range is `{lo, lo + len}`, then `lo += len`."
+      - "sum_range is a plain loop from `lo` up to (not including) `hi`, adding into a `long long`."
+
+  - title: Data races
+    id: cpp-concurrency-2
+    text: |
+      What if both threads add to the same counter? This looks harmless:
+
+      ```cpp
+      #include <iostream>
+      #include <thread>
+
+      int main() {
+          long long counter = 0;
+          auto work = [&] {
+              for (int i = 0; i < 1000000; i++) counter++;   // DATA RACE
+          };
+          std::thread a(work), b(work);
+          a.join();
+          b.join();
+          std::cout << counter << "\n";
+      }
+      ```
+
+      Two threads, a million increments each, so it should print 2000000. Built without optimization (`-O0`) on a 4-core Linux machine, four runs printed 1367998, 1257188, 1162747 and 1363165: a different wrong answer every time. Built with `-O2`, it printed 2000000 all four times, because the optimizer turned each loop into a single addition, which made the problem much rarer. Either way the program is **broken**, and ThreadSanitizer (`-fsanitize=thread`) reports it on the first run: `WARNING: ThreadSanitizer: data race`.
+
+      ### Why updates get lost
+
+      `counter++` looks like one action, but the processor does it in three steps: **load** the value from memory into a register, **add** 1, **store** the result back. Two threads can interleave those steps:
+
+      | Step | Thread A | Thread B | counter in memory |
+      |---|---|---|---|
+      | 1 | load 5 | | 5 |
+      | 2 | | load 5 | 5 |
+      | 3 | add: 6 | | 5 |
+      | 4 | store 6 | | 6 |
+      | 5 | | add: 6 | 6 |
+      | 6 | | store 6 | 6 |
+
+      Two increments ran, but the counter only went up by one. B's store overwrote A's work: a **lost update**. Which interleaving happens depends on timing, so the result changes from run to run.
+
+      ### The rule
+
+      A **data race** is two threads accessing the same memory location at the same time, where at least one of them writes and nothing synchronizes them. In C++ a data race is **undefined behavior**, not just "a slightly wrong number". The compiler optimizes assuming races never happen (that's what the `-O2` build did), so a racy program can misbehave in ways the source code doesn't suggest.
+
+      Reading shared data from several threads is fine if nobody writes it. The moment one thread writes, every access needs synchronization: a mutex (next step), an atomic, or not sharing at all.
+
+      ### Simulating the interleaving
+
+      Timing makes real races hard to study, so this program plays one out deterministically. Each "thread" does `counter++` as three separate steps, and the schedule string says whose turn it is:
+
+      ```cpp run
+      #include <iostream>
+      #include <string>
+
+      struct Thread {
+          int reg = 0;     // its private copy of the value (a CPU register)
+          int stage = 0;   // 0 = load next, 1 = add next, 2 = store next
+      };
+
+      int main() {
+          int counter = 0;
+          Thread a, b;
+          std::string schedule = "ABABAB";
+          for (char who : schedule) {
+              Thread& t = (who == 'A') ? a : b;
+              if (t.stage == 0) t.reg = counter;       // load
+              else if (t.stage == 1) t.reg += 1;       // add
+              else counter = t.reg;                    // store
+              t.stage = (t.stage + 1) % 3;
+          }
+          std::cout << "counter = " << counter << "\n";
+      }
+      ```
+
+      ```output
+      counter = 1
+      ```
+
+      With the schedule `"AAABBB"` (A finishes before B starts) it prints 2. With `"ABABAB"` it's exactly the table above, and one update is lost.
+
+      **Your turn:** write `simulate(schedule)`, which returns the final counter when threads `'A'` and `'B'` repeat `counter++` as load, add, store and the schedule says whose step comes next (a thread keeps incrementing as long as it gets turns; an increment that never reaches its store has no effect). Then write `lost_updates(schedule)`: how many completed increments (stores) didn't show up in the final counter.
+    seed: |
+      #include <string>
+
+      int simulate(const std::string& schedule) {
+
+      }
+
+      int lost_updates(const std::string& schedule) {
+
+      }
+    solution: |
+      #include <string>
+
+      struct Thread {
+          int reg = 0;
+          int stage = 0;
+      };
+
+      int simulate(const std::string& schedule) {
+          int counter = 0;
+          Thread a, b;
+          for (char who : schedule) {
+              Thread& t = (who == 'A') ? a : b;
+              if (t.stage == 0) t.reg = counter;
+              else if (t.stage == 1) t.reg += 1;
+              else counter = t.reg;
+              t.stage = (t.stage + 1) % 3;
+          }
+          return counter;
+      }
+
+      int lost_updates(const std::string& schedule) {
+          int stores = 0;
+          int stage_a = 0, stage_b = 0;
+          for (char who : schedule) {
+              int& stage = (who == 'A') ? stage_a : stage_b;
+              if (stage == 2) stores++;
+              stage = (stage + 1) % 3;
+          }
+          return stores - simulate(schedule);
+      }
+    harness: |
+      int main() {
+          CHECK_EQ("A then B, no overlap", simulate("AAABBB"), 2);
+          CHECK_EQ("fully interleaved", simulate("ABABAB"), 1);
+          CHECK_EQ("B loads before A stores", simulate("AABBAB"), 1);
+          CHECK_EQ("A twice, then B once", simulate("AAAAAABBB"), 3);
+          CHECK_EQ("B finishes inside A's increment", simulate("ABBBAA"), 1);
+          CHECK_EQ("loads with no stores change nothing", simulate("AB"), 0);
+          CHECK_EQ("empty schedule", simulate(""), 0);
+          CHECK_EQ("no overlap loses nothing", lost_updates("AAABBBAAA"), 0);
+          CHECK_EQ("interleaving loses one", lost_updates("ABABAB"), 1);
+          CHECK_EQ("two lost", lost_updates("ABABABABABAB"), 2);
+          CHECK_EQ("unfinished increments aren't lost, just not done", lost_updates("AAABA"), 0);
+      }
+    hints:
+      - "Keep a `reg` and a `stage` for each thread. On each character, pick that thread and do its next step: stage 0 loads `counter` into `reg`, stage 1 adds 1 to `reg`, stage 2 stores `reg` into `counter`. Then advance the stage, wrapping from 2 back to 0."
+      - "`Thread& t = (who == 'A') ? a : b;` picks the right thread by reference, so the changes stick."
+      - "For lost_updates, count how many steps were stores (a thread at stage 2), then subtract the final counter."
+
+  - title: Mutexes and lock_guard
+    id: cpp-concurrency-3
+    text: |
+      A **mutex** (mutual exclusion, `std::mutex` from `<mutex>`) is a lock that only one thread can hold at a time. A thread calls `lock()` before touching shared data and `unlock()` after. If another thread already holds the mutex, `lock()` **waits** until it's released. The code between lock and unlock is a **critical section**: at most one thread is ever inside it, so its steps can't interleave with another thread's.
+
+      You almost never call `lock()` and `unlock()` yourself. `std::lock_guard` locks in its constructor and unlocks in its destructor, so the mutex is released on every path out of the block, including early returns and exceptions. It's RAII applied to locks.
+
+      ```cpp native
+      #include <iostream>
+      #include <mutex>
+      #include <thread>
+
+      int main() {
+          long long counter = 0;
+          std::mutex m;
+          auto work = [&] {
+              for (int i = 0; i < 1000000; i++) {
+                  std::lock_guard<std::mutex> lock(m);   // lock m...
+                  counter++;
+              }                                          // ...unlocked here, every pass
+          };
+          std::thread a(work), b(work);
+          a.join();
+          b.join();
+          std::cout << counter << "\n";
+      }
+      ```
+
+      ```output
+      2000000
+      ```
+
+      Now the load, add and store of each increment happen while holding `m`, so no other increment can sneak in between them. The answer is right on every run, at every optimization level, and ThreadSanitizer stays quiet.
+
+      ### A mutex belongs with its data
+
+      In real code the mutex lives next to the data it protects, both `private`, and every member function that touches the data takes the lock. Callers can't forget, because they never see the data directly:
+
+      ```cpp
+      class Inventory {
+      public:
+          void add(const std::string& item, int n) {
+              std::lock_guard<std::mutex> lock(m_);
+              items_[item] += n;
+          }
+          int count(const std::string& item) const {
+              std::lock_guard<std::mutex> lock(m_);
+              auto it = items_.find(item);
+              return it == items_.end() ? 0 : it->second;
+          }
+      private:
+          mutable std::mutex m_;   // mutable: const functions must lock it too
+          std::map<std::string, int> items_;
+      };
+      ```
+
+      ### Locks cost time: share less
+
+      Locking and unlocking a million times is slow, and while one thread holds the lock the other just waits. The fastest shared data is data that isn't shared. Give each thread its own result and combine the results once at the end, like the partial sums in step 1. `std::async` (from `<future>`) makes this pattern short: it runs a function on another thread and hands back a `std::future`, whose `get()` waits for the result.
+
+      ```cpp native
+      #include <future>
+      #include <iostream>
+      #include <map>
+      #include <string>
+      #include <vector>
+
+      using Counts = std::map<std::string, int>;
+
+      Counts count_words(const std::vector<std::string>& words, std::size_t lo, std::size_t hi) {
+          Counts c;                                       // private to this call: no lock needed
+          for (std::size_t i = lo; i < hi; i++) c[words[i]]++;
+          return c;
+      }
+
+      int main() {
+          std::vector<std::string> words = {"gg", "wp", "gg", "ez", "gg", "wp", "ns", "gg"};
+          auto first = std::async(std::launch::async, count_words, std::cref(words), 0, 4);
+          auto second = std::async(std::launch::async, count_words, std::cref(words), 4, 8);
+
+          Counts total = first.get();                     // get() waits for that thread
+          for (const auto& [w, n] : second.get()) total[w] += n;
+          for (const auto& [w, n] : total) std::cout << w << " " << n << "\n";
+      }
+      ```
+
+      ```output
+      ez 1
+      gg 4
+      ns 1
+      wp 2
+      ```
+
+      `std::cref(words)` passes the vector by reference; without it, `std::async` would copy it for each thread. `std::launch::async` asks for a real new thread.
+
+      ### Simulating a lock
+
+      Back to the simulation from the last step. With a lock, each increment becomes five steps: **lock**, load, add, store, **unlock**. A thread whose turn comes while the other thread holds the lock can't proceed: its lock step fails, and it tries again on its next turn. That's all it takes to make lost updates impossible.
+
+      **Your turn:** write `simulate_locked(schedule)`. Threads `'A'` and `'B'` repeat lock, load, add, store, unlock. A lock step only succeeds (and moves the thread on to its load) when nobody holds the lock; otherwise the thread stays at its lock step. Return the final counter.
+    seed: |
+      #include <string>
+
+      int simulate_locked(const std::string& schedule) {
+
+      }
+    solution: |
+      #include <string>
+
+      struct Thread {
+          int reg = 0;
+          int stage = 0;   // 0 lock, 1 load, 2 add, 3 store, 4 unlock
+      };
+
+      int simulate_locked(const std::string& schedule) {
+          int counter = 0;
+          char holder = 0;   // who holds the lock, or 0 if nobody
+          Thread a, b;
+          for (char who : schedule) {
+              Thread& t = (who == 'A') ? a : b;
+              if (t.stage == 0) {
+                  if (holder != 0) continue;   // blocked: try again next turn
+                  holder = who;
+              } else if (t.stage == 1) {
+                  t.reg = counter;
+              } else if (t.stage == 2) {
+                  t.reg += 1;
+              } else if (t.stage == 3) {
+                  counter = t.reg;
+              } else {
+                  holder = 0;
+              }
+              t.stage = (t.stage + 1) % 5;
+          }
+          return counter;
+      }
+    harness: |
+      // Counts the stores the schedule allows, for the property check below.
+      int stores_allowed(const std::string& s) {
+          int stage_a = 0, stage_b = 0, stores = 0;
+          char holder = 0;
+          for (char who : s) {
+              int& st = (who == 'A') ? stage_a : stage_b;
+              if (st == 0) { if (holder) continue; holder = who; }
+              else if (st == 3) stores++;
+              else if (st == 4) holder = 0;
+              st = (st + 1) % 5;
+          }
+          return stores;
+      }
+      int main() {
+          CHECK_EQ("one full increment", simulate_locked("AAAAA"), 1);
+          CHECK_EQ("A then B", simulate_locked("AAAAABBBBB"), 2);
+          CHECK_EQ("B is blocked until A unlocks", simulate_locked("ABABABABABBBBB"), 2);
+          CHECK_EQ("B gets the lock first", simulate_locked("BABBBBAAAAA"), 2);
+          CHECK_EQ("still inside the critical section", simulate_locked("AAAB"), 0);
+          CHECK_EQ("stored but not yet unlocked", simulate_locked("AAAABBBB"), 1);
+          unsigned seed = 12345;
+          bool ok = true;
+          for (int trial = 0; trial < 200; trial++) {
+              std::string s;
+              for (int i = 0; i < 60; i++) {
+                  seed = seed * 1103515245u + 12345u;
+                  s += ((seed >> 16) & 1) ? 'A' : 'B';
+              }
+              if (simulate_locked(s) != stores_allowed(s)) ok = false;
+          }
+          CHECK("200 random schedules: no update is ever lost", ok);
+      }
+    hints:
+      - "Track who holds the lock in a `char holder` (0 means free). Each thread has a stage from 0 to 4: lock, load, add, store, unlock."
+      - "At the lock stage, if `holder != 0` the step fails: `continue` without advancing that thread's stage. Otherwise set `holder = who`."
+      - "The unlock stage sets `holder = 0`. Advance with `t.stage = (t.stage + 1) % 5;`."
+
+  - title: Atomics
+    id: cpp-concurrency-4
+    text: |
+      For a single counter or flag, a mutex is heavy machinery. `std::atomic<T>` (from `<atomic>`) makes individual operations on one variable **indivisible**: no other thread can ever see them half done, and they don't form data races. For `int` and friends, the processor does this with special instructions, no lock needed.
+
+      ```cpp native
+      #include <atomic>
+      #include <iostream>
+      #include <thread>
+
+      int main() {
+          std::atomic<long long> counter{0};
+          auto work = [&] {
+              for (int i = 0; i < 1000000; i++) counter++;   // one indivisible read-add-write
+          };
+          std::thread a(work), b(work);
+          a.join();
+          b.join();
+          std::cout << counter.load() << "\n";
+      }
+      ```
+
+      ```output
+      2000000
+      ```
+
+      Atomics work in the browser too (there's just one thread to use them), so the rest of this step runs here.
+
+      ### The operations
+
+      ```cpp run
+      #include <atomic>
+      #include <iostream>
+
+      int main() {
+          std::atomic<int> x{10};
+
+          x.store(20);                     // write
+          int now = x.load();              // read
+          int before = x.fetch_add(5);     // add 5, return the value from BEFORE
+          int old = x.exchange(100);       // set to 100, return the old value
+
+          int expected = 100;
+          bool swapped = x.compare_exchange_strong(expected, 7);   // 100 -> 7
+          int expected2 = 100;
+          bool swapped2 = x.compare_exchange_strong(expected2, 8); // x is 7 now: fails
+
+          std::cout << now << " " << before << " " << old << "\n";
+          std::cout << swapped << " " << swapped2 << " " << expected2 << " " << x.load() << "\n";
+      }
+      ```
+
+      ```output
+      20 20 25
+      1 0 7 7
+      ```
+
+      - `fetch_add` returns the **old** value. That makes it perfect for handing out unique numbers: two threads calling it at the same moment always get different results.
+      - `exchange` sets a new value and returns the old one in one step. If a thread swaps `true` into a flag and gets `false` back, it knows it was the first.
+      - `compare_exchange_strong(expected, desired)` (CAS, compare-and-swap) sets `desired` **only if** the current value equals `expected`, and returns whether it did. When it fails, it copies the current value into `expected`, which is why `expected2` became 7.
+
+      ### Check-then-act needs CAS
+
+      Each operation is atomic, but **two** operations in a row are not. Keeping a shared maximum this way is a race:
+
+      ```cpp
+      if (value > best.load()) best.store(value);   // another thread can store in between
+      ```
+
+      Between the load and the store, another thread can store a bigger value, which this store then wipes out. The fix is a CAS loop: read the current value, and only replace it if nothing changed in the meantime; if something did, `expected` now holds the new value, so check again.
+
+      ```cpp
+      int cur = best.load();
+      while (value > cur && !best.compare_exchange_weak(cur, value)) {
+          // cur was refreshed with the latest value; the loop re-checks it
+      }
+      ```
+
+      `compare_exchange_weak` may occasionally fail even when the values match (it's cheaper on some processors), which is fine inside a loop. Use `_strong` for a single attempt.
+
+      Atomics suit single variables: counters, flags, the index of the next job. As soon as several variables must change together (a balance and a transaction list), use a mutex.
+
+      **Your turn:** write `take_ticket` (returns the next ticket number and advances the counter, like a deli ticket machine), `claim` (returns `true` only for the first caller ever, using the flag), and `update_max` (raises `best` to `value` if `value` is bigger, with a CAS loop).
+    seed: |
+      #include <atomic>
+
+      int take_ticket(std::atomic<int>& next) {
+
+      }
+
+      bool claim(std::atomic<bool>& taken) {
+
+      }
+
+      void update_max(std::atomic<int>& best, int value) {
+
+      }
+    solution: |
+      #include <atomic>
+
+      int take_ticket(std::atomic<int>& next) {
+          return next.fetch_add(1);
+      }
+
+      bool claim(std::atomic<bool>& taken) {
+          return !taken.exchange(true);
+      }
+
+      void update_max(std::atomic<int>& best, int value) {
+          int cur = best.load();
+          while (value > cur && !best.compare_exchange_weak(cur, value)) {
+          }
+      }
+    require:
+      - pattern: "fetch_add"
+        message: take_ticket should hand out numbers with one fetch_add, so two threads can never get the same ticket.
+      - pattern: "\\.exchange\\("
+        message: claim should use exchange, so testing and setting the flag is one indivisible step.
+      - pattern: "compare_exchange"
+        message: update_max needs a compare_exchange loop; a load followed by a store can lose a bigger value.
+    harness: |
+      int main() {
+          std::atomic<int> next{1};
+          int a = take_ticket(next), b = take_ticket(next), c = take_ticket(next);
+          CHECK("tickets 1, 2, 3", a == 1 && b == 2 && c == 3);
+          CHECK_EQ("counter moved on to 4", next.load(), 4);
+          std::atomic<bool> taken{false};
+          CHECK_EQ("first claim wins", claim(taken), true);
+          CHECK_EQ("second claim loses", claim(taken), false);
+          CHECK_EQ("third claim loses", claim(taken), false);
+          std::atomic<int> best{10};
+          update_max(best, 7);
+          CHECK_EQ("smaller value leaves it", best.load(), 10);
+          update_max(best, 42);
+          CHECK_EQ("bigger value replaces it", best.load(), 42);
+          update_max(best, 42);
+          CHECK_EQ("equal value is fine", best.load(), 42);
+          std::atomic<int> neg{-5};
+          update_max(neg, -2);
+          CHECK_EQ("works for negatives", neg.load(), -2);
+      }
+    hints:
+      - "take_ticket: `return next.fetch_add(1);` returns the value from before the add."
+      - "claim: `taken.exchange(true)` returns the old value. The first caller gets `false` back, so return `!taken.exchange(true)`."
+      - "update_max: `int cur = best.load(); while (value > cur && !best.compare_exchange_weak(cur, value)) {}`"
+
+  - title: Deadlock and lock ordering
+    id: cpp-concurrency-5
+    text: |
+      Mutexes fix data races, but they bring their own failure: **deadlock**. Moving money between two accounts needs both accounts' locks. Watch what happens if each thread locks "from" first, then "to":
+
+      ```cpp
+      void transfer(Account& from, Account& to, long long amount) {
+          std::lock_guard<std::mutex> a(from.m);   // lock the first account
+          std::lock_guard<std::mutex> b(to.m);     // then the second
+          from.balance -= amount;
+          to.balance += amount;
+      }
+      // thread 1: transfer(alice, bob, 10)
+      // thread 2: transfer(bob, alice, 5)
+      ```
+
+      Thread 1 locks Alice's account and reaches for Bob's. At the same moment, thread 2 locks Bob's and reaches for Alice's. Each holds what the other needs, and each waits for the other forever. Nothing crashes and no error appears: the program just stops making progress. That is a deadlock, and like a race it depends on timing, so it can pass every test and then freeze a server at 3 a.m.
+
+      A deadlock needs a **cycle**: thread 1 holds A and waits for B, while thread 2 holds B and waits for A. Break the cycle and deadlock is impossible.
+
+      ### Fix 1: lock them together
+
+      `std::scoped_lock` (C++17) takes several mutexes and locks all of them using a deadlock-avoidance algorithm, whatever order you list them in:
+
+      ```cpp native
+      #include <iostream>
+      #include <mutex>
+      #include <thread>
+
+      struct Account {
+          std::mutex m;
+          long long balance = 0;
+      };
+
+      void transfer(Account& from, Account& to, long long amount) {
+          std::scoped_lock lock(from.m, to.m);   // both at once, no deadlock
+          from.balance -= amount;
+          to.balance += amount;
+      }
+
+      int main() {
+          Account alice, bob;
+          alice.balance = 1000;
+          bob.balance = 1000;
+          std::thread t1([&] { for (int i = 0; i < 100000; i++) transfer(alice, bob, 1); });
+          std::thread t2([&] { for (int i = 0; i < 100000; i++) transfer(bob, alice, 1); });
+          t1.join();
+          t2.join();
+          std::cout << alice.balance << " " << bob.balance << "\n";
+      }
+      ```
+
+      ```output
+      1000 1000
+      ```
+
+      With two `lock_guard`s in "from, to" order instead, this same program froze in all five test runs on a real machine: each thread sat holding one account's lock, waiting for the other's.
+
+      ### Fix 2: one global order
+
+      When locks are taken in different places (a lock here, a function call that locks something else there), the rule is: **every thread takes locks in the same order**. If everyone who needs both A and B takes A first, no cycle can form. Teams write the order down ("always lock the account with the smaller id first") and tools like ThreadSanitizer report "lock-order-inversion" when two code paths disagree, even on runs that didn't actually deadlock.
+
+      ### Two more ways to get stuck
+
+      - Locking a `std::mutex` you already hold is undefined behavior (in practice, the thread usually deadlocks on itself). Don't call a locking member function from another one that already holds the lock.
+      - Holding a lock while calling code you don't control (a callback, a virtual function) invites someone else's lock into your ordering. Keep critical sections short.
+
+      ### Finding inversions
+
+      That lock-order check is what you'll write. Each thread is described by the locks it takes, in order, each while still holding the earlier ones: `"AB"` means lock A, then lock B while holding A. Two threads can deadlock if one takes some lock X before Y and another takes Y before X. A thread that takes the same lock twice can deadlock on its own.
+
+      **Your turn:** write `may_deadlock(threads)`. Return `true` if any thread takes the same lock twice, or if two **different** threads take some pair of locks in opposite orders.
+    seed: |
+      #include <string>
+      #include <vector>
+
+      bool may_deadlock(const std::vector<std::string>& threads) {
+
+      }
+    solution: |
+      #include <set>
+      #include <string>
+      #include <utility>
+      #include <vector>
+
+      bool may_deadlock(const std::vector<std::string>& threads) {
+          // For each thread, every pair (earlier lock, later lock) it takes.
+          std::vector<std::set<std::pair<char, char>>> orders;
+          for (const std::string& t : threads) {
+              std::set<std::pair<char, char>> pairs;
+              for (std::size_t i = 0; i < t.size(); i++) {
+                  for (std::size_t j = i + 1; j < t.size(); j++) {
+                      if (t[i] == t[j]) return true;   // takes the same lock twice
+                      pairs.insert({t[i], t[j]});
+                  }
+              }
+              orders.push_back(pairs);
+          }
+          for (std::size_t a = 0; a < orders.size(); a++)
+              for (std::size_t b = a + 1; b < orders.size(); b++)
+                  for (const auto& [x, y] : orders[a])
+                      if (orders[b].count({y, x})) return true;
+          return false;
+      }
+    harness: |
+      int main() {
+          CHECK_EQ("the transfer deadlock", may_deadlock({"AB", "BA"}), true);
+          CHECK_EQ("same order is safe", may_deadlock({"AB", "AB"}), false);
+          CHECK_EQ("different locks are safe", may_deadlock({"AB", "CD"}), false);
+          CHECK_EQ("inversion through a longer chain", may_deadlock({"ABC", "CA"}), true);
+          CHECK_EQ("consistent global order", may_deadlock({"ABC", "AC", "BC"}), false);
+          CHECK_EQ("locking the same mutex twice", may_deadlock({"ABA"}), true);
+          CHECK_EQ("one thread alone can't invert with itself", may_deadlock({"ABC"}), false);
+          CHECK_EQ("single locks never deadlock", may_deadlock({"A", "B", "A"}), false);
+          CHECK_EQ("no threads", may_deadlock({}), false);
+          CHECK_EQ("inversion between the first and third thread", may_deadlock({"XY", "Z", "YX"}), true);
+      }
+    hints:
+      - "For each thread, collect every ordered pair `(t[i], t[j])` with `i < j`: all the ways it holds one lock while taking a later one. A `std::set<std::pair<char, char>>` per thread works well."
+      - "If `t[i] == t[j]` for some `i < j`, that thread takes the same lock twice: return true right away."
+      - "Then for every pair of different threads, check whether one has `(x, y)` and the other has `(y, x)`."
+
+  - title: Condition variables and producer/consumer
+    id: cpp-concurrency-6
+    text: |
+      A very common shape for concurrent programs is **producer/consumer**: some threads produce work (requests arriving, files to process, frames to encode), and others consume it. A queue sits between them. Consumers need to **wait** when the queue is empty, without burning a core in a loop that keeps checking.
+
+      A `std::condition_variable` (from `<condition_variable>`) lets a thread sleep until another thread says something changed. It always works together with a mutex and a condition, like "the queue isn't empty":
+
+      ```cpp native
+      #include <condition_variable>
+      #include <iostream>
+      #include <mutex>
+      #include <optional>
+      #include <queue>
+      #include <thread>
+
+      class BlockingQueue {
+      public:
+          void push(int v) {
+              {
+                  std::lock_guard<std::mutex> lock(m_);
+                  q_.push(v);
+              }
+              cv_.notify_one();                  // wake one sleeping consumer
+          }
+          void close() {
+              {
+                  std::lock_guard<std::mutex> lock(m_);
+                  closed_ = true;
+              }
+              cv_.notify_all();                  // wake everyone so they can finish
+          }
+          // Waits for an item. Returns nullopt once the queue is closed and empty.
+          std::optional<int> pop() {
+              std::unique_lock<std::mutex> lock(m_);
+              cv_.wait(lock, [&] { return !q_.empty() || closed_; });
+              if (q_.empty()) return std::nullopt;
+              int v = q_.front();
+              q_.pop();
+              return v;
+          }
+
+      private:
+          std::mutex m_;
+          std::condition_variable cv_;
+          std::queue<int> q_;
+          bool closed_ = false;
+      };
+
+      int main() {
+          BlockingQueue jobs;
+          long long total = 0;
+          int handled = 0;
+          std::thread consumer([&] {
+              while (auto job = jobs.pop()) {    // sleeps whenever the queue is empty
+                  total += *job;
+                  handled++;
+              }
+          });
+          for (int i = 1; i <= 100; i++) jobs.push(i);
+          jobs.close();
+          consumer.join();
+          std::cout << handled << " jobs, total " << total << "\n";
+      }
+      ```
+
+      ```output
+      100 jobs, total 5050
+      ```
+
+      ### How it works
+
+      - `cv_.wait(lock, condition)` checks the condition while holding the lock. If it's false, it **releases the mutex and sleeps** in one step, so a producer can get in and push. When woken, it re-locks the mutex and checks the condition again, returning only once it's true.
+      - Always wait **with a condition** (the lambda). Threads can wake up without any notification (a "spurious wakeup"), and a notification sent before the consumer started waiting would otherwise be missed. The condition covers both.
+      - `wait` needs a `std::unique_lock`, not a `lock_guard`, because it has to unlock and re-lock the mutex.
+      - The producer changes the state **under the lock**, then notifies. Notifying after releasing the lock (the extra `{ }` block) avoids waking a consumer that would immediately block on the still-held mutex.
+      - `close()` is how everything shuts down cleanly: consumers drain what's left, then `pop()` returns `nullopt` and their loops end. Forgetting it leaves the consumer asleep forever and `join()` never returns.
+
+      ### Bounded queues
+
+      This queue can grow without limit. If producers are faster than consumers, memory fills up. Real systems use a **bounded** queue: when it's full, `push` waits too (on a second condition variable, "not full"), which slows the producers down to the consumers' speed. That's called **backpressure**.
+
+      The storage inside a bounded queue is usually a **ring buffer**: a fixed array with a `head` index where the oldest item is and a `count` of items. Pushing writes at `(head + count) % capacity`; popping reads at `head` and advances it with `% capacity`, wrapping around the end of the array. Nothing is ever shifted or reallocated, so every operation is O(1). The blocking queue is then this ring buffer, plus a mutex around every operation, plus the two condition variables.
+
+      **Your turn:** write the ring buffer. `push` stores a value and returns `true`, or returns `false` if the buffer is full. `pop` removes and returns the oldest value, or `std::nullopt` if it's empty. Add `size`, `empty` and `full`.
+    seed: |
+      #include <cstddef>
+      #include <optional>
+      #include <vector>
+
+      class RingBuffer {
+      public:
+          explicit RingBuffer(std::size_t capacity) : buf_(capacity) {}
+
+          bool push(int v) {
+
+          }
+
+          std::optional<int> pop() {
+
+          }
+
+          std::size_t size() const { return count_; }
+          bool empty() const { return count_ == 0; }
+          bool full() const { return count_ == buf_.size(); }
+
+      private:
+          std::vector<int> buf_;
+          std::size_t head_ = 0;    // index of the oldest item
+          std::size_t count_ = 0;   // how many items are stored
+      };
+    solution: |
+      #include <cstddef>
+      #include <optional>
+      #include <vector>
+
+      class RingBuffer {
+      public:
+          explicit RingBuffer(std::size_t capacity) : buf_(capacity) {}
+
+          bool push(int v) {
+              if (full()) return false;
+              buf_[(head_ + count_) % buf_.size()] = v;
+              count_++;
+              return true;
+          }
+
+          std::optional<int> pop() {
+              if (empty()) return std::nullopt;
+              int v = buf_[head_];
+              head_ = (head_ + 1) % buf_.size();
+              count_--;
+              return v;
+          }
+
+          std::size_t size() const { return count_; }
+          bool empty() const { return count_ == 0; }
+          bool full() const { return count_ == buf_.size(); }
+
+      private:
+          std::vector<int> buf_;
+          std::size_t head_ = 0;    // index of the oldest item
+          std::size_t count_ = 0;   // how many items are stored
+      };
+    forbid:
+      - pattern: "std::queue|std::deque|std::list|erase\\(|insert\\("
+        message: Use the fixed array with head and count; that's what makes a ring buffer O(1) with no allocation.
+    harness: |
+      int main() {
+          RingBuffer r(3);
+          CHECK_EQ("starts empty", r.empty(), true);
+          CHECK_EQ("pop on empty", r.pop().has_value(), false);
+          CHECK("fills to capacity", r.push(1) && r.push(2) && r.push(3));
+          CHECK_EQ("full now", r.full(), true);
+          CHECK_EQ("push when full is refused", r.push(4), false);
+          CHECK_EQ("oldest comes out first", r.pop().value_or(-1), 1);
+          CHECK_EQ("room for one more", r.push(4), true);
+          CHECK_EQ("size is 3 again", r.size(), 3u);
+          CHECK_EQ("then 2", r.pop().value_or(-1), 2);
+          CHECK_EQ("then 3", r.pop().value_or(-1), 3);
+          CHECK_EQ("then 4, which wrapped around", r.pop().value_or(-1), 4);
+          CHECK_EQ("empty again", r.empty(), true);
+          RingBuffer big(4);
+          int got = 0, expect = 0;
+          bool ok = true;
+          for (int round = 0; round < 1000; round++) {
+              for (int i = 0; i < 3; i++) ok = ok && big.push(got++);
+              for (int i = 0; i < 3; i++) ok = ok && big.pop().value_or(-1) == expect++;
+          }
+          CHECK("a thousand rounds of wrapping keep the order", ok && big.empty());
+      }
+    hints:
+      - "push: if `full()`, return false. Otherwise write at `(head_ + count_) % buf_.size()` and increase `count_`."
+      - "pop: if `empty()`, return `std::nullopt`. Otherwise read `buf_[head_]`, move `head_` forward with `% buf_.size()`, and decrease `count_`."
+      - "The `%` is what wraps the indexes around the end of the array."

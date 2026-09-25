@@ -1,0 +1,145 @@
+topic: dsa-backtracking
+lang: cpp
+drills:
+  - type: predict
+    pre: |
+      void go(const std::string& s, std::size_t i, std::string& cur) {
+          if (i == s.size()) {
+              std::cout << "[" << cur << "]";
+              return;
+          }
+          cur.push_back(s[i]);
+          go(s, i + 1, cur);
+          cur.pop_back();
+          go(s, i + 1, cur);
+      }
+    body: |
+      std::string cur;
+      go("xy", 0, cur);
+      std::cout << "\n";
+    why: Take-before-skip explores every subset containing x first. Two letters give 2 × 2 = 4 subsets, the last one empty.
+  - type: predict
+    pre: |
+      int calls = 0;
+      void perm(std::string& s, std::size_t k) {
+          if (k == s.size()) {
+              calls++;
+              return;
+          }
+          for (std::size_t i = k; i < s.size(); i++) {
+              std::swap(s[k], s[i]);
+              perm(s, k + 1);
+              std::swap(s[k], s[i]);
+          }
+      }
+    body: |
+      std::string s = "abcd";
+      perm(s, 0);
+      std::cout << calls << " " << s << "\n";
+    why: 4 letters have 4! = 24 orderings. Every swap is undone after exploring, so the string ends up exactly as it started.
+  - type: bug
+    pre: |
+      void go(const std::vector<int>& v, std::size_t i, std::vector<int>& cur, int& pairs) {
+          if (i == v.size()) {
+              if (cur.size() == 2) pairs++;
+              return;
+          }
+          cur.push_back(v[i]);
+          go(v, i + 1, cur, pairs); // BUG
+          go(v, i + 1, cur, pairs);
+      }
+    body: |
+      std::vector<int> cur;
+      int pairs = 0;
+      go({1, 2, 3}, 0, cur, pairs);
+      std::cout << pairs << "\n";
+    fix: "go(v, i + 1, cur, pairs); cur.pop_back();"
+    why: The choice is never undone, so the "skip" branch still holds v[i] and cur only ever grows. Choose, explore, then un-choose with pop_back.
+  - type: choice
+    prompt: Why does a backtracking search undo each choice after exploring it?
+    choices:
+      - So the next branch starts from the same state, without copying the state for every branch
+      - To free the memory the choice used
+      - Because recursion requires every function to restore its arguments
+      - To make the search run in the opposite order
+    answer: 1
+    why: One shared state (a vector, a board, flags) is reused for the whole search. Undoing a choice puts it back exactly as the sibling branches expect.
+  - type: choice
+    prompt: How many subsets does a set of n items have?
+    choices:
+      - 2 to the power n
+      - n squared
+      - n factorial
+      - 2 times n
+    answer: 1
+    why: Each item is independently in or out, so n yes/no decisions give 2ⁿ subsets. Orderings (permutations) are the ones that grow as n!.
+  - type: choice
+    prompt: What does pruning a backtracking search mean?
+    choices:
+      - Stopping early on branches that can't lead to a valid answer
+      - Deleting duplicate answers after the search
+      - Caching answers to subproblems
+      - Exploring the most promising branch first
+    answer: 1
+    why: A partial choice that already breaks a rule (a queen under attack, a total that's too big) is abandoned immediately, skipping everything below it.
+  - type: fill
+    prompt: Compute the index of the "/" diagonal through square (r, c).
+    body: |
+      int n = 8, r = 2, c = 5;
+      int diag = r [[+]] c;
+      int anti = r - c + n - 1;
+      std::cout << diag << " " << anti << "\n";
+    why: Along a / diagonal, row + column is constant. Along a \ diagonal, row - column is; adding n - 1 keeps it from going negative.
+  - type: predict
+    body: |
+      int r = 7, c = 4;
+      std::cout << r / 3 * 3 << "," << c / 3 * 3 << "\n";
+    why: Integer division rounds down, so r / 3 * 3 is the first row of the 3 × 3 Sudoku box containing row r (7 is in the box of rows 6 to 8).
+  - type: boss
+    why: Adding "(" only while some are left and ")" only while it wouldn't close more than is open prunes every invalid string before it's built.
+    prompt: |
+      Write `std::vector<std::string> parens(int n)` returning every balanced string of n pairs of parentheses, in lexicographic order (`(` sorts before `)`). `parens(2)` is `{"(())", "()()"}`.
+    seed: |
+      #include <string>
+      #include <vector>
+
+      std::vector<std::string> parens(int n) {
+
+      }
+    solution: |
+      #include <string>
+      #include <vector>
+
+      void build(int open_left, int close_left, std::string& cur, std::vector<std::string>& out) {
+          if (open_left == 0 && close_left == 0) {
+              out.push_back(cur);
+              return;
+          }
+          if (open_left > 0) {
+              cur.push_back('(');
+              build(open_left - 1, close_left, cur, out);
+              cur.pop_back();
+          }
+          if (close_left > open_left) {
+              cur.push_back(')');
+              build(open_left, close_left - 1, cur, out);
+              cur.pop_back();
+          }
+      }
+
+      std::vector<std::string> parens(int n) {
+          std::vector<std::string> out;
+          std::string cur;
+          build(n, n, cur, out);
+          return out;
+      }
+    harness: |
+      int main() {
+          CHECK_EQ("n = 3", parens(3), (std::vector<std::string>{"((()))", "(()())", "(())()", "()(())", "()()()"}));
+          CHECK_EQ("n = 1", parens(1), (std::vector<std::string>{"()"}));
+          CHECK_EQ("n = 0 is one empty string", parens(0), (std::vector<std::string>{""}));
+          CHECK_EQ("n = 5 has 42", parens(5).size(), 42u);
+      }
+    hints:
+      - "Track how many `(` and `)` you may still add. You can add `(` if any are left, and `)` only if more `)` than `(` are left (so there's an open one to close)."
+      - "Trying `(` before `)` produces the strings in lexicographic order."

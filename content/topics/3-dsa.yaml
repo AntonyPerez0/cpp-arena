@@ -198,3 +198,79 @@ topics:
           std::cout << "distance to 4: " << dist[4] << "\n";
           return 0;
       }
+
+  - slug: backtracking
+    title: Backtracking explained
+    lang: cpp
+    description: How backtracking searches every possibility with choose, explore and un-choose, with subsets, permutations, N-Queens and pruning.
+    modules: [dsa-backtracking]
+    body: |
+      **Backtracking** builds a solution one choice at a time. After each choice it recursively explores everything that follows, then **undoes** the choice and tries the next one. It's a depth-first walk through a tree of decisions, and every backtracking function has the same three moves:
+
+      1. **Choose**: change the state (push a value, place a queen, mark a cell).
+      2. **Explore**: recurse to make the next choice.
+      3. **Un-choose**: put the state back exactly as it was, so the next option starts clean.
+
+      Exhaustive search grows fast (n items have 2ⁿ subsets and n! orderings), so **pruning** matters: as soon as a partial choice can't lead to a valid answer, stop exploring that branch. That's what makes N-Queens, Sudoku and word-search solvers fast in practice.
+
+      When the same sub-question keeps coming up during the search, switch to dynamic programming and store its answer.
+    example: |
+      #include <iostream>
+      #include <vector>
+
+      void subsets(const std::vector<int>& v, std::size_t i, std::vector<int>& cur) {
+          if (i == v.size()) {
+              std::cout << "{";
+              for (std::size_t k = 0; k < cur.size(); k++) std::cout << (k ? " " : "") << cur[k];
+              std::cout << "} ";
+              return;
+          }
+          cur.push_back(v[i]);     // choose: take v[i]
+          subsets(v, i + 1, cur);  // explore
+          cur.pop_back();          // un-choose
+          subsets(v, i + 1, cur);  // the other branch: skip v[i]
+      }
+
+      int main() {
+          std::vector<int> cur;
+          subsets({1, 2, 3}, 0, cur);
+          std::cout << "\n";
+          return 0;
+      }
+
+  - slug: dynamic-programming
+    title: Dynamic programming explained
+    lang: cpp
+    description: What dynamic programming is, memoization vs bottom-up tables, and how to recognize DP problems like coin change, LCS and knapsack.
+    modules: [dsa-dp]
+    body: |
+      **Dynamic programming** (DP) solves a problem by combining answers to smaller versions of it, computing each smaller answer **only once**. It applies when a problem has:
+
+      - **overlapping subproblems**: a plain recursive solution asks the same questions over and over, and
+      - **optimal substructure**: the best answer is built from the best answers to smaller questions.
+
+      There are two ways to write it:
+
+      - **Memoization** (top-down): write the recursion, and cache each result in a table the first time it's computed.
+      - **Tabulation** (bottom-up): fill the table from the smallest questions up, in an order where everything an entry needs is already there.
+
+      The recipe: decide what one table entry means, write how it's built from smaller entries, set the base cases, and pick a filling order. Classic DP problems include Fibonacci, coin change, grid paths, longest common subsequence (the heart of `diff`), the 0/1 knapsack and edit distance.
+    example: |
+      #include <iostream>
+      #include <vector>
+
+      // Fewest coins that add up to amount, or -1 if it can't be done.
+      int min_coins(const std::vector<int>& coins, int amount) {
+          const int IMPOSSIBLE = amount + 1;
+          std::vector<int> best(amount + 1, IMPOSSIBLE);
+          best[0] = 0;
+          for (int a = 1; a <= amount; a++)
+              for (int c : coins)
+                  if (c <= a && best[a - c] + 1 < best[a]) best[a] = best[a - c] + 1;
+          return best[amount] == IMPOSSIBLE ? -1 : best[amount];
+      }
+
+      int main() {
+          std::cout << min_coins({1, 3, 4}, 6) << " " << min_coins({2}, 3) << "\n";
+          return 0;
+      }

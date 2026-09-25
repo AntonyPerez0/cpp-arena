@@ -208,7 +208,7 @@ for (const t of topics) {
 ${md(t.body)}
 <h2>Example</h2>
 <pre><code>${esc(t.example)}</code></pre>
-<p>Output:</p>
+<p>${t.native ? "Output (compiled with GCC and run on Linux: the in-browser compiler has no threads):" : "Output:"}</p>
 <pre><code>${esc(t.output)}</code></pre>
 ${vis ? `<p><a href="${link(`/visualize/${vis.id}`)}">Watch it run: ${esc(vis.title)}</a></p>` : ""}
 <h2>Practice it</h2><ul>${t.modules.map((m) => `<li><a href="${link(`/learn/${m}/1`)}">Lesson: ${esc(modById.get(m)?.title ?? m)}</a></li>`).join("")}</ul>`,

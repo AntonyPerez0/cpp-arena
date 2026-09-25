@@ -68,7 +68,7 @@ export function TopicPage() {
           </pre>
         </>
       )}
-      <div className="lbl">output</div>
+      <div className="lbl">{t.native ? "output (compiled with GCC and run on Linux: the in-browser compiler has no threads)" : "output"}</div>
       <pre className="console" tabIndex={0}>
         {t.output}
       </pre>
