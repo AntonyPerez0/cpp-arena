@@ -41,7 +41,7 @@ drills:
       printf("%d\n", price); // BUG
       printf("%d\n", money);
     fix: 'printf("%.0f\n", price);'
-    why: "`%d` expects an int. Passing a double to it is undefined behaviour; use `%f` (here `%.0f`)."
+    why: "`%d` expects an int. Passing a double to it is undefined behavior; use `%f` (here `%.0f`)."
     ub: true
   - type: compiles
     body: |

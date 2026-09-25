@@ -56,8 +56,10 @@ milestones:
 
       void vec_push(IntVec *v, int x) {
           if (v->size == v->cap) {
+              int *bigger = realloc(v->data, 2 * v->cap * sizeof(int));
+              if (bigger == NULL) return; // out of memory: leave v as it was
+              v->data = bigger;
               v->cap *= 2;
-              v->data = realloc(v->data, v->cap * sizeof(int));
           }
           v->data[v->size++] = x;
       }
@@ -94,7 +96,7 @@ milestones:
       }
     hints:
       - "vec_new: set cap to 4, size to 0, and `data = malloc(cap * sizeof(int))`."
-      - "vec_push: if `v->size == v->cap`, double cap and `v->data = realloc(v->data, v->cap * sizeof(int));`"
+      - "vec_push: if `v->size == v->cap`, grow into a temporary first: `int *bigger = realloc(v->data, 2 * v->cap * sizeof(int));`. Only if it isn't NULL, store it in `v->data` and double `v->cap`."
       - "Then `v->data[v->size++] = x;`"
 
   - title: Pop and remove
@@ -122,8 +124,10 @@ milestones:
 
       void vec_push(IntVec *v, int x) {
           if (v->size == v->cap) {
+              int *bigger = realloc(v->data, 2 * v->cap * sizeof(int));
+              if (bigger == NULL) return; // out of memory: leave v as it was
+              v->data = bigger;
               v->cap *= 2;
-              v->data = realloc(v->data, v->cap * sizeof(int));
           }
           v->data[v->size++] = x;
       }
@@ -191,8 +195,10 @@ milestones:
 
       void vec_push(IntVec *v, int x) {
           if (v->size == v->cap) {
+              int *bigger = realloc(v->data, 2 * v->cap * sizeof(int));
+              if (bigger == NULL) return; // out of memory: leave v as it was
+              v->data = bigger;
               v->cap *= 2;
-              v->data = realloc(v->data, v->cap * sizeof(int));
           }
           v->data[v->size++] = x;
       }
@@ -221,8 +227,10 @@ milestones:
 
       void vec_insert(IntVec *v, int i, int x) {
           if (v->size == v->cap) {
+              int *bigger = realloc(v->data, 2 * v->cap * sizeof(int));
+              if (bigger == NULL) return; // out of memory: leave v as it was
+              v->data = bigger;
               v->cap *= 2;
-              v->data = realloc(v->data, v->cap * sizeof(int));
           }
           for (int k = v->size; k > i; k--) v->data[k] = v->data[k - 1];
           v->data[i] = x;
@@ -276,8 +284,10 @@ milestones:
 
       void vec_push(IntVec *v, int x) {
           if (v->size == v->cap) {
+              int *bigger = realloc(v->data, 2 * v->cap * sizeof(int));
+              if (bigger == NULL) return; // out of memory: leave v as it was
+              v->data = bigger;
               v->cap *= 2;
-              v->data = realloc(v->data, v->cap * sizeof(int));
           }
           v->data[v->size++] = x;
       }
@@ -306,8 +316,10 @@ milestones:
 
       void vec_insert(IntVec *v, int i, int x) {
           if (v->size == v->cap) {
+              int *bigger = realloc(v->data, 2 * v->cap * sizeof(int));
+              if (bigger == NULL) return; // out of memory: leave v as it was
+              v->data = bigger;
               v->cap *= 2;
-              v->data = realloc(v->data, v->cap * sizeof(int));
           }
           for (int k = v->size; k > i; k--) v->data[k] = v->data[k - 1];
           v->data[i] = x;
@@ -316,15 +328,19 @@ milestones:
 
       void vec_reserve(IntVec *v, int cap) {
           if (cap <= v->cap) return;
+          int *bigger = realloc(v->data, cap * sizeof(int));
+          if (bigger == NULL) return;
+          v->data = bigger;
           v->cap = cap;
-          v->data = realloc(v->data, v->cap * sizeof(int));
       }
 
       void vec_shrink(IntVec *v) {
           int target = v->size > 0 ? v->size : 1;
           if (target == v->cap) return;
+          int *smaller = realloc(v->data, target * sizeof(int));
+          if (smaller == NULL) return;
+          v->data = smaller;
           v->cap = target;
-          v->data = realloc(v->data, v->cap * sizeof(int));
       }
     harness: |
       int main(void) {

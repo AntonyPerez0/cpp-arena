@@ -141,7 +141,7 @@ drills:
       - The comparison is undefined behavior
       - "`sizeof` can't be used in an `if`"
     answer: 1
-    why: Mixing signed and unsigned in a comparison converts the signed side to unsigned. Compilers warn about this with -Wall -Wextra (-Wsign-compare).
+    why: Mixing signed and unsigned in a comparison converts the signed side to unsigned. -Wall -Wextra turns on -Wsign-compare to catch this. GCC flags this exact line; Clang flags it when the signed side is a variable rather than a constant like -1.
 
   - type: predict
     prompt: What does this print?

@@ -5,7 +5,7 @@ module: cpp-move
 steps: [cpp-move-1, cpp-move-2, cpp-move-5]
 summary: A copy duplicates the heap buffer; a move steals it.
 text: |
-  `copy` gets its **own** new heap buffer with the same numbers: that's the cost of copying. `moved` instead takes over `original`'s buffer: watch the heap, no new block appears. Afterwards `original` is left empty (valid, but with nothing in it).
+  `copy` gets its **own** new heap buffer with the same numbers: that's the cost of copying. `moved` instead takes over `original`'s buffer: watch the heap, no new block appears. Afterwards `original` is left empty. (The standard only promises a moved-from vector is still valid; in practice every major library leaves it empty.)
 code: |
   #include <iostream>
   #include <utility>

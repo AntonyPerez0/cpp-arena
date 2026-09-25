@@ -281,7 +281,7 @@ topics:
     body: |
       A pointer is a variable that holds a **memory address**. `&x` gives the address of `x`; `*p` follows the pointer to the value it points at.
 
-      Pointers let a function change the caller's variables, pass big data without copying it, and link data together (lists, trees). A pointer that points at nothing should be `NULL`; following a `NULL` pointer crashes the program.
+      Pointers let a function change the caller's variables, pass big data without copying it, and link data together (lists, trees). A pointer that points at nothing should be `NULL`. Following a `NULL` pointer is undefined behavior; on most systems it crashes the program.
 
       The easiest way to understand pointers is to watch them: step through the visualization below and follow the arrows.
     visual: pointer-basics
@@ -361,7 +361,7 @@ topics:
       - **Double free:** calling `free` twice on the same block. Setting the pointer to `NULL` after freeing makes a second `free` harmless.
       - **Buffer overflow:** writing past the end of a block.
 
-      None of these reliably crash, which is what makes them dangerous. Compile with `-fsanitize=address -g` while developing and the program stops at the exact line, or run it under `valgrind`.
+      None of these reliably crash, which is what makes them dangerous. Compile with `-fsanitize=address -g` while developing: the program stops at the exact line of a bad access, and any leaks are listed when it exits. Or run it under `valgrind`.
     visual: heap-string
     example: |
       #include <stdio.h>
@@ -390,7 +390,7 @@ topics:
 
       Structs are copied when passed by value, which is fine for small ones. For big structs, or when the function should change the original, pass a pointer (a `const` pointer if it only reads).
 
-      `typedef struct { ... } Point;` lets you write `Point` instead of `struct point`.
+      `typedef struct { ... } Point;` gives the type a one-word name, so you write `Point` everywhere instead of `struct` plus a tag.
     visual: struct-pointer
     example: |
       #include <stdio.h>

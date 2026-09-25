@@ -5,7 +5,7 @@ topics:
     description: How C++ builds on C with classes, references, RAII, templates and the standard library, and when each language is used.
     modules: [cpp-basics]
     body: |
-      C++ started as "C with classes" and almost all C code is also valid C++. What C++ adds:
+      C++ started as "C with classes" and most C code is also valid C++, with a few differences (C++ needs a cast on `malloc`'s result, for example). What C++ adds:
 
       - **Classes** with constructors and destructors, so objects clean up after themselves (RAII).
       - **References**, a safer alternative to many pointer uses.
@@ -301,11 +301,11 @@ topics:
     description: What moving means in C++, rvalue references, what std::move really does, and the rule of five.
     modules: [cpp-move]
     body: |
-      Copying a `std::vector` of a million elements copies a million elements. **Moving** it just hands over the internal buffer pointer, leaving the source empty. That's why returning big objects by value is cheap in modern C++.
+      Copying a `std::vector` of a million elements copies a million elements. **Moving** it just hands over the internal buffer pointer, and in practice leaves the source empty. That's why returning big objects by value is cheap in modern C++.
 
       A class supports moving with a **move constructor** `T(T &&other) noexcept` and **move assignment**. `std::move(x)` doesn't move anything itself: it's a cast that says "you may steal from x". After a move, only assign to or destroy the source.
 
-      Mark move operations `noexcept`, or `std::vector` will copy instead of move when it grows.
+      Mark move operations `noexcept`, or `std::vector` will copy instead of move when it grows (for any type that can be copied).
     visual: move-vector
     example: |
       #include <iostream>
