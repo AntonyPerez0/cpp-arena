@@ -38,7 +38,7 @@ const warnings = [];
 const FLAGS = {
   // The extra -Werror= flags make GCC reject what Clang (the browser compiler) rejects by default.
   c: ["-x", "c", "-std=c17", "-O1", "-Wall", "-Wextra", "-Wno-unused-result", "-U_FORTIFY_SOURCE", "-Werror=int-conversion", "-Werror=implicit-function-declaration", "-Werror=incompatible-pointer-types", "-Werror=implicit-int", "-fdiagnostics-color=never"],
-  cpp: ["-x", "c++", "-std=c++20", "-O2", "-fno-exceptions", "-Wall", "-Wextra", "-Wno-unused-result", "-U_FORTIFY_SOURCE", "-fdiagnostics-color=never"],
+  cpp: ["-x", "c++", "-std=c++20", "-O2", "-Wall", "-Wextra", "-Wno-unused-result", "-U_FORTIFY_SOURCE", "-fdiagnostics-color=never"],
   // ```cpp native examples: real threads, which the browser compiler can't build. Checked here only.
   cppnative: ["-x", "c++", "-std=c++20", "-O2", "-pthread", "-Wall", "-Wextra", "-Wno-unused-result", "-fdiagnostics-color=never"],
 };
