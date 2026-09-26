@@ -97,7 +97,7 @@ export default function Playground() {
     try {
       const r = await runOnly(state.lang, state[state.lang], state.stdin);
       setResult(r);
-      setStatus(!r.compiled ? "It didn't compile." : r.note ? "The program stopped with a problem." : "The program finished.");
+      setStatus(r.internalError ? "The compiler couldn't run." : !r.compiled ? "It didn't compile." : r.note ? "The program stopped with a problem." : "The program finished.");
     } finally {
       busyRef.current = false;
       setBusy(false);
@@ -218,7 +218,9 @@ export default function Playground() {
         </p>
         {result && (
           <section className="results" aria-label="Result">
-            {!result.compiled ? (
+            {result.internalError ? (
+              <div className="banner banner-fail">The in-browser compiler couldn't run: {result.internalError}. Try again, or reload the page.</div>
+            ) : !result.compiled ? (
               <>
                 <div className="banner banner-fail">✗ It didn't compile</div>
                 <DiagnosticList diagnostics={result.diagnostics} raw={result.rawDiagnostics} />

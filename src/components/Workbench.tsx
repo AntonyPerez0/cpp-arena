@@ -31,7 +31,7 @@ type Props = {
 function announce(r: GradeResult): string {
   if (r.status === "pass") return "All tests passed.";
   if (r.status === "compile-error") return "It didn't compile. The errors are listed below the editor.";
-  if (r.status === "internal-error") return "The compiler hit an internal error. Try again.";
+  if (r.status === "internal-error") return "The compiler couldn't run. Try again.";
   const failed = r.tests.filter((t) => !t.pass).length;
   const rules = r.ruleProblems.length ? ` ${r.ruleProblems.length} rule${r.ruleProblems.length > 1 ? "s" : ""} not met.` : "";
   return `${failed} of ${r.tests.length} tests failed.${rules} Details are below the editor.`;
@@ -172,7 +172,9 @@ export default function Workbench({ ex, initialCode, initialBlanks, hintsUsed, o
           </button>
           {freeRun && (
             <div className="results">
-              {!freeRun.compiled ? (
+              {freeRun.internalError ? (
+                <div className="banner banner-fail">The in-browser compiler couldn't run: {freeRun.internalError}. Try again, or reload the page.</div>
+              ) : !freeRun.compiled ? (
                 <DiagnosticList diagnostics={freeRun.diagnostics} raw={freeRun.rawDiagnostics} />
               ) : (
                 <>

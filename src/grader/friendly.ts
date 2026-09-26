@@ -44,7 +44,6 @@ const RULES: Rule[] = [
   { re: /variable '(.+?)' is uninitialized when used/, say: (m) => `\`${m[1]}\` is read before it gets a value. Give it a starting value.` },
   { re: /comparison of integers of different signs/, say: () => "Comparing signed and unsigned numbers can surprise you. A common fix is `size_t i` for loop counters over `.size()`." },
   { re: /array index (\-?\d+) is past the end of the array/, say: (m) => `Index ${m[1]} is outside the array. Valid indexes run from 0 to size-1.` },
-  { re: /cannot use '(throw|try)' with exceptions disabled/, say: () => "This site's in-browser compiler (WebAssembly) doesn't support exceptions. Return an error value or std::optional instead." },
   { re: /undefined symbol: main|undefined reference to `main'/, say: () => "There's no `int main()` function. Every program needs one to start." },
   { re: /undefined symbol: (.+)/, say: (m) => `\`${m[1].trim()}\` was declared but never defined (no function body). Did you write the body?` },
   { re: /missing terminating '"' character/, say: () => "A string is missing its closing `\"` quote." },

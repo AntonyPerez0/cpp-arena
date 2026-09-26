@@ -1,5 +1,5 @@
 // Puts the in-browser toolchain into public/toolchain so Vite serves it same-origin and
-// the Pages build ships it. The files are large (~113 MB) and gitignored; they are
+// the Pages build ships it. The files are large (~107 MB, plus ~38 MB of gzip copies) and gitignored; they are
 // recreated on every install.
 //
 // Clang and LLD come straight from browsercc. The sysroot does too, except that its

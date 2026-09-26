@@ -355,7 +355,7 @@ milestones:
       - `error: unknown variable NAME`
       - `error: syntax` for anything else malformed: a missing number, an unclosed `(`, or leftover characters after a complete expression (like `2 3` or `4 +`)
 
-      Exceptions aren't available, so give the parser an error field. Once it's set, every function returns immediately (any value) and the caller checks the flag. A failed `let` must not store anything.
+      This project handles errors without exceptions, the way many parsers and embedded codebases do: give the parser an error field. Once it's set, every function returns immediately (any value) and the caller checks the flag. A failed `let` must not store anything. (Throwing a `ParseError` would also work now that exceptions run here; the error-handling module compares both styles.)
     solution: |
       #include <iostream>
       #include <map>

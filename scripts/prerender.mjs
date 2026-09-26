@@ -6,6 +6,7 @@
 // Env: SITE_URL (default https://cpparena.com), BASE_PATH (default /).
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
 import { marked } from "marked";
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
@@ -81,7 +82,7 @@ page("/", {
   description: `Free interactive C and C++ course: ${stepCount} exercises compiled by real Clang in your browser, from printf to C++20, data structures, projects and a professional track.`,
   jsonld: [courseLd, { "@context": "https://schema.org", "@type": "WebSite", name: NAME, url: SITE + "/" }],
   body: `<h1>Learn C and C++ by writing real code</h1>
-<p>Every answer is compiled by a real Clang compiler running inside your browser. Work through ${moduleCount} modules from <code>printf</code> to C++20, drill the fundamentals in endless Deathmatch reps, ship projects milestone by milestone, and finish with a professional track on a real machine.</p>
+<p>Every exercise you write is compiled by a real Clang compiler running inside your browser. Work through ${moduleCount} modules from <code>printf</code> to C++20, drill the fundamentals in endless Deathmatch reps, ship projects milestone by milestone, and finish with a professional track on a real machine.</p>
 <ul>
 <li><a href="${link("/learn")}">Learn: ${moduleCount} modules, ${stepCount} steps</a></li>
 <li><a href="${link("/deathmatch")}">Deathmatch: ${content.drills.length} drills</a></li>
@@ -355,4 +356,17 @@ fs.writeFileSync(
 // the site has its own domain; on a github.io project page, submit the sitemap in
 // Google Search Console instead.
 fs.writeFileSync(path.join(DIST, "robots.txt"), `User-agent: *\nAllow: /\n\nSitemap: ${SITE}/sitemap.xml\n`);
-console.log(`prerender: ${written} pages, ${redirects} old step addresses forwarded, ${indexed.length} in sitemap.xml, 404.html, robots.txt`);
+
+// The service worker saves the app's built files when it installs (public/sw.js), so the
+// site works offline after one visit. Its version follows the files and the home page.
+const built = fs.readdirSync(path.join(DIST, "assets")).sort().map((f) => "assets/" + f);
+const buildInfo = {
+  version: crypto.createHash("sha256").update(built.join("\n")).update(fs.readFileSync(path.join(DIST, "index.html"))).digest("hex").slice(0, 12),
+  files: built,
+};
+const swFile = path.join(DIST, "sw.js");
+const placeholder = 'const BUILD = { version: "dev", files: [] };';
+const sw = fs.readFileSync(swFile, "utf8");
+if (!sw.includes(placeholder)) throw new Error("dist/sw.js has no BUILD placeholder to fill in");
+fs.writeFileSync(swFile, sw.replace(placeholder, `const BUILD = ${JSON.stringify(buildInfo)};`));
+console.log(`prerender: ${written} pages, ${redirects} old step addresses forwarded, ${indexed.length} in sitemap.xml, 404.html, robots.txt, ${built.length} files for offline use`);

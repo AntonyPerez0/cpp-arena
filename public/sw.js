@@ -1,7 +1,12 @@
 // Service worker: lets the site open and work without a connection once it has
 // been visited. The compiler (public/toolchain) is cached separately by the
 // compiler worker, so it's left alone here.
-const CACHE = "cpp-arena-app-v1";
+//
+// scripts/prerender.mjs fills in BUILD when the site is built: the app's built files, saved
+// when this installs so that one visit is enough, and a version that changes whenever they
+// or the home page do, so the browser installs the new service worker and drops the old copies.
+const BUILD = { version: "dev", files: [] };
+const CACHE = "cpp-arena-app-" + BUILD.version;
 const scope = new URL(self.registration.scope);
 const SHELL = new URL("./", scope).href;
 
@@ -9,7 +14,7 @@ self.addEventListener("install", (e) => {
   e.waitUntil(
     caches
       .open(CACHE)
-      .then((c) => c.addAll([SHELL, new URL("manifest.webmanifest", scope).href]))
+      .then((c) => c.addAll([SHELL, new URL("manifest.webmanifest", scope).href, ...BUILD.files.map((f) => new URL(f, scope).href)]))
       .then(() => self.skipWaiting()),
   );
 });
