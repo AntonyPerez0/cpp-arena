@@ -1,4 +1,6 @@
 // Main-thread API for compiling and running C/C++ code.
+import { CACHE_PREFIX, fetchManifest, type Manifest } from "./manifest";
+
 export type Lang = "c" | "cpp";
 
 /** One run's input: stdin text, or stdin plus starter files and command-line arguments. */
@@ -57,12 +59,9 @@ export function onMobileData(): boolean {
   return !!c && (c.saveData === true || c.type === "cellular" || c.effectiveType === "2g" || c.effectiveType === "slow-2g");
 }
 
-type Manifest = { version: string; files: Record<string, number>; gzip?: Record<string, number> };
 let manifestPromise: Promise<Manifest | null> | null = null;
 function loadManifest() {
-  manifestPromise ??= fetch(import.meta.env.BASE_URL + "toolchain/manifest.json", { cache: "no-cache" })
-    .then((r) => (r.ok ? (r.json() as Promise<Manifest>) : null))
-    .catch(() => null);
+  manifestPromise ??= fetchManifest(new URL(import.meta.env.BASE_URL + "toolchain/manifest.json", location.origin).href);
   return manifestPromise;
 }
 
@@ -81,8 +80,8 @@ export async function compilerCached(): Promise<boolean> {
     const m = await loadManifest();
     if (!m) return false;
     const { version } = m;
-    if (!(await caches.keys()).includes("cpp-arena-toolchain-" + version)) return false;
-    const cache = await caches.open("cpp-arena-toolchain-" + version);
+    if (!(await caches.keys()).includes(CACHE_PREFIX + version)) return false;
+    const cache = await caches.open(CACHE_PREFIX + version);
     return (await cache.keys()).length >= 3;
   } catch {
     return false;
@@ -180,5 +179,5 @@ export async function compileAndRun(source: string, lang: Lang, inputs: RunInput
 }
 
 export async function clearCompilerCache() {
-  for (const k of await caches.keys()) if (k.startsWith("cpp-arena-toolchain-")) await caches.delete(k);
+  for (const k of await caches.keys()) if (k.startsWith(CACHE_PREFIX)) await caches.delete(k);
 }

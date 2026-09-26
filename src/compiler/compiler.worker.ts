@@ -7,9 +7,7 @@ import Clang from "browsercc/dist/clang.js";
 // @ts-ignore - emscripten glue has no types
 import LLD from "browsercc/dist/lld.js";
 import { Toolchain } from "./core.js";
-
-/** `files`: full sizes. `gzip`: sizes of the .gz copies, fetched instead when the browser can unpack them. */
-type Manifest = { version: string; files: Record<string, number>; gzip?: Record<string, number> };
+import { CACHE_PREFIX, fetchManifest, type Manifest } from "./manifest";
 
 const canGunzip = typeof DecompressionStream === "function";
 /** The number of bytes actually downloaded for a file. */
@@ -36,7 +34,7 @@ function reportProgress(stage: string) {
 
 async function fetchCached(file: string): Promise<ArrayBuffer> {
   const url = new URL(file, base).href;
-  const cacheName = "cpp-arena-toolchain-" + (manifest?.version ?? "x");
+  const cacheName = CACHE_PREFIX + (manifest?.version ?? "x");
   let cache: Cache | null = null;
   try {
     cache = await caches.open(cacheName);
@@ -52,8 +50,9 @@ async function fetchCached(file: string): Promise<ArrayBuffer> {
   }
   // The gzip copy is about a third of the size; the browser unpacks it as it arrives.
   const gz = canGunzip && !!manifest?.gzip?.[file];
-  const res = await fetch(gz ? url + ".gz" : url);
-  if (!res.ok || !res.body) throw new Error(`Could not download ${file} (HTTP ${res.status})`);
+  const res = await fetch(gz ? url + ".gz" : url).catch(() => null);
+  if (!res) throw new Error("couldn't download the compiler (check your connection)");
+  if (!res.ok || !res.body) throw new Error(`couldn't download ${file} (HTTP ${res.status})`);
   let got = 0;
   let body: ReadableStream<Uint8Array> = res.body.pipeThrough(
     new TransformStream<Uint8Array, Uint8Array>({
@@ -71,7 +70,7 @@ async function fetchCached(file: string): Promise<ArrayBuffer> {
     try {
       await cache.put(url, new Response(out, { headers: { "Content-Type": "application/octet-stream" } }));
       // Drop caches from older toolchain versions.
-      for (const k of await caches.keys()) if (k.startsWith("cpp-arena-toolchain-") && k !== cacheName) await caches.delete(k);
+      for (const k of await caches.keys()) if (k.startsWith(CACHE_PREFIX) && k !== cacheName) await caches.delete(k);
     } catch {
       /* quota exceeded or private mode: still works, just downloads next time */
     }
@@ -80,15 +79,22 @@ async function fetchCached(file: string): Promise<ArrayBuffer> {
 }
 
 async function init() {
-  const mres = await fetch(new URL("manifest.json", base).href, { cache: "no-cache" });
-  if (!mres.ok) throw new Error("Toolchain manifest missing (did the build copy public/toolchain?)");
-  manifest = await mres.json();
+  const manifestUrl = new URL("manifest.json", base).href;
+  manifest = await fetchManifest(manifestUrl);
+  if (!manifest) throw new Error("couldn't download the compiler (check your connection)");
   reportProgress("download");
   const [clangBuf, lldBuf, sysroot] = await Promise.all([
     fetchCached("clang.wasm"),
     fetchCached("lld.wasm"),
     fetchCached("sysroot.tar"),
   ]);
+  // With every file saved, keep the manifest beside them: without a connection it's how
+  // the next visit finds this version (fetchManifest).
+  try {
+    await (await caches.open(CACHE_PREFIX + manifest.version)).put(manifestUrl, new Response(JSON.stringify(manifest), { headers: { "Content-Type": "application/json" } }));
+  } catch {
+    /* no Cache Storage: nothing was saved for offline use anyway */
+  }
   post({ type: "progress", loaded: 1, total: 1, stage: "compile" });
   const [clangModule, lldModule] = await Promise.all([WebAssembly.compile(clangBuf), WebAssembly.compile(lldBuf)]);
   toolchain = new Toolchain({ Clang, LLD, clangModule, lldModule, sysroot, pch: null });
@@ -130,7 +136,7 @@ self.onmessage = async (e: MessageEvent) => {
   }
   if (msg.type === "compile") {
     try {
-      if (!readyPromise) throw new Error("Compiler not initialised");
+      if (!readyPromise) throw new Error("the compiler hasn't started");
       await readyPromise;
       if (msg.lang === "cpp") {
         try {

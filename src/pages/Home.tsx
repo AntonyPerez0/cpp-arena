@@ -24,7 +24,7 @@ export default function Home() {
             Learn C and C++ by <span className="accent">writing real code</span>.
           </h1>
           <p className="lead">
-            Every answer is compiled by a real Clang compiler running inside your browser. Work through lessons from <code>printf</code> to C++20, drill
+            Every exercise you write is compiled by a real Clang compiler running inside your browser. Work through lessons from <code>printf</code> to C++20, drill
             the fundamentals in endless Deathmatch reps, and ship projects milestone by milestone.
           </p>
           <div className="hero-actions">

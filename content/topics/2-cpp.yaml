@@ -508,7 +508,7 @@ topics:
       Compilers and processors reorder memory accesses to go faster. Inside one thread you can never tell, but another thread can see your writes in a different order than you made them. Every atomic operation takes a **memory order** that says which reorderings are forbidden around it.
 
       - `memory_order_seq_cst` (the default): all threads agree on one order of every such operation. The easiest to reason about, and the right choice unless profiling says otherwise.
-      - `memory_order_release` on a store: nothing written **before** it in this thread can move after it.
+      - `memory_order_release` on a store: no read or write **before** it in this thread can move after it.
       - `memory_order_acquire` on a load: nothing read or written **after** it can move before it.
       - When an acquire load reads the value a release store wrote, everything the writing thread did before the store is visible to the reading thread after the load. That's how one thread **publishes** ordinary data to another.
       - `memory_order_relaxed`: the operation is still indivisible, but it orders nothing else. Fine for a statistics counter read after `join()`, wrong for a "the data is ready" flag.

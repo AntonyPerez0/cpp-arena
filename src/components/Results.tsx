@@ -56,7 +56,7 @@ export default function Results({ result, attempt }: { result: GradeResult; atte
       )}
       {result.status === "internal-error" && (
         <div className="banner banner-fail">
-          The in-browser compiler hit an internal error: {result.rawDiagnostics}. Try again, or reload the page.
+          The in-browser compiler couldn't run: {result.rawDiagnostics}. Try again, or reload the page.
         </div>
       )}
       {result.ruleProblems.length > 0 && (

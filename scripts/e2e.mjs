@@ -624,21 +624,25 @@ await test("certificate: appears when every step is done and its share link open
   await ctx.close();
 });
 
-await test("offline: after one visit the site opens without a connection", async () => {
-  const ctx = await browser.newContext();
+await test("offline: after one visit, lessons open and programs run without a connection", async () => {
+  // A fresh browser with the service worker on, and a single visit (no reload), like a learner's first.
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const pg = await ctx.newPage();
-  await pg.goto(BASE);
+  await pg.goto(BASE + "playground");
   await pg.evaluate(() => navigator.serviceWorker.ready);
-  await pg.reload();
-  await pg.getByText("writing real code").waitFor();
-  await pg.waitForFunction(() => !!navigator.serviceWorker.controller);
-  await pg.goto(BASE + L("c-hello", 1).slice(1));
-  await pg.getByRole("heading", { name: "Your first program" }).waitFor();
+  await pg.getByLabel("C (C17)").check();
+  await pg.getByRole("button", { name: /^▶ Run/ }).click();
+  await pg.locator(".playground .console", { hasText: "Hello, Ada!" }).waitFor({ timeout: 240000 });
   await ctx.setOffline(true);
+  // Pages this browser never opened: the saved app shows them.
   await pg.goto(BASE + L("c-hello", 1).slice(1));
   await pg.getByRole("heading", { name: "Your first program" }).waitFor();
   await pg.goto(BASE + "topics/recursion");
   await pg.getByRole("heading", { name: "Recursion explained", level: 1 }).waitFor();
+  // The saved compiler starts without the network too.
+  await pg.goto(BASE + "playground");
+  await pg.getByRole("button", { name: /^▶ Run/ }).click();
+  await pg.locator(".playground .console", { hasText: "Hello, Ada!" }).waitFor({ timeout: 120000 });
   await ctx.close();
 });
 

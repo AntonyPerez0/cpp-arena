@@ -97,6 +97,8 @@ export async function runOnly(lang: "c" | "cpp", code: string, stdin: string, ex
   const res = await compileAndRun(code, lang, [runInput({ stdin, ...extra })]);
   return {
     compiled: res.compiled,
+    /** Set when the compiler itself couldn't run (it isn't the program's fault). */
+    internalError: res.internalError,
     diagnostics: parseDiagnostics(res.diagnostics, code.split("\n").length),
     rawDiagnostics: res.internalError ?? res.diagnostics,
     run: res.runs[0],
