@@ -187,6 +187,8 @@ button.pill { cursor: pointer; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.1rem 1.2rem; margin-bottom: 1rem; }
 .cards3 .card { margin-bottom: 0; }
 .card p { margin: 0.4rem 0; color: var(--text2); }
+.data-card { border-color: var(--accent); }
+.data-card .actions { align-items: center; flex-wrap: wrap; }
 .card-link { color: var(--text); display: block; transition: border-color 0.15s, transform 0.15s; }
 .card-link:hover { border-color: var(--line-strong); text-decoration: none; transform: translateY(-2px); }
 .card-kicker { text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.72rem; font-weight: 700; color: var(--accent-fg); margin-bottom: 0.35rem; }

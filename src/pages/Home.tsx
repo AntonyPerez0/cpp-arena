@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { useStore } from "../state/store";
 import { nextStep, rankFor, totals, dailyStreak, dailyChallengeStreak, localDay } from "../state/derived";
-import { drills, modules, projects, pro } from "../content";
+import { drills, modules, projects, pro, stepPath } from "../content";
 import CompilerBadge from "../components/CompilerBadge";
 import { useTitle } from "../lib/title";
 
@@ -27,7 +27,7 @@ export default function Home() {
           </p>
           <div className="hero-actions">
             {next ? (
-              <Link className="btn btn-primary btn-lg" to={`/learn/${next.module.id}/${next.index + 1}`}>
+              <Link className="btn btn-primary btn-lg" to={stepPath(next.module, next.step)}>
                 {t.done === 0 ? "Start from zero" : "Continue"}: {next.step.title}
               </Link>
             ) : (

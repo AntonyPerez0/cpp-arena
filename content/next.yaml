@@ -1,0 +1,67 @@
+# The "Where to go next" page, at /next.
+title: "Where to go next: books, practice and projects for C and C++"
+description: "What to do after the course: practice sites, references, the best C and C++ books, projects that teach the most, and how to start contributing to open source."
+body: |
+  You've built a real foundation. Here's how to keep growing: more practice, the references professionals keep open, the books worth reading, and projects that teach you the most.
+
+  ## Keep practicing here
+
+  - **[The Pro Track](/pro)**: 12 projects on your own machine with CMake, Git, gdb, sanitizers, unit tests, profiling, threads and sockets, graded by GitHub Actions.
+  - **[Deathmatch](/deathmatch)**: the warm-up mode brings back the drills you missed, spaced out over days, and interview prep covers the classic questions.
+  - **[The daily challenge](/daily)**: one quick problem a day keeps it fresh.
+
+  ## Practice elsewhere
+
+  - **[Advent of Code](https://adventofcode.com)**: a set of programming puzzles every December, with the archives of past years open all year. Great practice for containers and algorithms.
+  - **Exercism's [C](https://exercism.org/tracks/c) and [C++](https://exercism.org/tracks/cpp) tracks**: small exercises with tests, and optional feedback from volunteer mentors.
+  - **LeetCode or Codeforces** for interview-style and competitive problems.
+
+  ## References to keep open
+
+  - **[cppreference.com](https://en.cppreference.com)**: the C and C++ languages and standard libraries, precise and up to date.
+  - **[Compiler Explorer](https://godbolt.org)**: see the assembly your code turns into, and compare compilers and flags side by side.
+  - **[C++ Core Guidelines](https://isocpp.github.io/CppCoreGuidelines/)**: how to write modern, safe C++, edited by Bjarne Stroustrup and Herb Sutter.
+  - **CppCon talks on YouTube**: conference talks on every topic, from the "Back to Basics" series to deep dives.
+
+  ## Books
+
+  **C**
+
+  - *C Programming: A Modern Approach*, K. N. King. Thorough and clear, with lots of exercises. The best next step after this course.
+  - *The C Programming Language*, Brian Kernighan and Dennis Ritchie. Short and classic, though it predates C99, so some style is dated.
+  - *Effective C*, Robert C. Seacord. Modern, security-minded C: undefined behavior, integers and memory.
+
+  **C++**
+
+  - *A Tour of C++*, Bjarne Stroustrup. A fast tour of modern C++ for people who can already program.
+  - *Programming: Principles and Practice Using C++*, Bjarne Stroustrup. A complete course, for a slower and deeper pass.
+  - *Effective Modern C++*, Scott Meyers. 42 guidelines for C++11 and C++14: move semantics, smart pointers, lambdas and more.
+  - *C++ Concurrency in Action*, Anthony Williams. Threads, atomics, memory ordering and lock-free data structures in depth.
+  - *C++ Templates: The Complete Guide*, David Vandevoorde, Nicolai Josuttis and Douglas Gregor. For really understanding generic code.
+
+  **Under the hood**
+
+  - *Computer Systems: A Programmer's Perspective*, Randal Bryant and David O'Hallaron. Memory, caches, linking and processes: what's under your C code.
+  - *The Algorithm Design Manual*, Steven Skiena. Practical algorithms, with a catalog of problems and how to attack them.
+
+  ## Projects that teach the most
+
+  Pick one and finish it. A finished project teaches more than three half-built ones.
+
+  - **A Unix shell**: `fork`, `exec`, pipes, redirection and signals.
+  - **A network server**: an HTTP server or a chat server with sockets and threads. The Pro Track's key-value store is a head start.
+  - **An emulator**: CHIP-8 takes a weekend; a Game Boy takes a few months.
+  - **A ray tracer**: the free [Ray Tracing in One Weekend](https://raytracing.github.io) series builds one in C++, step by step.
+  - **An interpreter**: [Crafting Interpreters](https://craftinginterpreters.com), free to read online, builds a whole language, the second half in C.
+  - **A game** with raylib or SDL.
+  - **Your own versions of standard tools**: `grep`, `wc`, a hash map, a memory allocator.
+
+  ## Contributing to open source
+
+  - Start with a project you already use. Read its contributing guide, build it, and run its tests.
+  - Look for issues labeled "good first issue". Documentation fixes and new tests are welcome, and they teach you the code base.
+  - Keep changes small, follow the project's style, and expect review comments: that's how you learn.
+
+  ## Where C and C++ are used
+
+  Operating systems and embedded devices (mostly C), games and game engines, web browsers, databases, compilers, finance and trading, scientific computing, robotics, and audio and video software. Pick the area that excites you and build something in it.

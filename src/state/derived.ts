@@ -1,4 +1,5 @@
 import { allSteps, drills, modules } from "../content";
+import type { Drill } from "../content/types";
 import type { State } from "./store";
 
 export function moduleProgress(s: State, moduleId: string) {
@@ -7,10 +8,20 @@ export function moduleProgress(s: State, moduleId: string) {
   return { done: m.steps.filter((st) => s.steps[st.id]?.done).length, total: m.steps.length };
 }
 
-/** Topics (module ids) available in Deathmatch: any module with a finished step. */
+/**
+ * A drill is in play once its teaching step is done, its module was skipped by the
+ * placement quiz, or the learner has already practiced it (so review never loses cards).
+ */
+export function drillUnlocked(s: State, d: Drill): boolean {
+  if (s.settings.unlockAll || !d.step) return true;
+  return !!s.steps[d.step]?.done || s.placed.includes(d.topic) || !!s.drills[d.id];
+}
+
+/** Topics (module ids) available in Deathmatch: any module with an unlocked drill. */
 export function unlockedTopics(s: State): string[] {
   if (s.settings.unlockAll) return modules.map((m) => m.id);
-  return modules.filter((m) => s.placed.includes(m.id) || m.steps.some((st) => s.steps[st.id]?.done)).map((m) => m.id);
+  const open = new Set(drills.filter((d) => drillUnlocked(s, d)).map((d) => d.topic));
+  return modules.filter((m) => open.has(m.id)).map((m) => m.id);
 }
 
 /** The first unfinished step, skipping modules the placement quiz said the learner knows. */

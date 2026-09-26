@@ -1,0 +1,375 @@
+# Lesson step addresses. Generated and updated by `npm run content`; commit it.
+#
+# slugs: every step's address, /learn/<module>/<slug>. A new step gets one from its
+#   title the first time the content is built. After that it never changes, even if
+#   the title does, so shared links and search results keep working.
+# numbered: the old numbered addresses, /learn/<module>/<n>. Item n is the step that
+#   number used to open, so old links still land on the same lesson.
+slugs:
+  c-hello-1: your-first-program
+  c-hello-2: printing-your-own-text
+  c-hello-3: several-lines
+  c-hello-4: escape-sequences
+  c-hello-5: comments-and-reading-errors
+  c-vars-1: your-first-variable
+  c-vars-2: printing-values-with-d
+  c-vars-3: changing-a-variable
+  c-vars-4: decimals-with-double
+  c-vars-5: characters-with-char
+  c-vars-6: constants-and-sizeof
+  c-ops-1: arithmetic
+  c-ops-2: the-integer-division-trap
+  c-ops-3: remainder-with
+  c-ops-4: shorthand-operators
+  c-ops-5: prefix-vs-postfix
+  c-ops-6: put-it-together
+  c-input-1: read-a-number
+  c-input-2: several-values-at-once
+  c-input-3: reading-doubles
+  c-input-4: characters-and-words
+  c-input-5: did-the-read-work
+  c-if-1: if-and-else
+  c-if-2: else-if-chains
+  c-if-3: and-or-not
+  c-if-4: switch
+  c-if-5: the-ternary-operator
+  c-if-6: challenge-leap-years
+  c-loops-1: while-loops
+  c-loops-2: for-loops
+  c-loops-3: accumulating-a-total
+  c-loops-4: break-and-continue
+  c-loops-5: do-while
+  c-loops-6: nested-loops
+  c-loops-7: one-character-at-a-time
+  c-funcs-1: define-and-call-a-function
+  c-funcs-2: write-a-function
+  c-funcs-3: void-functions
+  c-funcs-4: prototypes
+  c-funcs-5: scope-and-pass-by-value
+  c-funcs-6: recursion
+  c-funcs-7: challenge-is-it-prime
+  c-arrays-1: declare-and-index
+  c-arrays-2: loop-over-an-array
+  c-arrays-3: read-into-an-array
+  c-arrays-4: arrays-as-parameters
+  c-arrays-5: modify-an-array-in-a-function
+  c-arrays-6: 2d-arrays
+  c-arrays-7: random-numbers-and-shuffling
+  c-strings-1: the-null-terminator
+  c-strings-2: strlen-and-friends
+  c-strings-3: write-your-own-strlen
+  c-strings-4: compare-strings-correctly
+  c-strings-5: characters-are-numbers
+  c-strings-6: challenge-palindromes
+  c-pointers-1: addresses-and-pointers
+  c-pointers-2: change-the-callers-variable
+  c-pointers-3: returning-two-results
+  c-pointers-4: pointer-arithmetic-and-arrays
+  c-pointers-5: "null"
+  c-pointers-6: strings-through-pointers
+  c-pointers-7: pointers-to-pointers
+  c-pointers-8: const-and-pointers
+  c-pointers-9: two-pointers-from-both-ends
+  c-pointers-10: challenge-squeeze-out-spaces
+  c-structs-1: define-a-struct
+  c-structs-2: structs-in-functions
+  c-structs-3: pointers-to-structs-and
+  c-structs-4: arrays-of-structs
+  c-structs-5: enum
+  c-structs-6: typedef
+  c-structs-7: unions-and-tagged-unions
+  c-memory-1: stack-vs-heap
+  c-memory-2: size-decided-at-runtime
+  c-memory-3: return-heap-memory-from-a-function
+  c-memory-4: calloc-and-strdup-style-copies
+  c-memory-5: growing-with-realloc
+  c-memory-6: memory-bugs-to-avoid
+  c-memory-7: a-2d-grid-on-the-heap
+  c-memory-8: who-owns-what
+  c-memory-10: where-a-programs-data-lives
+  c-memory-9: challenge-a-string-builder
+  c-lists-1: a-node-that-points-to-a-node
+  c-lists-2: push-to-the-front
+  c-lists-3: length-and-sum
+  c-lists-4: free-the-whole-list
+  c-lists-5: reverse-a-linked-list
+  c-lists-6: a-stack-on-an-array
+  c-bits-1: define-constants
+  c-bits-2: macro-pitfalls
+  c-bits-3: bitwise-operators
+  c-bits-4: flags
+  c-bits-5: challenge-power-of-two
+  c-files-1: write-a-file-read-it-back
+  c-files-2: reading-lines-with-fgets
+  c-files-3: when-fopen-fails
+  c-files-4: loading-records
+  c-files-5: appending
+  c-files-6: safe-formatting-with-snprintf
+  c-files-8: binary-files
+  c-files-7: challenge-a-csv-report
+  c-funcptr-1: functions-have-addresses
+  c-funcptr-2: typedef-and-passing-callbacks
+  c-funcptr-3: a-dispatch-table
+  c-funcptr-4: sorting-with-qsort
+  c-funcptr-5: generic-code-with-void
+  c-funcptr-6: challenge-an-event-bus
+  c-types-1: sizes-and-limits
+  c-types-2: unsigned-wraparound
+  c-types-3: signed-overflow-is-undefined
+  c-types-4: fixed-width-types
+  c-types-5: the-signed-unsigned-comparison-trap
+  c-types-6: floating-point-rounding
+  c-types-8: type-punning-and-strict-aliasing
+  c-types-7: challenge-hunt-the-undefined-behavior
+  c-program-1: headers-and-include-guards
+  c-program-2: static-functions-and-variables
+  c-program-3: extern-and-shared-state
+  c-program-4: const-correct-interfaces
+  c-program-5: command-line-arguments
+  c-program-7: variadic-functions
+  c-program-6: challenge-a-real-command-line-tool
+  cpp-basics-1: hello-cpp
+  cpp-basics-2: reading-with-cin
+  cpp-basics-3: std-string-is-easy
+  cpp-basics-4: bool-auto-and-range-for
+  cpp-basics-5: namespaces-and-using
+  cpp-basics-6: whole-lines-with-getline
+  cpp-basics-7: where-c-and-cpp-differ
+  cpp-refs-1: references-are-aliases
+  cpp-refs-2: pass-by-reference
+  cpp-refs-3: const-references
+  cpp-refs-4: overloading
+  cpp-refs-5: default-arguments
+  cpp-vector-1: std-vector-basics
+  cpp-vector-2: loop-over-a-vector
+  cpp-vector-3: insert-and-erase
+  cpp-vector-4: 2d-vectors
+  cpp-vector-5: string-search-and-substrings
+  cpp-vector-6: challenge-split
+  cpp-classes-1: member-functions
+  cpp-classes-2: public-and-private
+  cpp-classes-3: constructors
+  cpp-classes-4: const-member-functions
+  cpp-classes-5: static-members
+  cpp-classes-6: challenge-a-clock-class
+  cpp-classes-7: member-initializer-lists
+  cpp-classes-8: keeping-invariants
+  cpp-classes-9: challenge-a-fraction-class
+  cpp-raii-1: destructors
+  cpp-raii-2: order-of-destruction
+  cpp-raii-3: raii
+  cpp-raii-4: the-copy-problem
+  cpp-raii-5: non-copyable-classes
+  cpp-raii-6: copy-assignment-with-copy-and-swap
+  cpp-raii-7: the-rule-of-zero
+  cpp-raii-8: challenge-a-scope-guard
+  cpp-operators-1: operator
+  cpp-operators-2: operator-and
+  cpp-operators-3: printing-with-operator
+  cpp-operators-4: operator-2
+  cpp-operators-5: operator-and-sorting
+  cpp-containers-1: std-map
+  cpp-containers-2: look-up-without-inserting
+  cpp-containers-3: std-set
+  cpp-containers-4: unordered-map
+  cpp-containers-5: pair-and-tuple
+  cpp-containers-6: challenge-balanced-brackets
+  cpp-streams-1: parsing-with-istringstream
+  cpp-streams-2: formatting-tables-with-iomanip
+  cpp-streams-3: building-strings-with-ostringstream
+  cpp-streams-4: reading-files-with-ifstream
+  cpp-streams-5: writing-files-with-ofstream
+  cpp-streams-6: challenge-operator-for-your-own-type
+  cpp-algorithms-1: sort-and-reverse
+  cpp-algorithms-2: lambdas
+  cpp-algorithms-3: find-if-count-if-any-of
+  cpp-algorithms-4: accumulate-and-transform
+  cpp-algorithms-5: captures
+  cpp-algorithms-6: erase-with-a-condition
+  cpp-stl-1: enum-class
+  cpp-stl-2: std-array
+  cpp-stl-3: deque-the-double-ended-queue
+  cpp-stl-4: priority-queue-and-top-k
+  cpp-stl-5: iterators
+  cpp-stl-6: iterator-invalidation
+  cpp-stl-7: challenge-callbacks-with-std-function
+  cpp-smart-1: unique-ptr
+  cpp-smart-2: unique-means-unique
+  cpp-smart-3: returning-ownership
+  cpp-smart-4: shared-ptr
+  cpp-smart-5: weak-ptr
+  cpp-move-1: copies-are-expensive
+  cpp-move-2: write-a-move-constructor
+  cpp-move-3: move-assignment-and-the-rule-of-five
+  cpp-move-4: return-by-value-is-free
+  cpp-move-5: moved-from-objects
+  cpp-move-6: sink-parameters-and-emplace-back
+  cpp-move-7: challenge-a-move-aware-log
+  cpp-templates-1: function-templates
+  cpp-templates-2: templates-over-containers
+  cpp-templates-3: class-templates
+  cpp-templates-4: constexpr
+  cpp-templates-5: if-constexpr
+  cpp-templates-6: values-as-template-parameters
+  cpp-templates-7: template-specialization
+  cpp-templates-8: challenge-a-minstack-t
+  cpp-oop-1: inheritance
+  cpp-oop-2: virtual-and-override
+  cpp-oop-3: abstract-classes
+  cpp-oop-4: polymorphic-containers
+  cpp-oop-5: virtual-destructors
+  cpp-oop-6: calling-the-base-version-and-protected
+  cpp-oop-7: composition-over-inheritance
+  cpp-oop-9: casts-dynamic-cast-and-slicing
+  cpp-oop-8: challenge-program-to-an-interface
+  cpp-modern-1: std-optional
+  cpp-modern-2: std-variant-and-std-visit
+  cpp-modern-3: std-string-view
+  cpp-modern-4: concepts
+  cpp-modern-5: ranges
+  cpp-modern-6: std-span
+  cpp-modern-7: attributes-consteval-and-constinit
+  cpp-errors-1: bugs-vs-expected-failures
+  cpp-errors-2: status-codes
+  cpp-errors-3: optional-for-maybe
+  cpp-errors-4: a-result-type
+  cpp-errors-5: passing-errors-up
+  cpp-errors-7: exceptions-on-a-real-machine
+  cpp-errors-6: challenge-load-a-config
+  cpp-iterators-1: making-a-class-iterable
+  cpp-iterators-2: writing-an-iterator-class
+  cpp-iterators-3: iterator-concepts-and-algorithms
+  cpp-iterators-4: a-lazy-range
+  cpp-iterators-5: challenge-a-ring-buffer
+  cpp-generic-1: parameter-packs-and-fold-expressions
+  cpp-generic-2: perfect-forwarding
+  cpp-generic-3: type-traits
+  cpp-generic-4: writing-your-own-trait
+  cpp-generic-5: constraining-templates-with-concepts
+  cpp-generic-7: value-categories-and-reference-collapsing
+  cpp-generic-8: sfinae-and-enable-if
+  cpp-generic-9: crtp-and-static-polymorphism
+  cpp-generic-6: challenge-compile-time-computation
+  cpp-lib-1: std-format
+  cpp-lib-2: formatting-your-own-types
+  cpp-lib-3: chrono-durations
+  cpp-lib-4: measuring-time
+  cpp-lib-5: strict-number-parsing-with-from-chars
+  cpp-lib-7: random-numbers-with-random
+  cpp-lib-6: challenge-a-log-formatter
+  cpp-patterns-1: strategies-as-closures
+  cpp-patterns-2: a-factory-registry
+  cpp-patterns-3: observers-with-weak-ptr
+  cpp-patterns-4: pimpl
+  cpp-patterns-5: raii-wrappers-for-c-libraries
+  cpp-patterns-7: type-erasure
+  cpp-patterns-6: challenge-a-table-driven-state-machine
+  cpp-concurrency-1: threads-and-splitting-work
+  cpp-concurrency-2: data-races
+  cpp-concurrency-3: mutexes-and-lock-guard
+  cpp-concurrency-4: atomics
+  cpp-concurrency-5: deadlock-and-lock-ordering
+  cpp-concurrency-6: condition-variables-and-producer-consumer
+  cpp-concurrency-7: memory-ordering
+  cpp-performance-1: caches-and-contiguous-memory
+  cpp-performance-2: arrays-of-structs-vs-structs-of-arrays
+  cpp-performance-3: branches-and-branch-prediction
+  cpp-performance-4: false-sharing-and-alignment
+  cpp-performance-5: custom-allocators-with-std-pmr
+  dsa-complexity-1: big-o-in-practice
+  dsa-complexity-2: binary-search
+  dsa-complexity-3: lower-bound-and-upper-bound
+  dsa-complexity-4: two-pointers
+  dsa-complexity-5: prefix-sums
+  dsa-complexity-6: challenge-sliding-window
+  dsa-sorting-1: insertion-sort
+  dsa-sorting-2: merge-sort
+  dsa-sorting-3: quicksort-and-partitioning
+  dsa-sorting-4: counting-sort
+  dsa-sorting-5: stability-and-custom-comparators
+  dsa-sorting-6: challenge-quickselect
+  dsa-hash-1: buckets-and-chaining
+  dsa-hash-2: load-factor-and-rehashing
+  dsa-hash-3: a-string-keyed-map-with-erase
+  dsa-hash-4: hashing-your-own-keys
+  dsa-hash-5: challenge-an-lru-cache
+  dsa-trees-1: binary-trees-and-recursion
+  dsa-trees-2: binary-search-trees
+  dsa-trees-3: traversals-and-validation
+  dsa-trees-4: level-order-with-a-queue
+  dsa-trees-5: a-binary-heap-by-hand
+  dsa-trees-6: challenge-a-trie-for-autocomplete
+  dsa-graphs-1: adjacency-lists
+  dsa-graphs-2: shortest-path-with-bfs
+  dsa-graphs-3: depth-first-flood-fill
+  dsa-graphs-4: topological-sort
+  dsa-graphs-5: dijkstras-shortest-paths
+  dsa-graphs-6: challenge-union-find
+  dsa-backtracking-1: subsets-and-the-decision-tree
+  dsa-backtracking-2: permutations
+  dsa-backtracking-3: pruning
+  dsa-backtracking-4: n-queens
+  dsa-backtracking-5: paths-through-a-grid
+  dsa-backtracking-6: a-sudoku-solver
+  dsa-dp-1: memoization
+  dsa-dp-2: bottom-up-tables-and-coin-change
+  dsa-dp-3: paths-through-a-grid
+  dsa-dp-4: longest-common-subsequence
+  dsa-dp-5: the-0-1-knapsack
+  dsa-dp-6: edit-distance
+  cpp-review-1: review-pagination
+  cpp-review-2: review-dangling-references
+  cpp-review-3: review-leaks-on-the-error-path
+  cpp-review-4: review-modifying-while-iterating
+  cpp-review-5: review-integer-math
+  cpp-review-6: review-class-design
+  cpp-concurrency-8: lock-free-stacks-and-the-aba-problem
+numbered:
+  c-hello: [ c-hello-1, c-hello-2, c-hello-3, c-hello-4, c-hello-5 ]
+  c-vars: [ c-vars-1, c-vars-2, c-vars-3, c-vars-4, c-vars-5, c-vars-6 ]
+  c-ops: [ c-ops-1, c-ops-2, c-ops-3, c-ops-4, c-ops-5, c-ops-6 ]
+  c-input: [ c-input-1, c-input-2, c-input-3, c-input-4, c-input-5 ]
+  c-if: [ c-if-1, c-if-2, c-if-3, c-if-4, c-if-5, c-if-6 ]
+  c-loops: [ c-loops-1, c-loops-2, c-loops-3, c-loops-4, c-loops-5, c-loops-6, c-loops-7 ]
+  c-funcs: [ c-funcs-1, c-funcs-2, c-funcs-3, c-funcs-4, c-funcs-5, c-funcs-6, c-funcs-7 ]
+  c-arrays: [ c-arrays-1, c-arrays-2, c-arrays-3, c-arrays-4, c-arrays-5, c-arrays-6, c-arrays-7 ]
+  c-strings: [ c-strings-1, c-strings-2, c-strings-3, c-strings-4, c-strings-5, c-strings-6 ]
+  c-pointers: [ c-pointers-1, c-pointers-2, c-pointers-3, c-pointers-4, c-pointers-5, c-pointers-6, c-pointers-7, c-pointers-8, c-pointers-9, c-pointers-10 ]
+  c-structs: [ c-structs-1, c-structs-2, c-structs-3, c-structs-4, c-structs-5, c-structs-6, c-structs-7 ]
+  c-memory: [ c-memory-1, c-memory-2, c-memory-3, c-memory-4, c-memory-5, c-memory-6, c-memory-7, c-memory-8, c-memory-9, c-memory-9 ]
+  c-lists: [ c-lists-1, c-lists-2, c-lists-3, c-lists-4, c-lists-5, c-lists-6 ]
+  c-bits: [ c-bits-1, c-bits-2, c-bits-3, c-bits-4, c-bits-5 ]
+  c-files: [ c-files-1, c-files-2, c-files-3, c-files-4, c-files-5, c-files-6, c-files-8, c-files-7 ]
+  c-funcptr: [ c-funcptr-1, c-funcptr-2, c-funcptr-3, c-funcptr-4, c-funcptr-5, c-funcptr-6 ]
+  c-types: [ c-types-1, c-types-2, c-types-3, c-types-4, c-types-5, c-types-6, c-types-7, c-types-7 ]
+  c-program: [ c-program-1, c-program-2, c-program-3, c-program-4, c-program-5, c-program-7, c-program-6 ]
+  cpp-basics: [ cpp-basics-1, cpp-basics-2, cpp-basics-3, cpp-basics-4, cpp-basics-5, cpp-basics-6, cpp-basics-7 ]
+  cpp-refs: [ cpp-refs-1, cpp-refs-2, cpp-refs-3, cpp-refs-4, cpp-refs-5 ]
+  cpp-vector: [ cpp-vector-1, cpp-vector-2, cpp-vector-3, cpp-vector-4, cpp-vector-5, cpp-vector-6 ]
+  cpp-classes: [ cpp-classes-1, cpp-classes-2, cpp-classes-3, cpp-classes-4, cpp-classes-5, cpp-classes-6, cpp-classes-7, cpp-classes-8, cpp-classes-9 ]
+  cpp-raii: [ cpp-raii-1, cpp-raii-2, cpp-raii-3, cpp-raii-4, cpp-raii-5, cpp-raii-6, cpp-raii-7, cpp-raii-8 ]
+  cpp-operators: [ cpp-operators-1, cpp-operators-2, cpp-operators-3, cpp-operators-4, cpp-operators-5 ]
+  cpp-containers: [ cpp-containers-1, cpp-containers-2, cpp-containers-3, cpp-containers-4, cpp-containers-5, cpp-containers-6 ]
+  cpp-streams: [ cpp-streams-1, cpp-streams-2, cpp-streams-3, cpp-streams-4, cpp-streams-5, cpp-streams-6 ]
+  cpp-algorithms: [ cpp-algorithms-1, cpp-algorithms-2, cpp-algorithms-3, cpp-algorithms-4, cpp-algorithms-5, cpp-algorithms-6 ]
+  cpp-stl: [ cpp-stl-1, cpp-stl-2, cpp-stl-3, cpp-stl-4, cpp-stl-5, cpp-stl-6, cpp-stl-7 ]
+  cpp-smart: [ cpp-smart-1, cpp-smart-2, cpp-smart-3, cpp-smart-4, cpp-smart-5 ]
+  cpp-move: [ cpp-move-1, cpp-move-2, cpp-move-3, cpp-move-4, cpp-move-5, cpp-move-6, cpp-move-7 ]
+  cpp-templates: [ cpp-templates-1, cpp-templates-2, cpp-templates-3, cpp-templates-4, cpp-templates-5, cpp-templates-6, cpp-templates-7, cpp-templates-8 ]
+  cpp-oop: [ cpp-oop-1, cpp-oop-2, cpp-oop-3, cpp-oop-4, cpp-oop-5, cpp-oop-6, cpp-oop-7, cpp-oop-9, cpp-oop-8 ]
+  cpp-modern: [ cpp-modern-1, cpp-modern-2, cpp-modern-3, cpp-modern-4, cpp-modern-5, cpp-modern-6, cpp-modern-7 ]
+  cpp-errors: [ cpp-errors-1, cpp-errors-2, cpp-errors-3, cpp-errors-4, cpp-errors-5, cpp-errors-7, cpp-errors-6 ]
+  cpp-iterators: [ cpp-iterators-1, cpp-iterators-2, cpp-iterators-3, cpp-iterators-4, cpp-iterators-5 ]
+  cpp-generic: [ cpp-generic-1, cpp-generic-2, cpp-generic-3, cpp-generic-4, cpp-generic-5, cpp-generic-6, cpp-generic-8, cpp-generic-9, cpp-generic-6 ]
+  cpp-lib: [ cpp-lib-1, cpp-lib-2, cpp-lib-3, cpp-lib-4, cpp-lib-5, cpp-lib-7, cpp-lib-6 ]
+  cpp-patterns: [ cpp-patterns-1, cpp-patterns-2, cpp-patterns-3, cpp-patterns-4, cpp-patterns-5, cpp-patterns-6, cpp-patterns-6 ]
+  cpp-concurrency: [ cpp-concurrency-1, cpp-concurrency-2, cpp-concurrency-3, cpp-concurrency-4, cpp-concurrency-5, cpp-concurrency-6, cpp-concurrency-7 ]
+  cpp-performance: [ cpp-performance-1, cpp-performance-2, cpp-performance-3, cpp-performance-4, cpp-performance-5 ]
+  dsa-complexity: [ dsa-complexity-1, dsa-complexity-2, dsa-complexity-3, dsa-complexity-4, dsa-complexity-5, dsa-complexity-6 ]
+  dsa-sorting: [ dsa-sorting-1, dsa-sorting-2, dsa-sorting-3, dsa-sorting-4, dsa-sorting-5, dsa-sorting-6 ]
+  dsa-hash: [ dsa-hash-1, dsa-hash-2, dsa-hash-3, dsa-hash-4, dsa-hash-5 ]
+  dsa-trees: [ dsa-trees-1, dsa-trees-2, dsa-trees-3, dsa-trees-4, dsa-trees-5, dsa-trees-6 ]
+  dsa-graphs: [ dsa-graphs-1, dsa-graphs-2, dsa-graphs-3, dsa-graphs-4, dsa-graphs-5, dsa-graphs-6 ]
+  dsa-backtracking: [ dsa-backtracking-1, dsa-backtracking-2, dsa-backtracking-3, dsa-backtracking-4, dsa-backtracking-5, dsa-backtracking-6 ]
+  dsa-dp: [ dsa-dp-1, dsa-dp-2, dsa-dp-3, dsa-dp-4, dsa-dp-5, dsa-dp-6 ]
+  cpp-review: [ cpp-review-1, cpp-review-2, cpp-review-3, cpp-review-4, cpp-review-5, cpp-review-6 ]

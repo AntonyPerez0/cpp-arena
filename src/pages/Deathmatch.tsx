@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { drills, moduleById, modules } from "../content";
+import { drills, firstStepPath, moduleById, modules } from "../content";
 import type { Drill } from "../content/types";
 import { getState, patchSettings, useStore, type DmMode } from "../state/store";
-import { dailyStreak, rankFor, unlockedTopics } from "../state/derived";
+import { dailyStreak, drillUnlocked, rankFor, unlockedTopics } from "../state/derived";
 import { blip, callout, isDue, lives, pickNext, recordRep, recordRun, BOSS_EVERY, topicTitle, INTERVIEW } from "../deathmatch/engine";
 import { Rep, Death } from "../deathmatch/Reps";
-import { ensureCompiler } from "../compiler/client";
+import { ensureCompiler, mayAutoDownload } from "../compiler/client";
 import ShareButton from "../components/ShareButton";
 import { useTitle } from "../lib/title";
 
@@ -19,7 +19,11 @@ export default function Deathmatch() {
   const unlocked = unlockedTopics(s);
   const selected = (s.settings.topics ?? unlocked).filter((t) => unlocked.includes(t));
   const topics = selected.length ? selected : unlocked;
-  const topicPool = useMemo(() => drills.filter((d) => topics.includes(d.topic) && (s.settings.boss || d.type !== "boss")), [topics.join(","), s.settings.boss]);
+  // Only drills whose teaching step is done (see drillUnlocked); recomputed as progress changes.
+  const topicPool = useMemo(
+    () => drills.filter((d) => topics.includes(d.topic) && (s.settings.boss || d.type !== "boss") && drillUnlocked(s, d)),
+    [topics.join(","), s.settings.boss, s.settings.unlockAll, s.steps, s.drills, s.placed],
+  );
   const interviewPool = useMemo(() => drills.filter((d) => d.topic === INTERVIEW && (s.settings.boss || d.type !== "boss")), [s.settings.boss]);
   const dueCount = topicPool.filter((d) => isDue(s.drills[d.id])).length;
 
@@ -58,7 +62,10 @@ export default function Deathmatch() {
     const p = m === "interview" ? interviewPool : topicPool;
     if (!p.length) return;
     if (m === "warmup" && dueCount === 0) return;
-    if (s.settings.boss && p.some((d) => d.type === "boss")) ensureCompiler({ warmCpp: p.some((d) => d.lang === "cpp") });
+    // Boss reps compile for real: fetch the compiler in the background, unless that would cost mobile data
+    // (then the first boss rep's Fire button starts the download).
+    if (s.settings.boss && p.some((d) => d.type === "boss"))
+      mayAutoDownload(s.settings.mobileData).then((ok) => ok && ensureCompiler({ warmCpp: p.some((d) => d.lang === "cpp") }));
     setMode(m);
     setStreak(0);
     setReps(0);
@@ -304,7 +311,7 @@ function Lobby({ pool, interviewCount, unlocked, selected, dueCount, onStart }: 
               Finish the first step of any lesson module to unlock its drills, or turn on <b>Unlock every topic</b> below if you already know some C/C++.
             </p>
             <div className="actions">
-              <Link className="btn btn-primary" to="/learn/c-hello/1">
+              <Link className="btn btn-primary" to={firstStepPath("c-hello")}>
                 Start lesson 1
               </Link>
               {interviewCount > 0 && (
@@ -359,21 +366,23 @@ function Lobby({ pool, interviewCount, unlocked, selected, dueCount, onStart }: 
           {modules.map((m) => {
             const isUnlocked = unlocked.includes(m.id);
             const on = selected.includes(m.id);
-            const n = drills.filter((d) => d.topic === m.id).length;
+            const all = drills.filter((d) => d.topic === m.id);
+            const n = all.length;
             if (!n) return null;
+            const open = all.filter((d) => drillUnlocked(s, d)).length;
             return (
               <button
                 key={m.id}
                 className={"chip" + (on ? " chip-on" : "") + (isUnlocked ? "" : " chip-locked")}
                 disabled={!isUnlocked}
-                title={isUnlocked ? `${n} drills` : "Finish a step in this module to unlock"}
+                title={!isUnlocked ? "Finish a step in this module to unlock its drills" : open < n ? `${open} of ${n} drills unlocked: each unlocks when you finish the step that teaches it` : `${n} drills`}
                 onClick={() => {
                   const next = on ? selected.filter((t) => t !== m.id) : [...selected, m.id];
                   if (next.length) setTopics(next);
                 }}
               >
                 {isUnlocked ? "" : "🔒 "}
-                {m.title} <span className="chip-n">{n}</span>
+                {m.title} <span className="chip-n">{open < n ? `${open}/${n}` : n}</span>
               </button>
             );
           })}

@@ -1016,3 +1016,198 @@ steps:
       - "`flag_.test_and_set(std::memory_order_acquire)` sets the flag and returns what it was before. If it was clear (`false`), you now own the lock."
       - "lock: `while (!try_lock()) {}` keeps trying until it wins."
       - "unlock: `flag_.clear(std::memory_order_release);`"
+  - title: Lock-free stacks and the ABA problem
+    id: cpp-concurrency-8
+    text: |
+      A mutex makes other threads **wait**. If the thread holding it is descheduled, everyone waits for it. **Lock-free** data structures use atomic read-modify-write operations instead, so that at any moment some thread is making progress. They're used where waiting is unacceptable: memory allocators, schedulers, audio and trading engines. They are also some of the hardest code there is to get right, so treat this step as understanding, not a recipe.
+
+      ### A lock-free stack
+
+      The classic example is the **Treiber stack**: a linked list whose head is a `std::atomic` pointer. To push, point the new node at the current head, then try to swing the head to the new node with **compare-and-swap** (CAS). If another thread changed the head in between, the CAS fails, reloads the current head into `expected`, and the loop tries again.
+
+      ```cpp native
+      #include <atomic>
+      #include <iostream>
+      #include <thread>
+      #include <vector>
+
+      struct Node {
+          int value;
+          Node* next;
+      };
+
+      std::atomic<Node*> head{nullptr};
+
+      void push(int v) {
+          Node* n = new Node{v, head.load(std::memory_order_relaxed)};
+          // On failure, compare_exchange_weak stores the current head into n->next: just retry.
+          while (!head.compare_exchange_weak(n->next, n, std::memory_order_release, std::memory_order_relaxed)) {
+          }
+      }
+
+      int main() {
+          std::vector<std::thread> threads;
+          for (int t = 0; t < 4; t++)
+              threads.emplace_back([t] {
+                  for (int i = 1; i <= 1000; i++) push(t * 1000 + i);
+              });
+          for (auto& th : threads) th.join();
+          long long count = 0, sum = 0;
+          for (Node* n = head.load(std::memory_order_acquire); n;) {   // all threads are done: popping is safe
+              Node* next = n->next;
+              count++;
+              sum += n->value;
+              delete n;
+              n = next;
+          }
+          std::cout << count << " nodes, sum " << sum << "\n";
+      }
+      ```
+
+      ```output
+      4000 nodes, sum 8002000
+      ```
+
+      Four threads pushed at once and no push was lost. Popping concurrently is where it gets hard.
+
+      ### The ABA problem
+
+      A concurrent pop reads the head `A` and the node below it, `B`, then tries `CAS(head: A -> B)`. Now suppose it's paused between the read and the CAS:
+
+      1. Thread 1 reads head `A`, next `B`, and is paused.
+      2. Thread 2 pops `A`, pops `B` (and frees it), then pushes `A` back.
+      3. Thread 1 wakes up. The head is `A` again, so its CAS **succeeds**, and it sets the head to `B`, a node that's no longer on the stack (or no longer exists).
+
+      The CAS only checked that the head *looked* the same: it went from A to B and back to A, hence the name. Pointer reuse makes it common in practice, because freed memory is quickly handed out again.
+
+      ### Fixes
+
+      - **Tagged heads**: store a counter next to the pointer (or index) and increment it on every change. The CAS compares both, so "A again, but with a different tag" fails. With an index into a node pool, index and tag fit in one 64-bit atomic. With real pointers you need a double-width CAS (`cmpxchg16b` on x86-64).
+      - **Safe memory reclamation**: hazard pointers or epoch-based reclamation delay freeing a node until no thread can still be looking at it. C++26 adds `std::hazard_pointer` and `std::rcu`.
+      - **Don't write your own** unless you must. Use a well-tested library (Boost.Lockfree, Folly, moodycamel's queues), measure against a plain mutex (which is often faster when contention is low), and test with ThreadSanitizer.
+
+      **Your turn:** write a tagged stack over a pool of slots. The head is one `std::atomic<std::uint64_t>` holding a slot index (low 32 bits) and a tag (high 32 bits), and `next_[i]` is the slot below slot `i`. Every successful change stores the tag plus one.
+
+      - `push(i)`: set `next_[i]` to the current top, then CAS the head to `pack(i, tag + 1)`, retrying on failure.
+      - `pop_with(seen, out)`: **one** attempt from a head value read earlier. If `seen` is empty, set `out` to -1 and return true. Otherwise CAS the head from `seen` to `pack(below, tag + 1)`, where `below` is `next_[top]`; on success set `out` to the top slot and return true, on failure return false.
+      - `pop()`: repeat `pop_with(head_.load(...), out)` until it returns true, and return `out`.
+
+      The tests replay the ABA story with one thread: they save a head, pop two slots and push the first back, then check that the stale attempt fails.
+    seed: |
+      #include <atomic>
+      #include <cstdint>
+      #include <vector>
+
+      class TaggedStack {
+      public:
+          explicit TaggedStack(int slots) : next_(slots) {}
+
+          void push(int i) {
+
+          }
+
+          bool pop_with(std::uint64_t seen, int& out) {
+
+          }
+
+          int pop() {
+
+          }
+
+          std::uint64_t snapshot() const { return head_.load(); }
+          std::uint32_t tag() const { return tag_of(head_.load()); }
+
+      private:
+          static constexpr std::uint32_t EMPTY = 0xffffffffu;
+          static std::uint64_t pack(std::uint32_t index, std::uint32_t tag) { return (std::uint64_t(tag) << 32) | index; }
+          static std::uint32_t index_of(std::uint64_t h) { return static_cast<std::uint32_t>(h); }
+          static std::uint32_t tag_of(std::uint64_t h) { return static_cast<std::uint32_t>(h >> 32); }
+
+          std::vector<std::atomic<std::uint32_t>> next_;
+          std::atomic<std::uint64_t> head_{pack(EMPTY, 0)};
+      };
+    solution: |
+      #include <atomic>
+      #include <cstdint>
+      #include <vector>
+
+      class TaggedStack {
+      public:
+          explicit TaggedStack(int slots) : next_(slots) {}
+
+          void push(int i) {
+              std::uint64_t seen = head_.load(std::memory_order_relaxed);
+              do {
+                  next_[i].store(index_of(seen), std::memory_order_relaxed);
+              } while (!head_.compare_exchange_weak(seen, pack(static_cast<std::uint32_t>(i), tag_of(seen) + 1),
+                                                    std::memory_order_release, std::memory_order_relaxed));
+          }
+
+          bool pop_with(std::uint64_t seen, int& out) {
+              std::uint32_t top = index_of(seen);
+              if (top == EMPTY) {
+                  out = -1;
+                  return true;
+              }
+              std::uint32_t below = next_[top].load(std::memory_order_relaxed);
+              if (!head_.compare_exchange_strong(seen, pack(below, tag_of(seen) + 1), std::memory_order_acquire, std::memory_order_relaxed))
+                  return false;
+              out = static_cast<int>(top);
+              return true;
+          }
+
+          int pop() {
+              int out = -1;
+              while (!pop_with(head_.load(std::memory_order_acquire), out)) {
+              }
+              return out;
+          }
+
+          std::uint64_t snapshot() const { return head_.load(); }
+          std::uint32_t tag() const { return tag_of(head_.load()); }
+
+      private:
+          static constexpr std::uint32_t EMPTY = 0xffffffffu;
+          static std::uint64_t pack(std::uint32_t index, std::uint32_t tag) { return (std::uint64_t(tag) << 32) | index; }
+          static std::uint32_t index_of(std::uint64_t h) { return static_cast<std::uint32_t>(h); }
+          static std::uint32_t tag_of(std::uint64_t h) { return static_cast<std::uint32_t>(h >> 32); }
+
+          std::vector<std::atomic<std::uint32_t>> next_;
+          std::atomic<std::uint64_t> head_{pack(EMPTY, 0)};
+      };
+    require:
+      - pattern: "compare_exchange_(weak|strong)"
+        message: Change the head with compare_exchange_weak or compare_exchange_strong, the atomic compare-and-swap.
+    harness: |
+      int main() {
+          TaggedStack s(4);
+          CHECK_EQ("a new stack is empty", s.pop(), -1);
+          s.push(0);
+          s.push(1);
+          s.push(2);
+          CHECK_EQ("last in, first out", s.pop(), 2);
+          CHECK_EQ("then 1", s.pop(), 1);
+          std::uint32_t t = s.tag();
+          s.push(3);
+          CHECK("every change adds one to the tag", s.tag() == t + 1);
+          CHECK_EQ("3 on top", s.pop(), 3);
+          CHECK_EQ("then 0", s.pop(), 0);
+          CHECK_EQ("empty again", s.pop(), -1);
+          // ABA, replayed by one thread: remember the head while slot 0 is on top of slot 1...
+          s.push(1);
+          s.push(0);
+          std::uint64_t seen = s.snapshot();
+          // ...then "another thread" pops 0 and 1 and pushes 0 back.
+          CHECK_EQ("pop 0", s.pop(), 0);
+          CHECK_EQ("pop 1", s.pop(), 1);
+          s.push(0);
+          int got = -2;
+          CHECK("the stale attempt fails, although slot 0 is on top again", !s.pop_with(seen, got));
+          CHECK_EQ("a fresh pop still works", s.pop(), 0);
+          CHECK_EQ("and the stack is empty", s.pop(), -1);
+          CHECK("an attempt on an empty stack reports empty", s.pop_with(s.snapshot(), got) && got == -1);
+      }
+    hints:
+      - "push: `std::uint64_t seen = head_.load(std::memory_order_relaxed);` then loop: store `index_of(seen)` into `next_[i]`, and try `head_.compare_exchange_weak(seen, pack(i, tag_of(seen) + 1), std::memory_order_release, std::memory_order_relaxed)`. On failure `seen` already holds the new head."
+      - "pop_with: if `index_of(seen) == EMPTY`, set `out = -1` and return true. Otherwise read `below = next_[top].load(...)` and try `head_.compare_exchange_strong(seen, pack(below, tag_of(seen) + 1), ...)` once."
+      - "pop: `int out = -1; while (!pop_with(head_.load(std::memory_order_acquire), out)) {} return out;`. Without the tag, the stale CAS in the test would succeed and put slot 1 on top, although it was already popped."

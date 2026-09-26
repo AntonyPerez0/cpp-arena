@@ -43,6 +43,25 @@ const exe = process.env.CHROMIUM_PATH || (fs.existsSync("/opt/pw-browsers/chromi
 // default headless shell crashes the tab on the out-of-bounds-crash test, which full Chromium
 // (and Chrome) handle correctly by reporting the program's crash.
 const browser = await chromium.launch(exe ? { executablePath: exe } : { channel: "chromium" });
+// Deathmatch, the daily pick and choice order use Math.random. Seed it in every page so a run is
+// repeatable: the same seed gives the same drills in the same order. E2E_SEED picks another sequence.
+const SEED = Number(process.env.E2E_SEED ?? 1);
+const newContext = browser.newContext.bind(browser);
+browser.newContext = async (opts) => {
+  const ctx = await newContext(opts);
+  await ctx.addInitScript((seed) => {
+    let a = seed >>> 0;
+    Math.random = () => {
+      // mulberry32
+      a = (a + 0x6d2b79f5) >>> 0;
+      let t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }, SEED);
+  return ctx;
+};
 // Service workers are tested on their own below; elsewhere they'd only add caching to reason about.
 const mainCtx = await browser.newContext({ viewport: { width: 1360, height: 900 }, serviceWorkers: "block" });
 const page = await mainCtx.newPage();
@@ -85,8 +104,14 @@ const check = async (label = /^Check/) => {
 };
 
 const content = JSON.parse(fs.readFileSync("src/generated/content.json", "utf8"));
+/** The address of a module's nth step (1-based, today's order). */
+const L = (moduleId, n) => {
+  const m = content.modules.find((x) => x.id === moduleId);
+  if (!m?.steps[n - 1]) throw new Error(`no step ${n} in ${moduleId}`);
+  return `/learn/${moduleId}/${m.steps[n - 1].slug}`;
+};
 
-console.log("e2e against", BASE);
+console.log(`e2e against ${BASE} (random seed ${SEED})`);
 await test("home renders", async () => {
   await go("/");
   await page.getByText("writing real code").waitFor();
@@ -94,7 +119,7 @@ await test("home renders", async () => {
 });
 
 await test("fill step passes with the right answer (downloads compiler)", async () => {
-  await go("/learn/c-hello/1");
+  await go(L("c-hello", 1));
   const t0 = Date.now();
   await page.locator("input.blank").first().fill("printf");
   await check();
@@ -105,7 +130,7 @@ await test("fill step passes with the right answer (downloads compiler)", async 
 });
 
 await test("fill step fails with a wrong answer and shows expected vs got", async () => {
-  await go("/learn/c-hello/2");
+  await go(L("c-hello", 2));
   await page.locator("input.blank").first().fill("I am learning Python");
   const t0 = Date.now();
   await check();
@@ -117,7 +142,7 @@ await test("fill step fails with a wrong answer and shows expected vs got", asyn
 });
 
 await test("compile error shows friendly explanation and a hint", async () => {
-  await go("/learn/c-hello/5");
+  await go(L("c-hello", 5));
   await check();
   await page.locator(".banner", { hasText: "It didn't compile" }).waitFor({ timeout: 5000 });
   await page.getByText(/missing its semicolon/).first().waitFor();
@@ -127,7 +152,7 @@ await test("compile error shows friendly explanation and a hint", async () => {
 });
 
 await test("code step passes after writing the solution in the editor", async () => {
-  await go("/learn/c-hello/3");
+  await go(L("c-hello", 3));
   const step = content.modules.find((m) => m.id === "c-hello").steps[2];
   await setEditor(step.solution);
   await check();
@@ -135,7 +160,7 @@ await test("code step passes after writing the solution in the editor", async ()
 });
 
 await test("infinite loop is killed with a time-limit message", async () => {
-  await go("/learn/c-hello/3");
+  await go(L("c-hello", 3));
   await setEditor('#include <stdio.h>\nint main(void) {\n    while (1) { }\n    return 0;\n}\n');
   const t0 = Date.now();
   await check();
@@ -144,7 +169,7 @@ await test("infinite loop is killed with a time-limit message", async () => {
 });
 
 await test("crash (null pointer) reports a friendly runtime error", async () => {
-  await go("/learn/c-hello/3");
+  await go(L("c-hello", 3));
   await setEditor('#include <stdio.h>\nint main(void) {\n    int *p = (int *)0x7fffffff;\n    printf("%d\\n", p[100000000]);\n    return 0;\n}\n');
   await check();
   await page.getByText(/Crash/).first().waitFor({ timeout: 8000 });
@@ -153,7 +178,7 @@ await test("crash (null pointer) reports a friendly runtime error", async () => 
 for (const m of content.modules.filter((m) => m.lang === "cpp").slice(0, 1)) {
   await test(`C++ step compiles with the precompiled STL header (${m.id})`, async () => {
     const i = m.steps.findIndex((s) => s.kind === "code");
-    await go(`/learn/${m.id}/${i + 1}`);
+    await go(L(m.id, i + 1));
     await setEditor(m.steps[i].solution);
     const t0 = Date.now();
     await check();
@@ -166,7 +191,7 @@ for (const m of content.modules.filter((m) => m.lang === "cpp").slice(0, 1)) {
   const hs = m.steps.findIndex((s) => s.mode === "harness");
   if (hs >= 0)
     await test(`C++ function step with hidden tests (${m.id} ${hs + 1})`, async () => {
-      await go(`/learn/${m.id}/${hs + 1}`);
+      await go(L(m.id, hs + 1));
       await setEditor(m.steps[hs].seed);
       await check();
       await page.locator(".t-fail, .diag").first().waitFor({ timeout: 5000 });
@@ -267,7 +292,7 @@ await test("project milestone passes", async () => {
 });
 
 await test("a step that reads files from the working folder passes (c-files 2)", async () => {
-  await go("/learn/c-files/2");
+  await go(L("c-files", 2));
   const step = content.modules.find((m) => m.id === "c-files").steps[1];
   await setEditor(step.solution);
   await check();
@@ -277,7 +302,7 @@ await test("a step that reads files from the working folder passes (c-files 2)",
 await test("command-line arguments and exit codes are graded (c-program challenge)", async () => {
   const steps = content.modules.find((m) => m.id === "c-program").steps;
   const at = steps.findIndex((s) => s.id === "c-program-6");
-  await go(`/learn/c-program/${at + 1}`);
+  await go(L("c-program", at + 1));
   const step = steps[at];
   await setEditor(step.solution.replace("return status;", "return 0;"));
   await check();
@@ -306,7 +331,7 @@ await test("pro track pages render, and the starter pack downloads", async () =>
 
 await test("pro pages fit a phone screen (no sideways scrolling)", async () => {
   const phone = await browser.newPage({ viewport: { width: 390, height: 844 } });
-  for (const hash of ["/pro", "/pro/toolchain", "/pro/performance", "/learn/c-types/1", "/visualize/list-push", "/visualize/class-object", "/topics/c-pointers", "/topics/bitwise-operators", "/daily", "/placement", "/certificate", "/profile"]) {
+  for (const hash of ["/pro", "/pro/toolchain", "/pro/performance", L("c-types", 1), "/visualize/list-push", "/visualize/class-object", "/topics/c-pointers", "/topics/bitwise-operators", "/daily", "/placement", "/certificate", "/profile"]) {
     await phone.goto(BASE + hash.replace(/^\//, ""));
     await phone.waitForSelector("#main h1", { timeout: 10000 });
     await phone.waitForTimeout(300);
@@ -318,12 +343,34 @@ await test("pro pages fit a phone screen (no sideways scrolling)", async () => {
 
 await test("mobile layout renders the step page", async () => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await go("/learn/c-hello/3");
+  await go(L("c-hello", 3));
   await page.locator(".cm-content").waitFor();
   await shot("mobile-step");
   await go("/deathmatch");
   await shot("mobile-lobby");
   await page.setViewportSize({ width: 1360, height: 900 });
+});
+
+await test("mobile data: the compiler downloads only after asking, then stays saved", async () => {
+  // A fresh browser (nothing cached) that reports mobile data, like Chrome on Android does.
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
+  await ctx.addInitScript(() => Object.defineProperty(navigator, "connection", { value: { type: "cellular", effectiveType: "4g", saveData: false, addEventListener() {} } }));
+  const pg = await ctx.newPage();
+  const wasm = [];
+  pg.on("request", (r) => /\/toolchain\/.+\.(wasm|tar|pch)$/.test(r.url()) && wasm.push(r.url()));
+  await pg.goto(BASE + L("c-hello", 1).slice(1));
+  await pg.getByText("You're on mobile data.").waitFor();
+  await pg.waitForTimeout(1500);
+  if (wasm.length) throw new Error("the compiler started downloading without asking: " + wasm[0]);
+  await pg.getByRole("button", { name: "Download compiler" }).click();
+  await pg.getByText("Compiler ready").first().waitFor({ timeout: 240000 });
+  if (!wasm.length) throw new Error("the Download button didn't fetch the compiler");
+  // Saved in the browser now, so the next lesson loads it without asking (and without new downloads).
+  wasm.length = 0;
+  await pg.goto(BASE + L("c-hello", 2).slice(1));
+  await pg.getByText("Compiler ready").first().waitFor({ timeout: 60000 });
+  if (await pg.getByText("You're on mobile data.").count()) throw new Error("asked again although the compiler is saved");
+  await ctx.close();
 });
 
 await test("progress persisted in localStorage", async () => {
@@ -377,14 +424,14 @@ await test("theme: the toggle switches to light and the choice is remembered", a
 await test("symbol bar types into the editor and into blanks on a phone", async () => {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, serviceWorkers: "block" });
   const ph = await ctx.newPage();
-  await ph.goto(BASE + "learn/c-hello/3");
+  await ph.goto(BASE + L("c-hello", 3).slice(1));
   await ph.locator(".cm-content").click();
   await ph.keyboard.press("Control+End");
   await ph.getByRole("button", { name: "braces" }).tap();
   await ph.getByRole("button", { name: "semicolon" }).tap();
   const text = await ph.locator(".cm-content").innerText();
   if (!text.includes("{;}")) throw new Error("editor text doesn't end with {;}: " + JSON.stringify(text.slice(-20)));
-  await ph.goto(BASE + "learn/c-hello/1");
+  await ph.goto(BASE + L("c-hello", 1).slice(1));
   await ph.locator("input.blank").first().fill("printf");
   await ph.getByRole("button", { name: "parentheses" }).tap();
   const v = await ph.locator("input.blank").first().inputValue();
@@ -393,7 +440,7 @@ await test("symbol bar types into the editor and into blanks on a phone", async 
 });
 
 await test("report a problem opens a pre-filled GitHub issue", async () => {
-  await go("/learn/c-pointers/2");
+  await go(L("c-pointers", 2));
   const link = page.getByRole("link", { name: /Report a problem/ }).first();
   await link.hover();
   const href = await link.getAttribute("href");
@@ -416,7 +463,7 @@ await test("placement quiz: all right skips every tested module", async () => {
   await pg.getByText(`You got ${content.placement.length} of ${content.placement.length}`).waitFor();
   await pg.getByRole("button", { name: /^Skip \d+ modules/ }).click();
   await pg.getByRole("link", { name: `Go to ${content.modules[last + 1].title}` }).click();
-  await pg.waitForURL(new RegExp(`/learn/${content.modules[last + 1].id}/1$`));
+  await pg.waitForURL(new RegExp(`${L(content.modules[last + 1].id, 1)}$`));
   await pg.waitForTimeout(300);
   const placed = await pg.evaluate(() => JSON.parse(localStorage.getItem("cpp-arena-v1")).placed.length);
   if (placed !== last + 1) throw new Error(`placed ${placed} modules, expected ${last + 1}`);
@@ -457,7 +504,7 @@ await test("interview prep: open to everyone, all question types answer correctl
 });
 
 await test("visualizer: steps through a linked list with arrows and keyboard control", async () => {
-  await go("/learn/c-lists/2");
+  await go(L("c-lists", 2));
   await page.getByRole("link", { name: /Watch it run/ }).first().click();
   await page.getByRole("heading", { name: /Building a linked list/ }).waitFor();
   await page.locator(".vframe").first().waitFor();
@@ -538,10 +585,10 @@ await test("offline: after one visit the site opens without a connection", async
   await pg.reload();
   await pg.getByText("writing real code").waitFor();
   await pg.waitForFunction(() => !!navigator.serviceWorker.controller);
-  await pg.goto(BASE + "learn/c-hello/1");
+  await pg.goto(BASE + L("c-hello", 1).slice(1));
   await pg.getByRole("heading", { name: "Your first program" }).waitFor();
   await ctx.setOffline(true);
-  await pg.goto(BASE + "learn/c-hello/1");
+  await pg.goto(BASE + L("c-hello", 1).slice(1));
   await pg.getByRole("heading", { name: "Your first program" }).waitFor();
   await pg.goto(BASE + "topics/recursion");
   await pg.getByRole("heading", { name: "Recursion explained", level: 1 }).waitFor();
@@ -573,7 +620,7 @@ const apGo = async (route) => {
 };
 
 await test("accessibility: every page type passes axe (WCAG 2.2 AA)", async () => {
-  const routes = ["/", "/learn", "/learn/c-hello/1", "/learn/c-memory/7", "/learn/c-files/2", "/deathmatch", "/projects", "/projects/calculator", "/pro", "/pro/toolchain", "/pro/kvstore", "/profile", "/no-such-page", "/topics", "/topics/c-pointers", "/visualize", "/visualize/list-push", "/daily", "/placement", "/certificate"];
+  const routes = ["/", "/learn", L("c-hello", 1), L("c-memory", 7), L("c-files", 2), "/deathmatch", "/projects", "/projects/calculator", "/pro", "/pro/toolchain", "/pro/kvstore", "/profile", "/no-such-page", "/topics", "/topics/c-pointers", "/visualize", "/visualize/list-push", "/daily", "/placement", "/certificate"];
   const problems = [];
   for (const r of routes) {
     await apGo(r);
@@ -588,7 +635,7 @@ await test("accessibility: every page type passes axe (WCAG 2.2 AA)", async () =
 });
 
 await test("accessibility: results, compile errors and hints pass axe", async () => {
-  await apGo("/learn/c-hello/2");
+  await apGo(L("c-hello", 2));
   await ap.locator("input.blank").first().fill("wrong");
   await ap.getByRole("button", { name: /^Check/ }).click();
   await ap.locator(".t-fail").first().waitFor({ timeout: 240000 });
@@ -596,7 +643,7 @@ await test("accessibility: results, compile errors and hints pass axe", async ()
   await axe("failed fill step");
   const status = await ap.locator('[role="status"]').first().textContent();
   if (!/tests? failed/.test(status ?? "")) throw new Error("results were not announced: " + status);
-  await apGo("/learn/c-hello/5");
+  await apGo(L("c-hello", 5));
   await ap.getByRole("button", { name: /^Check/ }).click();
   await ap.locator(".banner", { hasText: "It didn't compile" }).waitFor({ timeout: 60000 });
   await axe("compile error");
@@ -645,7 +692,7 @@ await test("phone width: pages fit the screen and pass axe", async () => {
       localStorage.setItem("cpp-arena-v1", JSON.stringify({ version: 1, steps: {}, projects: {}, drills: {}, settings: { sound: false, unlockAll: true, topics: null, boss: false, keys: true } }));
   });
   const pp = await phone.newPage();
-  const routes = ["/", "/learn", "/learn/c-pointers/5", "/learn/cpp-basics/7", "/learn/dsa-dp/6", "/deathmatch", "/projects/calculator", "/pro/performance", "/topics/std-map", "/visualize/list-push", "/profile"];
+  const routes = ["/", "/learn", L("c-pointers", 5), L("cpp-basics", 7), L("dsa-dp", 6), "/deathmatch", "/projects/calculator", "/pro/performance", "/topics/std-map", "/visualize/list-push", "/profile", "/next", "/topics/memory-ordering"];
   const problems = [];
   for (const r of routes) {
     await pp.goto(BASE + r.replace(/^\//, ""));
@@ -670,7 +717,7 @@ await test("accessibility: the light theme and new pages pass axe", async () => 
     localStorage.setItem("cpp-arena-v1", JSON.stringify(s));
   });
   const problems = [];
-  for (const r of ["/", "/learn", "/learn/c-lists/2", "/deathmatch", "/profile", "/topics/c-pointers", "/visualize/list-push", "/daily", "/placement", "/certificate"]) {
+  for (const r of ["/", "/learn", L("c-lists", 2), "/deathmatch", "/profile", "/topics/c-pointers", "/visualize/list-push", "/daily", "/placement", "/certificate"]) {
     await apGo(r);
     await ap.waitForTimeout(400);
     if ((await ap.evaluate(() => document.documentElement.dataset.theme)) !== "light") problems.push(r + ": not in the light theme");
@@ -680,7 +727,7 @@ await test("accessibility: the light theme and new pages pass axe", async () => 
       problems.push(e.message);
     }
   }
-  await apGo("/learn/c-hello/2");
+  await apGo(L("c-hello", 2));
   await ap.locator("input.blank").first().fill("wrong");
   await ap.getByRole("button", { name: /^Check/ }).click();
   await ap.locator(".t-fail").first().waitFor({ timeout: 240000 });
@@ -728,7 +775,7 @@ await test("keyboard: skip link, focus moves to the new page, editor can be left
   if (!/^H1:Projects/.test(focused)) throw new Error("after navigation focus is on " + focused);
   const title = await ap.title();
   if (!/^Projects \| C\/C\+\+ Arena/.test(title)) throw new Error("page title is " + title);
-  await apGo("/learn/c-hello/3");
+  await apGo(L("c-hello", 3));
   await ap.locator(".cm-content").click();
   await ap.keyboard.press("Escape");
   await ap.keyboard.press("Tab");
@@ -739,11 +786,11 @@ await test("keyboard: skip link, focus moves to the new page, editor can be left
 // ---------------------------------------------------------------- SEO
 await test("SEO: real URLs, per-page metadata, sitemap and old hash links", async () => {
   const get = async (p) => (await page.request.get(BASE + p)).text();
-  const step = await get("learn/c-pointers/2/");
+  const step = await get(L("c-pointers", 2).slice(1) + "/");
   for (const [re, what] of [
     [/<title>Change the caller's variable · Pointers \(C\) \| C\/C\+\+ Arena<\/title>/, "title"],
     [/<meta name="description" content="Remember from the functions module: C passes arguments by value/, "description"],
-    [/<link rel="canonical" href="https:\/\/[^"]+\/learn\/c-pointers\/2\/"/, "canonical"],
+    [new RegExp(`<link rel="canonical" href="https://[^"]+${L("c-pointers", 2)}/"`), "canonical"],
     [/<meta property="og:image"/, "og:image"],
     [/"@type":"LearningResource"/, "structured data"],
     [/<h1>Change the caller's variable<\/h1>/, "pre-rendered content"],
@@ -754,18 +801,29 @@ await test("SEO: real URLs, per-page metadata, sitemap and old hash links", asyn
   const sitemap = await get("sitemap.xml");
   const urls = (sitemap.match(/<loc>/g) ?? []).length;
   if (urls < 380) throw new Error("sitemap has only " + urls + " URLs");
-  for (const p of ["/topics/c-pointers/", "/visualize/list-push/", "/daily/", "/placement/"]) if (!sitemap.includes(p)) throw new Error("sitemap is missing " + p);
+  for (const p of ["/topics/c-pointers/", "/visualize/list-push/", "/daily/", "/placement/", "/next/"]) if (!sitemap.includes(p)) throw new Error("sitemap is missing " + p);
   const topicHtml = await get("topics/c-pointers/");
   if (!/"@type":"TechArticle"/.test(topicHtml) || !/<h1>Pointers in C explained<\/h1>/.test(topicHtml)) throw new Error("topic page is not pre-rendered");
   const manifest = await page.request.get(BASE + "manifest.webmanifest");
   if (manifest.status() !== 200 || !(await manifest.json()).icons?.length) throw new Error("web app manifest missing");
   if (/profile/.test(sitemap)) throw new Error("the private profile page is in the sitemap");
   const titles = new Set();
-  for (const m of content.modules.slice(0, 6)) titles.add((await get(`learn/${m.id}/1/`)).match(/<title>(.*?)<\/title>/)[1]);
+  for (const m of content.modules.slice(0, 6)) titles.add((await get(L(m.id, 1).slice(1) + "/")).match(/<title>(.*?)<\/title>/)[1]);
   if (titles.size !== 6) throw new Error("pages share titles");
+  // Old links: hash routing (#/learn/c-hello/2) and numbered steps both land on the step's permanent address.
   await page.goto(BASE + "#/learn/c-hello/2");
-  await page.waitForURL(/\/learn\/c-hello\/2$/);
+  await page.waitForURL(new RegExp(`${L("c-hello", 2)}$`));
   await page.getByRole("heading", { name: "Printing your own text" }).waitFor();
+  // Step 6 of cpp-generic was its challenge before new steps were inserted; the old number still opens it.
+  const challenge = content.modules.find((m) => m.id === "cpp-generic").steps.find((st) => st.id === "cpp-generic-6");
+  const forward = await get("learn/cpp-generic/6/");
+  if (!forward.includes(`/learn/cpp-generic/${challenge.slug}/`) || !/http-equiv="refresh"/.test(forward)) throw new Error("old numbered address doesn't forward to the same lesson");
+  if (/\/learn\/[a-z0-9-]+\/\d+\//.test(sitemap)) throw new Error("the sitemap lists numbered step addresses");
+  await page.goto(BASE + "learn/cpp-generic/6/#hints");
+  await page.waitForURL(new RegExp(`/learn/cpp-generic/${challenge.slug}/?#hints$`));
+  await page.getByRole("heading", { name: challenge.title, level: 1 }).waitFor();
+  await page.goto(BASE + "learn/c-hello/2");
+  await page.waitForURL(new RegExp(`${L("c-hello", 2)}/?$`));
   const res = await page.request.get(BASE + "no-such-page");
   if (res.status() !== 404) throw new Error("unknown pages should return 404, got " + res.status());
   await page.goto(BASE + "no-such-page");

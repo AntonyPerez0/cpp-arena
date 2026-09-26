@@ -17,7 +17,8 @@ export type Exercise = {
   forbid: Rule[];
 };
 
-export type Step = Exercise & { id: string; title: string; text: string };
+/** `slug` is the step's permanent address: /learn/<module>/<slug>. */
+export type Step = Exercise & { id: string; title: string; text: string; slug: string };
 
 export type Module = {
   id: string;
@@ -26,6 +27,8 @@ export type Module = {
   phase: string;
   summary: string;
   steps: Step[];
+  /** Old numbered addresses (/learn/<module>/<n>): the step id number n used to open. Only present where it differs from today's order. */
+  numbered?: (string | null)[];
 };
 
 export type Milestone = Exercise & { title: string; text: string };
@@ -57,6 +60,8 @@ export type Drill = {
   choices?: string[];
   why: string;
   exercise?: Exercise;
+  /** The lesson step that teaches what this drill needs; it unlocks in Deathmatch once that step is done. */
+  step?: string;
 };
 
 export type ProProject = {
@@ -95,4 +100,6 @@ export type Content = {
   placement: (Drill & { module: string })[];
   /** Reference pages at /topics/<slug>. */
   topics: Topic[];
+  /** The "Where to go next" page. */
+  next: { title: string; description: string; body: string };
 };

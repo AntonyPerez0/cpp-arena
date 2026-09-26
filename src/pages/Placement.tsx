@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { moduleById, modules, placement } from "../content";
+import { firstStepPath, moduleById, modules, placement } from "../content";
 import { update, useStore } from "../state/store";
 import { Rep } from "../deathmatch/Reps";
 import { useTitle } from "../lib/title";
@@ -41,7 +41,7 @@ export default function Placement() {
           <button className="btn btn-primary btn-lg" onClick={() => setPhase("quiz")}>
             Start the quiz
           </button>
-          <Link className="btn btn-lg" to="/learn/c-hello/1">
+          <Link className="btn btn-lg" to={firstStepPath("c-hello")}>
             I'm new: start from lesson 1
           </Link>
         </div>
@@ -122,7 +122,7 @@ export default function Placement() {
             Skip {r.skip.length} module{r.skip.length === 1 ? "" : "s"} and unlock their drills
           </button>
         ) : null}
-        <Link className={"btn btn-lg" + (applied || !r.skip.length ? " btn-primary" : "")} to={`/learn/${r.start.id}/1`}>
+        <Link className={"btn btn-lg" + (applied || !r.skip.length ? " btn-primary" : "")} to={firstStepPath(r.start.id)}>
           Go to {r.start.title}
         </Link>
         <button

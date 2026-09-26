@@ -48,6 +48,34 @@ export function subscribeCompiler(fn: () => void) {
   return () => listeners.delete(fn);
 }
 
+/**
+ * True when the browser reports a metered or data-saving connection. Chrome on Android
+ * reports mobile data as type "cellular"; Data Saver sets saveData. Other browsers say nothing.
+ */
+export function onMobileData(): boolean {
+  const c = (navigator as Navigator & { connection?: { type?: string; saveData?: boolean; effectiveType?: string } }).connection;
+  return !!c && (c.saveData === true || c.type === "cellular" || c.effectiveType === "2g" || c.effectiveType === "slow-2g");
+}
+
+/** Whether this version of the toolchain is already saved in the browser, so loading it costs no data. */
+export async function compilerCached(): Promise<boolean> {
+  try {
+    const res = await fetch(import.meta.env.BASE_URL + "toolchain/manifest.json", { cache: "no-cache" });
+    const { version } = await res.json();
+    if (!(await caches.keys()).includes("cpp-arena-toolchain-" + version)) return false;
+    const cache = await caches.open("cpp-arena-toolchain-" + version);
+    return (await cache.keys()).length >= 3;
+  } catch {
+    return false;
+  }
+}
+
+/** Download the compiler on its own only when that can't cost the learner mobile data (or they said it may). */
+export async function mayAutoDownload(allowOnMobileData: boolean): Promise<boolean> {
+  if (allowOnMobileData || !onMobileData()) return true;
+  return compilerCached();
+}
+
 /** Start downloading the toolchain (no-op if already started). */
 export function ensureCompiler(opts: { warmCpp?: boolean } = {}) {
   if (!worker) {

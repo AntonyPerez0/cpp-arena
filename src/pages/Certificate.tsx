@@ -155,6 +155,13 @@ export default function Certificate() {
           </Link>
         </p>
       )}
+      {certs.length > 0 && (
+        <p>
+          <Link className="btn" to="/next">
+            Where to go next
+          </Link>
+        </p>
+      )}
     </div>
   );
 }

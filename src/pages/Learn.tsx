@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { phases, drillsByTopic } from "../content";
+import { phases, drillsByTopic, stepPath } from "../content";
 import { useStore } from "../state/store";
 import { moduleProgress, nextStep } from "../state/derived";
 import { useTitle } from "../lib/title";
@@ -55,7 +55,7 @@ export default function Learn() {
                           const sp = s.steps[st.id];
                           return (
                             <li key={st.id} className={sp?.done ? "done" : ""}>
-                              <Link to={`/learn/${m.id}/${i + 1}`}>
+                              <Link to={stepPath(m, st)}>
                                 <span className="step-check" aria-hidden="true">{sp?.done ? "✓" : i + 1}</span>
                                 <span className="step-title">{st.title}</span>
                                 {sp?.done && <span className="visually-hidden"> (done)</span>}
@@ -66,7 +66,7 @@ export default function Learn() {
                         })}
                       </ol>
                       <div className="muted small">
-                        {drillsByTopic.get(m.id) ?? 0} Deathmatch drills unlock when you finish your first step here.
+                        {drillsByTopic.get(m.id) ?? 0} Deathmatch drills: each one unlocks when you finish the step that teaches it.
                       </div>
                     </div>
                   )}
@@ -76,6 +76,9 @@ export default function Learn() {
           </div>
         </section>
       ))}
+      <p className="muted">
+        Finished, or looking ahead? <Link to="/next">Where to go next</Link>: books, practice sites and projects for after the course.
+      </p>
     </div>
   );
 }

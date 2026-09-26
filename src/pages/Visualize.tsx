@@ -1,5 +1,5 @@
 import { Link, useParams } from "react-router-dom";
-import { moduleById, modules } from "../content";
+import { moduleById, modules, stepPath } from "../content";
 import { visualById, visuals } from "../content/visuals";
 import Visualizer from "../components/Visualizer";
 import Markdown from "../components/Markdown";
@@ -53,7 +53,7 @@ export function VisualPage() {
   const idx = visuals.indexOf(v);
   const prev = visuals[idx - 1];
   const next = visuals[idx + 1];
-  const stepNo = m && v.steps.length ? m.steps.findIndex((s) => s.id === v.steps[0]) + 1 : 1;
+  const lessonStep = m?.steps.find((s) => s.id === v.steps[0]) ?? m?.steps[0];
   return (
     <div className="visual-page">
       <div className="crumbs">
@@ -66,7 +66,7 @@ export function VisualPage() {
         <Markdown text={v.text} />
         {m && (
           <p className="small">
-            From the lesson: <Link to={`/learn/${m.id}/${Math.max(1, stepNo)}`}>{m.title}</Link>
+            From the lesson: <Link to={stepPath(m, lessonStep!)}>{m.title}</Link>
           </p>
         )}
       </div>
