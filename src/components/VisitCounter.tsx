@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-type Stats = { visits: number; since: string };
+type Stats = { visits: number };
 
 /**
  * The site's total visits from Cloudflare Web Analytics, kept by .github/workflows/stats.yml.
@@ -16,7 +16,7 @@ export default function VisitCounter() {
     fetch(url)
       .then((r) => (r.ok ? r.json() : null))
       .then((s) => {
-        if (live && s && Number.isInteger(s.visits) && s.visits > 0 && /^\d{4}-\d{2}-\d{2}$/.test(s.since)) setStats(s);
+        if (live && s && Number.isInteger(s.visits) && s.visits > 0) setStats(s);
       })
       .catch(() => {});
     return () => {
@@ -24,10 +24,9 @@ export default function VisitCounter() {
     };
   }, []);
   if (!stats) return null;
-  const since = new Date(stats.since + "T00:00:00Z").toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
   return (
     <p className="small muted visit-count">
-      {stats.visits.toLocaleString("en-US")} {stats.visits === 1 ? "visit" : "visits"} since {since}
+      {stats.visits.toLocaleString("en-US")} {stats.visits === 1 ? "visit" : "visits"}
     </p>
   );
 }

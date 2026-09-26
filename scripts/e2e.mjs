@@ -437,7 +437,7 @@ await test("visit counter: shows the saved total once it's set up, and nothing o
   await pg.goto(BASE);
   await pg.getByText("writing real code").waitFor();
   if (set) {
-    await pg.getByText("1,234 visits since September 2026").waitFor();
+    await pg.getByText("1,234 visits", { exact: true }).waitFor();
     // A total that can't be loaded (not saved yet, or offline) leaves the line out.
     await ctx.route(STATS_RE, (r) => r.fulfill({ status: 404, body: "" }));
     await pg.reload();
