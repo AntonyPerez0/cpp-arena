@@ -118,6 +118,9 @@ self.onmessage = async (e: MessageEvent) => {
         post({ type: "error", message: String(err?.message ?? err) });
         throw err;
       });
+      // The failure is reported above, and compile requests await readyPromise themselves;
+      // without a handler here a failed download is also an unhandled rejection.
+      readyPromise.catch(() => {});
     }
     if (msg.warmCpp) readyPromise.then(ensurePch).catch(() => {});
     return;

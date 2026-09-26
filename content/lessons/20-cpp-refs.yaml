@@ -39,7 +39,7 @@ steps:
 
       A reference does the same job as a pointer in many situations (reaching another variable), with fewer ways to go wrong:
 
-      | | Pointer | Reference |
+      | Property | Pointer | Reference |
       |---|---|---|
       | Must be initialized | no | **yes** |
       | Can be null | yes | **no** |

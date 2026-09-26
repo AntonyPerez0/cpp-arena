@@ -268,7 +268,7 @@ steps:
       - "`*(p + i)` is element i. Or walk the pointer itself: `s += *p; p++;`"
       - "One neat version: `for (const int *end = p + n; p < end; p++) s += *p;`"
 
-  - title: NULL
+  - title: "NULL"
     id: c-pointers-5
     text: |
       Sometimes a pointer needs to say "I'm not pointing at anything right now". For that, C has **`NULL`**: a special pointer value guaranteed not to be the address of any real object. It's defined in `<stddef.h>` (and several other headers).

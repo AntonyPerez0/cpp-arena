@@ -49,7 +49,7 @@ steps:
       4096 reads: row by row changes line 256 times, column by column 4096 times
       ```
 
-      Row by row, each 64-byte line serves 16 reads. Column by column, every single read lands in a different line. On real hardware the difference is dramatic: summing a 4096 × 4096 grid of ints took **10 ms** row by row and **155 ms** column by column (GCC `-O2` on a 4-core Linux machine). Same algorithm, same number of additions, 15 times slower.
+      Row by row, each 64-byte line serves 16 reads. Column by column, every single read lands in a different line. On real hardware the difference is dramatic: summing a 4096 × 4096 grid of ints took about **12 ms** row by row and about **175 ms** column by column (typical of several runs, GCC `-O2` on a 4-core Linux machine). Same algorithm, same number of additions, about 15 times slower.
 
       ### What this means for your code
 
@@ -116,7 +116,7 @@ steps:
       for (auto& p : particles) p.x += p.vx * dt;                   // uses 16 of every 64 bytes
       ```
 
-      Each `Particle` is exactly one 64-byte cache line, and this loop needs only `x` and `vx` from it. Three quarters of every line it loads is wasted bandwidth.
+      Each `Particle` is 64 bytes, a whole cache line's worth, and this loop needs only `x` and `vx` from it. Three quarters of the memory it loads is wasted bandwidth.
 
       A **struct of arrays** (**SoA**) flips the layout: one array per field.
 
@@ -127,7 +127,7 @@ steps:
       for (std::size_t i = 0; i < ps.x.size(); i++) ps.x[i] += ps.vx[i] * dt;   // every byte loaded is used
       ```
 
-      Now the loop streams through two dense arrays, and every byte it loads is useful. The compiler can also process several elements per instruction (**SIMD**, the vector units in every modern processor), because the `x` values sit next to each other. For 4 million particles and 10 passes, the AoS loop took **254 ms** and the SoA loop **34 ms** (GCC `-O2`, 4-core Linux machine): 7 times faster for the same arithmetic.
+      Now the loop streams through two dense arrays, and every byte it loads is useful. The compiler can also process several elements per instruction (**SIMD**, the vector units in every modern processor), because the `x` values sit next to each other. For 4 million particles and 10 passes, the AoS loop took about **265 ms** and the SoA loop about **60 ms** (typical of several runs, GCC `-O2`, 4-core Linux machine): over 4 times faster for the same arithmetic, matching the 4 times less memory it reads.
 
       ```cpp run
       #include <iostream>
@@ -240,13 +240,13 @@ steps:
     text: |
       Modern processors are **pipelined**: they work on many instructions at once, and they start on the instructions after an `if` before they know which way it goes. To do that, a **branch predictor** guesses, based on what the branch did before. A correct guess costs almost nothing. A wrong guess means throwing away the work in flight and starting again, roughly 15 to 20 cycles.
 
-      A branch the predictor can learn (always taken, or taken in long runs) is nearly free. A branch that's random is expensive. The classic demonstration adds up only the values that are 128 or more, from 10 million random bytes:
+      A branch the predictor can learn (always taken, or taken in long runs) is nearly free. A branch that's random is expensive. The classic demonstration adds up only the values that are 128 or more, from 10 million random numbers between 0 and 255:
 
       ```cpp
       for (int x : data) if (x >= 128) sum += x;
       ```
 
-      With the compiler's branch-removing optimizations switched off, this loop took **292 ms** over random data and **52 ms** over the same data sorted, where the branch becomes predictable (false for the first half, true for the second). With normal `g++ -O2`, the compiler replaced the `if` with branch-free instructions on its own, and both versions took about **45 ms** (4-core Linux machine). Two lessons in one: unpredictable branches are costly, and compilers already remove the simple ones.
+      With the compiler's branch-removing optimizations switched off, 5 passes of this loop took about **290 ms** over random data and about **55 ms** over the same data sorted, where the branch becomes predictable (false for the first half, true for the second). With normal `g++ -O2`, the compiler replaced the `if` with branch-free instructions on its own, and both versions took roughly the same time, around **40 to 55 ms** (4-core Linux machine). Two lessons in one: unpredictable branches are costly, and compilers already remove the simple ones.
 
       ### Writing branch-free code
 
@@ -337,7 +337,7 @@ steps:
       // thread 1 increments counters.a 20 million times; thread 2 increments counters.b
       ```
 
-      Two threads doing exactly that took **640 ms**. With each counter moved onto its own cache line, the same work took **135 ms** (GCC `-O2`, 4-core Linux machine), nearly 5 times faster, with no change to the logic.
+      Two threads doing exactly that took about **420 ms**. With each counter moved onto its own cache line, the same work took about **190 ms** (typical of several runs, GCC `-O2`, 4-core Linux machine): more than twice as fast, with no change to the logic.
 
       ### Padding with alignas
 
@@ -434,8 +434,8 @@ steps:
     text: |
       `new` and `malloc` are general-purpose: they handle any size, any order of frees, from any thread. That generality costs. An allocation may take a lock, search free lists, or ask the operating system for more memory, and its time varies. Low-latency code (games, trading, audio) often forbids heap allocation in its hot loop entirely, and uses **arenas** and **pools** instead:
 
-      - An **arena** (monotonic buffer) hands out memory by moving a pointer forward through one big block, and frees everything at once when it's reset. Allocation is a few instructions. You built one in the allocator project.
-      - A **pool** keeps free lists of fixed-size blocks, so allocating and freeing a block is a push or pop.
+      - An **arena** (monotonic buffer) hands out memory by moving a pointer forward through one big block, and frees everything at once when it's reset. Allocation is a few instructions. The "Write a memory allocator" project has you build one.
+      - A **pool** keeps a free list of fixed-size blocks, so allocating or freeing a block is a pop or a push. The same project builds one of these too.
 
       C++17's **polymorphic memory resources** (`std::pmr`, header `<memory_resource>`) let standard containers use them. A `std::pmr::vector<int>` is a vector that asks a `std::pmr::memory_resource*`, chosen at run time, for its memory:
 

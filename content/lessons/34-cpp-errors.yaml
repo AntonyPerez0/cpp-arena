@@ -180,7 +180,7 @@ steps:
 
       ### Compared with a status code
 
-      | | status code | `std::optional` |
+      | Question | status code | `std::optional` |
       |---|---|---|
       | Result delivered | out-parameter | return value |
       | Caller forgets to check | wrong data used silently | the missing case is spelled out in the type, so it's hard to forget |

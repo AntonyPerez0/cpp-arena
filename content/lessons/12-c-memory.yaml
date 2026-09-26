@@ -823,7 +823,7 @@ steps:
       }
       ```
 
-      - The **bss** region takes no space in the program file: the file only records its size, and the operating system provides zeroed memory at startup. That's one reason uninitialized globals are guaranteed to start at 0 while uninitialized locals hold garbage: locals reuse whatever the stack last held.
+      - The **bss** region takes no space in the program file: the file only records its size, and the operating system provides zeroed memory at startup. That's how C delivers its guarantee that uninitialized globals start at 0. Uninitialized locals get no such guarantee: they hold whatever the stack last held.
       - Writing to **rodata** is what makes modifying a string literal crash on most systems: those pages are marked read-only.
       - On a Linux machine, `size ./program` prints the text, data and bss sizes of a compiled program, and `nm` lists which symbols landed where.
       - Where exactly these regions sit in memory changes on every run (**address space layout randomization**, a security measure), so never rely on actual address values.
@@ -832,7 +832,7 @@ steps:
 
       Each function call pushes a **stack frame** holding the return address, saved registers and the function's locals, and pops it on return. That's why returning a pointer to a local is a bug: the frame, and the local in it, is gone.
 
-      How arguments get passed is fixed by the platform's **calling convention**, part of its **ABI** (application binary interface, the rules compiled code from different compilers must share). On 64-bit Linux and macOS (the System V convention), the first six integer or pointer arguments travel in registers (`rdi`, `rsi`, `rdx`, `rcx`, `r8`, `r9`), the return value comes back in `rax`, and further arguments go on the stack. 64-bit Windows uses four registers (`rcx`, `rdx`, `r8`, `r9`). You rarely write this yourself, but it's why functions with few arguments are cheap to call, and it's what a debugger shows you in a backtrace.
+      How arguments get passed is fixed by the platform's **calling convention**, part of its **ABI** (application binary interface, the rules compiled code from different compilers must share). On x86-64 Linux and Intel Macs (the System V convention), the first six integer or pointer arguments travel in registers (`rdi`, `rsi`, `rdx`, `rcx`, `r8`, `r9`), the return value comes back in `rax`, and further arguments go on the stack. 64-bit Windows uses four registers (`rcx`, `rdx`, `r8`, `r9`), and 64-bit ARM (phones, Apple silicon) uses eight (`x0` to `x7`, with the result in `x0`). You rarely deal with this yourself, but it's why calls with a few arguments are cheap, and it's what you see when you read assembly or a debugger's register view.
 
       **Your turn:** each function below must return something that is still valid after it returns. `make_scores(n)` returns a new heap array of `n` zeros (the caller frees it), `level_name(lvl)` returns the name for levels 1 to 3 (`"easy"`, `"normal"`, `"hard"`) or `"unknown"`, and `next_ticket()` returns 1, 2, 3, ... on successive calls. Pick the right storage for each: heap, string literal (rodata), and a `static` local (bss).
     seed: |

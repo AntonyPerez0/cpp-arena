@@ -116,8 +116,8 @@ drills:
     prompt: Which of these is valid C99 but not standard C++?
     choices:
       - "`int a[n];` with `n` a variable (a variable-length array)"
-      - "`const int N = 10; int a[N];`"
-      - "`struct P { int x, y; }; P p = {1, 2};`"
+      - "`// a comment to the end of the line`"
+      - "`struct P { int x, y; }; struct P p = {1, 2};`"
       - "`for (int i = 0; i < 3; i++) {}`"
     answer: 1
-    why: "C++ has no VLAs. GCC and Clang accept them as an extension (Clang warns with -Wvla-cxx-extension), but portable C++ uses std::vector. The other three are fine in both languages (P p needs struct P in C)."
+    why: "C++ has no VLAs. GCC and Clang accept them as an extension (Clang warns with -Wvla-cxx-extension), but portable C++ uses std::vector. The other three are fine in both languages."
