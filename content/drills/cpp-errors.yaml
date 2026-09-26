@@ -32,10 +32,23 @@ drills:
     pre: |
       #include <[[cassert]]>
     why: assert lives in <cassert>.
-  - type: compiles
+  - type: predict
+    after: cpp-errors-7
+    pre: |
+      int parse(const std::string& s) {
+          if (s.empty()) throw std::invalid_argument("empty");
+          return std::stoi(s);
+      }
     body: |
-      throw 5;
-    why: This site's WebAssembly compiler has exceptions disabled (-fno-exceptions), so throw is rejected.
+      for (std::string s : {"7", "", "x9"}) {
+          try {
+              std::cout << parse(s) << " ";
+          } catch (const std::invalid_argument&) {
+              std::cout << "bad ";
+          }
+      }
+      std::cout << "\n";
+    why: "The empty string throws from parse's own check, and std::stoi throws std::invalid_argument when the text doesn't start with a number. Each failure is caught inside the loop, so the loop goes on."
   - type: compiles
     pre: |
       [[nodiscard]] int status() { return 0; }
@@ -147,3 +160,35 @@ drills:
       - They stay alive until the program ends
     answer: 1
     why: Stack unwinding runs the destructors of every fully constructed local in each function being left. That's why RAII cleans up even when an exception is thrown.
+  - type: predict
+    pre: |
+      struct Noisy {
+          char name;
+          ~Noisy() { std::cout << name; }
+      };
+      void inner() {
+          Noisy b{'b'};
+          throw std::runtime_error("boom");
+      }
+      void outer() {
+          Noisy a{'a'};
+          inner();
+          std::cout << "never";
+      }
+    body: |
+      try {
+          outer();
+      } catch (const std::exception& e) {
+          std::cout << " caught " << e.what();
+      }
+      std::cout << "\n";
+    why: "Unwinding leaves inner first, destroying b, then outer, destroying a, and only then runs the handler. The line after inner() never runs."
+  - type: choice
+    prompt: An exception is thrown and no catch block anywhere matches it. What happens?
+    choices:
+      - "`std::terminate` is called and the program ends abnormally"
+      - The exception is silently ignored and execution continues
+      - main returns 1
+      - The program restarts from the top of main
+    answer: 1
+    why: "An uncaught exception calls std::terminate, which aborts the program. A Linux build prints \"terminate called after throwing an instance of ...\" with the what() message, and this site shows the same."

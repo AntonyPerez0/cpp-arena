@@ -32,7 +32,11 @@ export function describeRun(r: RunResult | undefined): string | undefined {
   if (r.crash === "output-limit") return "Output limit hit (over 64 KB printed). Probably a loop that never stops printing.";
   if (r.crash) {
     if (/out of bounds/.test(r.crash)) return "Crash: memory access out of bounds. This is like a segfault: a bad pointer, a NULL dereference, or an index far past the end of an array.";
-    if (/unreachable/.test(r.crash)) return "Crash: the program hit an abort or undefined behaviour (for example a failed assert, vector.at() out of range, or falling off the end of a non-void function).";
+    if (r.crash === "uncaught-exception") {
+      const said = r.stderr.slice(r.stderr.lastIndexOf("terminate called")).trim().replace(/\s*\n\s*/g, " ");
+      return `Crash: an exception was thrown and nothing caught it, so the program was terminated (std::terminate)${said ? `: ${said}` : "."} Catch it with try/catch, or fix what made it throw.`;
+    }
+    if (/unreachable/.test(r.crash)) return "Crash: the program hit an abort or undefined behaviour (for example a failed assert, abort(), a noexcept function that threw, or falling off the end of a non-void function).";
     if (/call stack|recursion/i.test(r.crash)) return "Crash: stack overflow. Recursion that never reaches its base case?";
     return "Crash: " + r.crash;
   }

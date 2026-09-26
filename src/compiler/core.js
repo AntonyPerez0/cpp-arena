@@ -6,9 +6,12 @@ import { WASI, File, OpenFile, ConsoleStdout, PreopenDirectory, WASIProcExit } f
 export const PCH_PATH = "/include/bits/stdc++.h.pch";
 
 export const C_FLAGS = ["-std=c17", "-O1", "-Wall", "-Wextra", "-fdiagnostics-color=never"];
-// The precompiled STL header only matches exactly these three flags.
-export const CPP_FLAGS_PCH = ["-O2", "-std=c++20", "-fno-exceptions"];
-export const CPP_FLAGS = [...CPP_FLAGS_PCH, "-Wall", "-Wextra", "-fdiagnostics-color=never"];
+// The precompiled STL header only matches exactly these three flags. C++ exceptions use
+// WebAssembly exception handling, with libraries rebuilt for it (vendor/libcxx-eh).
+export const CPP_FLAGS_PCH = ["-O2", "-std=c++20", "-fwasm-exceptions"];
+// Linking: the unwinder, and the reporter that describes an uncaught exception (see runWasi).
+const CPP_LINK = ["-lunwind", "-larena", "-Wl,-u,__arena_describe_exception", "-Wl,--export=__cpp_exception"];
+export const CPP_FLAGS = [...CPP_FLAGS_PCH, "-Wall", "-Wextra", "-fdiagnostics-color=never", ...CPP_LINK];
 
 /** Split a tar archive into files. */
 export function untar(buffer) {
@@ -55,6 +58,26 @@ export class Toolchain {
     this.libFiles = all.filter((f) => f.name.startsWith("lib/") && !/^lib\/clang\/\d+\/include\//.test(f.name));
     this.pch = o.pch ? new Uint8Array(o.pch) : null;
     this.invocations = new Map();
+  }
+
+  /** Build the precompiled standard-library header (include/bits/stdc++.h) for these flags. */
+  async buildPch(flags) {
+    const hdr = "/include/bits/stdc++.h";
+    const lines = [];
+    const driver = await this._instantiate(this.Clang, this.clangModule, "clang++", lines);
+    driver.FS.mkdirTree("/include/bits");
+    driver.FS.mkdirTree("/include/c++/v1");
+    driver.FS.mkdirTree("/lib/wasm32-wasi");
+    driver.FS.writeFile(hdr, "");
+    // No timestamps: every compile writes the headers afresh (new mtimes), which would otherwise invalidate the PCH.
+    if (driver.callMain(["-x", "c++-header", hdr, "-o", PCH_PATH, ...flags, "-Xclang", "-fno-pch-timestamp", "-###"]) !== 0) throw new Error("Clang driver failed:\n" + lines.join("\n"));
+    const cc1 = lines.join("\n").split("\n").find((l) => l.includes("-cc1"));
+    const args = cc1.match(/"([^"]*)"/g).map((s) => s.slice(1, -1)).slice(1);
+    const diag = [];
+    const clang = await this._instantiate(this.Clang, this.clangModule, "clang++", diag);
+    writeFiles(clang, this.headerFiles);
+    if (clang.callMain(args) !== 0) throw new Error("Building the precompiled header failed:\n" + diag.join("\n"));
+    return clang.FS.readFile(PCH_PATH);
   }
 
   setPch(buf) {
@@ -180,13 +203,99 @@ export function runWasi(module, input) {
   const wasi = new WASI(["main", ...args], [], fds, { debug: false });
   let exitCode = null;
   let crash = null;
+  let inst = null;
   try {
-    const inst = new WebAssembly.Instance(module, { wasi_snapshot_preview1: wasi.wasiImport });
+    inst = new WebAssembly.Instance(module, { wasi_snapshot_preview1: wasi.wasiImport });
     exitCode = wasi.start(inst);
   } catch (e) {
     if (e instanceof WASIProcExit) exitCode = e.code;
     else if (e instanceof OutputLimit) crash = "output-limit";
-    else crash = e && e.message ? e.message : String(e);
+    else if (typeof WebAssembly.Exception === "function" && e instanceof WebAssembly.Exception) {
+      // A C++ exception escaped main. Natively that calls std::terminate; say what a Linux build prints.
+      crash = "uncaught-exception";
+      stderr += describeUncaught(inst, e);
+    } else crash = e && e.message ? e.message : String(e);
   }
   return { stdout, stderr, exitCode, crash, truncated };
+}
+
+/** "terminate called after throwing an instance of 'T'" plus what(), like libstdc++ prints. */
+function describeUncaught(inst, e) {
+  const generic = "terminate called after throwing an exception\n";
+  try {
+    const { __cpp_exception: tag, __arena_describe_exception: describe, memory } = inst?.exports ?? {};
+    if (!tag || !describe || !e.is(tag)) return generic;
+    const at = describe(e.getArg(tag, 0));
+    const bytes = new Uint8Array(memory.buffer);
+    let end = at;
+    while (bytes[end]) end++;
+    const text = new TextDecoder().decode(bytes.subarray(at, end));
+    const nl = text.indexOf("\n");
+    const type = demangleType(text.slice(0, nl));
+    const rest = text.slice(nl + 1);
+    return `terminate called after throwing an instance of '${type}'\n` + (rest[0] === "1" ? `  what():  ${rest.slice(1)}\n` : "");
+  } catch {
+    return generic;
+  }
+}
+
+const BUILTIN = { v: "void", b: "bool", c: "char", a: "signed char", h: "unsigned char", s: "short", t: "unsigned short", i: "int", j: "unsigned int", l: "long", m: "unsigned long", x: "long long", y: "unsigned long long", f: "float", d: "double", e: "long double", n: "__int128", o: "unsigned __int128", w: "wchar_t", Dn: "std::nullptr_t" };
+
+/**
+ * Demangles the type names a thrown value usually has: builtins, pointers and const, and
+ * (possibly namespaced) class names such as St13runtime_error or N4game9ParseErrorE.
+ * Anything fancier (templates, substitutions) comes back as the raw mangled name.
+ */
+export function demangleType(m) {
+  let i = 0;
+  const name = () => {
+    const d = /^\d+/.exec(m.slice(i));
+    if (!d) throw new Error("name");
+    i += d[0].length;
+    const n = m.slice(i, i + Number(d[0]));
+    i += Number(d[0]);
+    return n;
+  };
+  const type = () => {
+    if (m[i] === "P") {
+      i++;
+      return pointee() + "*";
+    }
+    if (m[i] === "K") {
+      i++;
+      return type() + " const";
+    }
+    for (const k of ["Dn", "v", "b", "c", "a", "h", "s", "t", "i", "j", "l", "m", "x", "y", "f", "d", "e", "n", "o", "w"])
+      if (m.startsWith(k, i)) {
+        i += k.length;
+        return BUILTIN[k];
+      }
+    if (m.startsWith("St", i)) {
+      i += 2;
+      return "std::" + name();
+    }
+    if (m[i] === "N") {
+      i++;
+      const parts = [];
+      if (m.startsWith("St", i)) (i += 2), parts.push("std");
+      while (m[i] !== "E") parts.push(name());
+      i++;
+      return parts.join("::");
+    }
+    return name();
+  };
+  const pointee = () => {
+    if (m[i] === "K") {
+      i++;
+      return type() + " const";
+    }
+    return type();
+  };
+  if (/^NSt3__\d+12basic_stringIcNS_11char_traitsIcEENS_9allocatorIcEEEE$/.test(m)) return "std::string";
+  try {
+    const t = type();
+    return i === m.length ? t : m;
+  } catch {
+    return m;
+  }
 }

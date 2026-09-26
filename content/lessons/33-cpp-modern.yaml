@@ -154,7 +154,7 @@ steps:
 
       `std::get_if` combines the check and the access, which is why the `area` function uses it. In `std::visit`, a lambda with an `auto` parameter is compiled once per alternative, so it handles every type.
 
-      In standard C++, `std::get` with the wrong type throws an exception. This site compiles without exceptions, so check first with `holds_alternative` or use `get_if`.
+      `std::get` with the wrong type throws `std::bad_variant_access`. When a wrong type is a normal possibility rather than a bug, check first with `holds_alternative` or use `get_if`.
 
       **Your turn:** an `Event` is either a `Kill{attacker, victim}`, a `Plant{site}` or a `RoundEnd{winner}`. Write `std::string describe(const Event& e)` returning `"A killed B"`, `"bomb planted at X"` or `"round to W"`. Use `std::holds_alternative`/`std::get`, or `std::get_if`.
     seed: |

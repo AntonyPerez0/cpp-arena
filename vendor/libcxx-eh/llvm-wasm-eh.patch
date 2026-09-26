@@ -1,0 +1,33 @@
+diff --git a/libunwind/src/CMakeLists.txt b/libunwind/src/CMakeLists.txt
+index 780430ba..fbe604cc 100644
+--- a/libunwind/src/CMakeLists.txt
++++ b/libunwind/src/CMakeLists.txt
+@@ -27,6 +27,14 @@ set(LIBUNWIND_ASM_SOURCES
+     UnwindRegistersSave.S
+     )
+ 
++# WebAssembly exceptions use the engine's own unwinder: only Unwind-wasm.c applies.
++if (CMAKE_C_COMPILER_TARGET MATCHES "^wasm")
++  set(LIBUNWIND_CXX_SOURCES "")
++  set(LIBUNWIND_C_SOURCES Unwind-wasm.c)
++  set_source_files_properties(${LIBUNWIND_C_SOURCES} PROPERTIES COMPILE_FLAGS "-std=c11")
++  set(LIBUNWIND_ASM_SOURCES "")
++endif()
++
+ set(LIBUNWIND_HEADERS
+     AddressSpace.hpp
+     assembly.h
+diff --git a/libunwind/src/config.h b/libunwind/src/config.h
+index deb5a4d4..23c9f012 100644
+--- a/libunwind/src/config.h
++++ b/libunwind/src/config.h
+@@ -66,7 +66,8 @@
+   #define _LIBUNWIND_EXPORT
+   #define _LIBUNWIND_HIDDEN
+ #else
+-  #if !defined(__ELF__) && !defined(__MACH__) && !defined(_AIX)
++  #if !defined(__ELF__) && !defined(__MACH__) && !defined(_AIX) &&             \
++      !defined(__wasm__)
+     #define _LIBUNWIND_EXPORT __declspec(dllexport)
+     #define _LIBUNWIND_HIDDEN
+   #else

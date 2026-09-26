@@ -168,6 +168,19 @@ await test("infinite loop is killed with a time-limit message", async () => {
   console.log(`    killed after ${((Date.now() - t0) / 1000).toFixed(1)}s`);
 });
 
+await test("C++ exceptions: throw and catch work, an uncaught one is reported like std::terminate", async () => {
+  const m = content.modules.find((x) => x.id === "cpp-errors");
+  const i = m.steps.findIndex((st) => st.id === "cpp-errors-7");
+  const sol = m.steps[i].solution;
+  await go(L("cpp-errors", i + 1));
+  await setEditor(sol);
+  await check();
+  await page.locator(".banner", { hasText: "All tests passed" }).waitFor({ timeout: 10000 });
+  await setEditor(sol.replace('throw TransferError(where + "insufficient funds");', "throw 42;"));
+  await check();
+  await page.getByText(/terminate called after throwing an instance of 'int'/).first().waitFor({ timeout: 10000 });
+});
+
 await test("crash (null pointer) reports a friendly runtime error", async () => {
   await go(L("c-hello", 3));
   await setEditor('#include <stdio.h>\nint main(void) {\n    int *p = (int *)0x7fffffff;\n    printf("%d\\n", p[100000000]);\n    return 0;\n}\n');
