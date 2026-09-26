@@ -184,7 +184,7 @@ topics:
     body: |
       Both store key-value pairs with unique keys:
 
-      | | `std::map` | `std::unordered_map` |
+      | Property | `std::map` | `std::unordered_map` |
       |---|---|---|
       | Built on | balanced tree | hash table |
       | Lookup | O(log n) | O(1) on average |

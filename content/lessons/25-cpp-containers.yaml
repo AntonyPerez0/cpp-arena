@@ -248,7 +248,7 @@ steps:
     text: |
       `std::unordered_map` has the same interface as `std::map` (`[]`, `find`, `contains`, `insert`, `erase`), but it's built on a **hash table** instead of a tree. The trade:
 
-      | | `std::map` | `std::unordered_map` |
+      | Property | `std::map` | `std::unordered_map` |
       |---|---|---|
       | Order when looping | sorted by key | no useful order |
       | Lookup cost | O(log n) | O(1) on average |

@@ -588,7 +588,7 @@ steps:
 
       - `constexpr` function: **may** run at compile time, when its arguments are constants and the result is needed as a constant, and runs at run time otherwise.
       - `consteval` function (C++20): **must** run at compile time. Calling it with a value only known at run time is a compile error. Use it when a run-time call would be a mistake, like hashing a fixed string or validating a format.
-      - `constinit` variable (C++20): must be **initialized** at compile time, but can change later. It's for globals: it guarantees no run-time initialization order problems (the "static initialization order fiasco", where one global's constructor reads another global that isn't set up yet).
+      - `constinit` variable (C++20): must be **initialized** at compile time, but can change later. It's for globals: the variable is ready before any code runs, so it can't be caught by the "static initialization order fiasco" (one global's constructor reading another global that isn't set up yet). If its initializer can't be computed at compile time, the compiler says so instead of silently deferring it to run time.
 
       ```cpp run
       #include <iostream>
@@ -621,7 +621,7 @@ steps:
 
       ### The classic use: switching on strings
 
-      A `switch` only works on integers, and each `case` needs a compile-time constant. A `consteval` hash turns fixed strings into constants, and a `constexpr` version of the same hash handles the run-time input.
+      A `switch` only works on integers (and enums), and each `case` needs a compile-time constant. A `consteval` hash turns fixed strings into constants, and a `constexpr` version of the same hash handles the run-time input.
 
       **Your turn:** write `fnv1a(s)` as a `constexpr` 32-bit FNV-1a hash (start from 2166136261; for each character, XOR in the character as an `unsigned char`, then multiply by 16777619), `id_of(s)` as a `consteval` wrapper around it, and `command_code(cmd)`, which switches on `fnv1a(cmd)` with `case id_of("start")`, `id_of("stop")` and `id_of("pause")` returning 1, 2 and 3, and -1 for anything else. Mark `command_code` `[[nodiscard]]`.
     seed: |

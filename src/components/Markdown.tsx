@@ -24,9 +24,9 @@ function shiftHeadings(html: string, top: number): string {
 
 /** Renders trusted lesson markdown (content is authored in this repo). `top` sets the level of the text's first heading. */
 export default function Markdown({ text, className = "", top }: { text: string; className?: string; top?: number }) {
-  // Code blocks can scroll sideways, so they must be reachable with the keyboard.
+  // Code blocks and tables can scroll sideways (tables do on phones), so they must be reachable with the keyboard.
   const html = useMemo(() => {
-    const out = (marked.parse(text, { async: false }) as string).replace(/<pre>/g, '<pre tabindex="0">');
+    const out = (marked.parse(text, { async: false }) as string).replace(/<(pre|table)>/g, '<$1 tabindex="0">');
     return top ? shiftHeadings(out, top) : out;
   }, [text, top]);
   return <div className={"md " + className} dangerouslySetInnerHTML={{ __html: html }} />;

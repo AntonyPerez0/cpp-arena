@@ -270,6 +270,8 @@ async function buildLessons() {
         const where = `${file} step ${i + 1} (${s.title})`;
         // Saved progress is keyed by step id, so ids must be explicit: a position-based id would shift when a step is inserted.
         if (!s.id) errors.push(`${where}: step needs an explicit id (progress is saved by id)`);
+        // YAML reads bare words like NULL, true or 42 as non-strings, which would render as an empty heading.
+        if (typeof s.title !== "string" || !s.title) errors.push(`${where}: title must be a non-empty string (quote it)`);
         const ex = await buildExercise(where, s.lang ?? m.lang, s, null);
         if (!ex) return null;
         if (!s.text) errors.push(`${where}: missing text`);

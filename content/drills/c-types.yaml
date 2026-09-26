@@ -130,7 +130,7 @@ drills:
     choices:
       - "`unsigned char *` (or `char *`)"
       - "`void *`"
-      - "`uint8_t *` only if it's not a typedef"
+      - "`short *`"
       - "`int *`"
     answer: 1
     why: Character types are the exception to strict aliasing. That's how memcpy, hex dumps and serializers can see any object as bytes. (void * can't be dereferenced at all.)

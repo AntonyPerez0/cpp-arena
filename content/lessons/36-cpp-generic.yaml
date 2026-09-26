@@ -849,7 +849,7 @@ steps:
           int damage = 30;
       };
     forbid:
-      - pattern: "virtual"
+      - pattern: "\\bvirtual\\b"
         message: CRTP needs no virtual functions.
     harness: |
       int main() {

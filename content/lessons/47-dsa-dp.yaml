@@ -561,7 +561,7 @@ steps:
 
       Here's the full table for `cat` → `cut`:
 
-      | | "" | c | u | t |
+      | `cat` ↓ / `cut` → | "" | c | u | t |
       |---|---|---|---|---|
       | "" | 0 | 1 | 2 | 3 |
       | c | 1 | **0** | 1 | 2 |

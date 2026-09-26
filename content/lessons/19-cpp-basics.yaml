@@ -412,7 +412,7 @@ steps:
     text: |
       C++ grew out of C, and most C code is also valid C++. But the languages have been developed separately for decades, and some differences bite when you move code between them or mix them in one project.
 
-      | | C | C++ |
+      | Feature | C | C++ |
       |---|---|---|
       | `void *` to another pointer | converts automatically: `int *p = malloc(n);` | needs a cast (or better, `new`, `std::vector`, `std::make_unique`) |
       | `void f()` | "unspecified arguments" before C23; write `void f(void)` | no arguments, same as `f(void)` |
@@ -454,7 +454,7 @@ steps:
 
       In C++ code, prefer the C++ versions of C headers (`<cstdlib>`, `<cstring>`, `<cstdio>`), which put the names in namespace `std`, and prefer C++ facilities over C ones: `std::string` over `char` arrays, `std::vector` over `malloc`, streams or `std::format` over `printf`.
 
-      **Your turn:** this code was copied from a C project, and it doesn't compile as C++. Fix `make_buffer` so it compiles and works: `Buffer`'s designated initializers must follow the declaration order, and `malloc`'s result needs a cast. Keep `free_buffer` as it is.
+      **Your turn:** this code was copied from a C project, and it doesn't compile as C++. Fix `make_buffer` so it compiles and works: `Buffer`'s designated initializers must follow the declaration order (this site's compiler, Clang, only warns about that, but GCC refuses to compile it), and `malloc`'s result needs a cast. Keep `free_buffer` as it is.
     seed: |
       #include <cstdlib>
       #include <cstring>
@@ -497,6 +497,9 @@ steps:
           b->data = 0;
           b->size = 0;
       }
+    forbid:
+      - pattern: "\\.size\\s*=[^;]*\\.data\\s*="
+        message: "Designated initializers must follow the declaration order: .data first, then .size. GCC rejects any other order."
     harness: |
       int main() {
           Buffer b = make_buffer("hello");

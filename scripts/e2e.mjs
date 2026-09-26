@@ -633,6 +633,32 @@ await test("accessibility: deathmatch reps and the death screen pass axe", async
   if (seen.size < 3) throw new Error("only saw rep types: " + [...seen].join(", "));
 });
 
+await test("phone width: pages fit the screen and pass axe", async () => {
+  // At 360px wide, tables and code blocks scroll inside the page, never the page itself,
+  // and whatever scrolls must be reachable with the keyboard.
+  const phone = await browser.newContext({ viewport: { width: 360, height: 780 }, isMobile: true, hasTouch: true, serviceWorkers: "block", colorScheme: "dark" });
+  await phone.addInitScript(() => {
+    if (!localStorage.getItem("cpp-arena-v1"))
+      localStorage.setItem("cpp-arena-v1", JSON.stringify({ version: 1, steps: {}, projects: {}, drills: {}, settings: { sound: false, unlockAll: true, topics: null, boss: false, keys: true } }));
+  });
+  const pp = await phone.newPage();
+  const routes = ["/", "/learn", "/learn/c-pointers/5", "/learn/cpp-basics/7", "/learn/dsa-dp/6", "/deathmatch", "/projects/calculator", "/pro/performance", "/topics/std-map", "/visualize/list-push", "/profile"];
+  const problems = [];
+  for (const r of routes) {
+    await pp.goto(BASE + r.replace(/^\//, ""));
+    const h1 = pp.locator("#main h1").first();
+    await h1.waitFor({ timeout: 15000 });
+    if (!(await h1.textContent())?.trim()) problems.push(`${r}: empty h1`);
+    await pp.waitForTimeout(300);
+    const extra = await pp.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    if (extra > 1) problems.push(`${r}: page scrolls sideways by ${extra}px`);
+    const res = await new AxeBuilder({ page: pp }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa", "best-practice"]).analyze();
+    for (const v of res.violations) problems.push(`${r}: ${v.id} (${v.nodes.length}x) at ${v.nodes[0].target.join(" ")}`);
+  }
+  await phone.close();
+  if (problems.length) throw new Error(problems.join("\n"));
+});
+
 
 await test("accessibility: the light theme and new pages pass axe", async () => {
   await ap.evaluate(() => {
