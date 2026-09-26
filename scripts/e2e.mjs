@@ -184,19 +184,22 @@ await test("deathmatch: play reps until death, respawn", async () => {
   for (let k = 0; k < 12; k++) {
     await page.locator(".rep, .death").first().waitFor({ timeout: 10000 });
     if (await page.locator(".death").count()) break;
-    const type = await page.locator(".rep").getAttribute("class");
-    const topic = await page.locator(".rep-topic").first().textContent();
-    if (/rep-compiles/.test(type)) await page.keyboard.press("y");
-    else if (/rep-predict/.test(type)) {
+    // Answer every rep wrong on purpose, whatever its type, so the one life runs out.
+    const id = await page.locator(".rep").first().getAttribute("data-drill");
+    const d = content.drills.find((x) => x.id === id);
+    if (!d) throw new Error("unknown drill id " + id);
+    if (d.type === "compiles") await page.keyboard.press(d.answer === "yes" ? "n" : "y");
+    else if (d.type === "predict") {
       await page.locator(".answer-input").fill("definitely wrong answer");
       await page.keyboard.press("Enter");
-    } else if (/rep-fill/.test(type)) {
+    } else if (d.type === "fill") {
       await page.locator("input.blank").fill("zzz");
       await page.keyboard.press("Enter");
-    } else if (/rep-bug/.test(type)) await page.locator("button.bugline").first().click();
-    else if (/rep-boss/.test(type)) await page.getByRole("button", { name: "Give up" }).click();
+    } else if (d.type === "bug") await page.locator("button.bugline").nth(+d.answer === 1 ? 1 : 0).click();
+    else if (d.type === "choice") await page.locator(`.rep .choice[data-choice="${+d.answer === 1 ? 1 : 0}"]`).click();
+    else if (d.type === "boss") await page.getByRole("button", { name: "Give up" }).click();
+    else throw new Error("no wrong answer for drill type " + d.type);
     answered++;
-    void topic;
     await page.waitForTimeout(150);
   }
   await page.locator(".death").waitFor({ timeout: 10000 });
