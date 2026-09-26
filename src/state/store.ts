@@ -35,6 +35,8 @@ export type State = {
     certName: string;
     /** The learner's Pro Track repository on GitHub, printed on the Pro Track certificate. */
     proRepo: string;
+    /** Download the compiler automatically even on mobile data (otherwise lessons ask first). */
+    mobileData: boolean;
   };
   /** Pro Track projects the learner marked as passing on GitHub. */
   pro: Record<string, boolean>;
@@ -52,7 +54,7 @@ const fresh = (): State => ({
   projects: {},
   drills: {},
   dm: { best: { deathmatch: 0, casual: 0, warmup: 0, interview: 0 }, runs: [], reps: 0, kills: 0, bossKills: 0, days: {} },
-  settings: { sound: true, unlockAll: false, topics: null, boss: true, keys: true, theme: "system", textScale: 1, certName: "", proRepo: "" },
+  settings: { sound: true, unlockAll: false, topics: null, boss: true, keys: true, theme: "system", textScale: 1, certName: "", proRepo: "", mobileData: false },
   pro: {},
   placed: [],
   daily: {},

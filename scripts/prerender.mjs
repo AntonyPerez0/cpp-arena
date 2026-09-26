@@ -47,6 +47,11 @@ function summary(text, max = 155) {
   return cut.slice(0, cut.lastIndexOf(" ")) + "…";
 }
 
+const stepPath = (m, s) => `/learn/${m.id}/${s.slug}`;
+const firstStepPath = (id) => {
+  const m = content.modules.find((x) => x.id === id);
+  return m ? stepPath(m, m.steps[0]) : "/learn";
+};
 const moduleCount = content.modules.length;
 const stepCount = content.modules.reduce((n, m) => n + m.steps.length, 0);
 
@@ -104,7 +109,7 @@ page("/learn", {
       .map(
         (ph) =>
           `<h2>${esc(ph.name)}</h2><ul>` +
-          ph.modules.map((m) => `<li><a href="${link(`/learn/${m.id}/1`)}">${esc(m.title)}</a>: ${esc(m.summary)}</li>`).join("") +
+          ph.modules.map((m) => `<li><a href="${link(stepPath(m, m.steps[0]))}">${esc(m.title)}</a>: ${esc(m.summary)}</li>`).join("") +
           `</ul>`,
       )
       .join(""),
@@ -112,9 +117,9 @@ page("/learn", {
 
 for (const m of content.modules) {
   m.steps.forEach((s, i) => {
-    const prev = i > 0 ? `<a href="${link(`/learn/${m.id}/${i}`)}">Previous: ${esc(m.steps[i - 1].title)}</a>` : "";
-    const next = i + 1 < m.steps.length ? `<a href="${link(`/learn/${m.id}/${i + 2}`)}">Next: ${esc(m.steps[i + 1].title)}</a>` : "";
-    page(`/learn/${m.id}/${i + 1}`, {
+    const prev = i > 0 ? `<a href="${link(stepPath(m, m.steps[i - 1]))}">Previous: ${esc(m.steps[i - 1].title)}</a>` : "";
+    const next = i + 1 < m.steps.length ? `<a href="${link(stepPath(m, m.steps[i + 1]))}">Next: ${esc(m.steps[i + 1].title)}</a>` : "";
+    page(stepPath(m, s), {
       title: `${s.title} · ${m.title} (${m.lang === "c" ? "C" : "C++"}) | ${NAME}`,
       description: summary(s.text),
       type: "article",
@@ -129,7 +134,7 @@ for (const m of content.modules) {
         inLanguage: "en",
         programmingLanguage: m.lang === "c" ? "C" : "C++",
         isPartOf: { "@type": "Course", name: courseLd.name, url: SITE + "/" },
-        url: `${SITE}/learn/${m.id}/${i + 1}/`,
+        url: `${SITE}${stepPath(m, s)}/`,
       },
       body: `<nav aria-label="Breadcrumb"><a href="${link("/learn")}">Learn</a> › ${esc(m.phase)} › ${esc(m.title)}</nav>
 <p>Step ${i + 1} of ${m.steps.length}</p>
@@ -211,7 +216,7 @@ ${md(t.body)}
 <p>${t.native ? "Output (compiled with GCC and run on Linux: the in-browser compiler has no threads):" : "Output:"}</p>
 <pre><code>${esc(t.output)}</code></pre>
 ${vis ? `<p><a href="${link(`/visualize/${vis.id}`)}">Watch it run: ${esc(vis.title)}</a></p>` : ""}
-<h2>Practice it</h2><ul>${t.modules.map((m) => `<li><a href="${link(`/learn/${m}/1`)}">Lesson: ${esc(modById.get(m)?.title ?? m)}</a></li>`).join("")}</ul>`,
+<h2>Practice it</h2><ul>${t.modules.map((m) => `<li><a href="${link(firstStepPath(m))}">Lesson: ${esc(modById.get(m)?.title ?? m)}</a></li>`).join("")}</ul>`,
   });
 }
 
@@ -231,7 +236,7 @@ for (const v of visuals) {
 ${md(v.text)}
 <pre><code>${esc(v.code)}</code></pre>
 <p>Output:</p><pre><code>${esc(v.out)}</code></pre>
-${m ? `<p>From the lesson: <a href="${link(`/learn/${m.id}/1`)}">${esc(m.title)}</a></p>` : ""}`,
+${m ? `<p>From the lesson: <a href="${link(stepPath(m, m.steps.find((s) => s.id === v.steps?.[0]) ?? m.steps[0]))}">${esc(m.title)}</a></p>` : ""}`,
   });
 }
 
@@ -244,6 +249,12 @@ page("/placement", {
   title: `C and C++ placement quiz: where should you start? | ${NAME}`,
   description: `${(content.placement ?? []).length} quick questions from printf to smart pointers that show which lessons you can skip.`,
   body: `<h1>Placement quiz</h1><p>Already know some C or C++? Answer ${(content.placement ?? []).length} quick questions to find your starting point and skip what you know.</p>`,
+});
+page("/next", {
+  title: `${content.next.title} | ${NAME}`,
+  description: content.next.description,
+  type: "article",
+  body: `<h1>Where to go next</h1>${mdAt(content.next.body.replace(/\]\(\//g, "](" + BASE), 2)}`,
 });
 page("/certificate", { title: `Certificates | ${NAME}`, description: "Certificates for finishing the C/C++ Arena course and the Pro Track.", index: false, body: `<h1>Certificates</h1>` });
 
@@ -291,6 +302,29 @@ for (const p of pages) {
   written++;
 }
 
+// Old numbered step addresses (/learn/<module>/<n>): GitHub Pages can't send redirects, so
+// each gets a tiny page that forwards to the step's permanent address (keeping any #hash)
+// and tells search engines where the page lives now.
+let redirects = 0;
+for (const m of content.modules) {
+  const ids = m.numbered ?? m.steps.map((s) => s.id);
+  const count = Math.max(ids.length, m.steps.length);
+  for (let n = 1; n <= count; n++) {
+    const id = n <= ids.length ? ids[n - 1] : m.steps[n - 1]?.id;
+    const s = m.steps.find((x) => x.id === id);
+    if (!s) continue;
+    const to = link(stepPath(m, s)) + "/";
+    const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${esc(s.title)} | ${NAME}</title>
+<link rel="canonical" href="${SITE}${stepPath(m, s)}/"><meta name="robots" content="noindex">
+<meta http-equiv="refresh" content="0; url=${to}"><script>location.replace(${JSON.stringify(to)} + location.hash)</script></head>
+<body><p>This lesson moved to <a href="${to}">${esc(s.title)}</a>.</p></body></html>\n`;
+    const dir = path.join(DIST, "learn", m.id, String(n));
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, "index.html"), html);
+    redirects++;
+  }
+}
+
 // GitHub Pages serves 404.html for unknown paths; the app then shows its "not found" page.
 fs.writeFileSync(
   path.join(DIST, "404.html"),
@@ -308,4 +342,4 @@ fs.writeFileSync(
 // the site has its own domain; on a github.io project page, submit the sitemap in
 // Google Search Console instead.
 fs.writeFileSync(path.join(DIST, "robots.txt"), `User-agent: *\nAllow: /\n\nSitemap: ${SITE}/sitemap.xml\n`);
-console.log(`prerender: ${written} pages, ${indexed.length} in sitemap.xml, 404.html, robots.txt`);
+console.log(`prerender: ${written} pages, ${redirects} old step addresses forwarded, ${indexed.length} in sitemap.xml, 404.html, robots.txt`);

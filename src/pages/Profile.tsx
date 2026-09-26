@@ -171,6 +171,10 @@ export default function Profile() {
           its own private folder for files. Known limits: no exceptions and no threads (the concurrency module's thread examples were compiled and run on Linux instead, and the Pro Track covers both hands-on), and stdin is
           supplied up front rather than typed live.
         </p>
+        <label className="small">
+          <input type="checkbox" checked={s.settings.mobileData} onChange={(e) => patchSettings({ mobileData: e.target.checked })} /> Download the compiler automatically on mobile data
+          (otherwise lessons ask first; it's about 95 MB, once)
+        </label>
         <div className="actions">
           <CompilerBadge />
           <button

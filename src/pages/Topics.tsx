@@ -1,5 +1,5 @@
 import { Link, useParams } from "react-router-dom";
-import { moduleById, topicBySlug, topics } from "../content";
+import { firstStepPath, moduleById, topicBySlug, topics } from "../content";
 import { visualById } from "../content/visuals";
 import Markdown from "../components/Markdown";
 import { CodeView } from "../components/highlight";
@@ -88,7 +88,7 @@ export function TopicPage() {
           <ul>
             {t.modules.map((m) => (
               <li key={m}>
-                <Link to={`/learn/${m}/1`}>Lesson: {moduleById.get(m)?.title}</Link>
+                <Link to={firstStepPath(m)}>Lesson: {moduleById.get(m)?.title}</Link>
               </li>
             ))}
           </ul>

@@ -639,3 +639,38 @@ topics:
       int clamp(int v, int lo, int hi) {
           return v < lo ? lo : v > hi ? hi : v;
       }
+
+  - slug: strict-aliasing
+    title: Strict aliasing and type punning in C
+    lang: c
+    description: Why reading a float through a uint32_t pointer is undefined behavior, what strict aliasing lets compilers assume, and the safe way to do it with memcpy.
+    modules: [c-types]
+    body: |
+      The tempting way to see a `float`'s bits is `*(uint32_t *)&f`. That's undefined behavior under the **strict aliasing rule**: an object may only be accessed through an expression of its own type (or a signed/unsigned version of it, or a character type).
+
+      The rule exists so the compiler can assume that pointers to different types never point at the same memory. In `int f(int *i, float *fp) { *i = 1; *fp = 2.0f; return *i; }`, GCC with `-O2` returns 1 without reading `*i` again, because a store through a `float *` can't change an `int`. Break the rule and the optimizer produces code that seems to ignore your writes.
+
+      - To reinterpret a value, **copy its bytes** with `memcpy`. Compilers turn a small fixed-size `memcpy` into a single register move, so it costs nothing.
+      - Reading any object through `unsigned char *` (or `char *`) is always allowed. That's how `memcpy`, hashing and serialization see bytes.
+      - In C, reading a different member of a union also works. In C++ it doesn't: use `std::bit_cast` (C++20) or `memcpy`.
+      - `-fno-strict-aliasing` turns the optimization off (the Linux kernel is built with it), but portable code shouldn't depend on it.
+    example: |
+      #include <stdint.h>
+      #include <stdio.h>
+      #include <string.h>
+
+      static uint32_t float_bits(float f) {
+          uint32_t bits;
+          memcpy(&bits, &f, sizeof bits);     /* defined behavior, and just as fast */
+          return bits;
+      }
+
+      int main(void) {
+          float values[] = {1.0f, -2.0f, 0.15625f};
+          for (int i = 0; i < 3; i++) {
+              uint32_t b = float_bits(values[i]);
+              printf("%9.5f -> sign %u, exponent %3u, fraction 0x%06x\n",
+                     values[i], (unsigned)(b >> 31), (unsigned)((b >> 23) & 0xff), (unsigned)(b & 0x7fffff));
+          }
+          return 0;
+      }

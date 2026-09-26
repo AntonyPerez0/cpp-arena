@@ -497,3 +497,212 @@ topics:
           std::cout << "total " << total << "\n";
           return 0;
       }
+
+  - slug: memory-ordering
+    title: "C++ memory ordering: relaxed, acquire and release"
+    lang: cpp
+    description: What std::memory_order means, why compilers and processors reorder memory accesses, and how release and acquire publish data safely between threads.
+    modules: [cpp-concurrency]
+    native: true
+    body: |
+      Compilers and processors reorder memory accesses to go faster. Inside one thread you can never tell, but another thread can see your writes in a different order than you made them. Every atomic operation takes a **memory order** that says which reorderings are forbidden around it.
+
+      - `memory_order_seq_cst` (the default): all threads agree on one order of every such operation. The easiest to reason about, and the right choice unless profiling says otherwise.
+      - `memory_order_release` on a store: nothing written **before** it in this thread can move after it.
+      - `memory_order_acquire` on a load: nothing read or written **after** it can move before it.
+      - When an acquire load reads the value a release store wrote, everything the writing thread did before the store is visible to the reading thread after the load. That's how one thread **publishes** ordinary data to another.
+      - `memory_order_relaxed`: the operation is still indivisible, but it orders nothing else. Fine for a statistics counter read after `join()`, wrong for a "the data is ready" flag.
+
+      Code with orderings that are too weak often works on x86, which reorders very little, and then fails on ARM phones and servers. Test on ARM and run ThreadSanitizer (`-fsanitize=thread`), which understands orderings. The browser compiler on this site has no threads, so this example was compiled with `g++ -std=c++20 -pthread` and run on Linux.
+    example: |
+      #include <atomic>
+      #include <iostream>
+      #include <numeric>
+      #include <thread>
+      #include <vector>
+
+      std::vector<int> data;              // ordinary data, published by `ready`
+      std::atomic<bool> ready{false};
+      std::atomic<int> hits{0};           // a plain counter: relaxed is enough
+
+      int main() {
+          std::thread producer([] {
+              for (int i = 1; i <= 100; i++) data.push_back(i);
+              ready.store(true, std::memory_order_release);
+          });
+          std::vector<std::thread> readers;
+          for (int t = 0; t < 4; t++)
+              readers.emplace_back([] {
+                  while (!ready.load(std::memory_order_acquire)) {
+                  }
+                  for (int i = 0; i < 1000; i++) hits.fetch_add(1, std::memory_order_relaxed);
+                  if (std::accumulate(data.begin(), data.end(), 0) != 5050) std::cout << "torn read!\n";
+              });
+          producer.join();
+          for (auto& r : readers) r.join();
+          std::cout << "sum " << std::accumulate(data.begin(), data.end(), 0) << ", hits " << hits.load() << "\n";
+          return 0;
+      }
+
+  - slug: sfinae-enable-if
+    title: SFINAE and std::enable_if explained
+    lang: cpp
+    description: What "substitution failure is not an error" means, how std::enable_if and std::void_t switch template overloads on and off, and how C++20 concepts replace them.
+    modules: [cpp-generic]
+    body: |
+      When the compiler tries a function template during overload resolution, it substitutes the deduced types into the template's declaration. If that produces something invalid, it doesn't report an error: it quietly drops that candidate and tries the others. That rule is **SFINAE**, "substitution failure is not an error", and before C++20 it was the standard way to constrain templates.
+
+      - `std::enable_if_t<condition, T>` means `T` when the condition is true and names no type at all when it's false, which removes the overload.
+      - The **detection idiom** asks "does this expression compile for T?": a specialization using `std::void_t<decltype(expr)>` applies only when `expr` is valid.
+      - Only the declaration counts. An error inside a function's body is still a hard error.
+
+      In C++20, **concepts** say the same thing directly (`template <std::integral T>`, `requires`), with far clearer error messages. Write concepts in new code, and recognize `enable_if` and `void_t` in the many libraries written before them.
+    example: |
+      #include <iostream>
+      #include <string>
+      #include <type_traits>
+      #include <utility>
+      #include <vector>
+
+      template <typename T>
+      std::enable_if_t<std::is_integral_v<T>, std::string> kind(T) { return "integer"; }
+
+      template <typename T>
+      std::enable_if_t<std::is_floating_point_v<T>, std::string> kind(T) { return "floating point"; }
+
+      // Detection idiom: does T have a size() member?
+      template <typename T, typename = void>
+      struct has_size : std::false_type {};
+      template <typename T>
+      struct has_size<T, std::void_t<decltype(std::declval<const T&>().size())>> : std::true_type {};
+
+      int main() {
+          std::cout << kind(7) << ", " << kind(0.5) << ", " << kind('x') << "\n";
+          std::cout << std::boolalpha << has_size<std::vector<int>>::value << " " << has_size<double>::value << "\n";
+          return 0;
+      }
+
+  - slug: crtp
+    title: "CRTP: the curiously recurring template pattern"
+    lang: cpp
+    description: How a base class template that takes its derived class as a parameter gives static polymorphism, mixins and per-type counters without virtual functions.
+    modules: [cpp-generic]
+    body: |
+      In the **Curiously Recurring Template Pattern**, a class inherits from a template instantiated with itself: `struct Version : Ordered<Version>`. Inside the base, the derived type is known at compile time, so the base can call the derived class's functions with a `static_cast`, with no virtual functions and no vtable. The compiler sees the exact function and can inline it.
+
+      - **Mixins**: write a feature once in the base and add it to any class. The example derives `>`, `<=` and `>=` from a single `<`.
+      - **Per-type bookkeeping**: static data in `Base<X>` is separate for every `X`, because each instantiation is a different class.
+      - **Static interfaces** in performance-critical libraries, where virtual calls in tight loops would cost too much.
+
+      The price: `Base<A>` and `Base<B>` are unrelated types, so you can't keep an `A` and a `B` in one container. When you need that, use virtual functions or type erasure. C++20's `<=>` now covers the comparison case, and C++23's "deducing this" covers many others, but CRTP is everywhere in existing code.
+    example: |
+      #include <iostream>
+
+      template <typename D>
+      struct Ordered {
+          friend bool operator>(const D& a, const D& b) { return b < a; }
+          friend bool operator<=(const D& a, const D& b) { return !(b < a); }
+          friend bool operator>=(const D& a, const D& b) { return !(a < b); }
+      };
+
+      struct Version : Ordered<Version> {
+          int major, minor;
+          Version(int ma, int mi) : major(ma), minor(mi) {}
+          friend bool operator<(const Version& a, const Version& b) {
+              return a.major != b.major ? a.major < b.major : a.minor < b.minor;
+          }
+      };
+
+      int main() {
+          Version a{1, 4}, b{2, 0};
+          std::cout << (b > a) << (a >= b) << (a <= a) << "\n";
+          return 0;
+      }
+
+  - slug: type-erasure
+    title: "Type erasure in C++: how std::function works"
+    lang: cpp
+    description: How std::function, std::any and friends hold unrelated types behind one value type, and how to write your own with a hidden interface and a template model.
+    modules: [cpp-patterns]
+    body: |
+      `std::function<int(int)>` can hold a function pointer, a lambda with captures or any object with a matching `operator()`, although none of them share a base class. That's **type erasure**: the wrapper forgets the concrete type but still knows how to call, copy and destroy what's inside.
+
+      The standard recipe has three parts, all hidden inside the wrapper:
+
+      - a private abstract **concept** class with the operations you need, plus `clone()` for copying;
+      - a class template **model** that derives from it and forwards each call to the stored object;
+      - a templated constructor that creates the right model for whatever you pass, and a `std::unique_ptr` to it.
+
+      The wrapper behaves like a value: you can copy it and store it in a `std::vector` directly, and any type with the right functions works, including types written long before the wrapper. `std::function`, `std::any` and `std::shared_ptr`'s deleter all work this way; libraries add a small-buffer optimization to avoid the heap allocation for small objects.
+    example: |
+      #include <iostream>
+      #include <memory>
+      #include <string>
+      #include <utility>
+      #include <vector>
+
+      class Printable {
+      public:
+          template <typename T>
+          Printable(T value) : self_(std::make_unique<Model<T>>(std::move(value))) {}
+          Printable(const Printable& other) : self_(other.self_->clone()) {}
+          std::string text() const { return self_->text(); }
+
+      private:
+          struct Concept {
+              virtual ~Concept() = default;
+              virtual std::string text() const = 0;
+              virtual std::unique_ptr<Concept> clone() const = 0;
+          };
+          template <typename T>
+          struct Model : Concept {
+              T value;
+              explicit Model(T v) : value(std::move(v)) {}
+              std::string text() const override { return value.text(); }
+              std::unique_ptr<Concept> clone() const override { return std::make_unique<Model>(*this); }
+          };
+          std::unique_ptr<Concept> self_;
+      };
+
+      struct Player { std::string name; std::string text() const { return "player " + name; } };
+      struct Score { int points; std::string text() const { return std::to_string(points) + " pts"; } };
+
+      int main() {
+          std::vector<Printable> feed{Player{"ada"}, Score{250}};
+          std::vector<Printable> copy = feed;              // deep copies
+          for (const auto& p : copy) std::cout << p.text() << "\n";
+          return 0;
+      }
+
+  - slug: cpu-caches
+    title: CPU caches and data-oriented design in C++
+    lang: cpp
+    description: Why memory access patterns decide how fast code runs, what cache lines are, and how contiguous containers and structs of arrays speed up hot loops.
+    modules: [cpp-performance]
+    body: |
+      A processor can add two numbers in well under a nanosecond, but fetching a value from main memory takes around 100. Small, fast **caches** close to each core hide that gap, and they move memory in fixed blocks called **cache lines**: 64 bytes on x86 and most ARM chips. Read one `int` and its neighbors come along for free; processors also **prefetch** the next lines when you walk memory in order.
+
+      - **Contiguous containers win.** A `std::vector` keeps elements side by side; a `std::list` or `std::map` scatters nodes across the heap, so walking one is a chain of cache misses. A vector often beats a list even where Big-O favors the list.
+      - **Loop in storage order.** A 2D array is stored row by row, so the inner loop should walk along a row. Summing a large grid column by column can be ten times slower or more than row by row.
+      - **Struct of arrays** (one array per field) beats an array of structs when hot loops touch only a few fields of many objects, because every byte loaded is used. That's the core idea of **data-oriented design**.
+      - **False sharing**: two threads writing different variables in the same cache line slow each other down. Give such data its own line with `alignas(64)`.
+
+      Caches make performance hard to guess, so measure before and after with a profiler.
+    example: |
+      #include <iostream>
+      #include <set>
+
+      int main() {
+          // Which 64-byte cache lines do the reads touch? Row by row vs column by column,
+          // over an 8 x 16 grid of 4-byte ints stored row by row.
+          const int rows = 8, cols = 16, line = 64;
+          std::set<int> first4_row, first4_col;
+          for (int k = 0; k < 4; k++) {
+              first4_row.insert((0 * cols + k) * 4 / line);   // walk along row 0
+              first4_col.insert((k * cols + 0) * 4 / line);   // walk down column 0
+          }
+          std::cout << "4 reads along a row touch " << first4_row.size() << " line(s)\n";
+          std::cout << "4 reads down a column touch " << first4_col.size() << " line(s)\n";
+          std::cout << "the whole grid is " << rows * cols * 4 / line << " lines\n";
+          return 0;
+      }

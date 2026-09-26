@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
-import { moduleById, drillsByTopic } from "../content";
+import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
+import { moduleById, drills, findStep, stepPath } from "../content";
 import { getState, patchStep, useStore } from "../state/store";
 import Markdown from "../components/Markdown";
 import Workbench from "../components/Workbench";
@@ -9,11 +9,13 @@ import { visualsForStep } from "../content/visuals";
 import ShareButton from "../components/ShareButton";
 
 export default function StepPage() {
-  const { moduleId = "", stepNo = "1" } = useParams();
+  const { moduleId = "", stepKey = "" } = useParams();
   const nav = useNavigate();
+  const { hash } = useLocation();
   const m = moduleById.get(moduleId);
-  const idx = Math.max(0, parseInt(stepNo, 10) - 1);
-  const step = m?.steps[idx];
+  const found = m ? findStep(m, stepKey) : null;
+  const step = found?.step;
+  const idx = m && step ? m.steps.indexOf(step) : 0;
   const progress = useStore((s) => (step ? s.steps[step.id] : undefined));
   const [justPassed, setJustPassed] = useState<string | null>(null);
   const [finishedModule, setFinishedModule] = useState(false);
@@ -26,19 +28,23 @@ export default function StepPage() {
   const onPass = useCallback(
     ({ hintsUsed, sawSolution }: { hintsUsed: number; sawSolution: boolean }) => {
       if (!step || !m) return;
-      const wasUnlocked = m.steps.some((st) => getState().steps[st.id]?.done);
       const first = !getState().steps[step.id]?.done;
+      // Drills this step teaches that the learner hasn't met yet join Deathmatch now.
+      const newDrills = first && !getState().settings.unlockAll ? drills.filter((d) => d.step === step.id && !getState().drills[d.id] && !getState().placed.includes(d.topic)).length : 0;
       patchStep(step.id, { done: true, doneAt: first ? Date.now() : getState().steps[step.id]?.doneAt, clean: first ? hintsUsed === 0 && !sawSolution : getState().steps[step.id]?.clean });
       const moduleDone = m.steps.every((st) => st.id === step.id || getState().steps[st.id]?.done);
-      if (!wasUnlocked && (drillsByTopic.get(m.id) ?? 0) > 0) setJustPassed(`New Deathmatch topic unlocked: ${m.title}`);
-      else if (moduleDone && first) {
+      if (moduleDone && first) {
         setJustPassed(`Module complete: ${m.title}`);
         setFinishedModule(true);
       }
+      else if (newDrills > 0) setJustPassed(`Step complete: ${newDrills} new Deathmatch drill${newDrills === 1 ? "" : "s"} unlocked`);
       else setJustPassed("Step complete");
     },
     [step, m],
   );
+
+  // Old numbered addresses open the step they always did, at its permanent address.
+  if (m && step && found?.numbered) return <Navigate to={stepPath(m, step) + hash} replace />;
 
   if (!m || !step) {
     return (
@@ -49,8 +55,8 @@ export default function StepPage() {
     );
   }
 
-  const prev = idx > 0 ? `/learn/${m.id}/${idx}` : null;
-  const next = idx + 1 < m.steps.length ? `/learn/${m.id}/${idx + 2}` : null;
+  const prev = idx > 0 ? stepPath(m, m.steps[idx - 1]) : null;
+  const next = idx + 1 < m.steps.length ? stepPath(m, m.steps[idx + 1]) : null;
   const done = !!progress?.done;
 
   return (
@@ -81,7 +87,7 @@ export default function StepPage() {
             {m.steps.map((st, i) => (
               <Link
                 key={st.id}
-                to={`/learn/${m.id}/${i + 1}`}
+                to={stepPath(m, st)}
                 className={"dot" + (i === idx ? " dot-cur" : "") + (getState().steps[st.id]?.done ? " dot-done" : "")}
                 title={st.title}
                 aria-label={`Step ${i + 1}: ${st.title}`}
@@ -119,7 +125,7 @@ export default function StepPage() {
             onHint={(n) => patchStep(step.id, { hintsUsed: n })}
             onSave={(code, blanks) => patchStep(step.id, { code, blanks })}
             onPass={onPass}
-            report={{ kind: "Lesson step", title: `${m.title}: ${step.title}`, id: step.id, path: `/learn/${m.id}/${idx + 1}` }}
+            report={{ kind: "Lesson step", title: `${m.title}: ${step.title}`, id: step.id, path: stepPath(m, step) }}
           />
           <div className="step-nav">
             {prev ? (

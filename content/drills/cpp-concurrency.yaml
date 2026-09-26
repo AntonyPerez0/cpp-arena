@@ -201,3 +201,31 @@ drills:
       bool c = f.test_and_set();
       std::cout << a << b << c << "\n";
     why: "Since C++20 a default-constructed atomic_flag starts clear. test_and_set sets it and returns the old value: false, then true. After clear() the next call sees false again. A spinlock is exactly this: lock loops until test_and_set returns false."
+  - type: choice
+    prompt: What does it mean for a data structure to be lock-free?
+    choices:
+      - At any moment some thread makes progress; a paused thread can't block the others
+      - Every thread finishes each operation in a fixed number of steps
+      - It's always faster than the same structure with a mutex
+      - It needs no atomic operations
+    answer: 1
+    why: "Lock-free means the system as a whole always moves forward, even if one thread is descheduled mid-operation. \"Every thread finishes in bounded steps\" is the stronger wait-free guarantee, and a plain mutex is often faster when there's little contention."
+  - type: predict
+    after: cpp-concurrency-8
+    body: |
+      std::atomic<int> head{7};
+      int seen = head.load();
+      head.store(3);
+      head.store(7);
+      bool ok = head.compare_exchange_strong(seen, 9);
+      std::cout << ok << " " << head.load() << "\n";
+    why: "The value went 7, 3, 7. Compare-and-swap only compares values, so it can't tell that anything happened and the swap succeeds. That's the ABA problem; a tag that changes on every write would make this CAS fail."
+  - type: choice
+    prompt: "A lock-free stack stores a version tag next to its head index and adds one to it on every change. Why?"
+    choices:
+      - So a compare-and-swap from a stale head fails even if the same node is back on top (the ABA problem)
+      - To count how many elements are on the stack
+      - So the stack can grow beyond 2^32 elements
+      - Because atomics can only hold even numbers of bytes
+    answer: 1
+    why: "Without the tag, a head that went A, B, A looks unchanged, and a delayed pop would install a stale next pointer. The tag makes the old and new A different values, so the late CAS fails and retries."

@@ -12,6 +12,8 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { spawn } from "node:child_process";
 import YAML from "yaml";
+import { assignDrillSteps } from "./drill-steps.mjs";
+import { applyStepUrls, readStepUrls, writeStepUrls, STEP_URLS_FILE } from "./step-urls.mjs";
 import {
   parseTemplate,
   templateSolution,
@@ -331,7 +333,7 @@ async function buildDrills(moduleIds) {
 }
 
 async function buildDrill(where, id, topic, lang, d) {
-  const base = { id, topic, lang, type: d.type, why: d.why ?? "" };
+  const base = { id, topic, lang, type: d.type, why: d.why ?? "", ...(d.after ? { after: d.after } : {}) };
   if (!d.why && d.type !== "compiles") warnings.push(`${where}: no explanation (why)`);
   const pre = d.pre ? d.pre.replace(/\s*$/, "") : "";
   const body = d.body ? d.body.replace(/\s*$/, "") : "";
@@ -535,11 +537,24 @@ function buildPro() {
 // ---------------------------------------------------------------- main
 const t0 = Date.now();
 const modules = await buildLessons();
+{
+  // Stable step addresses (see scripts/step-urls.mjs). New steps get their address pinned here.
+  const urls = readStepUrls(ROOT);
+  if (applyStepUrls(modules, urls, errors, warnings) && !errors.length) {
+    writeStepUrls(ROOT, urls);
+    console.log(`${STEP_URLS_FILE}: pinned addresses for new steps (commit this file)`);
+  }
+}
 const projects = await buildProjects();
 const drills = await buildDrills(new Set(modules.map((m) => m.id)));
+// Each drill unlocks in Deathmatch once the learner has done the step that teaches it.
+assignDrillSteps(modules, drills, errors);
 const pro = buildPro();
 const placement = await buildPlacement(modules);
 const topics = await buildTopics(modules);
+// The "Where to go next" page (/next).
+const next = YAML.parse(fs.readFileSync(path.join(ROOT, "content/next.yaml"), "utf8"));
+for (const k of ["title", "description", "body"]) if (!next?.[k]) errors.push(`content/next.yaml: missing ${k}`);
 {
   const seenSteps = new Set();
   for (const m of modules) for (const st of m.steps) {
@@ -559,7 +574,7 @@ if (errors.length) {
   console.error(`\n${errors.length} content error(s).`);
   process.exit(1);
 }
-const content = { generatedAt: new Date().toISOString(), modules, projects, drills, pro, placement, topics };
+const content = { generatedAt: new Date().toISOString(), modules, projects, drills, pro, placement, topics, next };
 fs.mkdirSync(path.join(ROOT, "src/generated"), { recursive: true });
 fs.writeFileSync(path.join(ROOT, "src/generated/content.json"), JSON.stringify(content));
 const steps = modules.reduce((a, m) => a + m.steps.length, 0);
