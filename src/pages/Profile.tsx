@@ -1,3 +1,4 @@
+import { useDownloadMegabytes } from "../components/MobileDataCard";
 import { useState } from "react";
 import SyncPanel, { IncomingTransfer } from "../components/SyncPanel";
 import { modules } from "../content";
@@ -14,6 +15,7 @@ export default function Profile() {
   useTitle("Your progress");
   const s = useStore((x) => x);
   const r = rankFor(s.dm.best.deathmatch);
+  const mb = useDownloadMegabytes();
   const t = totals(s);
   const ts = topicStats(s);
   const [msg, setMsg] = useState("");
@@ -173,7 +175,7 @@ export default function Profile() {
         </p>
         <label className="small">
           <input type="checkbox" checked={s.settings.mobileData} onChange={(e) => patchSettings({ mobileData: e.target.checked })} /> Download the compiler automatically on mobile data
-          (otherwise lessons ask first; it's about 95 MB, once)
+          (otherwise lessons ask first; it's {mb ? `about ${mb.cpp} MB` : "a large download"}, once)
         </label>
         <div className="actions">
           <CompilerBadge />

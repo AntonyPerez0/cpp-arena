@@ -17,6 +17,7 @@ import Daily from "./pages/Daily";
 import { TopicIndex, TopicPage } from "./pages/Topics";
 import Certificate from "./pages/Certificate";
 import Next from "./pages/Next";
+import Playground from "./pages/Playground";
 import { patchSettings, useStore } from "./state/store";
 import { useAppearance, useResolvedTheme } from "./lib/appearance";
 import { REPO_URL } from "./lib/site";
@@ -80,6 +81,7 @@ function Footer() {
         <Link to="/deathmatch">Interview prep</Link>
         <Link to="/certificate">Certificates</Link>
         <Link to="/next">Where to go next</Link>
+        <Link to="/playground">Playground</Link>
         <a href={`${REPO_URL}/issues/new`} target="_blank" rel="noopener noreferrer">
           Report a problem<span className="visually-hidden"> (opens GitHub in a new tab)</span>
         </a>
@@ -113,6 +115,7 @@ export default function App() {
           <NavLink to="/deathmatch">Deathmatch</NavLink>
           <NavLink to="/daily">Daily</NavLink>
           <NavLink to="/projects">Projects</NavLink>
+          <NavLink to="/playground">Playground</NavLink>
           <NavLink to="/pro">Pro</NavLink>
           <NavLink to="/profile">Profile</NavLink>
         </nav>
@@ -136,6 +139,7 @@ export default function App() {
           <Route path="/daily" element={<Daily />} />
           <Route path="/certificate" element={<Certificate />} />
           <Route path="/next" element={<Next />} />
+          <Route path="/playground" element={<Playground />} />
           <Route path="/topics" element={<TopicIndex />} />
           <Route path="/topics/:slug" element={<TopicPage />} />
           <Route path="/visualize" element={<VisualIndex />} />

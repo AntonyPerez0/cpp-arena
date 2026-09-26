@@ -250,6 +250,18 @@ page("/placement", {
   description: `${(content.placement ?? []).length} quick questions from printf to smart pointers that show which lessons you can skip.`,
   body: `<h1>Placement quiz</h1><p>Already know some C or C++? Answer ${(content.placement ?? []).length} quick questions to find your starting point and skip what you know.</p>`,
 });
+page("/playground", {
+  title: `Online C and C++ compiler: run code in your browser | ${NAME}`,
+  description: "Write, compile and run C and C++ programs in your browser with a real Clang compiler. Free, no sign-up, with input, compiler errors in plain English and share links.",
+  body: `<h1>Playground</h1>
+<p>Write any C or C++ program and run it here. It's compiled by a real Clang compiler that runs inside your browser, so nothing is uploaded and it keeps working offline once loaded.</p>
+<ul>
+<li>C17 and C++20, including C++ exceptions.</li>
+<li>Give your program input, and see its output, crashes and compiler errors explained in plain English.</li>
+<li>Your code is saved in your browser, and Share makes a link that carries it.</li>
+</ul>
+<p>New to C or C++? <a href="${link("/learn")}">Start the course</a>.</p>`,
+});
 page("/next", {
   title: `${content.next.title} | ${NAME}`,
   description: content.next.description,
@@ -282,6 +294,7 @@ function render(p) {
     ["/deathmatch", "Deathmatch"],
     ["/daily", "Daily"],
     ["/projects", "Projects"],
+    ["/playground", "Playground"],
     ["/pro", "Pro"],
     ["/profile", "Profile"],
   ]

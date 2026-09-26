@@ -2,22 +2,9 @@
 //  - a transfer link (progress compressed into the address, also shown as a QR code)
 //  - an optional private GitHub Gist, using a token the learner creates
 import { exportProgress, getState, mergeStates, parseProgress, subscribe, update, type State } from "../state/store";
+import { fromB64url, pipe, toB64url } from "./pack";
 
 // ------------------------------------------------------------ transfer link
-const toB64url = (bytes: Uint8Array) => {
-  let s = "";
-  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-};
-const fromB64url = (s: string) => {
-  const bin = atob(s.replace(/-/g, "+").replace(/_/g, "/"));
-  return Uint8Array.from(bin, (c) => c.charCodeAt(0));
-};
-
-async function pipe(data: Uint8Array, stream: CompressionStream | DecompressionStream): Promise<Uint8Array> {
-  const out = new Response(new Blob([data as BlobPart]).stream().pipeThrough(stream));
-  return new Uint8Array(await out.arrayBuffer());
-}
 
 /** The progress without saved code (code can be large; the Gist keeps it). */
 function slim(s: State): State {

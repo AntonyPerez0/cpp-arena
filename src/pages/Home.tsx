@@ -1,3 +1,4 @@
+import { useDownloadMegabytes } from "../components/MobileDataCard";
 import { Link } from "react-router-dom";
 import { useStore } from "../state/store";
 import { nextStep, rankFor, totals, dailyStreak, dailyChallengeStreak, localDay } from "../state/derived";
@@ -9,6 +10,7 @@ export default function Home() {
   useTitle(null);
   const s = useStore((x) => x);
   const t = totals(s);
+  const mb = useDownloadMegabytes();
   const next = nextStep(s);
   const r = rankFor(s.dm.best.deathmatch);
   const streak = dailyStreak(s.dm.days);
@@ -44,9 +46,12 @@ export default function Home() {
               Already know some C or C++? <Link to="/placement">Take the 5-minute placement quiz</Link> and skip what you know.
             </p>
           )}
+          <p className="small">
+            Just want to run some code? <Link to="/playground">Open the playground</Link>: any C or C++ program, with input and share links.
+          </p>
           <div className="hero-compiler">
             <CompilerBadge />
-            <span className="muted small">The compiler downloads once (about 95 MB, the whole Clang/LLVM toolchain), then loads from your browser's cache.</span>
+            <span className="muted small">The compiler downloads once ({mb ? `about ${mb.c} MB, ${mb.cpp} MB with the C++ extras` : "the whole Clang/LLVM toolchain"}), then loads from your browser's cache.</span>
           </div>
         </div>
       </section>
