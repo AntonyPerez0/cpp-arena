@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { Exercise } from "../content/types";
 import { grade, runOnly, type GradeResult } from "../grader/grade";
 import { fillTemplate, parseTemplate } from "../grader/assemble.js";
@@ -8,8 +8,7 @@ import Results, { DiagnosticList } from "./Results";
 import Markdown from "./Markdown";
 import { CodeView } from "./highlight";
 import { useCompilerStatus } from "./CompilerBadge";
-import { ensureCompiler, mayAutoDownload } from "../compiler/client";
-import { getState, patchSettings, useStore } from "../state/store";
+import MobileDataCard, { useCompilerAutoload } from "./MobileDataCard";
 import SymbolBar from "./SymbolBar";
 import ReportLink from "./ReportLink";
 import type { ReportInfo } from "../lib/site";
@@ -56,19 +55,7 @@ export default function Workbench({ ex, initialCode, initialBlanks, hintsUsed, o
   const boxRef = useRef<HTMLDivElement>(null);
 
   // Start the compiler download right away, unless that would cost mobile data: then ask first.
-  const [askData, setAskData] = useState(false);
-  const allowMobileData = useStore((s) => s.settings.mobileData);
-  useEffect(() => {
-    let live = true;
-    mayAutoDownload(getState().settings.mobileData).then((ok) => {
-      if (!live) return;
-      if (ok) ensureCompiler({ warmCpp: ex.lang === "cpp" });
-      else setAskData(true);
-    });
-    return () => {
-      live = false;
-    };
-  }, [ex.lang]);
+  const askData = useCompilerAutoload(ex.lang);
 
   const source = isFill ? fillTemplate(ex.seed, blanks) : code;
 
@@ -122,23 +109,7 @@ export default function Workbench({ ex, initialCode, initialBlanks, hintsUsed, o
 
   return (
     <div className="workbench" ref={boxRef}>
-      {askData && compiler.state === "idle" && (
-        <div className="card data-card">
-          <p>
-            <b>You're on mobile data.</b> Checking your code needs the compiler, a one-time download of about {ex.lang === "cpp" ? "115" : "95"} MB. After that
-            it's saved on this device.
-          </p>
-          <div className="actions">
-            <button className="btn btn-primary" onClick={() => ensureCompiler({ warmCpp: ex.lang === "cpp" })}>
-              Download compiler
-            </button>
-            <label className="small">
-              <input type="checkbox" checked={allowMobileData} onChange={(e) => patchSettings({ mobileData: e.target.checked })} /> Always download on mobile data
-            </label>
-          </div>
-          <p className="muted small">Or read the lesson now and check your code on Wi-Fi. Pressing Check also starts the download.</p>
-        </div>
-      )}
+      {askData && <MobileDataCard lang={ex.lang} what="Checking your code" later="Or read the lesson now and check your code on Wi-Fi. Pressing Check also starts the download." />}
       {isFill ? (
         <FillCode
           template={ex.seed}

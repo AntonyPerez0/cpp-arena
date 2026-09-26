@@ -8,7 +8,12 @@ import Clang from "browsercc/dist/clang.js";
 import LLD from "browsercc/dist/lld.js";
 import { Toolchain } from "./core.js";
 
-type Manifest = { version: string; files: Record<string, number> };
+/** `files`: full sizes. `gzip`: sizes of the .gz copies, fetched instead when the browser can unpack them. */
+type Manifest = { version: string; files: Record<string, number>; gzip?: Record<string, number> };
+
+const canGunzip = typeof DecompressionStream === "function";
+/** The number of bytes actually downloaded for a file. */
+const downloadSize = (f: string) => (canGunzip && manifest!.gzip?.[f]) || manifest!.files[f];
 
 let toolchain: Toolchain | null = null;
 let readyPromise: Promise<void> | null = null;
@@ -24,8 +29,8 @@ function post(msg: unknown, transfer: Transferable[] = []) {
 function reportProgress(stage: string) {
   if (!manifest) return;
   const core = ["clang.wasm", "lld.wasm", "sysroot.tar"];
-  const total = core.reduce((a, f) => a + manifest!.files[f], 0);
-  const loaded = core.reduce((a, f) => a + Math.min(progress[f] || 0, manifest!.files[f]), 0);
+  const total = core.reduce((a, f) => a + downloadSize(f), 0);
+  const loaded = core.reduce((a, f) => a + Math.min(progress[f] || 0, downloadSize(f)), 0);
   post({ type: "progress", loaded, total, stage });
 }
 
@@ -45,25 +50,23 @@ async function fetchCached(file: string): Promise<ArrayBuffer> {
   } catch {
     cache = null;
   }
-  const res = await fetch(url);
+  // The gzip copy is about a third of the size; the browser unpacks it as it arrives.
+  const gz = canGunzip && !!manifest?.gzip?.[file];
+  const res = await fetch(gz ? url + ".gz" : url);
   if (!res.ok || !res.body) throw new Error(`Could not download ${file} (HTTP ${res.status})`);
-  const reader = res.body.getReader();
-  const chunks: Uint8Array[] = [];
   let got = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-    got += value.length;
-    progress[file] = got;
-    reportProgress("download");
-  }
-  const out = new Uint8Array(got);
-  let off = 0;
-  for (const c of chunks) {
-    out.set(c, off);
-    off += c.length;
-  }
+  let body: ReadableStream<Uint8Array> = res.body.pipeThrough(
+    new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, ctl) {
+        got += chunk.length;
+        progress[file] = got;
+        reportProgress("download");
+        ctl.enqueue(chunk);
+      },
+    }),
+  );
+  if (gz) body = body.pipeThrough(new DecompressionStream("gzip") as unknown as TransformStream<Uint8Array, Uint8Array>);
+  const out = new Uint8Array(await new Response(body).arrayBuffer());
   if (cache) {
     try {
       await cache.put(url, new Response(out, { headers: { "Content-Type": "application/octet-stream" } }));

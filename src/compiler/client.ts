@@ -57,11 +57,30 @@ export function onMobileData(): boolean {
   return !!c && (c.saveData === true || c.type === "cellular" || c.effectiveType === "2g" || c.effectiveType === "slow-2g");
 }
 
+type Manifest = { version: string; files: Record<string, number>; gzip?: Record<string, number> };
+let manifestPromise: Promise<Manifest | null> | null = null;
+function loadManifest() {
+  manifestPromise ??= fetch(import.meta.env.BASE_URL + "toolchain/manifest.json", { cache: "no-cache" })
+    .then((r) => (r.ok ? (r.json() as Promise<Manifest>) : null))
+    .catch(() => null);
+  return manifestPromise;
+}
+
+/** Megabytes the compiler download costs for C and for C++ (which adds the precompiled header). */
+export async function downloadMegabytes(): Promise<{ c: number; cpp: number } | null> {
+  const m = await loadManifest();
+  if (!m) return null;
+  const size = (f: string) => (typeof DecompressionStream === "function" && m.gzip?.[f]) || m.files[f] || 0;
+  const c = size("clang.wasm") + size("lld.wasm") + size("sysroot.tar");
+  return { c: Math.round(c / 1e6), cpp: Math.round((c + size("stdc++.h.pch")) / 1e6) };
+}
+
 /** Whether this version of the toolchain is already saved in the browser, so loading it costs no data. */
 export async function compilerCached(): Promise<boolean> {
   try {
-    const res = await fetch(import.meta.env.BASE_URL + "toolchain/manifest.json", { cache: "no-cache" });
-    const { version } = await res.json();
+    const m = await loadManifest();
+    if (!m) return false;
+    const { version } = m;
     if (!(await caches.keys()).includes("cpp-arena-toolchain-" + version)) return false;
     const cache = await caches.open("cpp-arena-toolchain-" + version);
     return (await cache.keys()).length >= 3;

@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { ensureCompiler, getCompilerStatus, subscribeCompiler } from "../compiler/client";
+import { useDownloadMegabytes } from "./MobileDataCard";
 
 export function useCompilerStatus() {
   return useSyncExternalStore(subscribeCompiler, getCompilerStatus, getCompilerStatus);
@@ -7,9 +8,10 @@ export function useCompilerStatus() {
 
 export default function CompilerBadge({ compact }: { compact?: boolean }) {
   const s = useCompilerStatus();
+  const mb = useDownloadMegabytes();
   if (s.state === "idle")
     return (
-      <button className="pill pill-idle" onClick={() => ensureCompiler()} title="Download the in-browser C/C++ compiler (one time, about 95 MB)">
+      <button className="pill pill-idle" onClick={() => ensureCompiler()} title={`Download the in-browser C/C++ compiler (one time${mb ? `, about ${mb.c} MB` : ""})`}>
         ⚙ Load compiler
       </button>
     );

@@ -10,6 +10,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import zlib from "node:zlib";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
@@ -99,8 +100,34 @@ if (!fs.existsSync(pchOut) || !fs.existsSync(stamp) || fs.readFileSync(stamp, "u
   console.log(`[copy-toolchain] built the precompiled header in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
 }
 
+// ---------------------------------------------------------------- gzip copies
+// About a third of the size; the compiler worker downloads these and unpacks them as they
+// arrive (DecompressionStream), falling back to the full files in browsers without it.
+// Served as plain .gz files, so this works whether or not the host compresses on its own.
+const FILES = ["clang.wasm", "lld.wasm", "sysroot.tar", "stdc++.h.pch"];
+const gzKeysFile = path.join(out, "gz.keys");
+let gzKeys = {};
+try {
+  gzKeys = JSON.parse(fs.readFileSync(gzKeysFile, "utf8"));
+} catch {
+  /* first run */
+}
+for (const f of FILES) {
+  const raw = fs.readFileSync(path.join(out, f));
+  const hash = crypto.createHash("sha256").update(raw).digest("hex");
+  if (gzKeys[f] === hash && fs.existsSync(path.join(out, f + ".gz"))) continue;
+  const t0 = Date.now();
+  fs.writeFileSync(path.join(out, f + ".gz"), zlib.gzipSync(raw, { level: 9 }));
+  gzKeys[f] = hash;
+  console.log(`[copy-toolchain] compressed ${f} in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+}
+fs.writeFileSync(gzKeysFile, JSON.stringify(gzKeys));
+
 // The version names the browser's cache, so any change here makes browsers fetch the new files once.
-const manifest = { version: `${version}+eh.${key}`, files: {} };
-for (const f of ["clang.wasm", "lld.wasm", "sysroot.tar", "stdc++.h.pch"]) manifest.files[f] = fs.statSync(path.join(out, f)).size;
+const manifest = { version: `${version}+eh.${key}`, files: {}, gzip: {} };
+for (const f of FILES) {
+  manifest.files[f] = fs.statSync(path.join(out, f)).size;
+  manifest.gzip[f] = fs.statSync(path.join(out, f + ".gz")).size;
+}
 fs.writeFileSync(path.join(out, "manifest.json"), JSON.stringify(manifest, null, 2));
 console.log(`[copy-toolchain] browsercc ${version} with exception-enabled C++ libraries -> public/toolchain`);

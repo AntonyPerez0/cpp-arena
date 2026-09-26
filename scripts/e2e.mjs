@@ -364,13 +364,45 @@ await test("mobile layout renders the step page", async () => {
   await page.setViewportSize({ width: 1360, height: 900 });
 });
 
+await test("playground: runs C and C++ with input, shows errors and crashes, and share links carry the code", async () => {
+  await go("/playground");
+  await page.getByRole("heading", { name: "Playground", level: 1 }).waitFor();
+  await page.getByLabel("C (C17)").check();
+  await setEditor('#include <stdio.h>\nint main(void) {\n    int a, b;\n    if (scanf("%d %d", &a, &b) == 2) printf("sum %d\\n", a + b);\n    return 0;\n}\n');
+  await page.getByLabel(/^Input/).fill("20 22");
+  await page.getByRole("button", { name: /^▶ Run/ }).click();
+  await page.locator(".playground .console", { hasText: "sum 42" }).waitFor({ timeout: 60000 });
+  await page.getByLabel("C++ (C++20)").check();
+  await setEditor('#include <iostream>\nint main() { std::cout << "x" << y; }\n');
+  await page.getByRole("button", { name: /^▶ Run/ }).click();
+  await page.locator(".playground .banner", { hasText: "It didn't compile" }).waitFor({ timeout: 60000 });
+  await setEditor('#include <stdexcept>\nint main() { throw std::logic_error("oops"); }\n');
+  await page.getByRole("button", { name: /^▶ Run/ }).click();
+  await page.getByText(/terminate called after throwing an instance of 'std::logic_error'/).first().waitFor({ timeout: 60000 });
+  // Share, then open the link in a fresh browser: the program and input come along.
+  await setEditor('#include <iostream>\n#include <string>\nint main() { std::string w; std::cin >> w; std::cout << "shared " << w << "\\n"; }\n');
+  await page.getByLabel(/^Input/).fill("hello");
+  await page.getByRole("button", { name: "Share" }).click();
+  const link = await page.getByLabel("Share link").inputValue();
+  if (!/\/playground#code=/.test(link)) throw new Error("unexpected share link " + link);
+  const ctx = await browser.newContext({ serviceWorkers: "block" });
+  const pg = await ctx.newPage();
+  await pg.goto(link.replace(/^https?:\/\/[^/]+\//, BASE));
+  await pg.getByLabel(/^Input/).and(pg.locator("textarea")).waitFor();
+  await pg.waitForFunction(() => document.querySelector("#pg-stdin")?.value === "hello", null, { timeout: 10000 });
+  if (!(await pg.getByLabel("C++ (C++20)").isChecked())) throw new Error("shared link lost the language");
+  await pg.getByRole("button", { name: /^▶ Run/ }).click();
+  await pg.locator(".playground .console", { hasText: "shared hello" }).waitFor({ timeout: 240000 });
+  await ctx.close();
+});
+
 await test("mobile data: the compiler downloads only after asking, then stays saved", async () => {
   // A fresh browser (nothing cached) that reports mobile data, like Chrome on Android does.
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
   await ctx.addInitScript(() => Object.defineProperty(navigator, "connection", { value: { type: "cellular", effectiveType: "4g", saveData: false, addEventListener() {} } }));
   const pg = await ctx.newPage();
   const wasm = [];
-  pg.on("request", (r) => /\/toolchain\/.+\.(wasm|tar|pch)$/.test(r.url()) && wasm.push(r.url()));
+  pg.on("request", (r) => /\/toolchain\/.+\.(wasm|tar|pch)(\.gz)?$/.test(r.url()) && wasm.push(r.url()));
   await pg.goto(BASE + L("c-hello", 1).slice(1));
   await pg.getByText("You're on mobile data.").waitFor();
   await pg.waitForTimeout(1500);
@@ -378,6 +410,8 @@ await test("mobile data: the compiler downloads only after asking, then stays sa
   await pg.getByRole("button", { name: "Download compiler" }).click();
   await pg.getByText("Compiler ready").first().waitFor({ timeout: 240000 });
   if (!wasm.length) throw new Error("the Download button didn't fetch the compiler");
+  // Browsers that can unpack gzip download the compressed copies (about a third of the size).
+  if (wasm.some((u) => !u.endsWith(".gz"))) throw new Error("fetched an uncompressed toolchain file: " + wasm.find((u) => !u.endsWith(".gz")));
   // Saved in the browser now, so the next lesson loads it without asking (and without new downloads).
   wasm.length = 0;
   await pg.goto(BASE + L("c-hello", 2).slice(1));
@@ -705,7 +739,7 @@ await test("phone width: pages fit the screen and pass axe", async () => {
       localStorage.setItem("cpp-arena-v1", JSON.stringify({ version: 1, steps: {}, projects: {}, drills: {}, settings: { sound: false, unlockAll: true, topics: null, boss: false, keys: true } }));
   });
   const pp = await phone.newPage();
-  const routes = ["/", "/learn", L("c-pointers", 5), L("cpp-basics", 7), L("dsa-dp", 6), "/deathmatch", "/projects/calculator", "/pro/performance", "/topics/std-map", "/visualize/list-push", "/profile", "/next", "/topics/memory-ordering"];
+  const routes = ["/", "/learn", L("c-pointers", 5), L("cpp-basics", 7), L("dsa-dp", 6), "/deathmatch", "/projects/calculator", "/pro/performance", "/topics/std-map", "/visualize/list-push", "/profile", "/next", "/topics/memory-ordering", "/playground"];
   const problems = [];
   for (const r of routes) {
     await pp.goto(BASE + r.replace(/^\//, ""));
@@ -814,7 +848,7 @@ await test("SEO: real URLs, per-page metadata, sitemap and old hash links", asyn
   const sitemap = await get("sitemap.xml");
   const urls = (sitemap.match(/<loc>/g) ?? []).length;
   if (urls < 380) throw new Error("sitemap has only " + urls + " URLs");
-  for (const p of ["/topics/c-pointers/", "/visualize/list-push/", "/daily/", "/placement/", "/next/"]) if (!sitemap.includes(p)) throw new Error("sitemap is missing " + p);
+  for (const p of ["/topics/c-pointers/", "/visualize/list-push/", "/daily/", "/placement/", "/next/", "/playground/"]) if (!sitemap.includes(p)) throw new Error("sitemap is missing " + p);
   const topicHtml = await get("topics/c-pointers/");
   if (!/"@type":"TechArticle"/.test(topicHtml) || !/<h1>Pointers in C explained<\/h1>/.test(topicHtml)) throw new Error("topic page is not pre-rendered");
   const manifest = await page.request.get(BASE + "manifest.webmanifest");
