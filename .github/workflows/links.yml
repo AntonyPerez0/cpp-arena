@@ -1,0 +1,54 @@
+name: Check outside links
+
+# Every Monday (or on demand from the Actions tab), checks the outside links the site shows
+# (scripts/check-links.mjs). Broken ones go into a single "Broken outside links" issue,
+# which is updated while any stay broken and closed once they all work again.
+on:
+  schedule:
+    - cron: "23 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: links
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check every outside link
+        id: check
+        run: |
+          status=0
+          node scripts/check-links.mjs --report report.md || status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          # 1 means broken links (reported below); anything else is the checker failing.
+          if [ "$status" -gt 1 ]; then exit "$status"; fi
+
+      - name: Open, update or close the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STATUS: ${{ steps.check.outputs.status }}
+        run: |
+          title="Broken outside links"
+          num=$(gh issue list --state open --search "\"$title\" in:title" --json number,title --jq ".[] | select(.title == \"$title\") | .number" | head -n 1)
+          if [ "$STATUS" = "1" ]; then
+            if [ -z "$num" ]; then
+              gh issue create --title "$title" --body-file report.md
+            elif [ "$(gh issue view "$num" --json body --jq .body)" != "$(cat report.md)" ]; then
+              gh issue edit "$num" --body-file report.md
+              gh issue comment "$num" --body "The list of broken links changed ($(date -u +%F)); the description above is up to date."
+            fi
+          elif [ -n "$num" ]; then
+            gh issue close "$num" --comment "Every outside link works again ($(date -u +%F))."
+          fi
