@@ -1,0 +1,47 @@
+name: Update the visit counter
+
+# Once a day, adds yesterday's visits from Cloudflare Web Analytics to the running total
+# on the `stats` branch (stats.json), which the home page shows. Runs only once the
+# repository variable CF_ACCOUNT_ID is set; see README.md ("Analytics").
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stats
+  cancel-in-progress: false
+
+jobs:
+  update:
+    if: vars.CF_ACCOUNT_ID != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Get the saved total
+        run: |
+          if git fetch --depth=1 origin stats; then git show origin/stats:stats.json > stats.json; else echo "No saved total yet: starting one."; fi
+
+      - name: Add the days since the last run
+        run: node scripts/update-stats.mjs stats.json
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ vars.CF_ACCOUNT_ID }}
+          CF_BEACON_TOKEN: ${{ vars.CF_BEACON_TOKEN }}
+          CF_SITE_TAG: ${{ vars.CF_SITE_TAG }}
+
+      - name: Save it to the stats branch (one commit, replaced each day)
+        run: |
+          mkdir out && cp stats.json out/ && cd out
+          git init -q -b stats
+          git add stats.json
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -qm "Visit total through $(node -p 'require("./stats.json").through')"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" stats

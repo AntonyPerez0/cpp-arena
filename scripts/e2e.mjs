@@ -46,9 +46,17 @@ const browser = await chromium.launch(exe ? { executablePath: exe } : { channel:
 // Deathmatch, the daily pick and choice order use Math.random. Seed it in every page so a run is
 // repeatable: the same seed gives the same drills in the same order. E2E_SEED picks another sequence.
 const SEED = Number(process.env.E2E_SEED ?? 1);
+// Test runs must not count as visits: the Cloudflare beacon (built in when CF_BEACON_TOKEN is
+// set) never loads here, and the visit total comes from this fixture, not GitHub.
+const STATS_RE = /^https:\/\/raw\.githubusercontent\.com\/.+\/stats\/stats\.json$/;
+const STATS_FIXTURE = { visits: 1234, pageViews: 5678, since: "2026-09-27", through: "2026-10-04" };
 const newContext = browser.newContext.bind(browser);
 browser.newContext = async (opts) => {
   const ctx = await newContext(opts);
+  await ctx.route(/^https:\/\/static\.cloudflareinsights\.com\//, (r) => r.fulfill({ status: 200, contentType: "text/javascript", body: "" }));
+  await ctx.route(STATS_RE, (r) =>
+    r.fulfill({ status: 200, contentType: "application/json", headers: { "Access-Control-Allow-Origin": "*" }, body: JSON.stringify(STATS_FIXTURE) }),
+  );
   await ctx.addInitScript((seed) => {
     let a = seed >>> 0;
     Math.random = () => {
@@ -417,6 +425,29 @@ await test("mobile data: the compiler downloads only after asking, then stays sa
   await pg.goto(BASE + L("c-hello", 2).slice(1));
   await pg.getByText("Compiler ready").first().waitFor({ timeout: 60000 });
   if (await pg.getByText("You're on mobile data.").count()) throw new Error("asked again although the compiler is saved");
+  await ctx.close();
+});
+
+await test("visit counter: shows the saved total once it's set up, and nothing otherwise", async () => {
+  const set = fs.readdirSync("dist/assets").some((f) => f.endsWith(".js") && fs.readFileSync(path.join("dist/assets", f), "utf8").includes("/stats/stats.json"));
+  const ctx = await browser.newContext({ serviceWorkers: "block" });
+  const pg = await ctx.newPage();
+  const asked = [];
+  pg.on("request", (r) => /stats\.json/.test(r.url()) && asked.push(r.url()));
+  await pg.goto(BASE);
+  await pg.getByText("writing real code").waitFor();
+  if (set) {
+    await pg.getByText("1,234 visits since September 2026").waitFor();
+    // A total that can't be loaded (not saved yet, or offline) leaves the line out.
+    await ctx.route(STATS_RE, (r) => r.fulfill({ status: 404, body: "" }));
+    await pg.reload();
+    await pg.getByText("writing real code").waitFor();
+    await pg.waitForTimeout(500);
+    if (await pg.locator(".visit-count").count()) throw new Error("showed a visit total that failed to load");
+  } else {
+    await pg.waitForTimeout(500);
+    if (asked.length || (await pg.locator(".visit-count").count())) throw new Error("the counter isn't set up, so nothing should be fetched or shown");
+  }
   await ctx.close();
 });
 

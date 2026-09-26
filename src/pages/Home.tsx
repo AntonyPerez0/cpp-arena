@@ -4,6 +4,7 @@ import { useStore } from "../state/store";
 import { nextStep, rankFor, totals, dailyStreak, dailyChallengeStreak, localDay } from "../state/derived";
 import { drills, modules, projects, pro, stepPath } from "../content";
 import CompilerBadge from "../components/CompilerBadge";
+import VisitCounter from "../components/VisitCounter";
 import { useTitle } from "../lib/title";
 
 export default function Home() {
@@ -53,6 +54,7 @@ export default function Home() {
             <CompilerBadge />
             <span className="muted small">The compiler downloads once ({mb ? `about ${mb.c} MB, ${mb.cpp} MB with the C++ extras` : "the whole Clang/LLVM toolchain"}), then loads from your browser's cache.</span>
           </div>
+          <VisitCounter />
         </div>
       </section>
 

@@ -55,6 +55,8 @@ jobs:
         env:
           # Optional: a Cloudflare Web Analytics token, set under Settings > Secrets and variables > Actions > Variables.
           CF_BEACON_TOKEN: ${{ vars.CF_BEACON_TOKEN }}
+          # The home page's visit total, kept by .github/workflows/stats.yml once CF_ACCOUNT_ID is set.
+          VITE_STATS_URL: ${{ vars.CF_ACCOUNT_ID != '' && format('https://raw.githubusercontent.com/{0}/stats/stats.json', github.repository) || '' }}
 
       - name: Install Chromium for the browser tests
         run: npx playwright install --with-deps chromium
