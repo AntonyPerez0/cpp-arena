@@ -62,6 +62,25 @@ jobs:
       - name: Browser tests, including accessibility (axe, WCAG 2.2 AA) and SEO checks
         run: npm run test:e2e
 
+      # Scores key pages like Google does for phones, and fails the PR if one drops below
+      # the thresholds in lighthouserc.json. Pull requests only, so a noisy score never blocks a deploy.
+      - name: Lighthouse (performance, accessibility, SEO, best practices)
+        if: github.event_name == 'pull_request' && env.BASE_PATH == '/'
+        run: |
+          set +e
+          npx --yes @lhci/cli@0.15.1 autorun
+          status=$?
+          node scripts/lighthouse-summary.mjs >> "$GITHUB_STEP_SUMMARY"
+          exit $status
+
+      - name: Keep the Lighthouse reports
+        if: always() && github.event_name == 'pull_request' && env.BASE_PATH == '/'
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-reports
+          path: lhci
+          if-no-files-found: ignore
+
       - name: Upload the site
         if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v3

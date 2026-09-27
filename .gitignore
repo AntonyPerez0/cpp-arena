@@ -6,3 +6,5 @@ public/toolchain
 test-results
 public/visuals
 src/generated/visuals.json
+lhci
+.lighthouseci
