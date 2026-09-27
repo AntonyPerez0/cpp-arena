@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Skull } from "lucide-react";
 import type { Drill } from "../content/types";
 import { getState } from "../state/store";
 import { checkAnswer, TYPE_LABEL, topicTitle } from "./engine";
@@ -63,7 +64,9 @@ function PredictRep({ drill, onAnswer }: { drill: Drill; onAnswer: (g: string, o
           autoComplete="off"
           autoCorrect="off"
         />
-        <button className="btn btn-primary">Fire ↵</button>
+        <button className="btn btn-primary">
+          Fire <kbd aria-hidden="true">↵</kbd>
+        </button>
       </form>
       <div className="muted small">Line breaks and spaces are flexible: "1 2 3" matches three lines of 1, 2, 3.</div>
     </>
@@ -84,7 +87,7 @@ function FillRep({ drill, onAnswer }: { drill: Drill; onAnswer: (g: string, ok: 
       )}
       <div className="rep-answer">
         <button className="btn btn-primary" onClick={submit}>
-          Fire ↵
+          Fire <kbd aria-hidden="true">↵</kbd>
         </button>
       </div>
     </>
@@ -221,12 +224,19 @@ function BossRep({ drill, onAnswer }: { drill: Drill; onAnswer: (g: string, ok: 
   };
   return (
     <>
-      <div className="boss-banner">☠ BOSS REP · {shots} shot{shots === 1 ? "" : "s"} left</div>
+      <div className="boss-banner">
+        <Skull className="icon" aria-hidden="true" /> BOSS REP · {shots} shot{shots === 1 ? "" : "s"} left</div>
       <Markdown text={drill.prompt} />
       <CodeEditor value={code} onChange={setCode} onRun={fire} diagnostics={result?.diagnostics} minHeight="180px" />
       <div className="actions">
         <button className="btn btn-primary" onClick={fire} disabled={busy}>
-          {busy ? "Compiling…" : "Fire  ⌃↵"}
+          {busy ? (
+            "Compiling…"
+          ) : (
+            <>
+              Fire <kbd aria-hidden="true">⌃↵</kbd>
+            </>
+          )}
         </button>
         <button className="btn btn-ghost" onClick={() => onAnswer("(gave up)", false)}>
           Give up

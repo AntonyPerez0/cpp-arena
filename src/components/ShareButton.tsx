@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Share2 } from "lucide-react";
 import { shareCard, type Card } from "../lib/share";
 
 /** Makes a share image for an achievement and opens the share sheet (or downloads it). */
@@ -17,7 +18,7 @@ export default function ShareButton({ card, text, label = "Share" }: { card: Car
           }
         }}
       >
-        <span aria-hidden="true">↗</span> {label}
+        <Share2 className="icon" aria-hidden="true" /> {label}
       </button>
       <span className="visually-hidden" role="status">
         {msg}

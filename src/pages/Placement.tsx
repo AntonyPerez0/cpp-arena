@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Check, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import { firstStepPath, moduleById, modules, placement } from "../content";
 import { update, useStore } from "../state/store";
@@ -105,7 +106,7 @@ export default function Placement() {
       <ol className="placement-results">
         {placement.map((q, k) => (
           <li key={q.id} className={answers[k]?.ok ? "ok" : "miss"}>
-            <span aria-hidden="true">{answers[k]?.ok ? "✓" : "✗"}</span> {moduleById.get(q.module)?.title}
+            <span className="res-icon">{answers[k]?.ok ? <Check className="icon" aria-hidden="true" /> : <X className="icon" aria-hidden="true" />}<span className="visually-hidden">{answers[k]?.ok ? "Right: " : "Wrong: "}</span></span> {moduleById.get(q.module)?.title}
             <span className="visually-hidden">{answers[k]?.ok ? ": right" : ": missed"}</span>
           </li>
         ))}

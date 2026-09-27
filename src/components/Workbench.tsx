@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from "react";
+import { Lightbulb, Play } from "lucide-react";
 import type { Exercise } from "../content/types";
 import { grade, runOnly, type GradeResult } from "../grader/grade";
 import { fillTemplate, parseTemplate } from "../grader/assemble.js";
@@ -168,7 +169,7 @@ export default function Workbench({ ex, initialCode, initialBlanks, hintsUsed, o
             </p>
           )}
           <button className="btn" onClick={runFree} disabled={busy}>
-            ▶ Run
+            <Play className="icon" aria-hidden="true" /> Run
           </button>
           {freeRun && (
             <div className="results">
@@ -202,7 +203,7 @@ export default function Workbench({ ex, initialCode, initialBlanks, hintsUsed, o
         <div className="hint-actions">
           {hintsUsed < ex.hints.length && (
             <button className={"btn btn-hint" + (attempts >= 2 && result?.status !== "pass" ? " pulse" : "")} onClick={() => onHint(hintsUsed + 1)}>
-              <span aria-hidden="true">💡</span> Hint ({hintsUsed + 1}/{ex.hints.length})
+              <Lightbulb className="icon" aria-hidden="true" /> Hint ({hintsUsed + 1}/{ex.hints.length})
             </button>
           )}
           {canRevealSolution && !showSolution && (

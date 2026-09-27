@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { CircleX, Play } from "lucide-react";
 import CodeEditor from "../components/CodeEditor";
 import SymbolBar from "../components/SymbolBar";
 import { DiagnosticList } from "../components/Results";
@@ -186,7 +187,7 @@ export default function Playground() {
           <button className="btn btn-primary" onClick={run} disabled={busy} aria-keyshortcuts="Control+Enter Meta+Enter">
             {busy ? (compiler.state !== "ready" ? "Waiting for compiler…" : "Running…") : (
               <>
-                ▶ Run <kbd aria-hidden="true">⌃↵</kbd>
+                <Play className="icon" aria-hidden="true" /> Run <kbd aria-hidden="true">⌃↵</kbd>
               </>
             )}
           </button>
@@ -222,7 +223,11 @@ export default function Playground() {
               <div className="banner banner-fail">The in-browser compiler couldn't run: {result.internalError}. Try again, or reload the page.</div>
             ) : !result.compiled ? (
               <>
-                <div className="banner banner-fail">✗ It didn't compile</div>
+                <div className="banner banner-fail">
+                  <span>
+                    <CircleX className="icon" aria-hidden="true" /> It didn't compile
+                  </span>
+                </div>
                 <DiagnosticList diagnostics={result.diagnostics} raw={result.rawDiagnostics} />
               </>
             ) : (

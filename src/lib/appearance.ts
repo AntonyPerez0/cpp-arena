@@ -19,7 +19,7 @@ function apply(theme: Theme, scale: number) {
     listeners.forEach((l) => l());
   }
   root.style.setProperty("--scale", String(scale || 1));
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", resolved === "light" ? "#f5f6f8" : "#0d0f13");
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", resolved === "light" ? "#ffffff" : "#09090b");
 }
 
 /** Keeps <html data-theme> and the text size in sync with the settings. Mount once. */

@@ -1,4 +1,5 @@
 import { reportUrl, type ReportInfo } from "../lib/site";
+import { Flag } from "lucide-react";
 
 /** "Report a problem" link that opens a pre-filled GitHub issue in a new tab. */
 export default function ReportLink({ info, className = "report-link" }: { info: () => ReportInfo; className?: string }) {
@@ -14,7 +15,7 @@ export default function ReportLink({ info, className = "report-link" }: { info: 
       onFocus={(e) => (e.currentTarget.href = reportUrl(info()))}
       onMouseEnter={(e) => (e.currentTarget.href = reportUrl(info()))}
     >
-      <span aria-hidden="true">⚑</span> Report a problem<span className="visually-hidden"> (opens GitHub in a new tab)</span>
+      <Flag className="icon" aria-hidden="true" /> Report a problem<span className="visually-hidden"> (opens GitHub in a new tab)</span>
     </a>
   );
 }

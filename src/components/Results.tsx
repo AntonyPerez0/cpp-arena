@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Check, CircleCheck, CircleX, X } from "lucide-react";
 import type { GradeResult } from "../grader/grade";
 import type { Diagnostic } from "../grader/friendly";
 import { InlineMd } from "./Markdown";
@@ -47,10 +48,10 @@ export default function Results({ result, attempt }: { result: GradeResult; atte
   const warnings = result.diagnostics.filter((d) => d.severity === "warning" && !d.inTests);
   return (
     <div className="results" key={attempt}>
-      {result.status === "pass" && <div className="banner banner-pass">✓ All tests passed</div>}
+      {result.status === "pass" && <div className="banner banner-pass"><span><CircleCheck className="icon" aria-hidden="true" /> All tests passed</span></div>}
       {result.status === "compile-error" && (
         <>
-          <div className="banner banner-fail">✗ It didn't compile</div>
+          <div className="banner banner-fail"><span><CircleX className="icon" aria-hidden="true" /> It didn't compile</span></div>
           <DiagnosticList diagnostics={result.diagnostics} raw={result.rawDiagnostics} />
         </>
       )}
@@ -72,7 +73,7 @@ export default function Results({ result, attempt }: { result: GradeResult; atte
         <ul className="tests">
           {result.tests.map((t, i) => (
             <li key={i} className={t.pass ? "t-pass" : "t-fail"}>
-              <span className="t-icon">{t.pass ? "✓" : "✗"}</span>
+              <span className="t-icon">{t.pass ? <Check className="icon" aria-hidden="true" /> : <X className="icon" aria-hidden="true" />}<span className="visually-hidden">{t.pass ? "Passed: " : "Failed: "}</span></span>
               <div className="t-body">
                 <div className="t-name">
                   {t.hidden ? "Hidden test" : t.name}

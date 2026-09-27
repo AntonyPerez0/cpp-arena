@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Crosshair, Flame, Heart, Lock, Skull, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import { drills, firstStepPath, moduleById, modules } from "../content";
 import type { Drill } from "../content/types";
@@ -167,9 +168,7 @@ export default function Deathmatch() {
           <div className="hud-mode">{mode === "deathmatch" ? "Deathmatch · 1 life" : mode === "casual" ? "Casual · 3 lives" : mode === "interview" ? "Interview prep · 3 lives" : "Warm-up · due reviews"}</div>
           <div className="hud-lives" role="img" aria-label={`${hp} ${hp === 1 ? "life" : "lives"} left`}>
             {Array.from({ length: lives(mode) }).map((_, i) => (
-              <span key={i} className={i < hp ? "life" : "life life-lost"}>
-                ♥
-              </span>
+              <Heart key={i} className={i < hp ? "icon life" : "icon life life-lost"} aria-hidden="true" />
             ))}
           </div>
           <div className="hud-sub">
@@ -252,7 +251,7 @@ export default function Deathmatch() {
         <aside className="killfeed" aria-label="Kill feed">
           {feed.map((k) => (
             <div key={k.id} className={"kf " + (k.ok ? "kf-ok" : "kf-bad")}>
-              <span className="kf-icon">{k.ok ? (k.type === "boss" ? "☠" : "⌖") : "✗"}</span>
+              <span className="kf-icon">{k.ok ? k.type === "boss" ? <Skull className="icon" aria-hidden="true" /> : <Crosshair className="icon" aria-hidden="true" /> : <X className="icon" aria-hidden="true" />}<span className="visually-hidden">{k.ok ? "Hit: " : "Miss: "}</span></span>
               <span className="kf-topic">{topicTitle(k.topic)}</span>
               <span className="kf-time">{(k.ms / 1000).toFixed(1)}s</span>
             </div>
@@ -299,7 +298,13 @@ function Lobby({ pool, interviewCount, unlocked, selected, dueCount, onStart }: 
               {r.next && <> · next rank at {r.next.at}</>}
             </div>
             <div className="muted small">
-              {s.dm.kills} kills · {s.dm.bossKills} bosses · {streakDays > 0 ? `🔥 ${streakDays}-day streak` : "no daily streak yet"}
+              {s.dm.kills} kills · {s.dm.bossKills} bosses · {streakDays > 0 ? (
+                <>
+                  <Flame className="icon" aria-hidden="true" /> {streakDays}-day streak
+                </>
+              ) : (
+                "no daily streak yet"
+              )}
             </div>
           </div>
         </div>
@@ -381,7 +386,7 @@ function Lobby({ pool, interviewCount, unlocked, selected, dueCount, onStart }: 
                   if (next.length) setTopics(next);
                 }}
               >
-                {isUnlocked ? "" : "🔒 "}
+                {isUnlocked ? null : <Lock className="icon" aria-hidden="true" />}
                 {m.title} <span className="chip-n">{open < n ? `${open}/${n}` : n}</span>
               </button>
             );

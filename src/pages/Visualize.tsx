@@ -1,4 +1,5 @@
 import { Link, useParams } from "react-router-dom";
+import { ArrowLeft, ArrowRight, ChevronRight } from "lucide-react";
 import { moduleById, modules, stepPath } from "../content";
 import { visualById, visuals } from "../content/visuals";
 import Visualizer from "../components/Visualizer";
@@ -57,7 +58,7 @@ export function VisualPage() {
   return (
     <div className="visual-page">
       <div className="crumbs">
-        <Link to="/visualize">Watch code run</Link> <span>›</span> <span>{m?.title}</span>
+        <Link to="/visualize">Watch code run</Link> <ChevronRight className="icon" aria-hidden="true" /> <span>{m?.title}</span>
       </div>
       <div className="page-head">
         <h1>
@@ -74,14 +75,14 @@ export function VisualPage() {
       <nav className="step-nav" aria-label="More visualizations">
         {prev ? (
           <Link className="btn btn-ghost" to={`/visualize/${prev.id}`}>
-            ← {prev.title}
+            <ArrowLeft className="icon" aria-hidden="true" /> {prev.title}
           </Link>
         ) : (
           <span />
         )}
         {next && (
           <Link className="btn btn-ghost" to={`/visualize/${next.id}`}>
-            {next.title} →
+            {next.title} <ArrowRight className="icon" aria-hidden="true" />
           </Link>
         )}
       </nav>
