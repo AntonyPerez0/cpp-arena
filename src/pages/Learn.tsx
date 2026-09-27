@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Check } from "lucide-react";
 import { Link } from "react-router-dom";
 import { phases, drillsByTopic, stepPath } from "../content";
 import { useStore } from "../state/store";
@@ -56,7 +57,7 @@ export default function Learn() {
                           return (
                             <li key={st.id} className={sp?.done ? "done" : ""}>
                               <Link to={stepPath(m, st)}>
-                                <span className="step-check" aria-hidden="true">{sp?.done ? "✓" : i + 1}</span>
+                                <span className="step-check" aria-hidden="true">{sp?.done ? <Check className="icon" /> : i + 1}</span>
                                 <span className="step-title">{st.title}</span>
                                 {sp?.done && <span className="visually-hidden"> (done)</span>}
                                 <span className={"kind-tag kind-" + st.kind}>{st.kind === "fill" ? "fill in" : st.mode === "harness" ? "write function" : "write code"}</span>

@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { InlineMd } from "../components/Markdown";
+import { ArrowRight, Check, ChevronRight, Lock, Trophy } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { projectById, moduleById } from "../content";
 import { getState, patchProject, useStore } from "../state/store";
@@ -38,7 +40,7 @@ export default function ProjectPage() {
   return (
     <div className="step-page">
       <div className="crumbs">
-        <Link to="/projects">Projects</Link> <span>›</span> <span>{p.title}</span>
+        <Link to="/projects">Projects</Link> <ChevronRight className="icon" aria-hidden="true" /> <span>{p.title}</span>
       </div>
       <div className="step-grid">
         <aside className="step-text">
@@ -47,7 +49,9 @@ export default function ProjectPage() {
             {p.after && <> · best after {moduleById.get(p.after)?.title}</>}
           </div>
           <h1>{p.title}</h1>
-          <p className="muted">{p.summary}</p>
+          <p className="muted">
+            <InlineMd text={p.summary} />
+          </p>
           <ol className="milestones">
             {p.milestones.map((m, i) => {
               const done = completed.includes(i);
@@ -55,7 +59,7 @@ export default function ProjectPage() {
               return (
                 <li key={i} className={(i === cur ? "cur " : "") + (done ? "done " : "") + (locked ? "locked" : "")}>
                   <button disabled={locked} onClick={() => go(i)}>
-                    <span className="step-check">{done ? "✓" : locked ? "🔒" : i + 1}</span>
+                    <span className="step-check">{done ? <Check className="icon" aria-hidden="true" /> : locked ? <Lock className="icon" aria-hidden="true" /> : i + 1}</span>
                     {m.title}
                   </button>
                 </li>
@@ -69,17 +73,23 @@ export default function ProjectPage() {
           <Markdown text={ms.text} top={3} />
         </aside>
         <section className="step-work">
-          {allDone && !passed && <div className="banner banner-pass">🏆 Project complete. Keep polishing, or start another one.</div>}
+          {allDone && !passed && <div className="banner banner-pass">
+              <span>
+                <Trophy className="icon" aria-hidden="true" /> Project complete. Keep polishing, or start another one.
+              </span>
+            </div>}
           {passed && (
             <div className="banner banner-pass big">
-              <span>✓ Milestone {cur + 1} done</span>
+              <span>
+                <Check className="icon" aria-hidden="true" /> Milestone {cur + 1} done
+              </span>
               {cur + 1 < p.milestones.length ? (
                 <button className="btn btn-primary" onClick={() => go(cur + 1)} autoFocus>
-                  Next milestone →
+                  Next milestone <ArrowRight className="icon" aria-hidden="true" />
                 </button>
               ) : (
                 <Link className="btn btn-primary" to="/projects">
-                  🏆 Project shipped
+                  <Trophy className="icon" aria-hidden="true" /> Project shipped
                 </Link>
               )}
             </div>

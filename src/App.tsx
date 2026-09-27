@@ -1,5 +1,7 @@
 import { BrowserRouter, NavLink, Route, Routes, Link, useLocation } from "react-router-dom";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Menu, Moon, Sun, X } from "lucide-react";
+import { BrandMark } from "./components/Brand";
 import CompilerBadge from "./components/CompilerBadge";
 import Home from "./pages/Home";
 import Learn from "./pages/Learn";
@@ -41,56 +43,161 @@ function RouteChange() {
   return null;
 }
 
-function Crosshair() {
-  return (
-    <svg viewBox="0 0 64 64" width="26" height="26" aria-hidden="true">
-      <circle cx="32" cy="32" r="18" fill="none" stroke="currentColor" strokeWidth="5" />
-      <path d="M32 4v16M32 44v16M4 32h16M44 32h16" stroke="currentColor" strokeWidth="5" strokeLinecap="round" />
-      <circle cx="32" cy="32" r="4" fill="currentColor" />
-    </svg>
-  );
-}
-
 function ThemeToggle() {
   const theme = useResolvedTheme();
   const next = theme === "dark" ? "light" : "dark";
   return (
     <button className="theme-toggle" onClick={() => patchSettings({ theme: next })} aria-label={`Switch to ${next} theme`} title={`Switch to ${next} theme`}>
-      {theme === "dark" ? (
-        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-          <circle cx="12" cy="12" r="4.5" fill="currentColor" />
-          <path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-        </svg>
-      ) : (
-        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-          <path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z" fill="currentColor" />
-        </svg>
-      )}
+      {theme === "dark" ? <Sun className="icon" aria-hidden="true" /> : <Moon className="icon" aria-hidden="true" />}
     </button>
+  );
+}
+
+const ext = (label: string) => <span className="visually-hidden"> ({label})</span>;
+
+function FooterCol({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="footer-col">
+      <h2>{title}</h2>
+      <ul>{children}</ul>
+    </div>
   );
 }
 
 function Footer() {
   return (
     <footer className="footer">
-      <nav aria-label="More">
-        <Link to="/topics">C and C++ topics</Link>
-        <Link to="/visualize">Watch code run</Link>
-        <Link to="/daily">Daily challenge</Link>
-        <Link to="/placement">Placement quiz</Link>
-        <Link to="/deathmatch">Interview prep</Link>
-        <Link to="/certificate">Certificates</Link>
-        <Link to="/next">Where to go next</Link>
-        <Link to="/playground">Playground</Link>
-        <a href={`${REPO_URL}/issues/new`} target="_blank" rel="noopener noreferrer">
-          Report a problem<span className="visually-hidden"> (opens GitHub in a new tab)</span>
-        </a>
-        <a href={REPO_URL} target="_blank" rel="noopener noreferrer">
-          Source on GitHub<span className="visually-hidden"> (opens in a new tab)</span>
-        </a>
-      </nav>
-      <p className="muted small">Free and open source. Your progress stays in your browser unless you choose to sync it.</p>
+      <div className="footer-inner">
+        <div className="footer-grid">
+          <div className="footer-brand">
+            <Link to="/" className="brand" aria-label="C/C++ Arena home">
+              <BrandMark />
+              <span className="brand-name">
+                C/C++ <b>Arena</b>
+              </span>
+            </Link>
+            <p>Learn C and C++ with a real compiler that runs right in your browser.</p>
+          </div>
+          <FooterCol title="Learn">
+            <li><Link to="/learn">Curriculum</Link></li>
+            <li><Link to="/projects">Projects</Link></li>
+            <li><Link to="/pro">Pro Track</Link></li>
+            <li><Link to="/topics">C and C++ topics</Link></li>
+          </FooterCol>
+          <FooterCol title="Practice">
+            <li><Link to="/deathmatch">Deathmatch</Link></li>
+            <li><Link to="/daily">Daily challenge</Link></li>
+            <li><Link to="/deathmatch">Interview prep</Link></li>
+            <li><Link to="/placement">Placement quiz</Link></li>
+          </FooterCol>
+          <FooterCol title="Tools">
+            <li><Link to="/playground">Playground</Link></li>
+            <li><Link to="/visualize">Watch code run</Link></li>
+            <li><Link to="/certificate">Certificates</Link></li>
+            <li><Link to="/next">Where to go next</Link></li>
+          </FooterCol>
+          <FooterCol title="Project">
+            <li>
+              <a href={REPO_URL} target="_blank" rel="noopener noreferrer">
+                Source on GitHub{ext("opens in a new tab")}
+              </a>
+            </li>
+            <li>
+              <a href={`${REPO_URL}/issues/new`} target="_blank" rel="noopener noreferrer">
+                Report a problem{ext("opens GitHub in a new tab")}
+              </a>
+            </li>
+            <li><Link to="/profile">Your progress</Link></li>
+          </FooterCol>
+        </div>
+        <div className="footer-bottom">
+          <p>© {new Date().getFullYear()} C/C++ Arena. Free and open source.</p>
+          <p>Your progress stays in your browser unless you choose to sync it.</p>
+        </div>
+      </div>
     </footer>
+  );
+}
+
+const NAV: [string, string][] = [
+  ["/learn", "Learn"],
+  ["/deathmatch", "Deathmatch"],
+  ["/daily", "Daily"],
+  ["/projects", "Projects"],
+  ["/playground", "Playground"],
+  ["/pro", "Pro"],
+  ["/profile", "Profile"],
+];
+
+/** The site header: the full navigation on wide screens, a menu button on phones and tablets. */
+function Header() {
+  const [open, setOpen] = useState(false);
+  const { pathname } = useLocation();
+  const menuRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => setOpen(false), [pathname]);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setOpen(false);
+        menuRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+  return (
+    <header className="topbar">
+      <Link to="/" className="brand" aria-label="C/C++ Arena home">
+        <BrandMark />
+        <span className="brand-name">
+          C/C++ <b>Arena</b>
+        </span>
+      </Link>
+      <nav id="main-nav" className={open ? "nav nav-open" : "nav"} aria-label="Main">
+        {NAV.map(([to, label]) => (
+          <NavLink key={to} to={to}>
+            {label}
+          </NavLink>
+        ))}
+        <div className="nav-extra">
+          <Link to="/topics">C and C++ topics</Link>
+          <Link to="/visualize">Watch code run</Link>
+          <Link to="/placement">Placement quiz</Link>
+          <div className="nav-theme">
+            <span>Theme</span>
+            <ThemeToggle />
+          </div>
+        </div>
+      </nav>
+      <div className="topbar-right">
+        <CompilerBadge compact />
+        <ThemeToggle />
+        <Link to="/learn" className="btn btn-primary btn-sm topbar-cta">
+          Start learning
+        </Link>
+        <button
+          ref={menuRef}
+          className="icon-btn menu-btn"
+          aria-expanded={open}
+          aria-controls="main-nav"
+          aria-label={open ? "Close menu" : "Open menu"}
+          onClick={() => setOpen((o) => !o)}
+        >
+          {open ? <X className="icon" aria-hidden="true" /> : <Menu className="icon" aria-hidden="true" />}
+        </button>
+      </div>
+    </header>
+  );
+}
+
+/** Full-width pages (the landing page) lay out their own sections. */
+function Main({ children }: { children: ReactNode }) {
+  const { pathname } = useLocation();
+  return (
+    <main className={pathname === "/" ? "main main-full" : "main"} id="main" tabIndex={-1}>
+      {children}
+    </main>
   );
 }
 
@@ -103,28 +210,8 @@ export default function App() {
       <a className="skip-link" href="#main">
         Skip to content
       </a>
-      <header className="topbar">
-        <Link to="/" className="brand" aria-label="C/C++ Arena home">
-          <Crosshair />
-          <span>
-            C/C++ <b>Arena</b>
-          </span>
-        </Link>
-        <nav className="nav" aria-label="Main">
-          <NavLink to="/learn">Learn</NavLink>
-          <NavLink to="/deathmatch">Deathmatch</NavLink>
-          <NavLink to="/daily">Daily</NavLink>
-          <NavLink to="/projects">Projects</NavLink>
-          <NavLink to="/playground">Playground</NavLink>
-          <NavLink to="/pro">Pro</NavLink>
-          <NavLink to="/profile">Profile</NavLink>
-        </nav>
-        <div className="topbar-right">
-          <CompilerBadge compact />
-          <ThemeToggle />
-        </div>
-      </header>
-      <main className="main" id="main" tabIndex={-1}>
+      <Header />
+      <Main>
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/learn" element={<Learn />} />
@@ -146,7 +233,7 @@ export default function App() {
           <Route path="/visualize/:id" element={<VisualPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
-      </main>
+      </Main>
       <Footer />
     </BrowserRouter>
   );

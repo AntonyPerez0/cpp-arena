@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { ArrowLeft, ArrowRight, Check, ChevronRight, Play } from "lucide-react";
 import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import { moduleById, drills, findStep, stepPath } from "../content";
 import { getState, patchStep, useStore } from "../state/store";
@@ -62,20 +63,24 @@ export default function StepPage() {
   return (
     <div className="step-page" key={step.id}>
       <div className="crumbs">
-        <Link to="/learn">Learn</Link> <span>›</span> <span>{m.phase}</span> <span>›</span> <span>{m.title}</span>
+        <Link to="/learn">Learn</Link> <ChevronRight className="icon" aria-hidden="true" /> <span>{m.phase}</span> <ChevronRight className="icon" aria-hidden="true" /> <span>{m.title}</span>
       </div>
       <div className="step-grid">
         <aside className="step-text">
           <div className="step-count">
             Step {idx + 1} of {m.steps.length}
-            {done && <span className="done-chip">✓ done</span>}
+            {done && (
+              <span className="done-chip">
+                <Check className="icon" aria-hidden="true" /> done
+              </span>
+            )}
           </div>
           <h1>{step.title}</h1>
           <Markdown text={step.text} top={2} />
           {visualsForStep(step.id).map((v) => (
             <Link key={v.id} to={`/visualize/${v.id}`} className="watch-card">
               <span className="watch-icon" aria-hidden="true">
-                ▶
+                <Play className="icon" />
               </span>
               <span>
                 <b>Watch it run:</b> {v.title}
@@ -98,7 +103,9 @@ export default function StepPage() {
         <section className="step-work">
           {justPassed && (
             <div className="banner banner-pass big">
-              <span>✓ {justPassed}</span>
+              <span>
+                <Check className="icon" aria-hidden="true" /> {justPassed}
+              </span>
               {finishedModule && (
                 <ShareButton
                   card={{ kicker: "Module complete", title: m.title, lines: [`${m.steps.length} ${m.lang === "c" ? "C" : "C++"} exercises, compiled and passing`], file: `cpparena-${m.id}.png` }}
@@ -107,7 +114,7 @@ export default function StepPage() {
               )}
               {next ? (
                 <button className="btn btn-primary" onClick={() => { setJustPassed(null); nav(next); }} autoFocus>
-                  Next step →
+                  Next step <ArrowRight className="icon" aria-hidden="true" />
                 </button>
               ) : (
                 <Link className="btn btn-primary" to="/learn">
@@ -130,14 +137,14 @@ export default function StepPage() {
           <div className="step-nav">
             {prev ? (
               <Link className="btn btn-ghost" to={prev} onClick={() => setJustPassed(null)}>
-                ← Previous
+                <ArrowLeft className="icon" aria-hidden="true" /> Previous
               </Link>
             ) : (
               <span />
             )}
             {next && (
               <Link className="btn btn-ghost" to={next} onClick={() => setJustPassed(null)}>
-                {done ? "Next →" : "Skip →"}
+                {done ? "Next" : "Skip"} <ArrowRight className="icon" aria-hidden="true" />
               </Link>
             )}
           </div>

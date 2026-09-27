@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { AlertTriangle, Download } from "lucide-react";
 import { ensureCompiler, getCompilerStatus, subscribeCompiler } from "../compiler/client";
 import { useDownloadMegabytes } from "./MobileDataCard";
 
@@ -12,7 +13,7 @@ export default function CompilerBadge({ compact }: { compact?: boolean }) {
   if (s.state === "idle")
     return (
       <button className="pill pill-idle" onClick={() => ensureCompiler()} title={`Download the in-browser C/C++ compiler (one time${mb ? `, about ${mb.c} MB` : ""})`}>
-        ⚙ Load compiler
+        <Download className="icon" aria-hidden="true" /> Load compiler
       </button>
     );
   if (s.state === "loading") {
@@ -27,8 +28,12 @@ export default function CompilerBadge({ compact }: { compact?: boolean }) {
   if (s.state === "error")
     return (
       <button className="pill pill-error" onClick={() => ensureCompiler()} title={s.message}>
-        ⚠ Compiler failed, retry
+        <AlertTriangle className="icon" aria-hidden="true" /> {compact ? "Retry compiler" : "Compiler failed, retry"}
       </button>
     );
-  return <span className="pill pill-ready" title="Clang 20 running in your browser (WebAssembly)">● Compiler ready</span>;
+  return (
+    <span className="pill pill-ready" title="Clang 20 running in your browser (WebAssembly)">
+      <span className="live-dot" aria-hidden="true" /> Compiler ready
+    </span>
+  );
 }

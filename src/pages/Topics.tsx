@@ -1,4 +1,5 @@
 import { Link, useParams } from "react-router-dom";
+import { ChevronRight, Play } from "lucide-react";
 import { firstStepPath, moduleById, topicBySlug, topics } from "../content";
 import { visualById } from "../content/visuals";
 import Markdown from "../components/Markdown";
@@ -25,8 +26,10 @@ export function TopicIndex() {
           <ul className="topic-list">
             {topics.filter(test).map((t) => (
               <li key={t.slug}>
-                <Link to={`/topics/${t.slug}`}>{t.title}</Link>
-                <span className="muted small"> · {t.description}</span>
+                <Link to={`/topics/${t.slug}`} className="topic-title">
+                  {t.title}
+                </Link>
+                <p className="muted small">{t.description}</p>
               </li>
             ))}
           </ul>
@@ -53,7 +56,7 @@ export function TopicPage() {
   return (
     <article className="topic-page narrow">
       <div className="crumbs">
-        <Link to="/topics">Topics</Link> <span>›</span> <span>{t.lang === "c" ? "C" : "C++"}</span>
+        <Link to="/topics">Topics</Link> <ChevronRight className="icon" aria-hidden="true" /> <span>{t.lang === "c" ? "C" : "C++"}</span>
       </div>
       <h1>{t.title}</h1>
       <p className="lead">{t.description}</p>
@@ -75,7 +78,7 @@ export function TopicPage() {
       {visual && (
         <Link to={`/visualize/${visual.id}`} className="watch-card">
           <span className="watch-icon" aria-hidden="true">
-            ▶
+            <Play className="icon" />
           </span>
           <span>
             <b>Watch it run:</b> {visual.title}

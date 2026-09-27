@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { ChevronLeft, ChevronRight, Pause, Play, SkipBack, SkipForward } from "lucide-react";
 import { loadTrace, type Trace, type TraceStep, type TraceValue, type VisualMeta } from "../content/visuals";
 import { highlight } from "./highlight";
 
@@ -233,19 +234,19 @@ export default function Visualizer({ meta }: { meta: VisualMeta }) {
     <div className="viz">
       <div className="viz-controls" role="group" aria-label="Step through the program" onKeyDown={onKey}>
         <button className="btn" onClick={() => go(0)} disabled={i === 0} aria-label="First step">
-          ⏮
+          <SkipBack className="icon" aria-hidden="true" />
         </button>
         <button className="btn" onClick={() => go(i - 1)} disabled={i === 0} aria-label="Previous step">
-          ◀ Back
+          <ChevronLeft className="icon" aria-hidden="true" /> Back
         </button>
         <button className="btn btn-primary" onClick={() => (i >= n - 1 ? (setI(0), setPlaying(true)) : setPlaying(!playing))} aria-label={playing ? "Pause" : "Play"}>
-          {playing ? "❚❚ Pause" : "▶ Play"}
+          {playing ? <Pause className="icon" aria-hidden="true" /> : <Play className="icon" aria-hidden="true" />} {playing ? "Pause" : "Play"}
         </button>
         <button className="btn" onClick={() => go(i + 1)} disabled={i >= n - 1} aria-label="Next step">
-          Next ▶
+          Next <ChevronRight className="icon" aria-hidden="true" />
         </button>
         <button className="btn" onClick={() => go(n - 1)} disabled={i >= n - 1} aria-label="Last step">
-          ⏭
+          <SkipForward className="icon" aria-hidden="true" />
         </button>
         <input
           className="viz-slider"

@@ -370,14 +370,14 @@ await test("playground: runs C and C++ with input, shows errors and crashes, and
   await page.getByLabel("C (C17)").check();
   await setEditor('#include <stdio.h>\nint main(void) {\n    int a, b;\n    if (scanf("%d %d", &a, &b) == 2) printf("sum %d\\n", a + b);\n    return 0;\n}\n');
   await page.getByLabel(/^Input/).fill("20 22");
-  await page.getByRole("button", { name: /^▶ Run/ }).click();
+  await page.getByRole("button", { name: /^Run$/ }).click();
   await page.locator(".playground .console", { hasText: "sum 42" }).waitFor({ timeout: 60000 });
   await page.getByLabel("C++ (C++20)").check();
   await setEditor('#include <iostream>\nint main() { std::cout << "x" << y; }\n');
-  await page.getByRole("button", { name: /^▶ Run/ }).click();
+  await page.getByRole("button", { name: /^Run$/ }).click();
   await page.locator(".playground .banner", { hasText: "It didn't compile" }).waitFor({ timeout: 60000 });
   await setEditor('#include <stdexcept>\nint main() { throw std::logic_error("oops"); }\n');
-  await page.getByRole("button", { name: /^▶ Run/ }).click();
+  await page.getByRole("button", { name: /^Run$/ }).click();
   await page.getByText(/terminate called after throwing an instance of 'std::logic_error'/).first().waitFor({ timeout: 60000 });
   // Share, then open the link in a fresh browser: the program and input come along.
   await setEditor('#include <iostream>\n#include <string>\nint main() { std::string w; std::cin >> w; std::cout << "shared " << w << "\\n"; }\n');
@@ -391,7 +391,7 @@ await test("playground: runs C and C++ with input, shows errors and crashes, and
   await pg.getByLabel(/^Input/).and(pg.locator("textarea")).waitFor();
   await pg.waitForFunction(() => document.querySelector("#pg-stdin")?.value === "hello", null, { timeout: 10000 });
   if (!(await pg.getByLabel("C++ (C++20)").isChecked())) throw new Error("shared link lost the language");
-  await pg.getByRole("button", { name: /^▶ Run/ }).click();
+  await pg.getByRole("button", { name: /^Run$/ }).click();
   await pg.locator(".playground .console", { hasText: "shared hello" }).waitFor({ timeout: 240000 });
   await ctx.close();
 });
@@ -631,7 +631,7 @@ await test("offline: after one visit, lessons open and programs run without a co
   await pg.goto(BASE + "playground");
   await pg.evaluate(() => navigator.serviceWorker.ready);
   await pg.getByLabel("C (C17)").check();
-  await pg.getByRole("button", { name: /^▶ Run/ }).click();
+  await pg.getByRole("button", { name: /^Run$/ }).click();
   await pg.locator(".playground .console", { hasText: "Hello, Ada!" }).waitFor({ timeout: 240000 });
   await ctx.setOffline(true);
   // Pages this browser never opened: the saved app shows them.
@@ -641,7 +641,7 @@ await test("offline: after one visit, lessons open and programs run without a co
   await pg.getByRole("heading", { name: "Recursion explained", level: 1 }).waitFor();
   // The saved compiler starts without the network too.
   await pg.goto(BASE + "playground");
-  await pg.getByRole("button", { name: /^▶ Run/ }).click();
+  await pg.getByRole("button", { name: /^Run$/ }).click();
   await pg.locator(".playground .console", { hasText: "Hello, Ada!" }).waitFor({ timeout: 120000 });
   await ctx.close();
 });

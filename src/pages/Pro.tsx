@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Check } from "lucide-react";
 import { Link } from "react-router-dom";
 import { pro } from "../content";
 import { useStore } from "../state/store";
@@ -94,7 +95,13 @@ export default function Pro() {
             <Link key={p.id} to={`/pro/${p.id}`} className={"card card-link project-card" + (s.pro[p.id] ? " project-done" : "")}>
               <div className="row-between">
                 <span className="lang-tag">Project {String(p.number).padStart(2, "0")}</span>
-                <span className="muted small">{s.pro[p.id] ? "✓ passing" : `about ${p.hours} h`}</span>
+                <span className="muted small">{s.pro[p.id] ? (
+                    <>
+                      <Check className="icon" aria-hidden="true" /> passing
+                    </>
+                  ) : (
+                    `about ${p.hours} h`
+                  )}</span>
               </div>
               <h3>{p.title}</h3>
               <p>{p.summary}</p>
