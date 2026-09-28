@@ -28,7 +28,8 @@ export default function CodeEditor({ value, onChange, onRun, diagnostics = [], m
     return [
       cpp(),
       EditorView.lineWrapping,
-      EditorView.contentAttributes.of({ "aria-label": label, "aria-describedby": helpId }),
+      // An explicit tabindex keeps the text area a tab stop that tools like axe recognise inside the scroll area.
+      EditorView.contentAttributes.of({ "aria-label": label, "aria-describedby": helpId, tabindex: "0" }),
       lintGutter(),
       linter(
         (view): CmDiagnostic[] =>

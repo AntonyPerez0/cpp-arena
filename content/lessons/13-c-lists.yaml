@@ -85,6 +85,93 @@ steps:
       - The walk stops when p becomes `NULL`, and moves with `p = p->next`.
     tests:
       - expect: "1 2 3"
+    more:
+      - task: |
+          Insert a new node with the value `5` **between** `b` and `c`: the new node must point at `c`, and `b` must point at the new node. The walk then prints `1 2 5 3`.
+        fill: |
+          #include <stdio.h>
+          #include <stddef.h>
+
+          struct Node {
+              int value;
+              struct Node *next;
+          };
+
+          int main(void) {
+              struct Node c = {3, NULL};
+              struct Node b = {2, &c};
+              struct Node a = {1, &b};
+              struct Node extra = {5, [[&c]]};
+              b.next = [[&extra]];
+              for (struct Node *p = &a; p != NULL; p = p->next) {
+                  printf("%d ", p->value);
+              }
+              printf("\n");
+              return 0;
+          }
+        hints:
+          - The new node comes before `c`, so its `next` is `&c`.
+          - "`b` now comes before the new node, so `b.next = &extra;`."
+        tests:
+          - expect: "1 2 5 3"
+      - task: |
+          The list is already built. Walk it with a `while` loop and a pointer, count the nodes and find the biggest value, then print `count 4 max 9`.
+        seed: |
+          #include <stdio.h>
+          #include <stddef.h>
+
+          struct Node {
+              int value;
+              struct Node *next;
+          };
+
+          int main(void) {
+              struct Node d = {4, NULL};
+              struct Node c = {9, &d};
+              struct Node b = {-2, &c};
+              struct Node a = {7, &b};
+              struct Node *head = &a;
+              // walk the list from head
+
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+          #include <stddef.h>
+
+          struct Node {
+              int value;
+              struct Node *next;
+          };
+
+          int main(void) {
+              struct Node d = {4, NULL};
+              struct Node c = {9, &d};
+              struct Node b = {-2, &c};
+              struct Node a = {7, &b};
+              struct Node *head = &a;
+              // walk the list from head
+              int count = 0;
+              int max = head->value;
+              struct Node *p = head;
+              while (p != NULL) {
+                  count++;
+                  if (p->value > max) max = p->value;
+                  p = p->next;
+              }
+              printf("count %d max %d\n", count, max);
+              return 0;
+          }
+        require:
+          - pattern: "while\\s*\\("
+            message: Walk the list with a `while` loop.
+          - pattern: "=\\s*\\w+\\s*->\\s*next"
+            message: Move to the next node with something like `p = p->next;`.
+        hints:
+          - Start with `struct Node *p = head;` and loop while `p != NULL`.
+          - Inside, use `p->value`, then move on with `p = p->next;`.
+        tests:
+          - expect: "count 4 max 9"
 
   - title: Push to the front
     id: c-lists-2
@@ -192,6 +279,109 @@ steps:
     hints:
       - "Allocate a node: `struct Node *n = malloc(sizeof *n);`"
       - "Set `n->value`, point `n->next` at the current head (`*head`), then make `*head = n`."
+    more:
+      - task: |
+          Write `void push_back(struct Node **head, int value)` that adds a new node at the **end** of the list. If the list is empty, the new node becomes the head.
+        seed: |
+          #include <stdlib.h>
+
+          struct Node {
+              int value;
+              struct Node *next;
+          };
+
+          void push_back(struct Node **head, int value) {
+
+          }
+        solution: |
+          #include <stdlib.h>
+
+          struct Node {
+              int value;
+              struct Node *next;
+          };
+
+          void push_back(struct Node **head, int value) {
+              struct Node *n = malloc(sizeof *n);
+              n->value = value;
+              n->next = NULL;
+              if (*head == NULL) {
+                  *head = n;
+                  return;
+              }
+              struct Node *p = *head;
+              while (p->next != NULL) p = p->next;
+              p->next = n;
+          }
+        harness: |
+          int main(void) {
+              struct Node *head = NULL;
+              push_back(&head, 1);
+              CHECK("first push sets the head", head != NULL && head->value == 1);
+              push_back(&head, 2);
+              push_back(&head, 3);
+              CHECK_INT("second", head->next->value, 2);
+              CHECK_INT("third", head->next->next->value, 3);
+              CHECK("ends with NULL", head->next->next->next == NULL);
+              while (head) {
+                  struct Node *next = head->next;
+                  free(head);
+                  head = next;
+              }
+              return 0;
+          }
+        hints:
+          - The new node's `next` is `NULL`, because it will be last.
+          - If `*head` is NULL, set `*head` to the new node. Otherwise walk to the node whose `next` is NULL and link it there.
+        tests: []
+      - task: |
+          Write `int pop_front(struct Node **head)` that removes the first node, frees it, and returns its value. The caller guarantees the list isn't empty.
+        seed: |
+          #include <stdlib.h>
+
+          struct Node {
+              int value;
+              struct Node *next;
+          };
+
+          int pop_front(struct Node **head) {
+
+          }
+        solution: |
+          #include <stdlib.h>
+
+          struct Node {
+              int value;
+              struct Node *next;
+          };
+
+          int pop_front(struct Node **head) {
+              struct Node *first = *head;
+              int v = first->value;
+              *head = first->next;
+              free(first);
+              return v;
+          }
+        harness: |
+          struct Node *mk(int v, struct Node *next) {
+              struct Node *n = malloc(sizeof *n);
+              n->value = v;
+              n->next = next;
+              return n;
+          }
+          int main(void) {
+              struct Node *head = mk(1, mk(2, mk(3, NULL)));
+              CHECK_INT("pop -> 1", pop_front(&head), 1);
+              CHECK_INT("new head is 2", head->value, 2);
+              CHECK_INT("pop -> 2", pop_front(&head), 2);
+              CHECK_INT("pop -> 3", pop_front(&head), 3);
+              CHECK("list is empty after 3 pops", head == NULL);
+              return 0;
+          }
+        hints:
+          - Save the first node and its value before changing anything.
+          - Move `*head` to `first->next`, then free the saved node. Reading `first->value` after `free` would be a bug.
+        tests: []
 
   - title: Length and sum
     id: c-lists-3
@@ -293,6 +483,103 @@ steps:
       }
     hints:
       - "Walk with `for (const struct Node *p = head; p != NULL; p = p->next)`."
+    more:
+      - task: |
+          Write `int list_max(const struct Node *head)` (the list has at least one node) and `int list_count(const struct Node *head, int v)`, which counts the nodes holding `v`.
+        seed: |
+          struct Node {
+              int value;
+              struct Node *next;
+          };
+
+          int list_max(const struct Node *head) {
+
+          }
+
+          int list_count(const struct Node *head, int v) {
+
+          }
+        solution: |
+          struct Node {
+              int value;
+              struct Node *next;
+          };
+
+          int list_max(const struct Node *head) {
+              int best = head->value;
+              for (const struct Node *p = head->next; p; p = p->next) {
+                  if (p->value > best) best = p->value;
+              }
+              return best;
+          }
+
+          int list_count(const struct Node *head, int v) {
+              int n = 0;
+              for (const struct Node *p = head; p; p = p->next) {
+                  if (p->value == v) n++;
+              }
+              return n;
+          }
+        harness: |
+          #include <stddef.h>
+          int main(void) {
+              struct Node d = {20, NULL}, c = {-5, &d}, b = {20, &c}, a = {10, &b};
+              CHECK_INT("max of 10,20,-5,20", list_max(&a), 20);
+              CHECK_INT("max starting from the third node", list_max(&c), 20);
+              struct Node solo = {-7, NULL};
+              CHECK_INT("max of a single negative", list_max(&solo), -7);
+              CHECK_INT("count 20", list_count(&a, 20), 2);
+              CHECK_INT("count 99", list_count(&a, 99), 0);
+              CHECK_INT("count in empty list", list_count(NULL, 1), 0);
+              return 0;
+          }
+        hints:
+          - For the max, start with `head->value` so negative lists work.
+          - The count is the same walk as `list_sum`, adding 1 only when `p->value == v`.
+        tests: []
+      - task: |
+          Write `const struct Node *nth(const struct Node *head, int k)` that returns the node at position `k` (the head is position 0), or `NULL` if the list is too short.
+        seed: |
+          #include <stddef.h>
+
+          struct Node {
+              int value;
+              struct Node *next;
+          };
+
+          const struct Node *nth(const struct Node *head, int k) {
+
+          }
+        solution: |
+          #include <stddef.h>
+
+          struct Node {
+              int value;
+              struct Node *next;
+          };
+
+          const struct Node *nth(const struct Node *head, int k) {
+              const struct Node *p = head;
+              while (p != NULL && k > 0) {
+                  p = p->next;
+                  k--;
+              }
+              return p;
+          }
+        harness: |
+          int main(void) {
+              struct Node c = {30, NULL}, b = {20, &c}, a = {10, &b};
+              CHECK("position 0 is the head", nth(&a, 0) == &a);
+              CHECK("position 2 is the last node", nth(&a, 2) == &c);
+              CHECK("position 3 is past the end", nth(&a, 3) == NULL);
+              CHECK("empty list", nth(NULL, 0) == NULL);
+              CHECK("far past the end", nth(&a, 100) == NULL);
+              return 0;
+          }
+        hints:
+          - Step forward `k` times, but stop early if you reach `NULL`.
+          - "`while (p != NULL && k > 0)` handles both at once."
+        tests: []
 
   - title: Free the whole list
     id: c-lists-4
@@ -391,6 +678,132 @@ steps:
     hints:
       - Loop while head is not NULL.
       - "Save `head->next` in a variable before calling `free(head)`."
+    more:
+      - task: |
+          Write `struct Node *remove_first(struct Node *head, int v)` that removes and frees the **first** node holding `v` and returns the (possibly new) head. If there's no such node, return the list unchanged.
+        seed: |
+          #include <stdlib.h>
+
+          struct Node {
+              int value;
+              struct Node *next;
+          };
+
+          struct Node *remove_first(struct Node *head, int v) {
+
+          }
+        solution: |
+          #include <stdlib.h>
+
+          struct Node {
+              int value;
+              struct Node *next;
+          };
+
+          struct Node *remove_first(struct Node *head, int v) {
+              if (head == NULL) return NULL;
+              if (head->value == v) {
+                  struct Node *rest = head->next;
+                  free(head);
+                  return rest;
+              }
+              struct Node *p = head;
+              while (p->next != NULL && p->next->value != v) p = p->next;
+              if (p->next != NULL) {
+                  struct Node *gone = p->next;
+                  p->next = gone->next;
+                  free(gone);
+              }
+              return head;
+          }
+        harness: |
+          struct Node *mk(int v, struct Node *next) {
+              struct Node *n = malloc(sizeof *n);
+              n->value = v;
+              n->next = next;
+              return n;
+          }
+          void free_all(struct Node *h) {
+              while (h) { struct Node *n = h->next; free(h); h = n; }
+          }
+          int main(void) {
+              struct Node *h = mk(1, mk(2, mk(3, mk(2, NULL))));
+              h = remove_first(h, 2);
+              CHECK("remove 2 from 1,2,3,2 gives 1,3,2", h->value == 1 && h->next->value == 3 && h->next->next->value == 2 && h->next->next->next == NULL);
+              h = remove_first(h, 1);
+              CHECK("removing the head", h->value == 3 && h->next->value == 2);
+              h = remove_first(h, 9);
+              CHECK("missing value leaves the list alone", h->value == 3 && h->next->value == 2);
+              h = remove_first(h, 2);
+              CHECK("removing the last node", h->value == 3 && h->next == NULL);
+              CHECK("empty list", remove_first(NULL, 1) == NULL);
+              free_all(h);
+              return 0;
+          }
+        hints:
+          - The head is a special case, because the function must return a different head.
+          - Otherwise stop at the node **before** the one to remove, so you can relink it with `p->next = gone->next;`.
+        tests: []
+      - task: |
+          Write `struct Node *remove_all(struct Node *head, int v)` that removes and frees **every** node holding `v`, and returns the new head. Several matching nodes can be next to each other, including at the start.
+        seed: |
+          #include <stdlib.h>
+
+          struct Node {
+              int value;
+              struct Node *next;
+          };
+
+          struct Node *remove_all(struct Node *head, int v) {
+
+          }
+        solution: |
+          #include <stdlib.h>
+
+          struct Node {
+              int value;
+              struct Node *next;
+          };
+
+          struct Node *remove_all(struct Node *head, int v) {
+              struct Node **link = &head;
+              while (*link != NULL) {
+                  if ((*link)->value == v) {
+                      struct Node *gone = *link;
+                      *link = gone->next;
+                      free(gone);
+                  } else {
+                      link = &(*link)->next;
+                  }
+              }
+              return head;
+          }
+        harness: |
+          struct Node *mk(int v, struct Node *next) {
+              struct Node *n = malloc(sizeof *n);
+              n->value = v;
+              n->next = next;
+              return n;
+          }
+          void free_all(struct Node *h) {
+              while (h) { struct Node *n = h->next; free(h); h = n; }
+          }
+          int main(void) {
+              struct Node *h = mk(2, mk(2, mk(1, mk(2, mk(3, mk(2, NULL))))));
+              h = remove_all(h, 2);
+              CHECK("2,2,1,2,3,2 without 2 is 1,3", h != NULL && h->value == 1 && h->next->value == 3 && h->next->next == NULL);
+              h = remove_all(h, 9);
+              CHECK("nothing to remove", h->value == 1 && h->next->value == 3);
+              free_all(h);
+              struct Node *all = mk(5, mk(5, NULL));
+              CHECK("removing every node gives NULL", remove_all(all, 5) == NULL);
+              CHECK("empty list", remove_all(NULL, 1) == NULL);
+              return 0;
+          }
+        hints:
+          - A loop that handles "remove the head" and "remove a later node" the same way is easiest with a pointer to the link, `struct Node **link = &head;`.
+          - If `(*link)->value == v`, unlink and free that node without moving `link`. Otherwise move `link` to `&(*link)->next`.
+        tests: []
 
   - title: Reverse a linked list
     id: c-lists-5
@@ -511,6 +924,103 @@ steps:
       - "Start with `prev = NULL`, `cur = head`."
       - "Each step: save `next = cur->next`, set `cur->next = prev`, then move `prev = cur` and `cur = next`."
       - When cur is NULL, prev is the new head.
+    more:
+      - task: |
+          Write `struct Node *middle(struct Node *head)` that returns the middle node using a **slow** pointer (1 step at a time) and a **fast** one (2 steps). For an even length, return the second of the two middle nodes. An empty list gives `NULL`.
+        seed: |
+          #include <stddef.h>
+
+          struct Node {
+              int value;
+              struct Node *next;
+          };
+
+          struct Node *middle(struct Node *head) {
+
+          }
+        solution: |
+          #include <stddef.h>
+
+          struct Node {
+              int value;
+              struct Node *next;
+          };
+
+          struct Node *middle(struct Node *head) {
+              struct Node *slow = head, *fast = head;
+              while (fast != NULL && fast->next != NULL) {
+                  slow = slow->next;
+                  fast = fast->next->next;
+              }
+              return slow;
+          }
+        harness: |
+          int main(void) {
+              struct Node e = {5, NULL}, d = {4, &e}, c = {3, &d}, b = {2, &c}, a = {1, &b};
+              CHECK_INT("middle of 1..5", middle(&a)->value, 3);
+              d.next = NULL;
+              CHECK_INT("middle of 1..4 is the second middle", middle(&a)->value, 3);
+              b.next = NULL;
+              CHECK_INT("middle of 1,2", middle(&a)->value, 2);
+              CHECK("single node", middle(&e) == &e);
+              CHECK("empty list", middle(NULL) == NULL);
+              return 0;
+          }
+        forbid:
+          - pattern: "\\bcount\\b|\\blen\\b|length"
+            message: Use a slow and a fast pointer instead of counting the nodes first.
+        hints:
+          - Move `fast` two nodes and `slow` one node per loop. When `fast` reaches the end, `slow` is in the middle.
+          - Keep going while `fast != NULL && fast->next != NULL`.
+        tests: []
+      - task: |
+          A broken list can loop back on itself, so walking it never ends. Write `int has_cycle(const struct Node *head)` that returns `1` if the list loops and `0` if it ends. Use a slow and a fast pointer: if there's a loop, the fast one eventually catches up with the slow one.
+        seed: |
+          #include <stddef.h>
+
+          struct Node {
+              int value;
+              struct Node *next;
+          };
+
+          int has_cycle(const struct Node *head) {
+
+          }
+        solution: |
+          #include <stddef.h>
+
+          struct Node {
+              int value;
+              struct Node *next;
+          };
+
+          int has_cycle(const struct Node *head) {
+              const struct Node *slow = head, *fast = head;
+              while (fast != NULL && fast->next != NULL) {
+                  slow = slow->next;
+                  fast = fast->next->next;
+                  if (slow == fast) return 1;
+              }
+              return 0;
+          }
+        harness: |
+          int main(void) {
+              struct Node d = {4, NULL}, c = {3, &d}, b = {2, &c}, a = {1, &b};
+              CHECK_INT("a normal list", has_cycle(&a), 0);
+              d.next = &b;
+              CHECK_INT("4 links back to 2", has_cycle(&a), 1);
+              struct Node self = {7, NULL};
+              self.next = &self;
+              CHECK_INT("a node pointing at itself", has_cycle(&self), 1);
+              CHECK_INT("empty list", has_cycle(NULL), 0);
+              struct Node one = {1, NULL};
+              CHECK_INT("single node", has_cycle(&one), 0);
+              return 0;
+          }
+        hints:
+          - The loop is the same as in `middle`. If `fast` reaches `NULL`, the list ends.
+          - After each move, check `slow == fast`. Inside a loop, the fast pointer gains one node per step, so they must meet.
+        tests: []
 
   - title: A stack on an array
     id: c-lists-6
@@ -618,3 +1128,144 @@ steps:
       - "`top` is both the count and the index of the next free slot."
       - "push: if full return 0, else `s->items[s->top++] = v;`"
       - "pop: `return s->items[--s->top];`"
+    more:
+      - task: |
+          `push` and `pop` are written for you. Add `int peek(const Stack *s)`, which returns the top item without removing it, `int is_empty(const Stack *s)`, and `int size(const Stack *s)`.
+        seed: |
+          typedef struct {
+              int items[64];
+              int top;
+          } Stack;
+
+          int push(Stack *s, int v) {
+              if (s->top == 64) return 0;
+              s->items[s->top++] = v;
+              return 1;
+          }
+
+          int pop(Stack *s) {
+              return s->items[--s->top];
+          }
+
+          int peek(const Stack *s) {
+
+          }
+
+          int is_empty(const Stack *s) {
+
+          }
+
+          int size(const Stack *s) {
+
+          }
+        solution: |
+          typedef struct {
+              int items[64];
+              int top;
+          } Stack;
+
+          int push(Stack *s, int v) {
+              if (s->top == 64) return 0;
+              s->items[s->top++] = v;
+              return 1;
+          }
+
+          int pop(Stack *s) {
+              return s->items[--s->top];
+          }
+
+          int peek(const Stack *s) {
+              return s->items[s->top - 1];
+          }
+
+          int is_empty(const Stack *s) {
+              return s->top == 0;
+          }
+
+          int size(const Stack *s) {
+              return s->top;
+          }
+        harness: |
+          int main(void) {
+              Stack s = {{0}, 0};
+              CHECK_INT("new stack is empty", is_empty(&s), 1);
+              CHECK_INT("new stack has size 0", size(&s), 0);
+              push(&s, 4);
+              push(&s, 7);
+              CHECK_INT("peek sees 7", peek(&s), 7);
+              CHECK_INT("peek doesn't remove", size(&s), 2);
+              CHECK_INT("not empty", is_empty(&s), 0);
+              pop(&s);
+              CHECK_INT("peek after a pop sees 4", peek(&s), 4);
+              return 0;
+          }
+        hints:
+          - "`top` is the number of items, and the top item is at `items[top - 1]`."
+          - "`peek` reads it without changing `top`."
+        tests: []
+      - task: |
+          Use the stack to check brackets. Write `int balanced(const char *s)` that returns `1` if every `(`, `[` and `{` in `s` is closed by the matching bracket in the right order, and `0` otherwise. Other characters are ignored. `"a[b(c)]{}"` is balanced, `"([)]"` is not.
+        seed: |
+          typedef struct {
+              int items[64];
+              int top;
+          } Stack;
+
+          int push(Stack *s, int v) {
+              if (s->top == 64) return 0;
+              s->items[s->top++] = v;
+              return 1;
+          }
+
+          int pop(Stack *s) {
+              return s->items[--s->top];
+          }
+
+          int balanced(const char *s) {
+
+          }
+        solution: |
+          typedef struct {
+              int items[64];
+              int top;
+          } Stack;
+
+          int push(Stack *s, int v) {
+              if (s->top == 64) return 0;
+              s->items[s->top++] = v;
+              return 1;
+          }
+
+          int pop(Stack *s) {
+              return s->items[--s->top];
+          }
+
+          int balanced(const char *s) {
+              Stack st = {{0}, 0};
+              for (; *s != '\0'; s++) {
+                  char c = *s;
+                  if (c == '(' || c == '[' || c == '{') {
+                      if (!push(&st, c)) return 0;
+                  } else if (c == ')' || c == ']' || c == '}') {
+                      if (st.top == 0) return 0;
+                      int open = pop(&st);
+                      if ((c == ')' && open != '(') || (c == ']' && open != '[') || (c == '}' && open != '{')) return 0;
+                  }
+              }
+              return st.top == 0;
+          }
+        harness: |
+          int main(void) {
+              CHECK_INT("\"a[b(c)]{}\"", balanced("a[b(c)]{}"), 1);
+              CHECK_INT("\"([)]\"", balanced("([)]"), 0);
+              CHECK_INT("\"((\"", balanced("(("), 0);
+              CHECK_INT("\"())\"", balanced("())"), 0);
+              CHECK_INT("\")(\"", balanced(")("), 0);
+              CHECK_INT("\"\"", balanced(""), 1);
+              CHECK_INT("\"{[()()]}\"", balanced("{[()()]}"), 1);
+              return 0;
+          }
+        hints:
+          - Push every opening bracket. On a closing bracket, the stack must not be empty, and the popped bracket must be its partner.
+          - At the end the stack must be empty, or some bracket was never closed.
+        tests: []

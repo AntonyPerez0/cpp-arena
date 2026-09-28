@@ -710,7 +710,7 @@ select, input[type="text"], input[type="url"], input[type="password"], input[typ
 @media (min-width: 1200px) {
   html { font-size: calc(16.5px * var(--scale)); }
   .main { max-width: min(1600px, 94vw); padding-left: 2rem; padding-right: 2rem; }
-  .editor .cm-editor, .codeview { min-height: 16rem; }
+  .editor .cm-editor, .codeview { min-height: 12rem; }
 }
 @media (min-width: 1700px) {
   html { font-size: calc(17.5px * var(--scale)); }
@@ -720,10 +720,17 @@ select, input[type="text"], input[type="url"], input[type="password"], input[typ
 @media (min-width: 961px) {
   .step-grid { align-items: stretch; }
   .step-text { height: calc(100vh - var(--header-h) - 5rem); max-height: none; }
-  .step-work { --editor-min: max(260px, calc(100vh - 22.5rem)); }
-  .step-work .fillcode { min-height: var(--editor-min); }
-  .step-work .editor .cm-editor { min-height: var(--editor-min); }
-  .step-work .editor .cm-scroller { flex: 1 1 auto; }
+  /* The work column is exactly as tall as the window, so the task, Check and the hints are all
+     on screen. The editor is as tall as its code; a long program shrinks it and scrolls inside
+     it instead of pushing the buttons down. Only long results make the column itself scroll. */
+  .step-work { height: calc(100vh - var(--header-h) - 5rem); display: flex; flex-direction: column; overflow-y: auto; padding: 2px 4px 2px 2px; }
+  .step-work > *, .step-work .workbench > * { flex: none; }
+  .step-work > .workbench { flex: 0 1 auto; min-height: 0; display: flex; flex-direction: column; }
+  .step-work .workbench > .editor, .step-work .workbench > .fillcode { flex: 0 1 auto; min-height: 9rem; }
+  .step-work .workbench > .fillcode { overflow: auto; }
+  .step-work .editor, .step-work .editor > div:not(.visually-hidden) { display: flex; flex-direction: column; min-height: 0; flex: 0 1 auto; }
+  .step-work .editor .cm-editor { flex: 0 1 auto; min-height: 0; }
+  .step-work .editor .cm-scroller { overflow: auto; }
 }
 
 /* ==========================================================================
@@ -895,6 +902,10 @@ select, input[type="text"], input[type="url"], input[type="password"], input[typ
 .task-expect .lbl { display: block; margin: 0.5rem 0 0.25rem; }
 .task-output { border-color: var(--pass-line); background: var(--console-bg); color: var(--text); font-weight: 500; max-height: 220px; }
 .task-checks { margin-top: 0.7rem; }
-.task-checks ul { list-style: none; padding: 0; margin: 0.35rem 0 0; display: grid; gap: 0.25rem; font-size: 0.9rem; }
-.task-checks li { display: flex; align-items: flex-start; gap: 0.45rem; color: var(--text2); }
-.task-checks li .icon { color: var(--good); margin-top: 0.2rem; }
+.task-checks ul { list-style: none; padding: 0; margin: 0.35rem 0 0; display: flex; flex-wrap: wrap; gap: 0.35rem; font-size: 0.85rem; }
+.task-checks li { display: inline-flex; align-items: center; gap: 0.35rem; color: var(--text2); background: var(--panel2); border: 1px solid var(--line); border-radius: 999px; padding: 0.15rem 0.6rem 0.15rem 0.45rem; }
+.task-checks li .icon { color: var(--good); width: 0.9rem; height: 0.9rem; }
+.task-io.two { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 0.75rem; }
+@media (max-width: 600px) { .task-io.two { grid-template-columns: 1fr; gap: 0; } }
+.step-work .actions { margin: 0.75rem 0 0.4rem; }
+.step-work .hints { margin-top: 0.4rem; }

@@ -132,6 +132,7 @@ export default function Workbench({ ex, initialCode, initialBlanks, hintsUsed, o
           }}
           onRun={check}
           diagnostics={result?.diagnostics}
+          minHeight="10rem"
         />
       )}
       <SymbolBar container={boxRef} />

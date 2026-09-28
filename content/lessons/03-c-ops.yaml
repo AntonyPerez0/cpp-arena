@@ -107,6 +107,9 @@ steps:
               printf("Money: %d\n", money);
               return 0;
           }
+        require:
+          - pattern: "kills\\s*\\*\\s*kill_reward|kill_reward\\s*\\*\\s*kills"
+            message: Compute the kill money as `kills * kill_reward`.
         forbid:
           - pattern: "4550"
             message: Compute the money from the variables instead of typing the answer.
@@ -706,6 +709,11 @@ steps:
               printf("KPR: %.2f\n", kpr);
               return 0;
           }
+        require:
+          - pattern: "/\\s*deaths"
+            message: Compute the K/D by dividing by `deaths`.
+          - pattern: "/\\s*rounds"
+            message: Compute the KPR by dividing by `rounds`.
         forbid:
           - pattern: "2\\.25|1\\.5"
             message: Compute the numbers from the variables instead of typing the answers.
@@ -746,6 +754,11 @@ steps:
               printf("Spent per round: %.2f\n", per_round);
               return 0;
           }
+        require:
+          - pattern: "%\\s*60"
+            message: Use `% 60` to get the seconds of the match time.
+          - pattern: "/\\s*rounds"
+            message: Compute the money per round by dividing by `rounds`.
         forbid:
           - pattern: "\\b(38|48|2328|2550)\\b"
             message: Compute the numbers from the variables instead of typing the answers.

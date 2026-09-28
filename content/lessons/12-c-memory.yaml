@@ -66,6 +66,65 @@ steps:
       - The function that releases heap memory is `free`.
     tests:
       - expect: "0 40"
+    more:
+      - task: |
+          Allocate room for `n` doubles with `calloc`, which also sets every byte to zero. Set only the second price, print the first two, and free the memory. The output is `0.00 4.50`.
+        fill: |
+          #include <stdio.h>
+          #include <stdlib.h>
+
+          int main(void) {
+              int n = 4;
+              double *prices = [[calloc]](n, [[sizeof(double)]]);
+              if (prices == NULL) return 1;
+              prices[1] = 4.5;
+              printf("%.2f %.2f\n", prices[0], prices[1]);
+              [[free]](prices);
+              return 0;
+          }
+        hints:
+          - "`calloc` takes two arguments, the count and the size of one element."
+          - Every allocation is given back with `free`.
+        tests:
+          - expect: "0.00 4.50"
+      - task: |
+          Allocate an array of `10` ints on the heap yourself, fill it with the squares `0, 1, 4, ..., 81`, print their sum as `sum 285`, and free it. Check that the allocation worked.
+        seed: |
+          #include <stdio.h>
+          #include <stdlib.h>
+
+          int main(void) {
+              int n = 10;
+
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+          #include <stdlib.h>
+
+          int main(void) {
+              int n = 10;
+              int *a = malloc(n * sizeof(int));
+              if (a == NULL) return 1;
+              for (int i = 0; i < n; i++) a[i] = i * i;
+              int sum = 0;
+              for (int i = 0; i < n; i++) sum += a[i];
+              printf("sum %d\n", sum);
+              free(a);
+              return 0;
+          }
+        require:
+          - pattern: "malloc\\s*\\(|calloc\\s*\\("
+            message: Allocate the array with `malloc` or `calloc`.
+          - pattern: "free\\s*\\("
+            message: Free the array at the end.
+          - pattern: "NULL"
+            message: Check that the allocation didn't return `NULL`.
+        hints:
+          - "`int *a = malloc(n * sizeof(int));` then `if (a == NULL) return 1;`."
+          - Fill with `a[i] = i * i;`, add them up, print, then `free(a);`.
+        tests:
+          - expect: "sum 285"
 
   - title: Size decided at runtime
     id: c-memory-2
@@ -168,6 +227,104 @@ steps:
       - stdin: "3\n5 5 5\n"
       - stdin: "6\n1 1 1 1 1 100\n"
         hidden: true
+    more:
+      - task: |
+          Read `n`, then `n` numbers into a heap array, and print them in **reverse** order on one line. Free the array at the end. Input `3` / `7 8 9` prints `9 8 7`.
+        seed: |
+          #include <stdio.h>
+          #include <stdlib.h>
+
+          int main(void) {
+              int n;
+              scanf("%d", &n);
+
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+          #include <stdlib.h>
+
+          int main(void) {
+              int n;
+              scanf("%d", &n);
+              int *a = malloc(n * sizeof(int));
+              if (a == NULL) return 1;
+              for (int i = 0; i < n; i++) scanf("%d", &a[i]);
+              for (int i = n - 1; i >= 0; i--) printf("%d ", a[i]);
+              printf("\n");
+              free(a);
+              return 0;
+          }
+        require:
+          - pattern: "malloc\\s*\\(|calloc\\s*\\("
+            message: Store the numbers in a heap array made with `malloc` or `calloc`.
+          - pattern: "free\\s*\\("
+            message: Free the array at the end.
+        hints:
+          - The size is only known after reading `n`, so allocate `n * sizeof(int)` bytes then.
+        tests:
+          - stdin: "3\n7 8 9\n"
+          - stdin: "1\n42\n"
+          - stdin: "6\n5 -1 0 3 3 12\n"
+            hidden: true
+      - task: |
+          Read `n` and `n` numbers into a heap array. Then read `q` and `q` positions (counting from 0). For each position print the number stored there, or `out of range` if there is no such position. Free the array at the end.
+
+          ```
+          3
+          10 20 30
+          3
+          2 0 5
+          ```
+
+          prints `30`, `10` and `out of range` on three lines.
+        seed: |
+          #include <stdio.h>
+          #include <stdlib.h>
+
+          int main(void) {
+              int n;
+              scanf("%d", &n);
+
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+          #include <stdlib.h>
+
+          int main(void) {
+              int n;
+              scanf("%d", &n);
+              int *a = malloc(n * sizeof(int));
+              if (a == NULL) return 1;
+              for (int i = 0; i < n; i++) scanf("%d", &a[i]);
+              int q;
+              scanf("%d", &q);
+              for (int k = 0; k < q; k++) {
+                  int i;
+                  scanf("%d", &i);
+                  if (i < 0 || i >= n) {
+                      printf("out of range\n");
+                  } else {
+                      printf("%d\n", a[i]);
+                  }
+              }
+              free(a);
+              return 0;
+          }
+        require:
+          - pattern: "malloc\\s*\\(|calloc\\s*\\("
+            message: Store the numbers in a heap array made with `malloc` or `calloc`.
+          - pattern: "free\\s*\\("
+            message: Free the array at the end.
+        hints:
+          - Valid positions go from `0` to `n - 1`. Check `i < 0 || i >= n` before reading `a[i]`.
+          - Reading outside the array is a bug even if it seems to print something, so the check is what matters here.
+        tests:
+          - stdin: "3\n10 20 30\n3\n2 0 5\n"
+          - stdin: "1\n7\n2\n0 -1\n"
+          - stdin: "4\n1 2 3 4\n4\n3 4 1 100\n"
+            hidden: true
 
   - title: Return heap memory from a function
     id: c-memory-3
@@ -252,6 +409,80 @@ steps:
       }
     hints:
       - Allocate with malloc, fill it in a loop, and return the pointer.
+    more:
+      - task: |
+          Write `int *repeat(int value, int n)` that returns a new heap array holding `n` copies of `value`. The caller frees it.
+        seed: |
+          #include <stdlib.h>
+
+          int *repeat(int value, int n) {
+
+          }
+        solution: |
+          #include <stdlib.h>
+
+          int *repeat(int value, int n) {
+              int *a = malloc(n * sizeof(int));
+              if (a == NULL) return NULL;
+              for (int i = 0; i < n; i++) a[i] = value;
+              return a;
+          }
+        harness: |
+          int main(void) {
+              int *a = repeat(7, 4);
+              CHECK("repeat(7, 4) not NULL", a != NULL);
+              int ok = 1;
+              for (int i = 0; i < 4; i++) if (a[i] != 7) ok = 0;
+              CHECK("repeat(7, 4) is {7,7,7,7}", ok);
+              free(a);
+              int *b = repeat(-1, 500);
+              CHECK_INT("repeat(-1, 500)[499]", b[499], -1);
+              free(b);
+              return 0;
+          }
+        hints:
+          - Allocate `n * sizeof(int)` bytes, fill every slot with `value`, return the pointer.
+        tests: []
+      - task: |
+          Write `int *concat(const int *a, int na, const int *b, int nb)` that returns a new heap array with all of `a` followed by all of `b`. The caller frees it.
+        seed: |
+          #include <stdlib.h>
+
+          int *concat(const int *a, int na, const int *b, int nb) {
+
+          }
+        solution: |
+          #include <stdlib.h>
+
+          int *concat(const int *a, int na, const int *b, int nb) {
+              int *out = malloc((na + nb) * sizeof(int));
+              if (out == NULL) return NULL;
+              for (int i = 0; i < na; i++) out[i] = a[i];
+              for (int i = 0; i < nb; i++) out[na + i] = b[i];
+              return out;
+          }
+        harness: |
+          int main(void) {
+              int a[] = {1, 2, 3};
+              int b[] = {9, 8};
+              int *c = concat(a, 3, b, 2);
+              int want[] = {1, 2, 3, 9, 8};
+              int ok = c != NULL;
+              for (int i = 0; ok && i < 5; i++) if (c[i] != want[i]) ok = 0;
+              CHECK("{1,2,3} + {9,8} is {1,2,3,9,8}", ok);
+              free(c);
+              int *d = concat(a, 0, b, 2);
+              CHECK("empty first part", d != NULL && d[0] == 9 && d[1] == 8);
+              free(d);
+              int *e = concat(a, 3, b, 0);
+              CHECK("empty second part", e != NULL && e[0] == 1 && e[2] == 3);
+              free(e);
+              return 0;
+          }
+        hints:
+          - The new array holds `na + nb` ints.
+          - Copy `a` into positions `0` to `na - 1`, then `b` starting at position `na`.
+        tests: []
 
   - title: calloc and strdup-style copies
     id: c-memory-4
@@ -347,6 +578,88 @@ steps:
     hints:
       - "Allocate `strlen(s) + 1` bytes."
       - Copy with `strcpy(c, s)` (or memcpy of n + 1 bytes) and return c.
+    more:
+      - task: |
+          Write `char *reversed_copy(const char *s)` that returns a new heap string with the characters of `s` in reverse order. Don't change `s`.
+        seed: |
+          #include <stdlib.h>
+          #include <string.h>
+
+          char *reversed_copy(const char *s) {
+
+          }
+        solution: |
+          #include <stdlib.h>
+          #include <string.h>
+
+          char *reversed_copy(const char *s) {
+              size_t n = strlen(s);
+              char *r = malloc(n + 1);
+              if (r == NULL) return NULL;
+              for (size_t i = 0; i < n; i++) r[i] = s[n - 1 - i];
+              r[n] = '\0';
+              return r;
+          }
+        harness: |
+          int main(void) {
+              char *r = reversed_copy("clutch");
+              CHECK_STR("reversed \"clutch\"", r, "hctulc");
+              free(r);
+              const char *src = "ab";
+              char *r2 = reversed_copy(src);
+              CHECK_STR("reversed \"ab\"", r2, "ba");
+              CHECK_STR("original unchanged", src, "ab");
+              free(r2);
+              char *e = reversed_copy("");
+              CHECK_STR("empty string", e, "");
+              free(e);
+              return 0;
+          }
+        hints:
+          - Allocate `strlen(s) + 1` bytes, the extra one for the terminator.
+          - "Position `i` of the copy is `s[n - 1 - i]`. Don't forget `r[n] = '\\0';`."
+        tests: []
+      - task: |
+          Write `char *repeat_string(const char *s, int times)` that returns a new heap string with `s` repeated `times` times. `repeat_string("gg", 3)` returns `"gggggg"`, and `times` 0 gives `""`.
+        seed: |
+          #include <stdlib.h>
+          #include <string.h>
+
+          char *repeat_string(const char *s, int times) {
+
+          }
+        solution: |
+          #include <stdlib.h>
+          #include <string.h>
+
+          char *repeat_string(const char *s, int times) {
+              size_t n = strlen(s);
+              char *r = malloc(n * times + 1);
+              if (r == NULL) return NULL;
+              for (int t = 0; t < times; t++) memcpy(r + n * t, s, n);
+              r[n * times] = '\0';
+              return r;
+          }
+        harness: |
+          int main(void) {
+              char *a = repeat_string("gg", 3);
+              CHECK_STR("\"gg\" 3 times", a, "gggggg");
+              free(a);
+              char *b = repeat_string("rush b ", 2);
+              CHECK_STR("\"rush b \" 2 times", b, "rush b rush b ");
+              free(b);
+              char *c = repeat_string("x", 0);
+              CHECK_STR("0 times", c, "");
+              free(c);
+              char *d = repeat_string("", 5);
+              CHECK_STR("empty string 5 times", d, "");
+              free(d);
+              return 0;
+          }
+        hints:
+          - The result has `strlen(s) * times` characters plus one for the terminator.
+          - Copy `s` to position `n * t` for each `t`, with `memcpy` or a loop, then write the terminator at the end.
+        tests: []
 
   - title: Growing with realloc
     id: c-memory-5
@@ -448,6 +761,124 @@ steps:
       - stdin: "1\n"
       - stdin: "1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17\n"
         hidden: true
+    more:
+      - task: |
+          Read integers until the end of input, but keep only the **even** ones, in a heap array that starts with capacity 1 and doubles when full. Print the count, the final capacity and the even numbers. Input `3 8 5 2 6 10` prints `count 4 cap 4: 8 2 6 10`.
+        seed: |
+          #include <stdio.h>
+          #include <stdlib.h>
+
+          int main(void) {
+              int cap = 1, count = 0;
+              int *a = malloc(cap * sizeof(int));
+              if (a == NULL) return 1;
+              int x;
+              while (scanf("%d", &x) == 1) {
+
+              }
+              printf("count %d cap %d:", count, cap);
+              for (int i = 0; i < count; i++) printf(" %d", a[i]);
+              printf("\n");
+              free(a);
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+          #include <stdlib.h>
+
+          int main(void) {
+              int cap = 1, count = 0;
+              int *a = malloc(cap * sizeof(int));
+              if (a == NULL) return 1;
+              int x;
+              while (scanf("%d", &x) == 1) {
+                  if (x % 2 != 0) continue;
+                  if (count == cap) {
+                      cap *= 2;
+                      int *tmp = realloc(a, cap * sizeof(int));
+                      if (tmp == NULL) {
+                          free(a);
+                          return 1;
+                      }
+                      a = tmp;
+                  }
+                  a[count++] = x;
+              }
+              printf("count %d cap %d:", count, cap);
+              for (int i = 0; i < count; i++) printf(" %d", a[i]);
+              printf("\n");
+              free(a);
+              return 0;
+          }
+        require:
+          - pattern: "realloc\\s*\\("
+            message: Grow the array with `realloc` when it is full.
+        hints:
+          - Skip odd numbers first with `continue`. Negative odd numbers have `x % 2` equal to -1, so test `x % 2 != 0`.
+          - Grow only when `count == cap`, and assign the result of `realloc` to a temporary first.
+        tests:
+          - stdin: "3 8 5 2 6 10\n"
+          - stdin: "1 3 5\n"
+          - stdin: "-4 -3 0 2 2 7 12\n"
+            hidden: true
+      - task: |
+          Read the whole input one character at a time with `getchar` into a heap buffer that starts with capacity 4 and doubles when full. Skip newline characters. Then print the text **backwards**, and a second line with its length and the final capacity. Input `hello` prints:
+
+          ```
+          olleh
+          len 5 cap 8
+          ```
+        seed: |
+          #include <stdio.h>
+          #include <stdlib.h>
+
+          int main(void) {
+              int cap = 4, len = 0;
+              char *buf = malloc(cap);
+              if (buf == NULL) return 1;
+              int c;
+
+              free(buf);
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+          #include <stdlib.h>
+
+          int main(void) {
+              int cap = 4, len = 0;
+              char *buf = malloc(cap);
+              if (buf == NULL) return 1;
+              int c;
+              while ((c = getchar()) != EOF) {
+                  if (c == '\n') continue;
+                  if (len == cap) {
+                      cap *= 2;
+                      char *tmp = realloc(buf, cap);
+                      if (tmp == NULL) {
+                          free(buf);
+                          return 1;
+                      }
+                      buf = tmp;
+                  }
+                  buf[len++] = (char)c;
+              }
+              for (int i = len - 1; i >= 0; i--) putchar(buf[i]);
+              printf("\nlen %d cap %d\n", len, cap);
+              free(buf);
+              return 0;
+          }
+        require:
+          - pattern: "realloc\\s*\\("
+            message: Grow the buffer with `realloc` when it is full.
+        hints:
+          - "Read with `while ((c = getchar()) != EOF)` and `continue` on `'\\n'`."
+          - You don't need a terminator here, because you print the characters one by one with `putchar`.
+        tests:
+          - stdin: "hello\n"
+          - stdin: "ab\n"
+          - stdin: "gg wp\nnice shot\n"
+            hidden: true
 
   - title: Memory bugs to avoid
     id: c-memory-6
@@ -547,6 +978,96 @@ steps:
     hints:
       - "\"gg wp\" needs 2 + 1 + 2 = 5 chars **plus** the terminator. Add `+ 1` to the size of `out`."
       - "`tmp` is only a scratch copy. Call `free(tmp);` before returning."
+    more:
+      - task: |
+          `make_pair` returns the address of a local array, which stops existing when the function returns. The tests may even pass by luck, but it's a real bug. Fix it so the array lives on the heap (the caller frees it).
+        seed: |
+          #include <stdlib.h>
+
+          int *make_pair(int a, int b) {
+              int pair[2];
+              pair[0] = a;
+              pair[1] = b;
+              return pair;
+          }
+        solution: |
+          #include <stdlib.h>
+
+          int *make_pair(int a, int b) {
+              int *pair = malloc(2 * sizeof(int));
+              if (pair == NULL) return NULL;
+              pair[0] = a;
+              pair[1] = b;
+              return pair;
+          }
+        harness: |
+          int main(void) {
+              int *p = make_pair(3, 4);
+              int *q = make_pair(7, 8);
+              CHECK("first pair is {3, 4}", p != NULL && p[0] == 3 && p[1] == 4);
+              CHECK("second pair is {7, 8}", q != NULL && q[0] == 7 && q[1] == 8);
+              CHECK("pairs are separate", p != q);
+              free(p);
+              free(q);
+              return 0;
+          }
+        require:
+          - pattern: "malloc\\s*\\(|calloc\\s*\\("
+            message: Allocate the pair on the heap with `malloc` so it outlives the function.
+        hints:
+          - The compiler even warns about this. A local array lives on the stack and is gone after `return`.
+          - "`int *pair = malloc(2 * sizeof(int));` makes memory that stays valid until someone frees it."
+        tests: []
+      - task: |
+          `sum_squares(n)` should return `1*1 + 2*2 + ... + n*n`, but it has two memory bugs: the loop writes one element **past the end** of the buffer, and the buffer is never freed. Fix both.
+        seed: |
+          #include <stdlib.h>
+
+          int sum_squares(int n) {
+              int *sq = malloc(n * sizeof(int));
+              if (sq == NULL) return -1;
+              for (int i = 1; i <= n; i++) {
+                  sq[i] = i * i;
+              }
+              int total = 0;
+              for (int i = 1; i <= n; i++) {
+                  total += sq[i];
+              }
+              return total;
+          }
+        solution: |
+          #include <stdlib.h>
+
+          int sum_squares(int n) {
+              int *sq = malloc(n * sizeof(int));
+              if (sq == NULL) return -1;
+              for (int i = 0; i < n; i++) {
+                  sq[i] = (i + 1) * (i + 1);
+              }
+              int total = 0;
+              for (int i = 0; i < n; i++) {
+                  total += sq[i];
+              }
+              free(sq);
+              return total;
+          }
+        harness: |
+          int main(void) {
+              CHECK_INT("sum_squares(1)", sum_squares(1), 1);
+              CHECK_INT("sum_squares(3)", sum_squares(3), 14);
+              CHECK_INT("sum_squares(10)", sum_squares(10), 385);
+              return 0;
+          }
+        require:
+          - pattern: "free\\s*\\(\\s*sq\\s*\\)"
+            message: Free the buffer before returning, `free(sq);`.
+        forbid:
+          - pattern: "<=\\s*n"
+            message: "A buffer of `n` ints has valid indexes `0` to `n - 1`, so a loop with `i <= n` writes past the end."
+        hints:
+          - With `n` elements, the last valid index is `n - 1`. Loop `i` from 0 while `i < n` and store `(i + 1) * (i + 1)`.
+          - Free `sq` after you've added everything up, just before `return total;`.
+        tests: []
 
   - title: A 2D grid on the heap
     id: c-memory-7
@@ -660,6 +1181,103 @@ steps:
     hints:
       - "First `int **g = malloc(rows * sizeof *g);`, then a loop with `g[r] = calloc(cols, sizeof *g[r]);`."
       - "free_grid: `free(g[r])` for every row, then `free(g)`. Return early if g is NULL."
+    more:
+      - task: |
+          `free_grid` is written for you. Write `int **make_identity(int n)`, an `n` by `n` grid on the heap with `1` on the main diagonal and `0` everywhere else.
+        seed: |
+          #include <stdlib.h>
+
+          void free_grid(int **g, int rows) {
+              if (g == NULL) return;
+              for (int r = 0; r < rows; r++) free(g[r]);
+              free(g);
+          }
+
+          int **make_identity(int n) {
+
+          }
+        solution: |
+          #include <stdlib.h>
+
+          void free_grid(int **g, int rows) {
+              if (g == NULL) return;
+              for (int r = 0; r < rows; r++) free(g[r]);
+              free(g);
+          }
+
+          int **make_identity(int n) {
+              int **g = malloc(n * sizeof *g);
+              if (g == NULL) return NULL;
+              for (int r = 0; r < n; r++) {
+                  g[r] = calloc(n, sizeof *g[r]);
+                  if (g[r] == NULL) {
+                      free_grid(g, r);
+                      return NULL;
+                  }
+                  g[r][r] = 1;
+              }
+              return g;
+          }
+        harness: |
+          int main(void) {
+              int **g = make_identity(4);
+              CHECK("grid was allocated", g != NULL);
+              int ok = 1;
+              for (int r = 0; r < 4; r++)
+                  for (int c = 0; c < 4; c++)
+                      if (g[r][c] != (r == c)) ok = 0;
+              CHECK("1 on the diagonal, 0 elsewhere", ok);
+              free_grid(g, 4);
+              int **one = make_identity(1);
+              CHECK_INT("1 by 1", one[0][0], 1);
+              free_grid(one, 1);
+              return 0;
+          }
+        hints:
+          - Allocate the array of row pointers, then each row with `calloc` so it starts at 0.
+          - Set `g[r][r] = 1` for each row.
+        tests: []
+      - task: |
+          A grid can also be **one** allocation with `rows * cols` ints, where cell `(r, c)` is at position `r * cols + c`. Write `int *make_flat(int rows, int cols)` (all zeros, the caller frees it with a single `free`) and `int *cell(int *g, int cols, int r, int c)`, which returns a pointer to that cell.
+        seed: |
+          #include <stdlib.h>
+
+          int *make_flat(int rows, int cols) {
+
+          }
+
+          int *cell(int *g, int cols, int r, int c) {
+
+          }
+        solution: |
+          #include <stdlib.h>
+
+          int *make_flat(int rows, int cols) {
+              return calloc((size_t)rows * cols, sizeof(int));
+          }
+
+          int *cell(int *g, int cols, int r, int c) {
+              return g + r * cols + c;
+          }
+        harness: |
+          int main(void) {
+              int *g = make_flat(3, 4);
+              CHECK("grid was allocated", g != NULL);
+              int zero = 1;
+              for (int i = 0; i < 12; i++) if (g[i] != 0) zero = 0;
+              CHECK("every cell starts at 0", zero);
+              *cell(g, 4, 2, 3) = 9;
+              CHECK_INT("(2, 3) is the last cell", g[11], 9);
+              *cell(g, 4, 1, 0) = 5;
+              CHECK_INT("(1, 0) is position 4", g[4], 5);
+              CHECK_INT("reading back through cell", *cell(g, 4, 1, 0), 5);
+              free(g);
+              return 0;
+          }
+        hints:
+          - "`calloc(rows * cols, sizeof(int))` makes the whole grid, already zeroed."
+          - Each row is `cols` ints long, so row `r` starts `r * cols` ints in. Return `g + r * cols + c`.
+        tests: []
 
   - title: Who owns what
     id: c-memory-8
@@ -792,6 +1410,107 @@ steps:
       - "Allocate `n` pointers, then for each word allocate `len + 1` bytes, `memcpy` the letters and add `'\\0'`."
       - "`strchr(start, ' ')` finds the next space, or returns NULL for the last word."
       - "free_words frees every word, then the array. `free(NULL)` is safe, so the empty case needs nothing special."
+    more:
+      - task: |
+          Write `char **copy_all(const char **words, int n)`, a **deep** copy: a new array of `n` new strings with the same text. Then write `free_all(words, n)`. After copying, changing the originals must not change the copies.
+        seed: |
+          #include <stdlib.h>
+          #include <string.h>
+
+          char **copy_all(const char **words, int n) {
+
+          }
+
+          void free_all(char **words, int n) {
+
+          }
+        solution: |
+          #include <stdlib.h>
+          #include <string.h>
+
+          char **copy_all(const char **words, int n) {
+              char **out = malloc(n * sizeof *out);
+              if (out == NULL) return NULL;
+              for (int i = 0; i < n; i++) {
+                  size_t len = strlen(words[i]);
+                  out[i] = malloc(len + 1);
+                  memcpy(out[i], words[i], len + 1);
+              }
+              return out;
+          }
+
+          void free_all(char **words, int n) {
+              for (int i = 0; i < n; i++) free(words[i]);
+              free(words);
+          }
+        harness: |
+          int main(void) {
+              char a[] = "rush";
+              char b[] = "b";
+              const char *src[] = {a, b};
+              char **c = copy_all(src, 2);
+              CHECK_STR("first copy", c[0], "rush");
+              CHECK_STR("second copy", c[1], "b");
+              CHECK("copies are new strings", c[0] != a && c[1] != b);
+              a[0] = 'X';
+              CHECK_STR("copy unaffected by changes to the original", c[0], "rush");
+              free_all(c, 2);
+              return 0;
+          }
+        hints:
+          - Allocate the array of pointers, then one new string per word with `strlen(words[i]) + 1` bytes.
+          - Free each string first and the array last.
+        tests: []
+      - task: |
+          Write `char *join_words(char **words, int n, char sep)` that returns a new heap string with the words joined by `sep`. `{"plant", "the", "bomb"}` with `' '` gives `"plant the bomb"`, and `n` 0 gives `""`. Work out the exact size first.
+        seed: |
+          #include <stdlib.h>
+          #include <string.h>
+
+          char *join_words(char **words, int n, char sep) {
+
+          }
+        solution: |
+          #include <stdlib.h>
+          #include <string.h>
+
+          char *join_words(char **words, int n, char sep) {
+              size_t total = 1;
+              for (int i = 0; i < n; i++) total += strlen(words[i]) + 1;
+              char *out = malloc(total);
+              if (out == NULL) return NULL;
+              size_t pos = 0;
+              for (int i = 0; i < n; i++) {
+                  if (i > 0) out[pos++] = sep;
+                  size_t len = strlen(words[i]);
+                  memcpy(out + pos, words[i], len);
+                  pos += len;
+              }
+              out[pos] = '\0';
+              return out;
+          }
+        harness: |
+          int main(void) {
+              char w1[] = "plant", w2[] = "the", w3[] = "bomb";
+              char *words[] = {w1, w2, w3};
+              char *s = join_words(words, 3, ' ');
+              CHECK_STR("plant the bomb", s, "plant the bomb");
+              free(s);
+              char *t = join_words(words, 2, '-');
+              CHECK_STR("with '-'", t, "plant-the");
+              free(t);
+              char *u = join_words(words, 1, ',');
+              CHECK_STR("one word has no separator", u, "plant");
+              free(u);
+              char *e = join_words(words, 0, ' ');
+              CHECK_STR("no words", e, "");
+              free(e);
+              return 0;
+          }
+        hints:
+          - Add up the lengths of all words, plus one byte per separator, plus one for the terminator. Allocating one extra byte per word is also fine.
+          - Keep a position `pos`. Before every word except the first, write `sep`. Then copy the word and move `pos` forward.
+        tests: []
 
   - title: Where a program's data lives
     id: c-memory-10
@@ -890,6 +1609,66 @@ steps:
       - "A local array dies with the function, so make_scores needs the heap: `calloc(n, sizeof(int))` also zeroes it."
       - "String literals live in rodata for the whole run, so returning `\"easy\"` directly is safe."
       - "`static int last;` starts at 0 and keeps its value between calls: `return ++last;`."
+    more:
+      - task: |
+          Write `const char *label(int n)` that returns `"player N"` for the number `n`. The text is built at runtime, so it can't be a string literal, and a local array would be gone after `return`. Use a `static` buffer and `snprintf`. The tests only use each result before the next call, because the next call overwrites the same buffer.
+        seed: |
+          #include <stdio.h>
+
+          const char *label(int n) {
+
+          }
+        solution: |
+          #include <stdio.h>
+
+          const char *label(int n) {
+              static char buf[32];
+              snprintf(buf, sizeof buf, "player %d", n);
+              return buf;
+          }
+        harness: |
+          int main(void) {
+              CHECK_STR("label(3)", label(3), "player 3");
+              CHECK_STR("label(12)", label(12), "player 12");
+              CHECK("every call uses the same buffer", label(1) == label(2));
+              return 0;
+          }
+        require:
+          - pattern: "static\\s+char"
+            message: Keep the text in a `static char` buffer so it still exists after the function returns.
+        hints:
+          - "`static char buf[32];` lives for the whole program, like a global, but only this function can name it."
+          - "`snprintf(buf, sizeof buf, \"player %d\", n);` writes the text into it safely."
+        tests: []
+      - task: |
+          Write `double running_average(int x)` that remembers every value it has been given and returns the average of all of them so far. The first call with `10` returns `10`, then `20` returns `15`, then `60` returns `30`. Use `static` locals, not globals.
+        seed: |
+          double running_average(int x) {
+
+          }
+        solution: |
+          double running_average(int x) {
+              static long long sum = 0;
+              static int count = 0;
+              sum += x;
+              count++;
+              return (double)sum / count;
+          }
+        harness: |
+          int main(void) {
+              CHECK_DBL("after 10", running_average(10), 10);
+              CHECK_DBL("after 20", running_average(20), 15);
+              CHECK_DBL("after 60", running_average(60), 30);
+              CHECK_DBL("after -30", running_average(-30), 15);
+              return 0;
+          }
+        require:
+          - pattern: "\\bstatic\\b"
+            message: Keep the running sum and count in `static` locals.
+        hints:
+          - A `static` local keeps its value between calls and starts at 0.
+          - Keep a static sum and a static count. Update both, then return `(double)sum / count`.
+        tests: []
   - title: "Challenge: a string builder"
     id: c-memory-9
     text: |
@@ -1043,3 +1822,226 @@ steps:
       - "sb_init: set cap to 8, len to 0, `malloc` the buffer and put `'\\0'` in it."
       - "sb_append: you need `len + strlen(s) + 1` bytes. Double a local copy of cap until it's enough, then `realloc` into a temp pointer."
       - "Copy with `memcpy(b->buf + b->len, s, add + 1)` so the terminator comes along, then add to len."
+    more:
+      - task: |
+          The builder from this step is already written below. Add `int sb_append_char(Builder *b, char c)`, which appends one character, growing the buffer (doubling `cap`) when needed. Return 0, or -1 if `realloc` fails.
+        seed: |
+          #include <stdlib.h>
+          #include <string.h>
+
+          typedef struct {
+              char *buf;
+              size_t len;
+              size_t cap;
+          } Builder;
+
+          int sb_init(Builder *b) {
+              b->cap = 8;
+              b->len = 0;
+              b->buf = malloc(b->cap);
+              if (b->buf == NULL) return -1;
+              b->buf[0] = '\0';
+              return 0;
+          }
+
+          const char *sb_str(const Builder *b) {
+              return b->buf;
+          }
+
+          void sb_free(Builder *b) {
+              free(b->buf);
+              b->buf = NULL;
+              b->len = 0;
+              b->cap = 0;
+          }
+
+          int sb_append_char(Builder *b, char c) {
+
+          }
+        solution: |
+          #include <stdlib.h>
+          #include <string.h>
+
+          typedef struct {
+              char *buf;
+              size_t len;
+              size_t cap;
+          } Builder;
+
+          int sb_init(Builder *b) {
+              b->cap = 8;
+              b->len = 0;
+              b->buf = malloc(b->cap);
+              if (b->buf == NULL) return -1;
+              b->buf[0] = '\0';
+              return 0;
+          }
+
+          const char *sb_str(const Builder *b) {
+              return b->buf;
+          }
+
+          void sb_free(Builder *b) {
+              free(b->buf);
+              b->buf = NULL;
+              b->len = 0;
+              b->cap = 0;
+          }
+
+          int sb_append_char(Builder *b, char c) {
+              if (b->len + 2 > b->cap) {
+                  size_t cap = b->cap * 2;
+                  char *tmp = realloc(b->buf, cap);
+                  if (tmp == NULL) return -1;
+                  b->buf = tmp;
+                  b->cap = cap;
+              }
+              b->buf[b->len] = c;
+              b->len++;
+              b->buf[b->len] = '\0';
+              return 0;
+          }
+        harness: |
+          int main(void) {
+              Builder b;
+              sb_init(&b);
+              sb_append_char(&b, 'g');
+              sb_append_char(&b, 'g');
+              CHECK_STR("two characters", sb_str(&b), "gg");
+              CHECK_INT("len is 2", (int)b.len, 2);
+              for (int i = 0; i < 26; i++) sb_append_char(&b, 'a' + i);
+              CHECK_STR("the whole alphabet after \"gg\"", sb_str(&b), "ggabcdefghijklmnopqrstuvwxyz");
+              CHECK("cap is big enough", b.cap > b.len);
+              sb_free(&b);
+              return 0;
+          }
+        hints:
+          - The new character and the terminator both need room, so grow when `len + 2 > cap`.
+          - "Write the character at `buf[len]`, add 1 to `len`, then write `'\\0'` at the new `buf[len]`."
+        tests: []
+      - task: |
+          Add `int sb_append_int(Builder *b, int x)` to the builder, which appends the number as text, so appending `-42` adds the characters `-42`. Format it into a small local buffer with `snprintf`, then append that with `sb_append`.
+        seed: |
+          #include <stdio.h>
+          #include <stdlib.h>
+          #include <string.h>
+
+          typedef struct {
+              char *buf;
+              size_t len;
+              size_t cap;
+          } Builder;
+
+          int sb_init(Builder *b) {
+              b->cap = 8;
+              b->len = 0;
+              b->buf = malloc(b->cap);
+              if (b->buf == NULL) return -1;
+              b->buf[0] = '\0';
+              return 0;
+          }
+
+          int sb_append(Builder *b, const char *s) {
+              size_t add = strlen(s);
+              size_t need = b->len + add + 1;
+              if (need > b->cap) {
+                  size_t cap = b->cap;
+                  while (cap < need) cap *= 2;
+                  char *tmp = realloc(b->buf, cap);
+                  if (tmp == NULL) return -1;
+                  b->buf = tmp;
+                  b->cap = cap;
+              }
+              memcpy(b->buf + b->len, s, add + 1);
+              b->len += add;
+              return 0;
+          }
+
+          const char *sb_str(const Builder *b) {
+              return b->buf;
+          }
+
+          void sb_free(Builder *b) {
+              free(b->buf);
+              b->buf = NULL;
+              b->len = 0;
+              b->cap = 0;
+          }
+
+          int sb_append_int(Builder *b, int x) {
+
+          }
+        solution: |
+          #include <stdio.h>
+          #include <stdlib.h>
+          #include <string.h>
+
+          typedef struct {
+              char *buf;
+              size_t len;
+              size_t cap;
+          } Builder;
+
+          int sb_init(Builder *b) {
+              b->cap = 8;
+              b->len = 0;
+              b->buf = malloc(b->cap);
+              if (b->buf == NULL) return -1;
+              b->buf[0] = '\0';
+              return 0;
+          }
+
+          int sb_append(Builder *b, const char *s) {
+              size_t add = strlen(s);
+              size_t need = b->len + add + 1;
+              if (need > b->cap) {
+                  size_t cap = b->cap;
+                  while (cap < need) cap *= 2;
+                  char *tmp = realloc(b->buf, cap);
+                  if (tmp == NULL) return -1;
+                  b->buf = tmp;
+                  b->cap = cap;
+              }
+              memcpy(b->buf + b->len, s, add + 1);
+              b->len += add;
+              return 0;
+          }
+
+          const char *sb_str(const Builder *b) {
+              return b->buf;
+          }
+
+          void sb_free(Builder *b) {
+              free(b->buf);
+              b->buf = NULL;
+              b->len = 0;
+              b->cap = 0;
+          }
+
+          int sb_append_int(Builder *b, int x) {
+              char tmp[16];
+              snprintf(tmp, sizeof tmp, "%d", x);
+              return sb_append(b, tmp);
+          }
+        harness: |
+          int main(void) {
+              Builder b;
+              sb_init(&b);
+              sb_append(&b, "score ");
+              sb_append_int(&b, 16);
+              sb_append(&b, ":");
+              sb_append_int(&b, -42);
+              CHECK_STR("\"score 16:-42\"", sb_str(&b), "score 16:-42");
+              sb_append(&b, " ");
+              sb_append_int(&b, 0);
+              CHECK_STR("zero", sb_str(&b), "score 16:-42 0");
+              sb_append(&b, " ");
+              sb_append_int(&b, 2147483647);
+              CHECK_STR("the largest int", sb_str(&b), "score 16:-42 0 2147483647");
+              sb_free(&b);
+              return 0;
+          }
+        hints:
+          - An int has at most 11 characters (including a minus sign), so `char tmp[16];` is enough.
+          - "`snprintf(tmp, sizeof tmp, \"%d\", x);` then `return sb_append(b, tmp);`."
+        tests: []

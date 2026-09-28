@@ -66,6 +66,62 @@ steps:
       - To write to the variable p points at, use `*p = ...`.
     tests:
       - expect: "armor 50"
+    more:
+      - task: |
+          One pointer can point at different variables over time. Make `p` point at `hp` first (the program takes 30 off through it), then at `armor`, and set `armor` to `0` through `p`. The output should be `hp 70 armor 0`.
+        fill: |
+          #include <stdio.h>
+
+          int main(void) {
+              int hp = 100, armor = 50;
+              int *p = [[&hp]];
+              *p -= 30;
+              p = [[&armor]];
+              [[*p]] = 0;
+              printf("hp %d armor %d\n", hp, armor);
+              return 0;
+          }
+        hints:
+          - "`&hp` is the address of `hp`. Assigning a new address to `p` makes it point somewhere else."
+          - To change the variable `p` points at, write through `*p`.
+        tests:
+          - expect: "hp 70 armor 0"
+      - task: |
+          Use **only** the pointer `p` to add the round win reward of `3250` to `money`, and print the money through `p` too. The output is `money 4050`. Don't write `money` anywhere after the line that sets up `p`.
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              int money = 800;
+              int *p = &money;
+              // add 3250 and print it, using only p
+
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              int money = 800;
+              int *p = &money;
+              // add 3250 and print it, using only p
+              *p += 3250;
+              printf("money %d\n", *p);
+              return 0;
+          }
+        require:
+          - pattern: "\\*p\\s*(\\+=|=\\s*\\*p\\s*\\+)"
+            message: Add to the money through the pointer, like `*p += 3250;`.
+          - pattern: "printf\\s*\\([^;]*\\*p"
+            message: Print the value through the pointer with `*p`.
+        forbid:
+          - pattern: "&money;[\\s\\S]*\\bmoney\\b"
+            message: After setting up `p`, use only `p`, not `money`.
+        hints:
+          - "`*p` means \"the int that p points at\", so `*p += 3250;` changes `money`."
+          - Print it with `printf("money %d\n", *p);`.
+        tests:
+          - expect: "money 4050"
 
   - title: Change the caller's variable
     id: c-pointers-2
@@ -131,6 +187,68 @@ steps:
     hints:
       - "Save the value at a: `int tmp = *a;`"
       - "Then `*a = *b;` and `*b = tmp;`"
+    more:
+      - task: |
+          Write `void sort2(int *a, int *b)` that puts the two values in order, so that afterwards `*a <= *b`. If they're already in order, leave them alone.
+        seed: |
+          void sort2(int *a, int *b) {
+
+          }
+        solution: |
+          void sort2(int *a, int *b) {
+              if (*a > *b) {
+                  int tmp = *a;
+                  *a = *b;
+                  *b = tmp;
+              }
+          }
+        harness: |
+          int main(void) {
+              int x = 9, y = 4;
+              sort2(&x, &y);
+              CHECK("9, 4 becomes 4, 9", x == 4 && y == 9);
+              int p = 1, q = 2;
+              sort2(&p, &q);
+              CHECK("1, 2 stays 1, 2", p == 1 && q == 2);
+              int s = -3, t = -8;
+              sort2(&s, &t);
+              CHECK("-3, -8 becomes -8, -3", s == -8 && t == -3);
+              int u = 5, v = 5;
+              sort2(&u, &v);
+              CHECK("equal values stay equal", u == 5 && v == 5);
+              return 0;
+          }
+        hints:
+          - Compare the values with `*a > *b`. Only swap when they're out of order.
+        tests: []
+      - task: |
+          Write `void rotate3(int *a, int *b, int *c)` that moves the values one place to the left: `a` gets `b`'s old value, `b` gets `c`'s, and `c` gets `a`'s. Starting from `1, 2, 3` you get `2, 3, 1`.
+        seed: |
+          void rotate3(int *a, int *b, int *c) {
+
+          }
+        solution: |
+          void rotate3(int *a, int *b, int *c) {
+              int first = *a;
+              *a = *b;
+              *b = *c;
+              *c = first;
+          }
+        harness: |
+          int main(void) {
+              int x = 1, y = 2, z = 3;
+              rotate3(&x, &y, &z);
+              CHECK("1, 2, 3 becomes 2, 3, 1", x == 2 && y == 3 && z == 1);
+              rotate3(&x, &y, &z);
+              CHECK("again: 3, 1, 2", x == 3 && y == 1 && z == 2);
+              rotate3(&x, &y, &z);
+              CHECK("three times is back to 1, 2, 3", x == 1 && y == 2 && z == 3);
+              return 0;
+          }
+        hints:
+          - Save `*a` in a temporary variable first, because it gets overwritten.
+          - Then shift `*b` into `*a`, `*c` into `*b`, and the saved value into `*c`.
+        tests: []
 
   - title: Returning two results
     id: c-pointers-3
@@ -199,6 +317,75 @@ steps:
       }
     hints:
       - "Write through the pointers: `*q = a / b;` and `*r = a % b;`"
+    more:
+      - task: |
+          Write `void min_max(const int a[], int n, int *min, int *max)` that stores the smallest and the largest element of the array (which has at least one element) in `*min` and `*max`.
+        seed: |
+          void min_max(const int a[], int n, int *min, int *max) {
+
+          }
+        solution: |
+          void min_max(const int a[], int n, int *min, int *max) {
+              *min = a[0];
+              *max = a[0];
+              for (int i = 1; i < n; i++) {
+                  if (a[i] < *min) *min = a[i];
+                  if (a[i] > *max) *max = a[i];
+              }
+          }
+        harness: |
+          int main(void) {
+              int a[] = {16, 9, 22, 13, 30};
+              int lo = 0, hi = 0;
+              min_max(a, 5, &lo, &hi);
+              CHECK_INT("min of {16,9,22,13,30}", lo, 9);
+              CHECK_INT("max of {16,9,22,13,30}", hi, 30);
+              int b[] = {-4, -9, -1};
+              min_max(b, 3, &lo, &hi);
+              CHECK_INT("min of negatives", lo, -9);
+              CHECK_INT("max of negatives", hi, -1);
+              int c[] = {7};
+              min_max(c, 1, &lo, &hi);
+              CHECK("one element is both", lo == 7 && hi == 7);
+              return 0;
+          }
+        hints:
+          - Start both at `a[0]`, not at 0, so all-negative arrays work.
+          - Update `*min` and `*max` inside one loop.
+        tests: []
+      - task: |
+          Write `int stats(const int a[], int n, int *sum, double *avg)`. If `n` is 0, return `0` and **don't touch** `*sum` or `*avg`. Otherwise store the sum and the average and return `1`. Returning a success flag like this is a common C pattern.
+        seed: |
+          int stats(const int a[], int n, int *sum, double *avg) {
+
+          }
+        solution: |
+          int stats(const int a[], int n, int *sum, double *avg) {
+              if (n == 0) return 0;
+              int s = 0;
+              for (int i = 0; i < n; i++) s += a[i];
+              *sum = s;
+              *avg = (double)s / n;
+              return 1;
+          }
+        harness: |
+          int main(void) {
+              int a[] = {2, 4, 6, 9};
+              int sum = -1;
+              double avg = -1;
+              CHECK_INT("returns 1 for 4 numbers", stats(a, 4, &sum, &avg), 1);
+              CHECK_INT("sum of {2,4,6,9}", sum, 21);
+              CHECK_DBL("average of {2,4,6,9}", avg, 5.25);
+              int s2 = 123;
+              double a2 = 4.5;
+              CHECK_INT("returns 0 for no numbers", stats(a, 0, &s2, &a2), 0);
+              CHECK("outputs untouched when n is 0", s2 == 123 && a2 == 4.5);
+              return 0;
+          }
+        hints:
+          - Check `n == 0` first and return right away.
+          - Add up into a local variable, then write `*sum` and `*avg` at the end. Cast before dividing.
+        tests: []
 
   - title: Pointer arithmetic and arrays
     id: c-pointers-4
@@ -267,6 +454,71 @@ steps:
     hints:
       - "`*(p + i)` is element i. Or walk the pointer itself: `s += *p; p++;`"
       - "One neat version: `for (const int *end = p + n; p < end; p++) s += *p;`"
+    more:
+      - task: |
+          Write `int max_of(const int *p, int n)` that returns the largest of the `n` values (with `n` at least 1), using pointer arithmetic instead of `[]`.
+        seed: |
+          int max_of(const int *p, int n) {
+
+          }
+        solution: |
+          int max_of(const int *p, int n) {
+              int best = *p;
+              for (const int *end = p + n; p < end; p++) {
+                  if (*p > best) best = *p;
+              }
+              return best;
+          }
+        harness: |
+          int main(void) {
+              int a[] = {3, 17, 4, 17, -2};
+              CHECK_INT("max of {3,17,4,17,-2}", max_of(a, 5), 17);
+              CHECK_INT("max of the first one", max_of(a, 1), 3);
+              CHECK_INT("max of the last two", max_of(a + 3, 2), 17);
+              int b[] = {-5, -9};
+              CHECK_INT("all negative", max_of(b, 2), -5);
+              return 0;
+          }
+        forbid:
+          - pattern: "\\["
+            message: Use pointer arithmetic (`*p`, `p++`) instead of `[]`.
+        hints:
+          - Start with `int best = *p;`, the first value.
+          - Move `p` forward until it reaches `p + n`, comparing `*p` with `best` each time.
+        tests: []
+      - task: |
+          Write `int count_pairs(const int *p, int n)` that counts how many neighbours are equal: positions where a value is the same as the one right after it. `{1, 1, 2, 2, 2}` has 3 such pairs. No `[]`.
+        seed: |
+          int count_pairs(const int *p, int n) {
+
+          }
+        solution: |
+          int count_pairs(const int *p, int n) {
+              int count = 0;
+              for (const int *q = p; q + 1 < p + n; q++) {
+                  if (*q == *(q + 1)) count++;
+              }
+              return count;
+          }
+        harness: |
+          int main(void) {
+              int a[] = {1, 1, 2, 2, 2};
+              CHECK_INT("{1,1,2,2,2}", count_pairs(a, 5), 3);
+              int b[] = {1, 2, 1, 2};
+              CHECK_INT("{1,2,1,2}", count_pairs(b, 4), 0);
+              CHECK_INT("one element", count_pairs(a, 1), 0);
+              CHECK_INT("no elements", count_pairs(a, 0), 0);
+              int c[] = {4, 4};
+              CHECK_INT("{4,4}", count_pairs(c, 2), 1);
+              return 0;
+          }
+        forbid:
+          - pattern: "\\["
+            message: Use pointer arithmetic instead of `[]`.
+        hints:
+          - The element after `*q` is `*(q + 1)`.
+          - Stop while `q + 1` is still inside the array, `q + 1 < p + n`, so you never read past the end.
+        tests: []
 
   - title: "NULL"
     id: c-pointers-5
@@ -337,6 +589,64 @@ steps:
       }
     hints:
       - "Check `if (p == NULL) return fallback;` before touching `*p`."
+    more:
+      - task: |
+          Write `int safe_div(int a, int b, int *out)`. If `b` is 0 or `out` is `NULL`, return `0` and do nothing else. Otherwise store `a / b` in `*out` and return `1`.
+        seed: |
+          #include <stddef.h>
+
+          int safe_div(int a, int b, int *out) {
+
+          }
+        solution: |
+          #include <stddef.h>
+
+          int safe_div(int a, int b, int *out) {
+              if (b == 0 || out == NULL) return 0;
+              *out = a / b;
+              return 1;
+          }
+        harness: |
+          int main(void) {
+              int r = -1;
+              CHECK_INT("10 / 3 succeeds", safe_div(10, 3, &r), 1);
+              CHECK_INT("10 / 3 stores 3", r, 3);
+              r = 42;
+              CHECK_INT("dividing by 0 fails", safe_div(10, 0, &r), 0);
+              CHECK_INT("result untouched after a failure", r, 42);
+              CHECK_INT("a NULL out pointer fails", safe_div(10, 2, NULL), 0);
+              return 0;
+          }
+        hints:
+          - Check both problems first, `b == 0 || out == NULL`, before touching `*out`.
+        tests: []
+      - task: |
+          Write `const char *display_name(const char *name)` that returns `name`, or `"anonymous"` if `name` is `NULL` or an empty string. Check for `NULL` **before** looking at the first character.
+        seed: |
+          #include <stddef.h>
+
+          const char *display_name(const char *name) {
+
+          }
+        solution: |
+          #include <stddef.h>
+
+          const char *display_name(const char *name) {
+              if (name == NULL || *name == '\0') return "anonymous";
+              return name;
+          }
+        harness: |
+          int main(void) {
+              CHECK_STR("a real name", display_name("ropz"), "ropz");
+              CHECK_STR("NULL", display_name(NULL), "anonymous");
+              CHECK_STR("empty string", display_name(""), "anonymous");
+              const char *n = "m0NESY";
+              CHECK("returns the same pointer it got", display_name(n) == n);
+              return 0;
+          }
+        hints:
+          - "`||` stops at the first true part, so in `name == NULL || *name == '\\0'` the `*name` never runs when `name` is NULL."
+        tests: []
 
   - title: Strings through pointers
     id: c-pointers-6
@@ -402,6 +712,73 @@ steps:
       }
     hints:
       - Walk the pointer until `*s == '\0'`, counting matches.
+    more:
+      - task: |
+          Write `const char *find_char(const char *s, char ch)` that returns a pointer to the first `ch` in `s`, or `NULL` if there isn't one. This is what the library function `strchr` does, so don't use it.
+        seed: |
+          #include <stddef.h>
+
+          const char *find_char(const char *s, char ch) {
+
+          }
+        solution: |
+          #include <stddef.h>
+
+          const char *find_char(const char *s, char ch) {
+              for (; *s != '\0'; s++) {
+                  if (*s == ch) return s;
+              }
+              return NULL;
+          }
+        harness: |
+          int main(void) {
+              const char *s = "headshot";
+              CHECK("'a' is at index 2", find_char(s, 'a') == s + 2);
+              CHECK("first 'h' is at index 0", find_char(s, 'h') == s);
+              CHECK("'z' is not there", find_char(s, 'z') == NULL);
+              CHECK("empty string", find_char("", 'a') == NULL);
+              return 0;
+          }
+        forbid:
+          - pattern: "\\bstrchr\\s*\\("
+            message: Walk the string yourself instead of calling strchr.
+        hints:
+          - Move `s` forward one character at a time until `*s` is `'\0'`.
+          - When `*s == ch`, return `s` itself, the pointer to that character.
+        tests: []
+      - task: |
+          Write `int count_words(const char *s)` that counts the words in `s`. Words are separated by one or more spaces, and there may be spaces at the start and the end. `"  rush  b "` has 2 words.
+        seed: |
+          int count_words(const char *s) {
+
+          }
+        solution: |
+          int count_words(const char *s) {
+              int count = 0;
+              int in_word = 0;
+              for (; *s != '\0'; s++) {
+                  if (*s == ' ') {
+                      in_word = 0;
+                  } else if (!in_word) {
+                      in_word = 1;
+                      count++;
+                  }
+              }
+              return count;
+          }
+        harness: |
+          int main(void) {
+              CHECK_INT("\"plant the bomb\"", count_words("plant the bomb"), 3);
+              CHECK_INT("\"  rush  b \"", count_words("  rush  b "), 2);
+              CHECK_INT("\"\"", count_words(""), 0);
+              CHECK_INT("\"     \"", count_words("     "), 0);
+              CHECK_INT("\"eco\"", count_words("eco"), 1);
+              return 0;
+          }
+        hints:
+          - Count the places where a word **starts**, a non-space right after a space or at the very beginning.
+          - Keep a flag `in_word`. A space sets it to 0. A non-space when it was 0 starts a new word.
+        tests: []
 
   - title: Pointers to pointers
     id: c-pointers-7
@@ -474,6 +851,76 @@ steps:
     hints:
       - "`*s` is the caller's pointer, and `**s` is the character it points at."
       - "While `**s == ' '`, move the caller's pointer: `(*s)++;` (parentheses matter)."
+    more:
+      - task: |
+          Write `int read_number(const char **s)` that reads the digits at the start of `*s`, returns them as a number, and moves the caller's pointer past them. With `p` pointing at `"123abc"`, `read_number(&p)` returns `123` and leaves `p` pointing at `"abc"`. If there are no digits, return 0 and don't move the pointer.
+        seed: |
+          int read_number(const char **s) {
+
+          }
+        solution: |
+          int read_number(const char **s) {
+              int n = 0;
+              while (**s >= '0' && **s <= '9') {
+                  n = n * 10 + (**s - '0');
+                  (*s)++;
+              }
+              return n;
+          }
+        harness: |
+          int main(void) {
+              const char *p = "123abc";
+              CHECK_INT("\"123abc\" gives 123", read_number(&p), 123);
+              CHECK_STR("pointer moved to \"abc\"", p, "abc");
+              const char *q = "7";
+              CHECK_INT("\"7\" gives 7", read_number(&q), 7);
+              CHECK_STR("pointer at the end", q, "");
+              const char *r = "x9";
+              CHECK_INT("no digits gives 0", read_number(&r), 0);
+              CHECK_STR("pointer did not move", r, "x9");
+              const char *t = "12 34";
+              int a = read_number(&t);
+              t++;
+              int b = read_number(&t);
+              CHECK("two numbers in a row", a == 12 && b == 34);
+              return 0;
+          }
+        hints:
+          - "`**s` is the current character. `(*s)++` moves the caller's pointer."
+          - "Each new digit shifts the number left: `n = n * 10 + (**s - '0')`."
+        tests: []
+      - task: |
+          Write `void release(int **p)` that frees the memory `*p` points at **and** sets the caller's pointer to `NULL`, so it can't be used by mistake afterwards. It must be safe to call again on a pointer that is already `NULL`.
+        seed: |
+          #include <stdlib.h>
+
+          void release(int **p) {
+
+          }
+        solution: |
+          #include <stdlib.h>
+
+          void release(int **p) {
+              free(*p);
+              *p = NULL;
+          }
+        harness: |
+          int main(void) {
+              int *a = malloc(4 * sizeof *a);
+              a[0] = 7;
+              release(&a);
+              CHECK("pointer is NULL after release", a == NULL);
+              release(&a);
+              CHECK("releasing a NULL pointer again is safe", a == NULL);
+              return 0;
+          }
+        require:
+          - pattern: "free\\s*\\("
+            message: Free the memory with `free(*p)`.
+        hints:
+          - "`*p` is the caller's pointer. `free(*p)` frees the memory, and `*p = NULL;` changes the caller's variable."
+          - "`free(NULL)` does nothing, so the second call is safe without an extra check."
+        tests: []
 
   - title: const and pointers
     id: c-pointers-8
@@ -555,6 +1002,71 @@ steps:
     hints:
       - Loop over the n elements. When one equals target, return its address.
       - "`return &a[i];` or, walking a pointer, `return p;`. After the loop, `return NULL;`."
+    more:
+      - task: |
+          Write `const char *last_space(const char *s)` that returns a pointer to the **last** space in `s`, or `NULL` if there is none.
+        seed: |
+          #include <stddef.h>
+
+          const char *last_space(const char *s) {
+
+          }
+        solution: |
+          #include <stddef.h>
+
+          const char *last_space(const char *s) {
+              const char *found = NULL;
+              for (; *s != '\0'; s++) {
+                  if (*s == ' ') found = s;
+              }
+              return found;
+          }
+        harness: |
+          int main(void) {
+              const char *s = "plant the bomb";
+              CHECK("last space in \"plant the bomb\" is at index 9", last_space(s) == s + 9);
+              const char *t = "ace";
+              CHECK("no space gives NULL", last_space(t) == NULL);
+              const char *u = "  ";
+              CHECK("\"  \" gives index 1", last_space(u) == u + 1);
+              CHECK("empty string gives NULL", last_space("") == NULL);
+              return 0;
+          }
+        hints:
+          - Walk the whole string and remember the most recent space you saw, starting from `NULL`.
+        tests: []
+      - task: |
+          Write `const int *find_max(const int *a, int n)` that returns a pointer to the **first** largest element, or `NULL` if `n` is 0. Returning a pointer lets the caller see both the value and where it is.
+        seed: |
+          #include <stddef.h>
+
+          const int *find_max(const int *a, int n) {
+
+          }
+        solution: |
+          #include <stddef.h>
+
+          const int *find_max(const int *a, int n) {
+              if (n == 0) return NULL;
+              const int *best = a;
+              for (const int *p = a + 1; p < a + n; p++) {
+                  if (*p > *best) best = p;
+              }
+              return best;
+          }
+        harness: |
+          int main(void) {
+              const int scores[] = {7, 12, 9, 12};
+              CHECK("first 12 is at index 1", find_max(scores, 4) == &scores[1]);
+              CHECK("only the first element", find_max(scores, 1) == &scores[0]);
+              CHECK("sub-range starting at index 2", find_max(scores + 2, 2) == &scores[3]);
+              CHECK("empty range gives NULL", find_max(scores, 0) == NULL);
+              return 0;
+          }
+        hints:
+          - Keep a pointer `best` to the largest element so far, starting at `a`.
+          - Use `*p > *best` (not `>=`) so ties keep the first one.
+        tests: []
 
   - title: Two pointers from both ends
     id: c-pointers-9
@@ -638,6 +1150,86 @@ steps:
       - "Start with `int *lo = a, *hi = a + n - 1;`."
       - "While `lo < hi`: swap `*lo` and `*hi` with a temp, then `lo++; hi--;`."
       - "Guard `n < 2` first, so you never compute `a - 1` for an empty array."
+    more:
+      - task: |
+          Write `int is_palindrome_arr(const int *a, int n)` that returns `1` if the array reads the same forwards and backwards, using two pointers and no `[ ]`.
+        seed: |
+          int is_palindrome_arr(const int *a, int n) {
+
+          }
+        solution: |
+          int is_palindrome_arr(const int *a, int n) {
+              if (n < 2) return 1;
+              const int *lo = a, *hi = a + n - 1;
+              while (lo < hi) {
+                  if (*lo != *hi) return 0;
+                  lo++;
+                  hi--;
+              }
+              return 1;
+          }
+        harness: |
+          int main(void) {
+              int a[] = {1, 2, 3, 2, 1};
+              CHECK_INT("{1,2,3,2,1}", is_palindrome_arr(a, 5), 1);
+              int b[] = {4, 4};
+              CHECK_INT("{4,4}", is_palindrome_arr(b, 2), 1);
+              int c[] = {1, 2, 3, 1};
+              CHECK_INT("{1,2,3,1}", is_palindrome_arr(c, 4), 0);
+              CHECK_INT("one element", is_palindrome_arr(a, 1), 1);
+              CHECK_INT("no elements", is_palindrome_arr(a, 0), 1);
+              return 0;
+          }
+        forbid:
+          - pattern: "\\["
+            message: Use two pointers instead of `[]`.
+        hints:
+          - Start `lo` at `a` and `hi` at `a + n - 1`, and move them toward each other.
+          - Handle `n < 2` first so `hi` never points before the array.
+        tests: []
+      - task: |
+          Write `void reverse_string(char *s)` that reverses a string in place with two pointers and no `[ ]`. You'll need to find the end of the string yourself first.
+        seed: |
+          void reverse_string(char *s) {
+
+          }
+        solution: |
+          void reverse_string(char *s) {
+              if (*s == '\0') return;
+              char *end = s;
+              while (*(end + 1) != '\0') end++;
+              while (s < end) {
+                  char tmp = *s;
+                  *s = *end;
+                  *end = tmp;
+                  s++;
+                  end--;
+              }
+          }
+        harness: |
+          int main(void) {
+              char a[] = "headshot";
+              reverse_string(a);
+              CHECK_STR("\"headshot\"", a, "tohsdaeh");
+              char b[] = "ab";
+              reverse_string(b);
+              CHECK_STR("\"ab\"", b, "ba");
+              char c[] = "x";
+              reverse_string(c);
+              CHECK_STR("\"x\"", c, "x");
+              char d[] = "";
+              reverse_string(d);
+              CHECK_STR("empty string", d, "");
+              return 0;
+          }
+        forbid:
+          - pattern: "\\["
+            message: Use two pointers instead of `[]`.
+        hints:
+          - Move a pointer `end` forward until the character after it is `'\0'`. Then it points at the last character.
+          - Watch out for the empty string, which has no last character.
+          - Then swap `*s` and `*end` and move them toward each other, like the array version.
+        tests: []
 
   - title: "Challenge: squeeze out spaces"
     id: c-pointers-10
@@ -721,3 +1313,85 @@ steps:
       - "Use two pointers into the same string: `char *w = s;` for writing and another for reading."
       - "For every character that isn't a space, copy it with `*w = *r;` and move `w` forward."
       - "After the loop, end the string: `*w = '\\0';`"
+    more:
+      - task: |
+          Write `void remove_char(char *s, char ch)` that removes every `ch` from `s` in place. `"gg wp gg"` without `'g'` becomes `" wp "`.
+        seed: |
+          void remove_char(char *s, char ch) {
+
+          }
+        solution: |
+          void remove_char(char *s, char ch) {
+              char *w = s;
+              for (const char *r = s; *r != '\0'; r++) {
+                  if (*r != ch) {
+                      *w = *r;
+                      w++;
+                  }
+              }
+              *w = '\0';
+          }
+        harness: |
+          int main(void) {
+              char a[] = "gg wp gg";
+              remove_char(a, 'g');
+              CHECK_STR("remove 'g' from \"gg wp gg\"", a, " wp ");
+              char b[] = "aaa";
+              remove_char(b, 'a');
+              CHECK_STR("remove everything", b, "");
+              char c[] = "dust";
+              remove_char(c, 'z');
+              CHECK_STR("nothing to remove", c, "dust");
+              return 0;
+          }
+        hints:
+          - Same idea as `squeeze`, a read pointer and a write pointer, but compare with `ch` instead of `' '`.
+        tests: []
+      - task: |
+          Write `void tidy(char *s)` that removes spaces at the start and the end, and turns every run of spaces between words into **one** space, in place. `"  rush   b  "` becomes `"rush b"`.
+        seed: |
+          void tidy(char *s) {
+
+          }
+        solution: |
+          void tidy(char *s) {
+              char *w = s;
+              int pending = 0;
+              for (const char *r = s; *r != '\0'; r++) {
+                  if (*r == ' ') {
+                      if (w != s) pending = 1;
+                  } else {
+                      if (pending) {
+                          *w = ' ';
+                          w++;
+                          pending = 0;
+                      }
+                      *w = *r;
+                      w++;
+                  }
+              }
+              *w = '\0';
+          }
+        harness: |
+          int main(void) {
+              char a[] = "  rush   b  ";
+              tidy(a);
+              CHECK_STR("\"  rush   b  \"", a, "rush b");
+              char b[] = "plant the bomb";
+              tidy(b);
+              CHECK_STR("already tidy", b, "plant the bomb");
+              char c[] = "     ";
+              tidy(c);
+              CHECK_STR("only spaces", c, "");
+              char d[] = "a  b  c";
+              tidy(d);
+              CHECK_STR("\"a  b  c\"", d, "a b c");
+              char e[] = "";
+              tidy(e);
+              CHECK_STR("empty string", e, "");
+              return 0;
+          }
+        hints:
+          - Use a read pointer and a write pointer. Don't write a space right away when you see one; remember that one is pending.
+          - Write the pending space only when the next word starts, and only if something has been written already (`w != s`). That drops leading and trailing spaces.
+        tests: []
