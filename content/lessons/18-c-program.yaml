@@ -88,6 +88,94 @@ steps:
       - "The guard is `#ifndef NAME`, then `#define NAME`, then the contents, then `#endif`."
     tests:
       - expect: "2.50"
+    more:
+      - task: |
+          Here `weapon.h` is pasted twice, as if two other headers both included it. Fill in the guard's macro name in all four blanks so the second copy is skipped. The program prints `awp 4750`.
+        fill: |
+          #include <stdio.h>
+
+          /* ---- weapon.h (first include) ---- */
+          #ifndef [[WEAPON_H]]
+          #define [[WEAPON_H]]
+          struct Weapon { const char *name; int price; };
+          #endif
+
+          /* ---- weapon.h (included again) ---- */
+          #ifndef [[WEAPON_H]]
+          #define [[WEAPON_H]]
+          struct Weapon { const char *name; int price; };
+          #endif
+
+          /* ---- main.c ---- */
+          int main(void) {
+              struct Weapon w = {"awp", 4750};
+              printf("%s %d\n", w.name, w.price);
+              return 0;
+          }
+        hints:
+          - Every copy must use the **same** name, usually the file name in capitals, `WEAPON_H`.
+          - "The first time, `WEAPON_H` isn't defined yet, so the code is kept and the name gets defined. The second time, `#ifndef` is false and the copy is skipped."
+        tests:
+          - expect: "awp 4750"
+      - task: |
+          `vec.h` is pasted twice again, but this time it has no guard, so the compiler complains that `struct Vec` is defined twice. Press **Check** to see the error, then add an include guard named `VEC_H` around **both** copies.
+        seed: |
+          #include <stdio.h>
+
+          /* ---- vec.h (first include) ---- */
+          struct Vec { int x, y; };
+          int vec_len2(struct Vec v);
+
+          /* ---- vec.h (included again by another header) ---- */
+          struct Vec { int x, y; };
+          int vec_len2(struct Vec v);
+
+          /* ---- vec.c ---- */
+          int vec_len2(struct Vec v) {
+              return v.x * v.x + v.y * v.y;
+          }
+
+          /* ---- main.c ---- */
+          int main(void) {
+              struct Vec v = {3, 4};
+              printf("%d\n", vec_len2(v));
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          /* ---- vec.h (first include) ---- */
+          #ifndef VEC_H
+          #define VEC_H
+          struct Vec { int x, y; };
+          int vec_len2(struct Vec v);
+          #endif
+
+          /* ---- vec.h (included again by another header) ---- */
+          #ifndef VEC_H
+          #define VEC_H
+          struct Vec { int x, y; };
+          int vec_len2(struct Vec v);
+          #endif
+
+          /* ---- vec.c ---- */
+          int vec_len2(struct Vec v) {
+              return v.x * v.x + v.y * v.y;
+          }
+
+          /* ---- main.c ---- */
+          int main(void) {
+              struct Vec v = {3, 4};
+              printf("%d\n", vec_len2(v));
+              return 0;
+          }
+        require:
+          - pattern: "#ifndef\\s+VEC_H[\\s\\S]*#ifndef\\s+VEC_H"
+            message: Put an `#ifndef VEC_H` / `#define VEC_H` / `#endif` guard around both copies of the header.
+        hints:
+          - "A real header gets its guard once, in the file itself. Here each pasted copy stands for the same file, so each copy needs the same three lines: `#ifndef VEC_H`, `#define VEC_H`, and `#endif` at the end."
+        tests:
+          - expect: "25"
 
   - title: static functions and variables
     id: c-program-2
@@ -173,6 +261,96 @@ steps:
     hints:
       - "`static int pad3(int n) { return n % 1000; }` goes above next_ticket."
       - "Inside next_ticket: `static int last = 0; last = pad3(last + 1); return last;`"
+    more:
+      - task: |
+          Write `int roll(void)`, a dice roll from 1 to 6 made with a simple random-number generator whose state lives in a `static` variable at file scope, so only this file can see it:
+
+          ```
+          state starts at 1
+          each call: state = state * 1103515245 + 12345   (unsigned 32-bit, wrapping)
+          result = ((state >> 16) & 0x7FFF) % 6 + 1
+          ```
+
+          The first four rolls are 3, 5, 4, 2.
+        seed: |
+          #include <stdint.h>
+
+          int roll(void) {
+
+          }
+        solution: |
+          #include <stdint.h>
+
+          static uint32_t state = 1;
+
+          int roll(void) {
+              state = state * 1103515245u + 12345u;
+              return (int)(((state >> 16) & 0x7FFFu) % 6u) + 1;
+          }
+        harness: |
+          int main(void) {
+              CHECK_INT("1st roll", roll(), 3);
+              CHECK_INT("2nd roll", roll(), 5);
+              CHECK_INT("3rd roll", roll(), 4);
+              CHECK_INT("4th roll", roll(), 2);
+              int ok = 1;
+              for (int i = 0; i < 1000; i++) {
+                  int r = roll();
+                  if (r < 1 || r > 6) ok = 0;
+              }
+              CHECK("always 1 to 6", ok);
+              return 0;
+          }
+        require:
+          - pattern: "static\\s+(uint32_t|unsigned)"
+            message: Keep the generator's state in a `static` variable.
+        hints:
+          - "Use `uint32_t` for the state, so the multiplication wraps at 32 bits exactly as the formula says."
+          - A `static` variable outside any function keeps its value between calls, and other files can't touch it.
+        tests: []
+      - task: |
+          Write `const char *next_map(void)`, which returns `"dust2"`, `"mirage"`, `"inferno"`, then starts again, and `void reset_maps(void)`, which makes the next call return `"dust2"` again. Both functions share the position, so it must be a `static` variable at **file** scope, not a static local.
+        seed: |
+          const char *next_map(void) {
+
+          }
+
+          void reset_maps(void) {
+
+          }
+        solution: |
+          static const char *const maps[] = {"dust2", "mirage", "inferno"};
+          static int pos = 0;
+
+          const char *next_map(void) {
+              const char *m = maps[pos];
+              pos = (pos + 1) % 3;
+              return m;
+          }
+
+          void reset_maps(void) {
+              pos = 0;
+          }
+        harness: |
+          int main(void) {
+              CHECK_STR("1st", next_map(), "dust2");
+              CHECK_STR("2nd", next_map(), "mirage");
+              CHECK_STR("3rd", next_map(), "inferno");
+              CHECK_STR("wraps around", next_map(), "dust2");
+              next_map();
+              reset_maps();
+              CHECK_STR("after reset", next_map(), "dust2");
+              CHECK_STR("and on from there", next_map(), "mirage");
+              return 0;
+          }
+        require:
+          - pattern: "^static\\s+int\\s+\\w+\\s*=\\s*0\\s*;"
+            flags: m
+            message: Keep the position in a file-scope `static int` (outside both functions) so both can use it.
+        hints:
+          - A static local inside `next_map` couldn't be reset by `reset_maps`. Declare `static int pos = 0;` above both functions.
+          - Keep the map names in a static array too, and wrap the position with `% 3`.
+        tests: []
 
   - title: extern and shared state
     id: c-program-3
@@ -238,6 +416,78 @@ steps:
       - "A declaration without a definition uses the `extern` keyword."
     tests:
       - expect: "first to 13"
+    more:
+      - task: |
+          Declare the map pool and its size with `extern`, so `main` can use them before their definitions further down the file. The program prints `3 maps: dust2 ... nuke`.
+        fill: |
+          #include <stdio.h>
+
+          [[extern]] const char *map_pool[];
+          [[extern]] int pool_size;
+
+          int main(void) {
+              printf("%d maps: %s ... %s\n", pool_size, map_pool[0], map_pool[pool_size - 1]);
+              return 0;
+          }
+
+          /* ---- maps.c ---- */
+          const char *map_pool[] = {"dust2", "mirage", "nuke"};
+          int pool_size = 3;
+        hints:
+          - "`extern` says \"this exists, it's defined somewhere else\". It doesn't create the variable."
+        tests:
+          - expect: "3 maps: dust2 ... nuke"
+      - task: |
+          `main` uses a counter and a function that are both defined further down, as if they were in `stats.c`. Add the two declarations `main` needs above it: the counter with `extern`, and the function with a prototype. The program prints `kills 3`.
+        seed: |
+          #include <stdio.h>
+
+          // declare total_kills and add_kill here
+
+          int main(void) {
+              add_kill();
+              add_kill();
+              add_kill();
+              printf("kills %d\n", total_kills);
+              return 0;
+          }
+
+          /* ---- stats.c ---- */
+          int total_kills = 0;
+
+          void add_kill(void) {
+              total_kills++;
+          }
+        solution: |
+          #include <stdio.h>
+
+          // declare total_kills and add_kill here
+          extern int total_kills;
+          void add_kill(void);
+
+          int main(void) {
+              add_kill();
+              add_kill();
+              add_kill();
+              printf("kills %d\n", total_kills);
+              return 0;
+          }
+
+          /* ---- stats.c ---- */
+          int total_kills = 0;
+
+          void add_kill(void) {
+              total_kills++;
+          }
+        require:
+          - pattern: "extern\\s+int\\s+total_kills\\s*;"
+            message: "Declare the counter with `extern int total_kills;`."
+          - pattern: "void\\s+add_kill\\s*\\(\\s*void\\s*\\)\\s*;"
+            message: "Declare the function with a prototype, `void add_kill(void);`."
+        hints:
+          - In a real project these two lines would go in `stats.h`, and `main.c` would include it.
+        tests:
+          - expect: "kills 3"
 
   - title: const-correct interfaces
     id: c-program-4
@@ -368,6 +618,127 @@ steps:
     hints:
       - "Add `const` before `Player *team` in the two functions that only read it."
       - "find_by_name's `name` is also read-only: `const char *name`."
+    more:
+      - task: |
+          Fix the two signatures. `total_hp` only reads the team, so it should take a `const Player *`. `rename_player` changes the player but only reads the new name, so the **name** should be `const char *` while the player stays non-const. The tests pass read-only data, so the wrong signatures don't compile.
+        seed: |
+          #include <stddef.h>
+          #include <string.h>
+
+          typedef struct {
+              char name[16];
+              int hp;
+          } Player;
+
+          int total_hp(Player *team, size_t n) {
+              int total = 0;
+              for (size_t i = 0; i < n; i++) total += team[i].hp;
+              return total;
+          }
+
+          void rename_player(Player *p, char *name) {
+              strncpy(p->name, name, sizeof p->name - 1);
+              p->name[sizeof p->name - 1] = '\0';
+          }
+        solution: |
+          #include <stddef.h>
+          #include <string.h>
+
+          typedef struct {
+              char name[16];
+              int hp;
+          } Player;
+
+          int total_hp(const Player *team, size_t n) {
+              int total = 0;
+              for (size_t i = 0; i < n; i++) total += team[i].hp;
+              return total;
+          }
+
+          void rename_player(Player *p, const char *name) {
+              strncpy(p->name, name, sizeof p->name - 1);
+              p->name[sizeof p->name - 1] = '\0';
+          }
+        harness: |
+          int main(void) {
+              const Player pros[] = {{"ropz", 100}, {"rain", 40}};
+              CHECK_INT("total_hp works on const data", total_hp(pros, 2), 140);
+              Player p = {"old", 100};
+              const char *new_name = "broky";
+              rename_player(&p, new_name);
+              CHECK_STR("renamed from a const string", p.name, "broky");
+              return 0;
+          }
+        require:
+          - pattern: "total_hp\\s*\\(\\s*const\\s+Player\\s*\\*"
+            message: "`total_hp` only reads the team, so take a `const Player *`."
+          - pattern: "rename_player\\s*\\(\\s*Player\\s*\\*\\s*\\w+\\s*,\\s*const\\s+char\\s*\\*"
+            message: "`rename_player` should take `Player *p, const char *name`."
+        hints:
+          - "`const` goes on what the function only reads: the team in `total_hp`, the name in `rename_player`."
+        tests: []
+      - task: |
+          Write both functions with the right `const`:
+
+          - `longest_name(team, n)` only reads, and returns a pointer to the longest name **inside** the team array (the first on a tie), or `NULL` for an empty team. Since the team is const, the returned string must be const too.
+          - `find_mut(team, n, name)` returns a pointer to the player with that name so the caller can **change** them, or `NULL`.
+        seed: |
+          #include <stddef.h>
+          #include <string.h>
+
+          typedef struct {
+              char name[16];
+              int hp;
+          } Player;
+
+          // write longest_name and find_mut here
+        solution: |
+          #include <stddef.h>
+          #include <string.h>
+
+          typedef struct {
+              char name[16];
+              int hp;
+          } Player;
+
+          // write longest_name and find_mut here
+          const char *longest_name(const Player *team, size_t n) {
+              const char *best = NULL;
+              for (size_t i = 0; i < n; i++) {
+                  if (best == NULL || strlen(team[i].name) > strlen(best)) best = team[i].name;
+              }
+              return best;
+          }
+
+          Player *find_mut(Player *team, size_t n, const char *name) {
+              for (size_t i = 0; i < n; i++) {
+                  if (strcmp(team[i].name, name) == 0) return &team[i];
+              }
+              return NULL;
+          }
+        harness: |
+          int main(void) {
+              const Player pros[] = {{"ropz", 100}, {"karrigan", 40}, {"broky", 60}, {"frozen12", 5}};
+              const char *ln = longest_name(pros, 4);
+              CHECK_STR("longest name", ln, "karrigan");
+              CHECK("points into the array", ln == pros[1].name);
+              CHECK("empty team gives NULL", longest_name(pros, 0) == NULL);
+              Player team[] = {{"a", 10}, {"b", 20}};
+              Player *b = find_mut(team, 2, "b");
+              if (b) b->hp = 99;
+              CHECK_INT("changed through the returned pointer", team[1].hp, 99);
+              CHECK("missing name gives NULL", find_mut(team, 2, "z") == NULL);
+              return 0;
+          }
+        require:
+          - pattern: "const\\s+char\\s*\\*\\s*longest_name\\s*\\(\\s*const\\s+Player\\s*\\*"
+            message: "`longest_name` reads a const team, so it takes `const Player *` and returns `const char *`."
+          - pattern: "Player\\s*\\*\\s*find_mut\\s*\\(\\s*Player\\s*\\*\\s*\\w+\\s*,\\s*size_t\\s+\\w+\\s*,\\s*const\\s+char\\s*\\*"
+            message: "`find_mut` returns a changeable player, so it takes and returns `Player *`, with a `const char *` name."
+        hints:
+          - "`const char *longest_name(const Player *team, size_t n)` and `Player *find_mut(Player *team, size_t n, const char *name)`."
+          - A pointer into a const array must be const. Returning a non-const pointer to it would let the caller change read-only data.
+        tests: []
 
   - title: Command-line arguments
     id: c-program-5
@@ -462,6 +833,112 @@ steps:
       - args: [ "10", "-3", "x7" ]
       - args: [ "100", "200" ]
         hidden: true
+    more:
+      - task: |
+          Print how many arguments there are and the longest one (the first on a tie), like `3 args, longest: inferno`. With no arguments at all, print `no args`. Remember that `argv[0]` is the program's name, not an argument.
+        seed: |
+          #include <stdio.h>
+          #include <string.h>
+
+          int main(int argc, char **argv) {
+
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+          #include <string.h>
+
+          int main(int argc, char **argv) {
+              if (argc < 2) {
+                  printf("no args\n");
+                  return 0;
+              }
+              const char *longest = argv[1];
+              for (int i = 2; i < argc; i++) {
+                  if (strlen(argv[i]) > strlen(longest)) longest = argv[i];
+              }
+              printf("%d args, longest: %s\n", argc - 1, longest);
+              return 0;
+          }
+        require:
+          - pattern: "argv"
+            message: Read the arguments from `argv`.
+        hints:
+          - The arguments are `argv[1]` to `argv[argc - 1]`, so there are `argc - 1` of them.
+        tests:
+          - args: [ "dust2", "inferno", "nuke" ]
+          - args: []
+          - args: [ "aa", "bb" ]
+            hidden: true
+      - task: |
+          Parse two options: `-n NAME` (default `anon`) and `-r ROUNDS` (default `30`), in any order, and print `NAME plays ROUNDS rounds`. Errors go to **stdout** here so the tests can see them, and exit with code 2:
+
+          - an unknown option prints `unknown option: OPT`
+          - an option without a value after it prints `missing value for OPT`
+          - a rounds value that isn't a whole number prints `bad rounds: VALUE`
+        seed: |
+          #include <stdio.h>
+          #include <stdlib.h>
+          #include <string.h>
+
+          int main(int argc, char **argv) {
+              const char *name = "anon";
+              long rounds = 30;
+
+              printf("%s plays %ld rounds\n", name, rounds);
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+          #include <stdlib.h>
+          #include <string.h>
+
+          int main(int argc, char **argv) {
+              const char *name = "anon";
+              long rounds = 30;
+              for (int i = 1; i < argc; i++) {
+                  const char *opt = argv[i];
+                  if (strcmp(opt, "-n") != 0 && strcmp(opt, "-r") != 0) {
+                      printf("unknown option: %s\n", opt);
+                      return 2;
+                  }
+                  if (i + 1 >= argc) {
+                      printf("missing value for %s\n", opt);
+                      return 2;
+                  }
+                  const char *value = argv[++i];
+                  if (strcmp(opt, "-n") == 0) {
+                      name = value;
+                  } else {
+                      char *end;
+                      rounds = strtol(value, &end, 10);
+                      if (end == value || *end != '\0') {
+                          printf("bad rounds: %s\n", value);
+                          return 2;
+                      }
+                  }
+              }
+              printf("%s plays %ld rounds\n", name, rounds);
+              return 0;
+          }
+        require:
+          - pattern: "argv"
+            message: Read the options from `argv`.
+        hints:
+          - Loop with an index. When you see an option, its value is `argv[i + 1]`; check that `i + 1 < argc` first, then skip it with `i++`.
+          - Parse the rounds with `strtol` and check the end pointer, as in this step.
+        tests:
+          - args: [ "-n", "ropz", "-r", "24" ]
+          - args: []
+          - args: [ "-r", "16" ]
+          - args: [ "-x" ]
+            exit: 2
+          - args: [ "-n" ]
+            exit: 2
+            hidden: true
+          - args: [ "-r", "ten" ]
+            exit: 2
+            hidden: true
 
   - title: Variadic functions
     id: c-program-7
@@ -580,6 +1057,105 @@ steps:
       - "max_of: after `va_start(args, count)`, read the first value with `va_arg(args, int)` as the best so far, then loop over the other `count - 1`."
       - "format_into: `va_start(args, fmt)`, then `int n = vsnprintf(buf, size, fmt, args);`, then `va_end(args)` and return `n`."
       - "Always call `va_end` before returning."
+    more:
+      - task: |
+          Write `int sum_all(int count, ...)`, which adds up `count` ints, and `double average_of(int count, ...)`, which averages `count` **doubles** (`count` is at least 1). Each reads its extra arguments with `va_arg` using the matching type.
+        seed: |
+          #include <stdarg.h>
+
+          int sum_all(int count, ...) {
+
+          }
+
+          double average_of(int count, ...) {
+
+          }
+        solution: |
+          #include <stdarg.h>
+
+          int sum_all(int count, ...) {
+              va_list args;
+              va_start(args, count);
+              int total = 0;
+              for (int i = 0; i < count; i++) total += va_arg(args, int);
+              va_end(args);
+              return total;
+          }
+
+          double average_of(int count, ...) {
+              va_list args;
+              va_start(args, count);
+              double total = 0;
+              for (int i = 0; i < count; i++) total += va_arg(args, double);
+              va_end(args);
+              return total / count;
+          }
+        harness: |
+          int main(void) {
+              CHECK_INT("sum of 3", sum_all(3, 4, 9, 2), 15);
+              CHECK_INT("sum of none", sum_all(0), 0);
+              CHECK_INT("sum with negatives", sum_all(4, -1, -2, 10, 3), 10);
+              CHECK_DBL("average of 2.5 and 3.5", average_of(2, 2.5, 3.5), 3.0);
+              CHECK_DBL("average of one", average_of(1, 7.25), 7.25);
+              CHECK_DBL("average of 1, 2, 4", average_of(3, 1.0, 2.0, 4.0), 7.0 / 3);
+              return 0;
+          }
+        require:
+          - pattern: "va_start"
+            message: Read the extra arguments with `va_start`, `va_arg` and `va_end`.
+        hints:
+          - Every `va_start` needs a matching `va_end`.
+          - "`va_arg(args, double)` for doubles. Passing ints where doubles are expected would read garbage, which is why the tests pass `7.0` style numbers."
+        tests: []
+      - task: |
+          Write `int log_msg(char *buf, size_t size, const char *level, const char *fmt, ...)` that writes `[LEVEL] ` followed by the formatted message, like `[WARN] 3 players left`. It must never write more than `size` bytes, and it returns the total length it **wanted** to write, like `snprintf`.
+        seed: |
+          #include <stdarg.h>
+          #include <stdio.h>
+
+          int log_msg(char *buf, size_t size, const char *level, const char *fmt, ...) {
+
+          }
+        solution: |
+          #include <stdarg.h>
+          #include <stdio.h>
+
+          int log_msg(char *buf, size_t size, const char *level, const char *fmt, ...) {
+              int head = snprintf(buf, size, "[%s] ", level);
+              if (head < 0) return head;
+              size_t used = (size_t)head < size ? (size_t)head : size;
+              va_list args;
+              va_start(args, fmt);
+              int body = vsnprintf(buf + used, size - used, fmt, args);
+              va_end(args);
+              if (body < 0) return body;
+              return head + body;
+          }
+        harness: |
+          int main(void) {
+              char buf[64];
+              int n = log_msg(buf, sizeof buf, "WARN", "%d players left", 3);
+              CHECK_STR("formats the message", buf, "[WARN] 3 players left");
+              CHECK_INT("returns the length", n, 21);
+              log_msg(buf, sizeof buf, "INFO", "%s planted at %s", "ropz", "B");
+              CHECK_STR("string arguments", buf, "[INFO] ropz planted at B");
+              char small[10];
+              int m = log_msg(small, sizeof small, "ERROR", "disk full");
+              CHECK_STR("truncates safely", small, "[ERROR] d");
+              CHECK_INT("returns the full length it needed", m, 17);
+              char tiny[4];
+              int k = log_msg(tiny, sizeof tiny, "ERROR", "x");
+              CHECK_STR("even the prefix can be cut short", tiny, "[ER");
+              CHECK_INT("full length when the prefix doesn't fit", k, 9);
+              return 0;
+          }
+        require:
+          - pattern: "vsnprintf"
+            message: Format the message part with `vsnprintf`.
+        hints:
+          - Write the prefix with `snprintf` first. It returns the prefix length, which may be more than what fit.
+          - Continue at `buf + used`, where `used` is the prefix length but at most `size`, and give `vsnprintf` the `size - used` bytes that are left. Return both lengths added together.
+        tests: []
 
   - title: "Challenge: a real command-line tool"
     id: c-program-6
@@ -699,3 +1275,149 @@ steps:
         files:
           empty.txt: ""
         hidden: true
+    more:
+      - task: |
+          Write `head N FILE`, which prints the first `N` lines of `FILE` (fewer if the file is shorter). Errors go to **stderr**:
+
+          - wrong number of arguments: `usage: head N FILE`, exit code 2
+          - `N` isn't a whole number of 0 or more: `head: bad count: N`, exit code 2
+          - the file can't be opened: `head: cannot open FILE`, exit code 1
+        seed: |
+          #include <stdio.h>
+          #include <stdlib.h>
+
+          int main(int argc, char **argv) {
+
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+          #include <stdlib.h>
+
+          int main(int argc, char **argv) {
+              if (argc != 3) {
+                  fprintf(stderr, "usage: head N FILE\n");
+                  return 2;
+              }
+              char *end;
+              long n = strtol(argv[1], &end, 10);
+              if (end == argv[1] || *end != '\0' || n < 0) {
+                  fprintf(stderr, "head: bad count: %s\n", argv[1]);
+                  return 2;
+              }
+              FILE *f = fopen(argv[2], "r");
+              if (f == NULL) {
+                  fprintf(stderr, "head: cannot open %s\n", argv[2]);
+                  return 1;
+              }
+              long lines = 0;
+              int c;
+              while (lines < n && (c = fgetc(f)) != EOF) {
+                  putchar(c);
+                  if (c == '\n') lines++;
+              }
+              fclose(f);
+              return 0;
+          }
+        require:
+          - pattern: "stderr"
+            message: Print the error messages to `stderr` with `fprintf(stderr, ...)`.
+        hints:
+          - Check `argc` first, then parse `N` with `strtol`, then open the file.
+          - Copying character by character with `fgetc` and `putchar` works for lines of any length. Stop after the `N`-th newline.
+        tests:
+          - args: [ "2", "maps.txt" ]
+            files:
+              maps.txt: "dust2\nmirage\ninferno\nnuke\n"
+          - args: [ "10", "maps.txt" ]
+            files:
+              maps.txt: "a\nb\n"
+          - args: [ "0", "maps.txt" ]
+            files:
+              maps.txt: "a\nb\n"
+            allowEmpty: true
+          - args: [ "3" ]
+            exit: 2
+            allowEmpty: true
+          - args: [ "two", "maps.txt" ]
+            files:
+              maps.txt: "a\n"
+            exit: 2
+            allowEmpty: true
+          - args: [ "1", "missing.txt" ]
+            exit: 1
+            allowEmpty: true
+            hidden: true
+      - task: |
+          Write `find WORD FILE...`, a small version of `grep`. For every line that contains `WORD`, print `FILE: LINE`. Follow grep's exit codes:
+
+          - **0** if at least one line matched
+          - **1** if nothing matched
+          - **2** on an error: fewer than two arguments (print `usage: find WORD FILE...` to stderr), or a file that can't be opened (print `find: cannot open FILE` to stderr, skip it, and still search the others)
+
+          Lines are at most 255 characters long.
+        seed: |
+          #include <stdio.h>
+          #include <string.h>
+
+          int main(int argc, char **argv) {
+
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+          #include <string.h>
+
+          int main(int argc, char **argv) {
+              if (argc < 3) {
+                  fprintf(stderr, "usage: find WORD FILE...\n");
+                  return 2;
+              }
+              const char *word = argv[1];
+              int matched = 0, error = 0;
+              char line[256];
+              for (int i = 2; i < argc; i++) {
+                  FILE *f = fopen(argv[i], "r");
+                  if (f == NULL) {
+                      fprintf(stderr, "find: cannot open %s\n", argv[i]);
+                      error = 1;
+                      continue;
+                  }
+                  while (fgets(line, sizeof line, f) != NULL) {
+                      line[strcspn(line, "\n")] = '\0';
+                      if (strstr(line, word) != NULL) {
+                          printf("%s: %s\n", argv[i], line);
+                          matched = 1;
+                      }
+                  }
+                  fclose(f);
+              }
+              if (error) return 2;
+              return matched ? 0 : 1;
+          }
+        require:
+          - pattern: "stderr"
+            message: Print the error messages to `stderr` with `fprintf(stderr, ...)`.
+          - pattern: "strstr\\s*\\("
+            message: Look for the word inside each line with `strstr`.
+        hints:
+          - Keep two flags while you loop over the files, one for "something matched" and one for "an error happened".
+          - "Decide the exit code at the end: 2 if there was an error, otherwise 0 or 1 depending on the matches."
+        tests:
+          - args: [ "kill", "a.log", "b.log" ]
+            files:
+              a.log: "round 1\nropz kill rain\n"
+              b.log: "rain kill broky\nbomb planted\n"
+          - args: [ "defuse", "a.log" ]
+            files:
+              a.log: "round 1\nplant\n"
+            exit: 1
+            allowEmpty: true
+          - args: [ "plant", "missing.log", "a.log" ]
+            files:
+              a.log: "round 1\nplant\n"
+            exit: 2
+          - args: [ "x" ]
+            exit: 2
+            allowEmpty: true
+            hidden: true

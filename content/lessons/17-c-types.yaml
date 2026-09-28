@@ -65,6 +65,60 @@ steps:
           min -2147483648
 
           bits per byte 8"
+    more:
+      - task: |
+          Print the largest `short` and the largest `unsigned char`, using the constants from `<limits.h>`.
+        fill: |
+          #include <limits.h>
+          #include <stdio.h>
+
+          int main(void) {
+              printf("short max %d\n", [[SHRT_MAX]]);
+              printf("unsigned char max %d\n", [[UCHAR_MAX]]);
+              return 0;
+          }
+        hints:
+          - "The names follow a pattern: `INT_MAX`, `SHRT_MAX`, `LONG_MAX`, and `U` in front for unsigned types, like `UINT_MAX`."
+        tests:
+          - expect: "short max 32767\nunsigned char max 255"
+      - task: |
+          Print the size of `short`, `int` and `long long` with `sizeof`, and the largest `unsigned int` from `<limits.h>`. Pick the right format for each: `%zu` for sizes, `%u` for an unsigned int.
+
+          ```
+          short 2
+          int 4
+          long long 8
+          uint max 4294967295
+          ```
+        seed: |
+          #include <limits.h>
+          #include <stdio.h>
+
+          int main(void) {
+
+              return 0;
+          }
+        solution: |
+          #include <limits.h>
+          #include <stdio.h>
+
+          int main(void) {
+              printf("short %zu\n", sizeof(short));
+              printf("int %zu\n", sizeof(int));
+              printf("long long %zu\n", sizeof(long long));
+              printf("uint max %u\n", UINT_MAX);
+              return 0;
+          }
+        require:
+          - pattern: "sizeof\\s*\\(\\s*long\\s+long\\s*\\)"
+            message: Use `sizeof(long long)` for the third line.
+          - pattern: "UINT_MAX"
+            message: Print `UINT_MAX` for the last line.
+        hints:
+          - "`sizeof` gives a `size_t`, printed with `%zu`."
+          - "`UINT_MAX` doesn't fit in an `int`, so `%d` would print it wrong. Use `%u`."
+        tests:
+          - expect: "short 2\nint 4\nlong long 8\nuint max 4294967295"
 
   - title: Unsigned wraparound
     id: c-types-2
@@ -156,6 +210,78 @@ steps:
         allowEmpty: true
       - stdin: "5\n-1 0 7 7 3\n"
         hidden: true
+    more:
+      - task: |
+          Read a count `n` (at most 100) and `n` integers. Print the index (counting from 0) of the **last** negative number, or `none`. Search backwards with a `size_t` index, and make sure the loop still ends when the index reaches 0.
+        seed: |
+          #include <stddef.h>
+          #include <stdio.h>
+
+          int main(void) {
+              size_t n;
+              int a[100];
+              if (scanf("%zu", &n) != 1 || n > 100) return 1;
+              for (size_t i = 0; i < n; i++) scanf("%d", &a[i]);
+
+              return 0;
+          }
+        solution: |
+          #include <stddef.h>
+          #include <stdio.h>
+
+          int main(void) {
+              size_t n;
+              int a[100];
+              if (scanf("%zu", &n) != 1 || n > 100) return 1;
+              for (size_t i = 0; i < n; i++) scanf("%d", &a[i]);
+              for (size_t i = n; i-- > 0;) {
+                  if (a[i] < 0) {
+                      printf("%zu\n", i);
+                      return 0;
+                  }
+              }
+              printf("none\n");
+              return 0;
+          }
+        require:
+          - pattern: "size_t\\s+\\w+\\s*=\\s*n"
+            message: Start a `size_t` index at `n` and count down.
+        hints:
+          - "`for (size_t i = n; i-- > 0;)` visits `n - 1` down to `0` and stops. `i >= 0` would never be false for an unsigned `i`."
+          - Print a `size_t` with `%zu`.
+        tests:
+          - stdin: "5\n3 -1 4 -1 5\n"
+          - stdin: "3\n1 2 3\n"
+          - stdin: "0\n"
+          - stdin: "1\n-7\n"
+            hidden: true
+      - task: |
+          Write `size_t safe_sub(size_t a, size_t b)` that returns `a - b`, or `0` when `b` is bigger than `a`. Plain `a - b` would wrap around to a huge number instead of going negative.
+        seed: |
+          #include <stddef.h>
+
+          size_t safe_sub(size_t a, size_t b) {
+
+          }
+        solution: |
+          #include <stddef.h>
+
+          size_t safe_sub(size_t a, size_t b) {
+              return b > a ? 0 : a - b;
+          }
+        harness: |
+          #include <stdint.h>
+          int main(void) {
+              CHECK("10 - 3 is 7", safe_sub(10, 3) == 7);
+              CHECK("3 - 10 is 0, not a huge number", safe_sub(3, 10) == 0);
+              CHECK("5 - 5 is 0", safe_sub(5, 5) == 0);
+              CHECK("SIZE_MAX - 1", safe_sub(SIZE_MAX, 1) == SIZE_MAX - 1);
+              CHECK("0 - SIZE_MAX is 0", safe_sub(0, SIZE_MAX) == 0);
+              return 0;
+          }
+        hints:
+          - Compare first, then subtract only when it can't wrap.
+        tests: []
 
   - title: Signed overflow is undefined
     id: c-types-3
@@ -242,6 +368,106 @@ steps:
       - "Positive b: the sum overflows exactly when `a > INT_MAX - b`. That subtraction is safe because b > 0."
       - "Negative b: the sum underflows exactly when `a < INT_MIN - b`."
       - "Only compute `a + b` after both checks pass."
+    more:
+      - task: |
+          Write `int checked_mul(int a, int b, int *out)`. If the product fits in an `int`, store it and return 1. Otherwise return 0 and leave `*out` alone. As in this step, don't compute the product in a wider type; check with division **before** multiplying.
+        seed: |
+          #include <limits.h>
+
+          int checked_mul(int a, int b, int *out) {
+
+          }
+        solution: |
+          #include <limits.h>
+
+          int checked_mul(int a, int b, int *out) {
+              if (a > 0) {
+                  if (b > 0) {
+                      if (a > INT_MAX / b) return 0;
+                  } else {
+                      if (b < INT_MIN / a) return 0;
+                  }
+              } else if (a < 0) {
+                  if (b > 0) {
+                      if (a < INT_MIN / b) return 0;
+                  } else if (b < 0) {
+                      if (a < INT_MAX / b) return 0;
+                  }
+              }
+              *out = a * b;
+              return 1;
+          }
+        harness: |
+          #include <limits.h>
+          int main(void) {
+              int r = 0;
+              CHECK_INT("6 * 7 fits", checked_mul(6, 7, &r), 1);
+              CHECK_INT("6 * 7 result", r, 42);
+              r = 5;
+              CHECK_INT("INT_MAX * 2 overflows", checked_mul(INT_MAX, 2, &r), 0);
+              CHECK_INT("out untouched on overflow", r, 5);
+              CHECK_INT("INT_MIN * -1 overflows", checked_mul(INT_MIN, -1, &r), 0);
+              CHECK_INT("-1 * INT_MIN overflows", checked_mul(-1, INT_MIN, &r), 0);
+              CHECK_INT("65536 * 32768 overflows", checked_mul(65536, 32768, &r), 0);
+              CHECK_INT("-65536 * 32768 fits exactly", checked_mul(-65536, 32768, &r) && r == INT_MIN, 1);
+              CHECK_INT("-3 * -4", checked_mul(-3, -4, &r) && r == 12, 1);
+              CHECK_INT("0 * INT_MIN", checked_mul(0, INT_MIN, &r) && r == 0, 1);
+              return 0;
+          }
+        forbid:
+          - pattern: "__builtin|ckd_mul|long\\s+long"
+            message: Check with division instead of a wider type or a compiler built-in.
+        hints:
+          - Split by the signs of `a` and `b`. If either is 0 the product is 0 and always fits.
+          - "Both positive: it overflows when `a > INT_MAX / b`. The other three sign combinations each compare with `INT_MIN / x` or `INT_MAX / b` in the same way."
+        tests: []
+      - task: |
+          Write `int parse_int(const char *s, int *out)` that accepts only a complete decimal integer that fits in an `int`, like `"42"` or `"-17"`. Store it and return 1, or return 0 (leaving `*out` alone) for anything else: empty strings, junk after the number, or values out of range. Use `strtol` and check `errno` for `ERANGE`.
+        seed: |
+          #include <errno.h>
+          #include <limits.h>
+          #include <stdlib.h>
+
+          int parse_int(const char *s, int *out) {
+
+          }
+        solution: |
+          #include <errno.h>
+          #include <limits.h>
+          #include <stdlib.h>
+
+          int parse_int(const char *s, int *out) {
+              char *end;
+              errno = 0;
+              long v = strtol(s, &end, 10);
+              if (end == s || *end != '\0') return 0;
+              if (errno == ERANGE || v < INT_MIN || v > INT_MAX) return 0;
+              *out = (int)v;
+              return 1;
+          }
+        harness: |
+          int main(void) {
+              int r = 0;
+              CHECK_INT("\"42\"", parse_int("42", &r) && r == 42, 1);
+              CHECK_INT("\"-17\"", parse_int("-17", &r) && r == -17, 1);
+              CHECK_INT("\"2147483647\"", parse_int("2147483647", &r) && r == 2147483647, 1);
+              CHECK_INT("\"-2147483648\"", parse_int("-2147483648", &r) && r == -2147483647 - 1, 1);
+              r = 9;
+              CHECK_INT("\"2147483648\" is too big", parse_int("2147483648", &r), 0);
+              CHECK_INT("\"99999999999999999999\" is too big", parse_int("99999999999999999999", &r), 0);
+              CHECK_INT("\"12x\" has junk", parse_int("12x", &r), 0);
+              CHECK_INT("\"\" is empty", parse_int("", &r), 0);
+              CHECK_INT("\"abc\"", parse_int("abc", &r), 0);
+              CHECK_INT("out untouched after failures", r, 9);
+              return 0;
+          }
+        require:
+          - pattern: "strtol\\s*\\("
+            message: Parse with `strtol`.
+        hints:
+          - "Set `errno = 0` before calling `strtol`. Afterwards `errno == ERANGE` means the number didn't even fit in a `long`."
+          - "`end == s` means no digits were read, and `*end != '\\0'` means junk followed the number. A `long` can still be bigger than an `int`, so also compare with `INT_MIN` and `INT_MAX`."
+        tests: []
 
   - title: Fixed-width types
     id: c-types-4
@@ -328,6 +554,82 @@ steps:
       - "Start with `uint64_t h = 14695981039346656037ULL;`. The `ULL` suffix makes the constant unsigned long long."
       - "Walk the string as `unsigned char` so bytes above 127 aren't negative: `(const unsigned char *)s`."
       - "In the loop: `h ^= *p; h *= 1099511628211ULL;`"
+    more:
+      - task: |
+          Write the **32-bit** version of FNV-1a. It's the same loop with a different start and multiplier:
+
+          ```
+          hash = 2166136261
+          for each byte b of the string:
+              hash = hash XOR b
+              hash = hash * 16777619      (wrapping, which uint32_t does for free)
+          ```
+        seed: |
+          #include <stdint.h>
+
+          uint32_t fnv1a32(const char *s) {
+
+          }
+        solution: |
+          #include <stdint.h>
+
+          uint32_t fnv1a32(const char *s) {
+              uint32_t h = 2166136261u;
+              for (const unsigned char *p = (const unsigned char *)s; *p; p++) {
+                  h ^= *p;
+                  h *= 16777619u;
+              }
+              return h;
+          }
+        harness: |
+          int main(void) {
+              CHECK("empty string gives the offset basis", fnv1a32("") == 2166136261u);
+              CHECK("\"a\"", fnv1a32("a") == 3826002220u);
+              CHECK("\"de_dust2\"", fnv1a32("de_dust2") == 2410686675u);
+              CHECK("\"inferno\"", fnv1a32("inferno") == 838890020u);
+              return 0;
+          }
+        hints:
+          - Use `uint32_t` for the hash so the multiplication wraps at 32 bits.
+          - Read the bytes as `unsigned char`, so characters above 127 aren't negative.
+        tests: []
+      - task: |
+          Colors are often stored as one 32-bit number with four 8-bit channels. Write `uint32_t pack_rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a)`, which puts `r` in the highest byte and `a` in the lowest (`0xRRGGBBAA`), and `uint8_t channel(uint32_t color, int i)`, which returns channel `i` (0 is red, 3 is alpha).
+        seed: |
+          #include <stdint.h>
+
+          uint32_t pack_rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
+
+          }
+
+          uint8_t channel(uint32_t color, int i) {
+
+          }
+        solution: |
+          #include <stdint.h>
+
+          uint32_t pack_rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
+              return ((uint32_t)r << 24) | ((uint32_t)g << 16) | ((uint32_t)b << 8) | (uint32_t)a;
+          }
+
+          uint8_t channel(uint32_t color, int i) {
+              return (uint8_t)(color >> (24 - 8 * i));
+          }
+        harness: |
+          int main(void) {
+              CHECK("orange 0xFF8000FF", pack_rgba(255, 128, 0, 255) == 0xFF8000FFu);
+              CHECK("all zero", pack_rgba(0, 0, 0, 0) == 0u);
+              CHECK("0x12345678", pack_rgba(0x12, 0x34, 0x56, 0x78) == 0x12345678u);
+              CHECK_INT("red of 0x12345678", channel(0x12345678u, 0), 0x12);
+              CHECK_INT("green", channel(0x12345678u, 1), 0x34);
+              CHECK_INT("blue", channel(0x12345678u, 2), 0x56);
+              CHECK_INT("alpha", channel(0x12345678u, 3), 0x78);
+              return 0;
+          }
+        hints:
+          - Convert each byte to `uint32_t` **before** shifting, so red can move 24 bits left safely.
+          - To read a channel, shift it down to the lowest byte and cast to `uint8_t`, which keeps only the low 8 bits.
+        tests: []
 
   - title: The signed/unsigned comparison trap
     id: c-types-5
@@ -417,6 +719,76 @@ steps:
     hints:
       - "Handle the negative case first: any string is longer than a negative length."
       - "Once n is known to be >= 0, `(size_t)n` is safe: `return n < 0 || strlen(s) > (size_t)n;`"
+    more:
+      - task: |
+          `last_index_of` should return the index of the last `c` in `s`, or -1. Its loop counts down with a `size_t`, but `i >= 0` is **always** true for an unsigned type, and for an empty string `strlen(s) - 1` wraps around to a huge number. Fix the loop so it works for every string.
+        seed: |
+          #include <string.h>
+
+          int last_index_of(const char *s, char c) {
+              for (size_t i = strlen(s) - 1; i >= 0; i--) {
+                  if (s[i] == c) return (int)i;
+              }
+              return -1;
+          }
+        solution: |
+          #include <string.h>
+
+          int last_index_of(const char *s, char c) {
+              for (size_t i = strlen(s); i-- > 0;) {
+                  if (s[i] == c) return (int)i;
+              }
+              return -1;
+          }
+        harness: |
+          int main(void) {
+              CHECK_INT("last 'g' in \"gg wp\"", last_index_of("gg wp", 'g'), 1);
+              CHECK_INT("'p' is the last character", last_index_of("gg wp", 'p'), 4);
+              CHECK_INT("first character", last_index_of("ace", 'a'), 0);
+              CHECK_INT("missing character", last_index_of("gg wp", 'z'), -1);
+              CHECK_INT("empty string", last_index_of("", 'a'), -1);
+              return 0;
+          }
+        forbid:
+          - pattern: "i\\s*>=\\s*0"
+            message: An unsigned `i >= 0` is always true. Use the `i-- > 0` pattern instead.
+        hints:
+          - "`for (size_t i = strlen(s); i-- > 0;)` tests `i` before subtracting, so it visits the last index down to 0 and stops."
+        tests: []
+      - task: |
+          `has_room(used, cap, want)` should say whether `want` more items fit: `used + want <= cap`. A negative `want` means items are being **removed**, which always fits. The current code is wrong for negative `want`, because the int is converted to a huge `size_t` before adding. Fix it without casting the sizes to `int`.
+        seed: |
+          #include <stddef.h>
+
+          int has_room(size_t used, size_t cap, int want) {
+              return used + want <= cap;
+          }
+        solution: |
+          #include <stddef.h>
+
+          int has_room(size_t used, size_t cap, int want) {
+              if (want <= 0) return 1;
+              if (used > cap) return 0;
+              return (size_t)want <= cap - used;
+          }
+        harness: |
+          #include <stdint.h>
+          int main(void) {
+              CHECK_INT("3 more into 5 of 10", has_room(5, 10, 3), 1);
+              CHECK_INT("5 more into 5 of 10 fills it exactly", has_room(5, 10, 5), 1);
+              CHECK_INT("6 more into 5 of 10", has_room(5, 10, 6), 0);
+              CHECK_INT("removing 2 always fits", has_room(5, 10, -2), 1);
+              CHECK_INT("removing from a full list", has_room(10, 10, -10), 1);
+              CHECK_INT("no overflow near SIZE_MAX", has_room(SIZE_MAX - 1, SIZE_MAX, 5), 0);
+              return 0;
+          }
+        forbid:
+          - pattern: "\\(\\s*int\\s*\\)\\s*(used|cap)"
+            message: Don't cast the sizes to `int`; they can be larger than `INT_MAX`.
+        hints:
+          - Handle `want <= 0` first. After that, `want` is positive and converting it to `size_t` is safe.
+          - Compare `want` with the free space, `cap - used`, instead of computing `used + want`, which could wrap around.
+        tests: []
 
   - title: Floating-point rounding
     id: c-types-6
@@ -482,6 +854,77 @@ steps:
       - "Write a tiny helper: `static double absd(double x) { return x < 0 ? -x : x; }`"
       - "scale starts at 1.0 and grows to |a| or |b| if either is bigger."
       - "`return absd(a - b) <= eps * scale;`"
+    more:
+      - task: |
+          Write `long round_cents(double dollars)` that converts an amount to whole cents, rounding to the **nearest** cent (halves away from zero). `19.99` is `1999` even though `19.99 * 100` is slightly less than 1999 in floating point. Don't use `<math.h>`.
+        seed: |
+          long round_cents(double dollars) {
+
+          }
+        solution: |
+          long round_cents(double dollars) {
+              double cents = dollars * 100.0;
+              return (long)(cents < 0 ? cents - 0.5 : cents + 0.5);
+          }
+        harness: |
+          int main(void) {
+              CHECK_INT("19.99", round_cents(19.99), 1999);
+              CHECK_INT("0.1 + 0.2", round_cents(0.1 + 0.2), 30);
+              CHECK_INT("4.5", round_cents(4.5), 450);
+              CHECK_INT("-2.5", round_cents(-2.5), -250);
+              CHECK_INT("-0.07", round_cents(-0.07), -7);
+              CHECK_INT("0.004 rounds down", round_cents(0.004), 0);
+              CHECK_INT("0.006 rounds up", round_cents(0.006), 1);
+              return 0;
+          }
+        hints:
+          - Casting to `long` just cuts off the decimals, so `1998.9999` becomes `1998`.
+          - Add `0.5` before the cast (or subtract it for negative amounts) to round to the nearest whole number.
+        tests: []
+      - task: |
+          Adding many small numbers to a big one loses them to rounding. **Kahan summation** keeps a running correction for what was lost. Write `double kahan_sum(const double *a, int n)`:
+
+          ```
+          sum = 0, c = 0
+          for each x:
+              y = x - c
+              t = sum + y
+              c = (t - sum) - y
+              sum = t
+          ```
+        seed: |
+          double kahan_sum(const double *a, int n) {
+
+          }
+        solution: |
+          double kahan_sum(const double *a, int n) {
+              double sum = 0.0, c = 0.0;
+              for (int i = 0; i < n; i++) {
+                  double y = a[i] - c;
+                  double t = sum + y;
+                  c = (t - sum) - y;
+                  sum = t;
+              }
+              return sum;
+          }
+        harness: |
+          int main(void) {
+              double a[101];
+              a[0] = 1e16;
+              for (int i = 1; i <= 100; i++) a[i] = 1.0;
+              double naive = 0;
+              for (int i = 0; i <= 100; i++) naive += a[i];
+              CHECK("plain adding loses the ones", naive == 1e16);
+              CHECK("1e16 plus a hundred 1s", kahan_sum(a, 101) == 1e16 + 100);
+              double b[] = {0.1, 0.2, 0.3};
+              CHECK_DBL("0.1 + 0.2 + 0.3", kahan_sum(b, 3), 0.6);
+              CHECK("empty array is 0", kahan_sum(b, 0) == 0.0);
+              return 0;
+          }
+        hints:
+          - Follow the pseudocode exactly. `c` holds the part of the last addition that rounding threw away.
+          - Algebra says `c` is always 0, but in floating point it isn't, which is the whole point. Don't simplify the formula.
+        tests: []
 
   - title: Type punning and strict aliasing
     id: c-types-8
@@ -601,6 +1044,88 @@ steps:
       - "`uint32_t bits; memcpy(&bits, &f, sizeof bits); return bits;`"
       - "bits_to_float is the same copy in the other direction."
       - "The sign is the top bit: `float_bits(f) >> 31` is 1 or 0."
+    more:
+      - task: |
+          Files and network data often store numbers as bytes in **little-endian** order (lowest byte first). Write `uint32_t read_u32_le(const unsigned char *p)` and `void write_u32_le(unsigned char *p, uint32_t v)` with shifts, so they give the same result on every machine. Don't cast the byte pointer to a `uint32_t *`.
+        seed: |
+          #include <stdint.h>
+
+          uint32_t read_u32_le(const unsigned char *p) {
+
+          }
+
+          void write_u32_le(unsigned char *p, uint32_t v) {
+
+          }
+        solution: |
+          #include <stdint.h>
+
+          uint32_t read_u32_le(const unsigned char *p) {
+              return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+          }
+
+          void write_u32_le(unsigned char *p, uint32_t v) {
+              p[0] = (unsigned char)v;
+              p[1] = (unsigned char)(v >> 8);
+              p[2] = (unsigned char)(v >> 16);
+              p[3] = (unsigned char)(v >> 24);
+          }
+        harness: |
+          int main(void) {
+              const unsigned char in[4] = {0x78, 0x56, 0x34, 0x12};
+              CHECK("bytes 78 56 34 12 are 0x12345678", read_u32_le(in) == 0x12345678u);
+              const unsigned char big[4] = {0xFF, 0xFF, 0xFF, 0xFF};
+              CHECK("all FF is 0xFFFFFFFF", read_u32_le(big) == 0xFFFFFFFFu);
+              unsigned char out[4] = {0};
+              write_u32_le(out, 0xA1B2C3D4u);
+              CHECK("0xA1B2C3D4 is written D4 C3 B2 A1", out[0] == 0xD4 && out[1] == 0xC3 && out[2] == 0xB2 && out[3] == 0xA1);
+              CHECK("round trip", read_u32_le(out) == 0xA1B2C3D4u);
+              return 0;
+          }
+        forbid:
+          - pattern: "\\(\\s*(const\\s+)?(uint32_t|unsigned|int)\\s*\\*\\s*\\)"
+            message: Build the number from the bytes with shifts instead of casting the pointer.
+        hints:
+          - Byte `k` is worth `256` to the power `k`, which is a shift of `8 * k` bits. Convert each byte to `uint32_t` before shifting.
+          - To write, shift the value right by `8 * k` and keep the low byte with a cast to `unsigned char`.
+        tests: []
+      - task: |
+          A float stores an exponent in bits 23 to 30, with 127 added to it. Write `int float_exponent(float f)` that returns the real exponent for normal (non-zero) floats: `1.0f` gives 0, `8.0f` gives 3, `0.5f` gives -1. Get the bits with `memcpy`.
+        seed: |
+          #include <stdint.h>
+          #include <string.h>
+
+          int float_exponent(float f) {
+
+          }
+        solution: |
+          #include <stdint.h>
+          #include <string.h>
+
+          int float_exponent(float f) {
+              uint32_t bits;
+              memcpy(&bits, &f, sizeof bits);
+              return (int)((bits >> 23) & 0xFFu) - 127;
+          }
+        harness: |
+          int main(void) {
+              CHECK_INT("1.0f", float_exponent(1.0f), 0);
+              CHECK_INT("8.0f", float_exponent(8.0f), 3);
+              CHECK_INT("0.5f", float_exponent(0.5f), -1);
+              CHECK_INT("3.0f is 1.5 x 2^1", float_exponent(3.0f), 1);
+              CHECK_INT("-1024.0f (the sign doesn't matter)", float_exponent(-1024.0f), 10);
+              return 0;
+          }
+        require:
+          - pattern: "memcpy"
+            message: Copy the float's bits into a `uint32_t` with `memcpy`.
+        forbid:
+          - pattern: "\\(\\s*(const\\s+)?(uint32_t|unsigned|int|float)\\s*\\*\\s*\\)"
+            message: Use `memcpy` instead of casting pointers.
+        hints:
+          - "`memcpy(&bits, &f, sizeof bits);` gives you the 32 bits."
+          - Shift right by 23, keep 8 bits with `& 0xFF` (that drops the sign bit), then subtract 127.
+        tests: []
   - title: "Challenge: hunt the undefined behavior"
     id: c-types-7
     text: |
@@ -685,3 +1210,110 @@ steps:
     hints:
       - "An array of n elements has indexes 0 to n - 1. The loop condition should be `i < n`."
       - "`lo + (hi - lo) / 2` never overflows when lo <= hi, because `hi - lo` fits."
+    more:
+      - task: |
+          Two more functions with undefined behavior. Fix both:
+
+          - `flag(i)` should return a number with only bit `i` set, for `i` from 0 to 31. Shifting the **signed** `1` into bit 31 is undefined.
+          - `abs_diff(a, b)` should return the distance between two ints as an `unsigned`. `a - b` overflows when the ints are far apart, like `INT_MAX` and `INT_MIN`.
+        seed: |
+          unsigned flag(int i) {
+              return 1 << i;
+          }
+
+          unsigned abs_diff(int a, int b) {
+              return a > b ? a - b : b - a;
+          }
+        solution: |
+          unsigned flag(int i) {
+              return 1u << i;
+          }
+
+          unsigned abs_diff(int a, int b) {
+              return a > b ? (unsigned)a - (unsigned)b : (unsigned)b - (unsigned)a;
+          }
+        harness: |
+          #include <limits.h>
+          int main(void) {
+              CHECK("flag(0)", flag(0) == 1u);
+              CHECK("flag(5)", flag(5) == 32u);
+              CHECK("flag(31)", flag(31) == 0x80000000u);
+              CHECK("abs_diff(3, 10)", abs_diff(3, 10) == 7u);
+              CHECK("abs_diff(10, 3)", abs_diff(10, 3) == 7u);
+              CHECK("abs_diff(INT_MAX, INT_MIN)", abs_diff(INT_MAX, INT_MIN) == 4294967295u);
+              CHECK("abs_diff(INT_MIN, 0)", abs_diff(INT_MIN, 0) == 2147483648u);
+              return 0;
+          }
+        require:
+          - pattern: "1u\\s*<<|1U\\s*<<|\\(\\s*unsigned\\s*\\)\\s*1\\s*<<"
+            message: "Shift an unsigned one, `1u << i`."
+          - pattern: "\\(\\s*unsigned\\s*\\)\\s*a"
+            message: Convert the ints to `unsigned` before subtracting, like `(unsigned)a - (unsigned)b`.
+        hints:
+          - "`1u` is an unsigned one, and shifting it into bit 31 is well defined."
+          - Unsigned subtraction wraps instead of overflowing. Subtract the smaller from the larger after converting both to `unsigned`, and the result is exact.
+        tests: []
+      - task: |
+          Two more bugs of a different kind. Fix both:
+
+          - `count_positive` reads a variable that was never given a value.
+          - `greet(name)` returns a pointer to a local array, which no longer exists after the function returns. Return a new heap string `"hi NAME"` instead; the caller frees it.
+        seed: |
+          #include <stdio.h>
+          #include <stdlib.h>
+          #include <string.h>
+
+          int count_positive(const int *a, int n) {
+              int count;
+              for (int i = 0; i < n; i++) {
+                  if (a[i] > 0) count++;
+              }
+              return count;
+          }
+
+          char *greet(const char *name) {
+              char buf[64];
+              snprintf(buf, sizeof buf, "hi %s", name);
+              return buf;
+          }
+        solution: |
+          #include <stdio.h>
+          #include <stdlib.h>
+          #include <string.h>
+
+          int count_positive(const int *a, int n) {
+              int count = 0;
+              for (int i = 0; i < n; i++) {
+                  if (a[i] > 0) count++;
+              }
+              return count;
+          }
+
+          char *greet(const char *name) {
+              size_t size = strlen(name) + 4;
+              char *buf = malloc(size);
+              if (buf == NULL) return NULL;
+              snprintf(buf, size, "hi %s", name);
+              return buf;
+          }
+        harness: |
+          int main(void) {
+              int a[] = {3, -1, 4, 0, 5};
+              CHECK_INT("3 positive numbers", count_positive(a, 5), 3);
+              CHECK_INT("none in an empty array", count_positive(a, 0), 0);
+              char *g = greet("ropz");
+              CHECK_STR("greet(\"ropz\")", g, "hi ropz");
+              char *h = greet("a much longer name than the others");
+              CHECK_STR("a long name", h, "hi a much longer name than the others");
+              CHECK_STR("the first greeting is still intact", g, "hi ropz");
+              free(g);
+              free(h);
+              return 0;
+          }
+        require:
+          - pattern: "malloc\\s*\\("
+            message: Allocate the greeting on the heap with `malloc`.
+        hints:
+          - A local variable that is never assigned holds garbage. Start the count at 0.
+          - "`\"hi \"` is 3 characters, plus the name, plus 1 for the terminator: `strlen(name) + 4` bytes."
+        tests: []
