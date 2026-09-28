@@ -68,6 +68,65 @@ steps:
       - "Wrap it: `std::move(big)`."
     tests:
       - expect: "1000000"
+    more:
+      - task: |
+          Swap two strings through a temporary using only **moves**, so no characters are copied. The program prints `inferno mirage`.
+        fill: |
+          #include <iostream>
+          #include <string>
+          #include <utility>
+
+          int main() {
+              std::string a = "mirage", b = "inferno";
+              std::string tmp = [[std::move]](a);
+              a = std::move([[b]]);
+              b = std::move([[tmp]]);
+              std::cout << a << " " << b << "\n";
+          }
+        hints:
+          - "Park `a` in `tmp`, move `b` into `a`, then move `tmp` into `b`."
+          - "This is roughly what `std::swap` does for you."
+        tests:
+          - expect: "inferno mirage"
+      - task: |
+          Write `void append_all(std::vector<std::string>& dst, std::vector<std::string>& src)` that moves every string from `src` onto the end of `dst`, in order, and then clears `src`. The strings' characters must not be copied.
+        seed: |
+          #include <string>
+          #include <utility>
+          #include <vector>
+
+          void append_all(std::vector<std::string>& dst, std::vector<std::string>& src) {
+
+          }
+        solution: |
+          #include <string>
+          #include <utility>
+          #include <vector>
+
+          void append_all(std::vector<std::string>& dst, std::vector<std::string>& src) {
+              dst.reserve(dst.size() + src.size());
+              for (auto& s : src) dst.push_back(std::move(s));
+              src.clear();
+          }
+        require:
+          - pattern: "std::move"
+            message: "Move each string with `std::move`."
+        harness: |
+          int main() {
+              std::vector<std::string> dst = {"first"};
+              std::vector<std::string> src = {std::string(50, 'a'), std::string(60, 'b')};
+              const char* a = src[0].data();
+              const char* b = src[1].data();
+              append_all(dst, src);
+              CHECK_EQ("size", dst.size(), 3u);
+              CHECK_EQ("order", dst[2], std::string(60, 'b'));
+              CHECK("first string moved, not copied", dst[1].data() == a);
+              CHECK("second string moved, not copied", dst[2].data() == b);
+              CHECK("src is empty", src.empty());
+          }
+        hints:
+          - "Loop over `src` by reference (`auto& s`) and `push_back(std::move(s))`."
+          - "The moved-from strings are still in `src`, so finish with `src.clear()`."
 
   - title: Write a move constructor
     id: cpp-move-2
@@ -179,6 +238,129 @@ steps:
     hints:
       - "Signature: `Buffer(Buffer&& other) noexcept`."
       - "Copy the pointer and size from other, then set `other.data_ = nullptr;` and `other.size_ = 0;`."
+    more:
+      - task: |
+          `Match` has a string, a vector and an int. Write its move constructor: **move** the string and the vector (so their memory is taken over), copy the int, and set the source's `score_` to 0.
+        seed: |
+          #include <string>
+          #include <utility>
+          #include <vector>
+
+          class Match {
+          public:
+              Match(std::string map, std::vector<int> rounds, int score)
+                  : map_(std::move(map)), rounds_(std::move(rounds)), score_(score) {}
+              // move constructor here
+
+              const std::string& map() const { return map_; }
+              const std::vector<int>& rounds() const { return rounds_; }
+              int score() const { return score_; }
+
+          private:
+              std::string map_;
+              std::vector<int> rounds_;
+              int score_;
+          };
+        solution: |
+          #include <string>
+          #include <utility>
+          #include <vector>
+
+          class Match {
+          public:
+              Match(std::string map, std::vector<int> rounds, int score)
+                  : map_(std::move(map)), rounds_(std::move(rounds)), score_(score) {}
+              // move constructor here
+              Match(Match&& o) noexcept
+                  : map_(std::move(o.map_)), rounds_(std::move(o.rounds_)), score_(o.score_) {
+                  o.score_ = 0;
+              }
+              const std::string& map() const { return map_; }
+              const std::vector<int>& rounds() const { return rounds_; }
+              int score() const { return score_; }
+
+          private:
+              std::string map_;
+              std::vector<int> rounds_;
+              int score_;
+          };
+        harness: |
+          #include <utility>
+          int main() {
+              Match a(std::string(40, 'm'), {1, 0, 1, 1}, 16);
+              const char* mp = a.map().data();
+              const int* rp = a.rounds().data();
+              Match b(std::move(a));
+              CHECK("map string was moved", b.map().data() == mp);
+              CHECK("rounds vector was moved", b.rounds().data() == rp);
+              CHECK_EQ("score copied", b.score(), 16);
+              CHECK_EQ("source score reset", a.score(), 0);
+              CHECK("source rounds emptied", a.rounds().empty());
+          }
+        hints:
+          - "In the member initializer list, `std::move` each member of `o`: `map_(std::move(o.map_))`."
+          - "An `int` has nothing to steal, so copy it and then set `o.score_ = 0;` in the body."
+      - task: |
+          `FileHandle` wraps an operating-system file number: `-1` means "no file", and the destructor closes a real one (here it just counts in `closed`). Write the move constructor so the file is closed **exactly once**, by whichever object ends up owning it. Use `std::exchange`.
+        seed: |
+          #include <utility>
+
+          class FileHandle {
+          public:
+              static inline int closed = 0;
+              explicit FileHandle(int fd) : fd_(fd) {}
+              ~FileHandle() {
+                  if (fd_ != -1) closed++;
+              }
+              FileHandle(const FileHandle&) = delete;
+              FileHandle& operator=(const FileHandle&) = delete;
+              // move constructor here
+
+              int fd() const { return fd_; }
+
+          private:
+              int fd_;
+          };
+        solution: |
+          #include <utility>
+
+          class FileHandle {
+          public:
+              static inline int closed = 0;
+              explicit FileHandle(int fd) : fd_(fd) {}
+              ~FileHandle() {
+                  if (fd_ != -1) closed++;
+              }
+              FileHandle(const FileHandle&) = delete;
+              FileHandle& operator=(const FileHandle&) = delete;
+              // move constructor here
+              FileHandle(FileHandle&& other) noexcept : fd_(std::exchange(other.fd_, -1)) {}
+              int fd() const { return fd_; }
+
+          private:
+              int fd_;
+          };
+        require:
+          - pattern: "std::exchange"
+            message: "Take the number and leave `-1` behind with `std::exchange(other.fd_, -1)`."
+        harness: |
+          int main() {
+              {
+                  FileHandle a(3);
+                  FileHandle b(std::move(a));
+                  CHECK_EQ("b owns 3", b.fd(), 3);
+                  CHECK_EQ("a has no file", a.fd(), -1);
+              }
+              CHECK_EQ("closed once, not twice", FileHandle::closed, 1);
+              {
+                  std::vector<FileHandle> v;
+                  for (int i = 10; i < 20; i++) v.push_back(FileHandle(i));
+              }
+              CHECK_EQ("ten more, each closed once", FileHandle::closed, 11);
+          }
+        hints:
+          - "`std::exchange(x, y)` sets `x` to `y` and returns the old value of `x`."
+          - "`FileHandle(FileHandle&& other) noexcept : fd_(std::exchange(other.fd_, -1)) {}`"
 
   - title: Move assignment and the rule of five
     id: cpp-move-3
@@ -314,6 +496,143 @@ steps:
       - "Signature: `Buffer& operator=(Buffer&& other) noexcept`."
       - "Guard with `if (this != &other)`, free your old data with `delete[] data_;`, steal, reset other."
       - "End with `return *this;`."
+    more:
+      - task: |
+          Now give `FileHandle` a move **assignment**. The object may already own a file, so close it first (count it in `closed`), then take the other's file and leave `-1` behind. Moving an object into itself must change nothing.
+        seed: |
+          #include <utility>
+
+          class FileHandle {
+          public:
+              static inline int closed = 0;
+              explicit FileHandle(int fd) : fd_(fd) {}
+              ~FileHandle() {
+                  if (fd_ != -1) closed++;
+              }
+              FileHandle(FileHandle&& other) noexcept : fd_(std::exchange(other.fd_, -1)) {}
+              // move assignment here
+
+              int fd() const { return fd_; }
+
+          private:
+              int fd_;
+          };
+        solution: |
+          #include <utility>
+
+          class FileHandle {
+          public:
+              static inline int closed = 0;
+              explicit FileHandle(int fd) : fd_(fd) {}
+              ~FileHandle() {
+                  if (fd_ != -1) closed++;
+              }
+              FileHandle(FileHandle&& other) noexcept : fd_(std::exchange(other.fd_, -1)) {}
+              // move assignment here
+              FileHandle& operator=(FileHandle&& other) noexcept {
+                  if (this != &other) {
+                      if (fd_ != -1) closed++;
+                      fd_ = std::exchange(other.fd_, -1);
+                  }
+                  return *this;
+              }
+              int fd() const { return fd_; }
+
+          private:
+              int fd_;
+          };
+        harness: |
+          int main() {
+              FileHandle a(3), b(4);
+              a = std::move(b);
+              CHECK_EQ("a's old file 3 was closed", FileHandle::closed, 1);
+              CHECK_EQ("a owns 4", a.fd(), 4);
+              CHECK_EQ("b has no file", b.fd(), -1);
+              FileHandle& self = a;
+              a = std::move(self);
+              CHECK_EQ("self-move keeps the file", a.fd(), 4);
+              CHECK_EQ("and closes nothing", FileHandle::closed, 1);
+              FileHandle empty(-1);
+              empty = std::move(a);
+              CHECK_EQ("nothing to close when empty", FileHandle::closed, 1);
+              CHECK_EQ("empty took 4", empty.fd(), 4);
+          }
+        hints:
+          - "Guard with `if (this != &other)`, close your own file if `fd_ != -1`, then `fd_ = std::exchange(other.fd_, -1);`."
+          - "End with `return *this;`."
+      - task: |
+          One assignment operator can serve for **both** copying and moving: take the parameter **by value**, then swap its contents with yours. The caller's copy or move builds the parameter, and the parameter's destructor frees your old data. Write `Buffer& operator=(Buffer other) noexcept` this way, using `std::swap` on the two members.
+        seed: |
+          #include <algorithm>
+          #include <utility>
+
+          class Buffer {
+          public:
+              explicit Buffer(int n) : data_(new int[n]()), size_(n) {}
+              ~Buffer() { delete[] data_; }
+              Buffer(const Buffer& o) : data_(new int[o.size_]), size_(o.size_) {
+                  std::copy(o.data_, o.data_ + size_, data_);
+              }
+              Buffer(Buffer&& o) noexcept : data_(std::exchange(o.data_, nullptr)), size_(std::exchange(o.size_, 0)) {}
+              // one assignment operator here
+
+              int size() const { return size_; }
+              int* data() { return data_; }
+
+          private:
+              int* data_;
+              int size_;
+          };
+        solution: |
+          #include <algorithm>
+          #include <utility>
+
+          class Buffer {
+          public:
+              explicit Buffer(int n) : data_(new int[n]()), size_(n) {}
+              ~Buffer() { delete[] data_; }
+              Buffer(const Buffer& o) : data_(new int[o.size_]), size_(o.size_) {
+                  std::copy(o.data_, o.data_ + size_, data_);
+              }
+              Buffer(Buffer&& o) noexcept : data_(std::exchange(o.data_, nullptr)), size_(std::exchange(o.size_, 0)) {}
+              // one assignment operator here
+              Buffer& operator=(Buffer other) noexcept {
+                  std::swap(data_, other.data_);
+                  std::swap(size_, other.size_);
+                  return *this;
+              }
+              int size() const { return size_; }
+              int* data() { return data_; }
+
+          private:
+              int* data_;
+              int size_;
+          };
+        require:
+          - pattern: "operator\\s*=\\s*\\(\\s*Buffer\\s+\\w+\\s*\\)"
+            message: "Take the parameter by value: `Buffer& operator=(Buffer other) noexcept`."
+          - pattern: "swap"
+            message: "Swap the members with `std::swap`."
+        harness: |
+          int main() {
+              Buffer a(3), b(5);
+              b.data()[0] = 42;
+              a = b;
+              CHECK_EQ("copy: size", a.size(), 5);
+              CHECK_EQ("copy: contents", a.data()[0], 42);
+              CHECK("copy: separate memory", a.data() != b.data());
+              a.data()[0] = 7;
+              CHECK_EQ("copy: b unchanged", b.data()[0], 42);
+              int* bp = b.data();
+              a = std::move(b);
+              CHECK("move: memory taken over", a.data() == bp);
+              CHECK_EQ("move: b emptied", b.size(), 0);
+              for (int i = 0; i < 2000; i++) a = Buffer(50000);
+              CHECK_EQ("2000 assignments without leaking", a.size(), 50000);
+          }
+        hints:
+          - "The body is two `std::swap` calls and `return *this;`."
+          - "Your old memory ends up in `other`, which frees it when the function returns."
 
   - title: Return by value is free
     id: cpp-move-4
@@ -400,6 +719,91 @@ steps:
       }
     hints:
       - "Just `return Tracker(id);`. Guaranteed copy elision does the rest."
+    more:
+      - task: |
+          Write `Tracker best_of(int a, int b)` that creates **two** local trackers, `Tracker x(a)` and `Tracker y(b)`, and returns the one with the bigger id, with **zero** copies. Returning a local variable by name moves it, but `return cond ? x : y;` does **not**: that expression is a plain lvalue, so it's copied.
+        seed: |
+          #include <utility>
+
+          struct Tracker {
+              static inline int copies = 0;
+              int id;
+              explicit Tracker(int i) : id(i) {}
+              Tracker(const Tracker& o) : id(o.id) { copies++; }
+              Tracker(Tracker&& o) noexcept : id(o.id) {}
+          };
+
+          Tracker best_of(int a, int b) {
+
+          }
+        solution: |
+          #include <utility>
+
+          struct Tracker {
+              static inline int copies = 0;
+              int id;
+              explicit Tracker(int i) : id(i) {}
+              Tracker(const Tracker& o) : id(o.id) { copies++; }
+              Tracker(Tracker&& o) noexcept : id(o.id) {}
+          };
+
+          Tracker best_of(int a, int b) {
+              Tracker x(a);
+              Tracker y(b);
+              if (x.id >= y.id) return x;
+              return y;
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("first bigger", best_of(9, 4).id, 9);
+              CHECK_EQ("second bigger", best_of(2, 8).id, 8);
+              CHECK_EQ("copies made", Tracker::copies, 0);
+          }
+        hints:
+          - "Use two `return` statements, each naming one local: `if (x.id >= y.id) return x; return y;`"
+      - task: |
+          Write `std::vector<Tracker> make_team(int n)` returning trackers with ids 1 to n, making **zero** copies. This `Tracker` has no move constructor, so `push_back(Tracker(i))` copies, and so does the vector when it grows. Build each tracker in place with `emplace_back`, and `reserve` room first.
+        seed: |
+          #include <vector>
+
+          struct Tracker {
+              static inline int copies = 0;
+              int id;
+              explicit Tracker(int i) : id(i) {}
+              Tracker(const Tracker& o) : id(o.id) { copies++; }
+          };
+
+          std::vector<Tracker> make_team(int n) {
+
+          }
+        solution: |
+          #include <vector>
+
+          struct Tracker {
+              static inline int copies = 0;
+              int id;
+              explicit Tracker(int i) : id(i) {}
+              Tracker(const Tracker& o) : id(o.id) { copies++; }
+          };
+
+          std::vector<Tracker> make_team(int n) {
+              std::vector<Tracker> team;
+              team.reserve(n);
+              for (int i = 1; i <= n; i++) team.emplace_back(i);
+              return team;
+          }
+        harness: |
+          int main() {
+              auto t = make_team(100);
+              CHECK_EQ("size", t.size(), 100u);
+              CHECK_EQ("first id", t.front().id, 1);
+              CHECK_EQ("last id", t.back().id, 100);
+              CHECK_EQ("copies made", Tracker::copies, 0);
+              CHECK_EQ("empty team", make_team(0).size(), 0u);
+          }
+        hints:
+          - "`team.emplace_back(i)` passes `i` straight to the constructor inside the vector."
+          - "Without `team.reserve(n)`, growing the vector copies the trackers already in it."
 
   - title: Moved-from objects
     id: cpp-move-5
@@ -487,6 +891,80 @@ steps:
     hints:
       - "`std::vector<std::string> out = std::move(src);` steals src's buffer in one go."
       - "Then `src.clear();` so the caller gets a known state, and `return out;`."
+    more:
+      - task: |
+          Write `std::string take_name(std::string& s)` that returns the contents of `s` without copying the characters and leaves `s` **empty** (not just "valid but unspecified").
+        seed: |
+          #include <string>
+          #include <utility>
+
+          std::string take_name(std::string& s) {
+
+          }
+        solution: |
+          #include <string>
+          #include <utility>
+
+          std::string take_name(std::string& s) {
+              return std::exchange(s, {});
+          }
+        harness: |
+          int main() {
+              std::string s(80, 'n');
+              const char* p = s.data();
+              std::string got = take_name(s);
+              CHECK_EQ("got the text", got, std::string(80, 'n'));
+              CHECK("characters were moved", got.data() == p);
+              CHECK("source is empty", s.empty());
+              std::string shortname = "jL";
+              CHECK_EQ("short strings too", take_name(shortname), std::string("jL"));
+              CHECK("short source is empty", shortname.empty());
+          }
+        hints:
+          - "`std::exchange(s, {})` moves the old value out and puts an empty string in its place."
+          - "Or: `std::string out = std::move(s); s.clear(); return out;`"
+      - task: |
+          Write `std::vector<std::string> drain_long(std::vector<std::string>& src, std::size_t min_len)` that moves the strings with at least `min_len` characters into the result, and leaves only the shorter ones in `src`, both keeping their order. Don't copy any string.
+        seed: |
+          #include <string>
+          #include <utility>
+          #include <vector>
+
+          std::vector<std::string> drain_long(std::vector<std::string>& src, std::size_t min_len) {
+
+          }
+        solution: |
+          #include <string>
+          #include <utility>
+          #include <vector>
+
+          std::vector<std::string> drain_long(std::vector<std::string>& src, std::size_t min_len) {
+              std::vector<std::string> out, keep;
+              for (auto& s : src) {
+                  if (s.size() >= min_len) out.push_back(std::move(s));
+                  else keep.push_back(std::move(s));
+              }
+              src = std::move(keep);
+              return out;
+          }
+        harness: |
+          int main() {
+              std::string l1(30, 'x'), l2(40, 'y');
+              std::vector<std::string> src = {"ak", l1, "m4", l2};
+              const char* p1 = src[1].data();
+              const char* p2 = src[3].data();
+              auto got = drain_long(src, 20);
+              CHECK_EQ("long ones", got, (std::vector<std::string>{l1, l2}));
+              CHECK_EQ("short ones stay", src, (std::vector<std::string>{"ak", "m4"}));
+              CHECK("first long moved", got[0].data() == p1);
+              CHECK("second long moved", got[1].data() == p2);
+              std::vector<std::string> none = {"a"};
+              CHECK_EQ("nothing long", drain_long(none, 5).size(), 0u);
+              CHECK_EQ("source kept", none, (std::vector<std::string>{"a"}));
+          }
+        hints:
+          - "Don't erase from `src` while looping. Move every string into one of two new vectors instead."
+          - "At the end, `src = std::move(keep);` puts the short ones back."
 
   - title: Sink parameters and emplace_back
     id: cpp-move-6
@@ -607,6 +1085,99 @@ steps:
     hints:
       - "Constructor: `explicit Player(std::string name) : name_(std::move(name)) {}`"
       - "recruit: `team.emplace_back(std::move(name));`"
+    more:
+      - task: |
+          Give `Team` two sink functions: `set_name(std::string name)` and `add_tag(std::string tag)`, which moves the tag into the `tags_` vector. Both must move their parameter, so a caller who passes `std::move(s)` never pays for a copy.
+        seed: |
+          #include <string>
+          #include <utility>
+          #include <vector>
+
+          class Team {
+          public:
+              // set_name and add_tag here
+
+              const std::string& name() const { return name_; }
+              const std::vector<std::string>& tags() const { return tags_; }
+
+          private:
+              std::string name_;
+              std::vector<std::string> tags_;
+          };
+        solution: |
+          #include <string>
+          #include <utility>
+          #include <vector>
+
+          class Team {
+          public:
+              // set_name and add_tag here
+              void set_name(std::string name) { name_ = std::move(name); }
+              void add_tag(std::string tag) { tags_.push_back(std::move(tag)); }
+              const std::string& name() const { return name_; }
+              const std::vector<std::string>& tags() const { return tags_; }
+
+          private:
+              std::string name_;
+              std::vector<std::string> tags_;
+          };
+        harness: |
+          int main() {
+              Team t;
+              std::string n(50, 'N');
+              const char* np = n.data();
+              t.set_name(std::move(n));
+              CHECK("name moved all the way in", t.name().data() == np);
+              std::string tag(50, 't');
+              const char* tp = tag.data();
+              t.add_tag(std::move(tag));
+              CHECK("tag moved all the way in", t.tags()[0].data() == tp);
+              std::string keep = "eco";
+              t.add_tag(keep);
+              CHECK_EQ("passing an lvalue copies it", keep, std::string("eco"));
+              CHECK_EQ("two tags", t.tags().size(), 2u);
+          }
+        hints:
+          - "`void set_name(std::string name) { name_ = std::move(name); }`"
+          - "`void add_tag(std::string tag) { tags_.push_back(std::move(tag)); }`"
+      - task: |
+          Write `void add_points(std::map<std::string, int>& scores, std::string name, int pts)`. If `name` is new, insert it with `pts`, moving the name into the map. If it's already there, add `pts` to the existing score. Use `try_emplace`, which returns `{iterator, inserted}` and only uses its arguments when the key is new.
+        seed: |
+          #include <map>
+          #include <string>
+          #include <utility>
+
+          void add_points(std::map<std::string, int>& scores, std::string name, int pts) {
+
+          }
+        solution: |
+          #include <map>
+          #include <string>
+          #include <utility>
+
+          void add_points(std::map<std::string, int>& scores, std::string name, int pts) {
+              auto [it, inserted] = scores.try_emplace(std::move(name), pts);
+              if (!inserted) it->second += pts;
+          }
+        require:
+          - pattern: "try_emplace"
+            message: "Use `try_emplace`."
+        harness: |
+          #include <map>
+          int main() {
+              std::map<std::string, int> s;
+              add_points(s, "ropz", 3);
+              add_points(s, "broky", 1);
+              add_points(s, "ropz", 2);
+              CHECK_EQ("ropz", s["ropz"], 5);
+              CHECK_EQ("broky", s["broky"], 1);
+              CHECK_EQ("two players", s.size(), 2u);
+              add_points(s, "ropz", -5);
+              CHECK_EQ("back to 0", s["ropz"], 0);
+          }
+        hints:
+          - "`auto [it, inserted] = scores.try_emplace(std::move(name), pts);`"
+          - "When `inserted` is false, `it->second` is the existing score."
 
   - title: "Challenge: a move-aware log"
     id: cpp-move-7
@@ -718,3 +1289,108 @@ steps:
     hints:
       - "`add`: `if (!line.empty()) lines_.push_back(std::move(line));`"
       - "`flush`: `return std::exchange(lines_, {});`"
+    more:
+      - task: |
+          Write class `Queue` of strings backed by a `std::deque<std::string>`: `void push(std::string s)` (a sink), `std::string pop()` that moves the **front** string out and removes it (`""` when empty), and `int size() const`.
+        seed: |
+          #include <deque>
+          #include <string>
+          #include <utility>
+
+          class Queue {
+          public:
+
+          private:
+              std::deque<std::string> items_;
+          };
+        solution: |
+          #include <deque>
+          #include <string>
+          #include <utility>
+
+          class Queue {
+          public:
+              void push(std::string s) { items_.push_back(std::move(s)); }
+              std::string pop() {
+                  if (items_.empty()) return "";
+                  std::string out = std::move(items_.front());
+                  items_.pop_front();
+                  return out;
+              }
+              int size() const { return static_cast<int>(items_.size()); }
+
+          private:
+              std::deque<std::string> items_;
+          };
+        harness: |
+          int main() {
+              Queue q;
+              CHECK_EQ("pop on empty", q.pop(), std::string(""));
+              std::string big(70, 'q');
+              const char* bp = big.data();
+              q.push(std::move(big));
+              q.push("second");
+              CHECK_EQ("size", q.size(), 2);
+              std::string first = q.pop();
+              CHECK("moved in and out without a copy", first.data() == bp);
+              CHECK_EQ("then second", q.pop(), std::string("second"));
+              CHECK_EQ("empty", q.size(), 0);
+          }
+        hints:
+          - "Move the front into a local before `pop_front()` destroys it: `std::string out = std::move(items_.front());`"
+      - task: |
+          Write class `Batcher` that groups lines into batches of `n`. `add(std::string line)` stores the line; when `n` lines are waiting they become one finished batch. `pending()` is how many lines are waiting. `take_batches()` hands over all finished batches (no copies) and leaves none behind. Waiting lines stay until their batch fills.
+        seed: |
+          #include <string>
+          #include <utility>
+          #include <vector>
+
+          class Batcher {
+          public:
+              explicit Batcher(int n) : n_(n) {}
+
+          private:
+              int n_;
+          };
+        solution: |
+          #include <string>
+          #include <utility>
+          #include <vector>
+
+          class Batcher {
+          public:
+              explicit Batcher(int n) : n_(n) {}
+              void add(std::string line) {
+                  current_.push_back(std::move(line));
+                  if (static_cast<int>(current_.size()) == n_) done_.push_back(std::exchange(current_, {}));
+              }
+              int pending() const { return static_cast<int>(current_.size()); }
+              std::vector<std::vector<std::string>> take_batches() { return std::exchange(done_, {}); }
+
+          private:
+              int n_;
+              std::vector<std::string> current_;
+              std::vector<std::vector<std::string>> done_;
+          };
+        harness: |
+          int main() {
+              Batcher b(2);
+              std::string big(64, 'b');
+              const char* bp = big.data();
+              b.add(std::move(big));
+              CHECK_EQ("one waiting", b.pending(), 1);
+              CHECK_EQ("no batch yet", b.take_batches().size(), 0u);
+              b.add("two");
+              b.add("three");
+              CHECK_EQ("one waiting again", b.pending(), 1);
+              auto batches = b.take_batches();
+              CHECK_EQ("one full batch", batches.size(), 1u);
+              CHECK_EQ("batch contents", batches[0], (std::vector<std::string>{std::string(64, 'b'), "two"}));
+              CHECK("line moved all the way through", batches[0][0].data() == bp);
+              CHECK_EQ("batches were handed over", b.take_batches().size(), 0u);
+              b.add("four");
+              CHECK_EQ("next batch", b.take_batches()[0], (std::vector<std::string>{"three", "four"}));
+          }
+        hints:
+          - "Keep a `std::vector<std::string>` for the batch being filled and a `std::vector<std::vector<std::string>>` for finished ones."
+          - "When the current batch is full, `done_.push_back(std::exchange(current_, {}));` moves it over and starts a fresh one."

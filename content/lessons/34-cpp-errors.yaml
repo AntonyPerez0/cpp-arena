@@ -73,6 +73,51 @@ steps:
       - "The header is `<cassert>` and the macro is `assert`."
     tests:
       - expect: "ok"
+    more:
+      - task: |
+          `static_assert` checks at **compile time** and `assert` checks while the program runs. Complete both: the build must refuse machines with ints smaller than 4 bytes, and `at` must catch an index outside the vector. The program prints `15`.
+        fill: |
+          #include <cassert>
+          #include <iostream>
+          #include <vector>
+
+          [[static_assert]](sizeof(int) >= 4, "this code needs 32-bit ints");
+
+          int at(const std::vector<int>& v, int i) {
+              assert(i >= 0 && i [[<]] (int)v.size());
+              return v[i];
+          }
+
+          int main() {
+              std::vector<int> v = {4, 8, 15};
+              std::cout << at(v, 2) << "\n";
+          }
+        hints:
+          - "`static_assert(condition, \"message\")` stops the build when the condition is false."
+          - "Valid indexes go from 0 up to, but not including, the size."
+        tests:
+          - expect: "15"
+      - task: |
+          A handy trick: `assert(cond && "message")`. The string is always true, so it doesn't change the check, but it shows up in the failure report. Add the precondition that `whole` is positive, and the postcondition that the result is at most 100. The program prints `75`.
+        fill: |
+          #include <cassert>
+          #include <iostream>
+
+          int percent(int part, int whole) {
+              assert(whole > 0 [[&&]] "whole must be positive");
+              int p = part * 100 / whole;
+              assert(p >= 0 && p <= [[100]] && "part must not exceed whole");
+              return p;
+          }
+
+          int main() {
+              std::cout << percent(3, 4) << "\n";
+          }
+        hints:
+          - "Join the condition and the message with `&&`."
+          - "A percentage of a part that fits inside the whole is between 0 and 100."
+        tests:
+          - expect: "75"
 
   - title: Status codes
     id: cpp-errors-2
@@ -146,6 +191,91 @@ steps:
     hints:
       - "Return `false` first if `b == 0`."
       - "Otherwise `out = a / b; return true;`. Put `[[nodiscard]]` before the return type."
+    more:
+      - task: |
+          An `enum class` makes a better status code than `bool`, because it says **why** something failed. Write `[[nodiscard]] BuyError buy(const std::string& item, int& money)`. Prices: `kit` 400 and `helmet` 350. Unknown items give `UnknownItem`, too little money gives `NotEnoughMoney`, and a purchase subtracts the price and returns `None`.
+        seed: |
+          #include <string>
+
+          enum class BuyError { None, UnknownItem, NotEnoughMoney };
+
+          BuyError buy(const std::string& item, int& money) {
+
+          }
+        solution: |
+          #include <string>
+
+          enum class BuyError { None, UnknownItem, NotEnoughMoney };
+
+          [[nodiscard]] BuyError buy(const std::string& item, int& money) {
+              int price;
+              if (item == "kit") price = 400;
+              else if (item == "helmet") price = 350;
+              else return BuyError::UnknownItem;
+              if (money < price) return BuyError::NotEnoughMoney;
+              money -= price;
+              return BuyError::None;
+          }
+        require:
+          - pattern: "\\[\\[nodiscard\\]\\]"
+            message: "Mark `buy` `[[nodiscard]]` so callers can't ignore a failure."
+        harness: |
+          int main() {
+              int money = 700;
+              CHECK("buy kit", buy("kit", money) == BuyError::None);
+              CHECK_EQ("money after kit", money, 300);
+              CHECK("helmet too expensive", buy("helmet", money) == BuyError::NotEnoughMoney);
+              CHECK_EQ("money unchanged", money, 300);
+              CHECK("unknown", buy("jetpack", money) == BuyError::UnknownItem);
+              money = 350;
+              CHECK("exact money", buy("helmet", money) == BuyError::None);
+              CHECK_EQ("broke", money, 0);
+          }
+        hints:
+          - "Return `BuyError::UnknownItem` early, then check the money, and only then change it."
+      - task: |
+          Write `[[nodiscard]] int parse_port(const std::string& s, int& out)` in the C style, returning a code: `0` success (store the port in `out`), `1` empty string, `2` a non-digit character, `3` outside 1 to 65535. Leave `out` alone on failure.
+        seed: |
+          #include <string>
+
+          int parse_port(const std::string& s, int& out) {
+
+          }
+        solution: |
+          #include <string>
+
+          [[nodiscard]] int parse_port(const std::string& s, int& out) {
+              if (s.empty()) return 1;
+              long value = 0;
+              for (char c : s) {
+                  if (c < '0' || c > '9') return 2;
+                  value = value * 10 + (c - '0');
+                  if (value > 65535) return 3;
+              }
+              if (value < 1) return 3;
+              out = (int)value;
+              return 0;
+          }
+        require:
+          - pattern: "\\[\\[nodiscard\\]\\]"
+            message: "Mark `parse_port` `[[nodiscard]]`."
+        harness: |
+          int main() {
+              int port = -1;
+              CHECK_EQ("8080", parse_port("8080", port), 0);
+              CHECK_EQ("stored", port, 8080);
+              CHECK_EQ("empty", parse_port("", port), 1);
+              CHECK_EQ("letters", parse_port("80a", port), 2);
+              CHECK_EQ("minus sign", parse_port("-1", port), 2);
+              CHECK_EQ("zero", parse_port("0", port), 3);
+              CHECK_EQ("too big", parse_port("65536", port), 3);
+              CHECK_EQ("huge", parse_port("99999999999999999999", port), 3);
+              CHECK_EQ("unchanged after failures", port, 8080);
+              CHECK_EQ("max", parse_port("65535", port), 0);
+          }
+        hints:
+          - "Stop as soon as the value passes 65535, so a very long string can't overflow."
+          - "Only write to `out` once every check has passed."
 
   - title: optional for "maybe"
     id: cpp-errors-3
@@ -224,6 +354,69 @@ steps:
     hints:
       - "Loop over the indexes and `return i;` on a match (it converts to optional)."
       - "After the loop, `return std::nullopt;`."
+    more:
+      - task: |
+          Write `std::optional<std::string> team_of(const std::map<std::string, std::string>& roster, const std::string& player)` returning the player's team, or `std::nullopt` if the player isn't listed.
+        seed: |
+          #include <map>
+          #include <optional>
+          #include <string>
+
+          std::optional<std::string> team_of(const std::map<std::string, std::string>& roster, const std::string& player) {
+
+          }
+        solution: |
+          #include <map>
+          #include <optional>
+          #include <string>
+
+          std::optional<std::string> team_of(const std::map<std::string, std::string>& roster, const std::string& player) {
+              auto it = roster.find(player);
+              if (it == roster.end()) return std::nullopt;
+              return it->second;
+          }
+        harness: |
+          #include <map>
+          int main() {
+              std::map<std::string, std::string> r = {{"ropz", "FaZe"}, {"b1t", "NaVi"}};
+              CHECK_EQ("ropz", team_of(r, "ropz").value_or("?"), std::string("FaZe"));
+              CHECK("missing", !team_of(r, "s1mple").has_value());
+              CHECK_EQ("value_or", team_of(r, "zywoo").value_or("free agent"), std::string("free agent"));
+          }
+        hints:
+          - "Use `find`, not `[]`: on a `const` map `[]` isn't allowed, and it would insert a missing key anyway."
+      - task: |
+          Write `std::optional<std::string> next_player(const std::vector<std::string>& team, const std::string& name)` returning the player after `name`, wrapping from the last back to the first. Return `std::nullopt` if `name` isn't in the team.
+        seed: |
+          #include <optional>
+          #include <string>
+          #include <vector>
+
+          std::optional<std::string> next_player(const std::vector<std::string>& team, const std::string& name) {
+
+          }
+        solution: |
+          #include <optional>
+          #include <string>
+          #include <vector>
+
+          std::optional<std::string> next_player(const std::vector<std::string>& team, const std::string& name) {
+              for (std::size_t i = 0; i < team.size(); i++) {
+                  if (team[i] == name) return team[(i + 1) % team.size()];
+              }
+              return std::nullopt;
+          }
+        harness: |
+          int main() {
+              std::vector<std::string> t = {"karrigan", "rain", "ropz"};
+              CHECK_EQ("after karrigan", next_player(t, "karrigan").value_or("?"), std::string("rain"));
+              CHECK_EQ("wraps around", next_player(t, "ropz").value_or("?"), std::string("karrigan"));
+              CHECK("missing", !next_player(t, "jks"));
+              CHECK_EQ("alone", next_player({"solo"}, "solo").value_or("?"), std::string("solo"));
+              CHECK("empty team", !next_player({}, "x"));
+          }
+        hints:
+          - "The index after `i`, wrapping around, is `(i + 1) % team.size()`."
 
   - title: A Result type
     id: cpp-errors-4
@@ -334,6 +527,112 @@ steps:
       - "Return a Result with braces: `return {std::nullopt, \"missing $\"};` or `return {value, \"\"};`."
       - Check the `$` first, then that there is at least one character after it, then parse digits.
       - Stop growing the number once it passes 16000, otherwise very long inputs overflow an int.
+    more:
+      - task: |
+          Write `Result parse_time(const std::string& s)` for times like `"1:45"` (minutes, a colon, then two-digit seconds), returning the total in seconds:
+
+          - no `:` gives `"missing :"`
+          - empty minutes, seconds that aren't exactly two digits, or any non-digit gives `"not a number"`
+          - seconds of 60 or more give `"seconds must be under 60"`
+        seed: |
+          #include <optional>
+          #include <string>
+
+          struct Result {
+              std::optional<int> value;
+              std::string error;
+              bool ok() const { return value.has_value(); }
+          };
+
+          Result parse_time(const std::string& s) {
+
+          }
+        solution: |
+          #include <optional>
+          #include <string>
+
+          struct Result {
+              std::optional<int> value;
+              std::string error;
+              bool ok() const { return value.has_value(); }
+          };
+
+          static bool digits(const std::string& s) {
+              if (s.empty()) return false;
+              for (char c : s)
+                  if (c < '0' || c > '9') return false;
+              return true;
+          }
+
+          Result parse_time(const std::string& s) {
+              auto colon = s.find(':');
+              if (colon == std::string::npos) return {std::nullopt, "missing :"};
+              std::string m = s.substr(0, colon), sec = s.substr(colon + 1);
+              if (!digits(m) || m.size() > 4 || sec.size() != 2 || !digits(sec)) return {std::nullopt, "not a number"};
+              int seconds = std::stoi(sec);
+              if (seconds >= 60) return {std::nullopt, "seconds must be under 60"};
+              return {std::stoi(m) * 60 + seconds, ""};
+          }
+        harness: |
+          int main() {
+              auto a = parse_time("1:45");
+              CHECK("1:45 ok", a.ok() && *a.value == 105);
+              CHECK("0:07", parse_time("0:07").value == 7);
+              CHECK_EQ("no colon", parse_time("145").error, std::string("missing :"));
+              CHECK_EQ("one-digit seconds", parse_time("1:5").error, std::string("not a number"));
+              CHECK_EQ("empty minutes", parse_time(":30").error, std::string("not a number"));
+              CHECK_EQ("letters", parse_time("a:30").error, std::string("not a number"));
+              CHECK_EQ("60 seconds", parse_time("2:60").error, std::string("seconds must be under 60"));
+              CHECK_EQ("empty", parse_time("").error, std::string("missing :"));
+          }
+        hints:
+          - "Split at the colon, then check both parts before converting anything."
+          - "`return {std::nullopt, \"missing :\"};` builds a failed Result; `return {105, \"\"};` a successful one."
+      - task: |
+          Make `Result` a **template** so it can carry any type. Write `template <typename T> struct Result` with `std::optional<T> value`, `std::string error`, `bool ok() const`, and two static helpers, `ok_with(T v)` and `fail(std::string e)`. Then write `Result<int> checked_div(int a, int b)`: `"division by zero"` for `b == 0`, otherwise `a / b`.
+        seed: |
+          #include <optional>
+          #include <string>
+
+          // template <typename T> struct Result here
+
+          Result<int> checked_div(int a, int b) {
+
+          }
+        solution: |
+          #include <optional>
+          #include <string>
+          #include <utility>
+
+          // template <typename T> struct Result here
+          template <typename T>
+          struct Result {
+              std::optional<T> value;
+              std::string error;
+              bool ok() const { return value.has_value(); }
+              static Result ok_with(T v) { return Result{std::move(v), ""}; }
+              static Result fail(std::string e) { return Result{std::nullopt, std::move(e)}; }
+          };
+
+          Result<int> checked_div(int a, int b) {
+              if (b == 0) return Result<int>::fail("division by zero");
+              return Result<int>::ok_with(a / b);
+          }
+        harness: |
+          int main() {
+              auto a = checked_div(17, 5);
+              CHECK("17 / 5 ok", a.ok());
+              CHECK_EQ("value", *a.value, 3);
+              auto b = checked_div(1, 0);
+              CHECK("1 / 0 fails", !b.ok());
+              CHECK_EQ("error", b.error, std::string("division by zero"));
+              auto s = Result<std::string>::ok_with("gg");
+              CHECK_EQ("works for strings", *s.value, std::string("gg"));
+              CHECK("fail has no value", !Result<double>::fail("x").ok());
+          }
+        hints:
+          - "Inside the template, `Result` alone means `Result<T>`."
+          - "`static Result fail(std::string e) { return Result{std::nullopt, e}; }`"
 
   - title: Passing errors up
     id: cpp-errors-5
@@ -467,6 +766,149 @@ steps:
       - "Loop: find the next comma with `s.find(',')`, parse `s.substr(0, comma)`, then `s.remove_prefix(comma + 1)`."
       - "If `parse_int` returns nullopt, immediately `return std::nullopt;`."
       - "When `find` returns `std::string_view::npos`, that was the last part."
+    more:
+      - task: |
+          `parse_int` is written for you. Write `std::optional<std::pair<int, int>> parse_point(std::string_view s)` for points like `"3,-4"`: exactly one comma, and both parts must parse. Pass any failure up as `std::nullopt`.
+        seed: |
+          #include <optional>
+          #include <string_view>
+          #include <utility>
+
+          std::optional<int> parse_int(std::string_view s) {
+              if (s.empty()) return std::nullopt;
+              bool neg = s[0] == '-';
+              if (neg) s.remove_prefix(1);
+              if (s.empty() || s.size() > 9) return std::nullopt;
+              int v = 0;
+              for (char c : s) {
+                  if (c < '0' || c > '9') return std::nullopt;
+                  v = v * 10 + (c - '0');
+              }
+              return neg ? -v : v;
+          }
+
+          std::optional<std::pair<int, int>> parse_point(std::string_view s) {
+
+          }
+        solution: |
+          #include <optional>
+          #include <string_view>
+          #include <utility>
+
+          std::optional<int> parse_int(std::string_view s) {
+              if (s.empty()) return std::nullopt;
+              bool neg = s[0] == '-';
+              if (neg) s.remove_prefix(1);
+              if (s.empty() || s.size() > 9) return std::nullopt;
+              int v = 0;
+              for (char c : s) {
+                  if (c < '0' || c > '9') return std::nullopt;
+                  v = v * 10 + (c - '0');
+              }
+              return neg ? -v : v;
+          }
+
+          std::optional<std::pair<int, int>> parse_point(std::string_view s) {
+              auto comma = s.find(',');
+              if (comma == std::string_view::npos) return std::nullopt;
+              auto x = parse_int(s.substr(0, comma));
+              if (!x) return std::nullopt;
+              auto y = parse_int(s.substr(comma + 1));
+              if (!y) return std::nullopt;
+              return std::pair{*x, *y};
+          }
+        harness: |
+          int main() {
+              CHECK("3,-4", parse_point("3,-4") == std::pair{3, -4});
+              CHECK("0,0", parse_point("0,0") == std::pair{0, 0});
+              CHECK("no comma", !parse_point("34"));
+              CHECK("two commas", !parse_point("1,2,3"));
+              CHECK("bad x", !parse_point("x,2"));
+              CHECK("empty y", !parse_point("5,"));
+              CHECK("empty", !parse_point(""));
+          }
+        hints:
+          - "A second comma ends up inside the y part, and `parse_int` rejects it."
+          - "Check each `optional` right after you get it, and return `std::nullopt` straight away if it's empty."
+      - task: |
+          Write `std::optional<int> eval_rpn(std::string_view expr)`, a calculator for reverse Polish notation: tokens are separated by single spaces, numbers are pushed on a stack, and `+`, `-` or `*` pops two numbers and pushes the result. `"3 4 + 2 *"` is `(3 + 4) * 2 = 14`. Return `std::nullopt` for a bad token, an operator without two numbers, or anything other than exactly one number left at the end. `parse_int` is provided.
+        seed: |
+          #include <optional>
+          #include <string_view>
+          #include <vector>
+
+          std::optional<int> parse_int(std::string_view s) {
+              if (s.empty()) return std::nullopt;
+              bool neg = s[0] == '-';
+              if (neg) s.remove_prefix(1);
+              if (s.empty() || s.size() > 9) return std::nullopt;
+              int v = 0;
+              for (char c : s) {
+                  if (c < '0' || c > '9') return std::nullopt;
+                  v = v * 10 + (c - '0');
+              }
+              return neg ? -v : v;
+          }
+
+          std::optional<int> eval_rpn(std::string_view expr) {
+
+          }
+        solution: |
+          #include <optional>
+          #include <string_view>
+          #include <vector>
+
+          std::optional<int> parse_int(std::string_view s) {
+              if (s.empty()) return std::nullopt;
+              bool neg = s[0] == '-';
+              if (neg) s.remove_prefix(1);
+              if (s.empty() || s.size() > 9) return std::nullopt;
+              int v = 0;
+              for (char c : s) {
+                  if (c < '0' || c > '9') return std::nullopt;
+                  v = v * 10 + (c - '0');
+              }
+              return neg ? -v : v;
+          }
+
+          std::optional<int> eval_rpn(std::string_view expr) {
+              std::vector<long long> stack;
+              while (true) {
+                  auto space = expr.find(' ');
+                  std::string_view tok = expr.substr(0, space);
+                  if (tok == "+" || tok == "-" || tok == "*") {
+                      if (stack.size() < 2) return std::nullopt;
+                      long long b = stack.back();
+                      stack.pop_back();
+                      long long a = stack.back();
+                      stack.pop_back();
+                      stack.push_back(tok == "+" ? a + b : tok == "-" ? a - b : a * b);
+                  } else {
+                      auto n = parse_int(tok);
+                      if (!n) return std::nullopt;
+                      stack.push_back(*n);
+                  }
+                  if (space == std::string_view::npos) break;
+                  expr.remove_prefix(space + 1);
+              }
+              if (stack.size() != 1) return std::nullopt;
+              return (int)stack.back();
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("3 4 + 2 *", eval_rpn("3 4 + 2 *").value_or(-999), 14);
+              CHECK_EQ("5 1 2 + 4 * + 3 -", eval_rpn("5 1 2 + 4 * + 3 -").value_or(-999), 14);
+              CHECK_EQ("negative numbers", eval_rpn("-3 2 *").value_or(-999), -6);
+              CHECK_EQ("single number", eval_rpn("42").value_or(-999), 42);
+              CHECK("bad token", !eval_rpn("3 x +"));
+              CHECK("not enough numbers", !eval_rpn("3 +"));
+              CHECK("numbers left over", !eval_rpn("1 2"));
+              CHECK("empty", !eval_rpn(""));
+              CHECK("double space is an empty token", !eval_rpn("1  2 +"));
+          }
+        hints:
+          - "Take the text up to the next space as the token, handle it, then `remove_prefix` past the space."
+          - "Pop `b` first, then `a`, so `a - b` keeps the right order."
 
   - title: Exceptions
     id: cpp-errors-7
@@ -653,6 +1095,106 @@ steps:
       - "`struct TransferError : std::runtime_error { using std::runtime_error::runtime_error; };` gives it runtime_error's constructors."
       - "Copy `balances` into a local vector and apply every transfer to the copy. A `throw` leaves the function before `balances` is touched."
       - "Build the message with `\"transfer \" + std::to_string(i + 1) + \": insufficient funds\"`. After the loop, `balances.swap(copy)` commits everything."
+    more:
+      - task: |
+          Write `int checked_at(const std::vector<int>& v, int i)` that throws `std::out_of_range("index I out of range")` for a bad index, and `std::string describe(const std::vector<int>& v, int i)` that calls it and returns `"value N"`, or `"error: "` followed by the exception's message.
+        seed: |
+          #include <stdexcept>
+          #include <string>
+          #include <vector>
+
+          int checked_at(const std::vector<int>& v, int i) {
+
+          }
+
+          std::string describe(const std::vector<int>& v, int i) {
+
+          }
+        solution: |
+          #include <stdexcept>
+          #include <string>
+          #include <vector>
+
+          int checked_at(const std::vector<int>& v, int i) {
+              if (i < 0 || i >= (int)v.size()) throw std::out_of_range("index " + std::to_string(i) + " out of range");
+              return v[i];
+          }
+
+          std::string describe(const std::vector<int>& v, int i) {
+              try {
+                  return "value " + std::to_string(checked_at(v, i));
+              } catch (const std::out_of_range& e) {
+                  return std::string("error: ") + e.what();
+              }
+          }
+        require:
+          - pattern: "\\bthrow\\b"
+            message: "Report a bad index by throwing `std::out_of_range`."
+          - pattern: "\\bcatch\\b"
+            message: "Catch the exception in `describe`."
+        harness: |
+          int main() {
+              std::vector<int> v = {10, 20};
+              CHECK_EQ("valid", describe(v, 1), std::string("value 20"));
+              CHECK_EQ("too big", describe(v, 2), std::string("error: index 2 out of range"));
+              CHECK_EQ("negative", describe(v, -1), std::string("error: index -1 out of range"));
+              bool threw = false;
+              try {
+                  checked_at(v, 5);
+              } catch (const std::out_of_range&) {
+                  threw = true;
+              }
+              CHECK("checked_at throws out_of_range", threw);
+          }
+        hints:
+          - "`throw std::out_of_range(\"index \" + std::to_string(i) + \" out of range\");`"
+          - "Catch by `const` reference and read the message with `e.what()`."
+      - task: |
+          `std::stoi` throws `std::invalid_argument` for text that isn't a number and `std::out_of_range` for numbers too big for an `int`. Write `int sum_valid(const std::vector<std::string>& items, std::vector<std::string>& errors)` that adds up every item `std::stoi` accepts, and for each one it rejects appends `"bad: ITEM"` to `errors` and carries on.
+        seed: |
+          #include <stdexcept>
+          #include <string>
+          #include <vector>
+
+          int sum_valid(const std::vector<std::string>& items, std::vector<std::string>& errors) {
+
+          }
+        solution: |
+          #include <stdexcept>
+          #include <string>
+          #include <vector>
+
+          int sum_valid(const std::vector<std::string>& items, std::vector<std::string>& errors) {
+              int total = 0;
+              for (const auto& item : items) {
+                  try {
+                      total += std::stoi(item);
+                  } catch (const std::invalid_argument&) {
+                      errors.push_back("bad: " + item);
+                  } catch (const std::out_of_range&) {
+                      errors.push_back("bad: " + item);
+                  }
+              }
+              return total;
+          }
+        require:
+          - pattern: "stoi"
+            message: "Convert with `std::stoi`."
+          - pattern: "\\bcatch\\b"
+            message: "Catch the exceptions `std::stoi` throws."
+        harness: |
+          int main() {
+              std::vector<std::string> errors;
+              int total = sum_valid({"10", "x", "5", "99999999999", "-3"}, errors);
+              CHECK_EQ("total", total, 12);
+              CHECK_EQ("errors", errors, (std::vector<std::string>{"bad: x", "bad: 99999999999"}));
+              std::vector<std::string> none;
+              CHECK_EQ("all good", sum_valid({"1", "2"}, none), 3);
+              CHECK("no errors", none.empty());
+          }
+        hints:
+          - "Put the `try` inside the loop so one bad item doesn't stop the rest."
+          - "Two `catch` blocks, one per exception type, or one `catch (const std::exception&)`."
 
   - title: "Challenge: load a config"
     id: cpp-errors-6
@@ -788,3 +1330,155 @@ steps:
       - "Skip empty lines and lines where `line[0] == '#'`."
       - "`line.find('=')` gives the split point; key is `substr(0, eq)`, value is `substr(eq + 1)`."
       - "Return `{{}, \"line \" + std::to_string(n) + \": missing =\"}` style results on errors."
+    more:
+      - task: |
+          Write `ArgsResult parse_args(const std::vector<std::string>& args)` for command-line options. `--name=value` stores `value`, and a bare flag like `--verbose` stores `"true"`. Arguments are numbered from 1:
+
+          - an argument not starting with `--` fails with `"argument N: expected --"`
+          - an empty name (`--` or `--=x`) fails with `"argument N: empty name"`
+          - a name given twice fails with `"argument N: duplicate NAME"`
+
+          Stop at the first error.
+        seed: |
+          #include <map>
+          #include <string>
+          #include <vector>
+
+          struct ArgsResult {
+              std::map<std::string, std::string> values;
+              std::string error;   // empty means success
+          };
+
+          ArgsResult parse_args(const std::vector<std::string>& args) {
+
+          }
+        solution: |
+          #include <map>
+          #include <string>
+          #include <vector>
+
+          struct ArgsResult {
+              std::map<std::string, std::string> values;
+              std::string error;   // empty means success
+          };
+
+          ArgsResult parse_args(const std::vector<std::string>& args) {
+              ArgsResult r;
+              for (std::size_t i = 0; i < args.size(); i++) {
+                  std::string where = "argument " + std::to_string(i + 1) + ": ";
+                  const std::string& a = args[i];
+                  if (a.rfind("--", 0) != 0) return {{}, where + "expected --"};
+                  std::string body = a.substr(2);
+                  auto eq = body.find('=');
+                  std::string name = body.substr(0, eq);
+                  std::string value = eq == std::string::npos ? "true" : body.substr(eq + 1);
+                  if (name.empty()) return {{}, where + "empty name"};
+                  if (!r.values.emplace(name, value).second) return {{}, where + "duplicate " + name};
+              }
+              return r;
+          }
+        harness: |
+          int main() {
+              auto ok = parse_args({"--map=nuke", "--verbose", "--rounds=30"});
+              CHECK_EQ("no error", ok.error, std::string(""));
+              CHECK_EQ("map", ok.values["map"], std::string("nuke"));
+              CHECK_EQ("flag", ok.values["verbose"], std::string("true"));
+              CHECK_EQ("three values", ok.values.size(), 3u);
+              CHECK_EQ("empty value allowed", parse_args({"--tag="}).values["tag"], std::string(""));
+              CHECK_EQ("no dashes", parse_args({"--a=1", "b=2"}).error, std::string("argument 2: expected --"));
+              CHECK_EQ("single dash", parse_args({"-v"}).error, std::string("argument 1: expected --"));
+              CHECK_EQ("empty name", parse_args({"--=x"}).error, std::string("argument 1: empty name"));
+              CHECK_EQ("bare --", parse_args({"--"}).error, std::string("argument 1: empty name"));
+              CHECK_EQ("duplicate", parse_args({"--a=1", "--b", "--a=2"}).error, std::string("argument 3: duplicate a"));
+              CHECK_EQ("nothing", parse_args({}).error, std::string(""));
+          }
+        hints:
+          - "`a.rfind(\"--\", 0) == 0` checks that `a` starts with `--`."
+          - "`values.emplace(name, value).second` is false when the name is already there."
+      - task: |
+          Turn raw config values into typed `Settings`. Write `SettingsResult to_settings(const std::map<std::string, std::string>& v)`:
+
+          - `port` is required: missing gives `"missing port"`, anything but digits gives `"port is not a number"`, and outside 1 to 65535 gives `"port out of range"`
+          - `host` defaults to `"localhost"`
+          - `debug` defaults to false and must be `"true"` or `"false"`, otherwise `"debug must be true or false"`
+
+          Check `port` first, then `debug`.
+        seed: |
+          #include <map>
+          #include <string>
+
+          struct Settings {
+              int port = 0;
+              std::string host;
+              bool debug = false;
+          };
+
+          struct SettingsResult {
+              Settings settings;
+              std::string error;   // empty means success
+          };
+
+          SettingsResult to_settings(const std::map<std::string, std::string>& v) {
+
+          }
+        solution: |
+          #include <map>
+          #include <string>
+
+          struct Settings {
+              int port = 0;
+              std::string host;
+              bool debug = false;
+          };
+
+          struct SettingsResult {
+              Settings settings;
+              std::string error;   // empty means success
+          };
+
+          SettingsResult to_settings(const std::map<std::string, std::string>& v) {
+              auto fail = [](const std::string& e) { return SettingsResult{{}, e}; };
+              Settings s;
+              auto p = v.find("port");
+              if (p == v.end()) return fail("missing port");
+              const std::string& text = p->second;
+              if (text.empty()) return fail("port is not a number");
+              for (char c : text)
+                  if (c < '0' || c > '9') return fail("port is not a number");
+              std::size_t first = text.find_first_not_of('0');
+              if (first != std::string::npos && text.size() - first > 5) return fail("port out of range");
+              int port = std::stoi(text);
+              if (port < 1 || port > 65535) return fail("port out of range");
+              s.port = port;
+              auto h = v.find("host");
+              s.host = h == v.end() ? "localhost" : h->second;
+              auto d = v.find("debug");
+              if (d != v.end()) {
+                  if (d->second == "true") s.debug = true;
+                  else if (d->second == "false") s.debug = false;
+                  else return fail("debug must be true or false");
+              }
+              return {s, ""};
+          }
+        harness: |
+          #include <map>
+          int main() {
+              auto a = to_settings({{"port", "8080"}});
+              CHECK_EQ("ok", a.error, std::string(""));
+              CHECK_EQ("port", a.settings.port, 8080);
+              CHECK_EQ("default host", a.settings.host, std::string("localhost"));
+              CHECK("default debug", !a.settings.debug);
+              auto b = to_settings({{"port", "27015"}, {"host", "arena.gg"}, {"debug", "true"}});
+              CHECK("all set", b.settings.port == 27015 && b.settings.host == "arena.gg" && b.settings.debug);
+              CHECK_EQ("missing port", to_settings({{"host", "x"}}).error, std::string("missing port"));
+              CHECK_EQ("letters", to_settings({{"port", "80a"}}).error, std::string("port is not a number"));
+              CHECK_EQ("empty port", to_settings({{"port", ""}}).error, std::string("port is not a number"));
+              CHECK_EQ("zero", to_settings({{"port", "0"}}).error, std::string("port out of range"));
+              CHECK_EQ("too big", to_settings({{"port", "70000"}}).error, std::string("port out of range"));
+              CHECK_EQ("huge", to_settings({{"port", "123456789012"}}).error, std::string("port out of range"));
+              CHECK_EQ("leading zeros", to_settings({{"port", "0000080"}}).settings.port, 80);
+              CHECK_EQ("bad debug", to_settings({{"port", "80"}, {"debug", "yes"}}).error, std::string("debug must be true or false"));
+          }
+        hints:
+          - "Use `find` for each key so a missing key can take its default."
+          - "Check that the port is all digits and not too long before calling `std::stoi`, which throws on huge numbers."
