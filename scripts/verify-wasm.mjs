@@ -43,7 +43,11 @@ async function checkExercise(where, ex) {
 }
 
 const t0 = Date.now();
-for (const m of content.modules) for (const [i, s] of m.steps.entries()) await checkExercise(`${m.id} step ${i + 1} (${s.title})`, s);
+for (const m of content.modules)
+  for (const [i, s] of m.steps.entries()) {
+    await checkExercise(`${m.id} step ${i + 1} (${s.title})`, s);
+    for (const [k, c] of (s.more ?? []).entries()) await checkExercise(`${m.id} step ${i + 1} (${s.title}) challenge ${k + 2}`, c);
+  }
 for (const p of content.projects) for (const [i, ms] of p.milestones.entries()) await checkExercise(`project ${p.id} milestone ${i + 1}`, ms);
 for (const d of [...content.drills, ...(content.placement ?? [])]) {
   const where = `drill ${d.id} (${d.type})`;

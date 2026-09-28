@@ -171,6 +171,8 @@ async function buildExercise(where, lang, raw, prevSolution) {
     const failed = checks.filter((c) => !c.pass);
     if (failed.length) errors.push(`${where}: solution fails checks: ${failed.map((c) => `${c.name} (want ${c.expected}, got ${c.got})`).join(", ")}`);
     out.checks = checks.length;
+    // Shown in the task card as "what the tests check".
+    out.checkNames = checks.map((c) => c.name);
     out.tests = [{ name: "tests", stdin: testsRaw[0].stdin ?? "", expect: "" }];
     if (testsRaw[0].files) out.tests[0].files = testsRaw[0].files;
     if (testsRaw[0].args) out.tests[0].args = testsRaw[0].args.map(String);
@@ -277,8 +279,26 @@ async function buildLessons() {
         const ex = await buildExercise(where, s.lang ?? m.lang, s, null);
         if (!ex) return null;
         if (!s.text) errors.push(`${where}: missing text`);
-        const text = await checkExamples(where, s.text ?? "");
-        return { id: s.id ?? `${m.id}-${i + 1}`, title: s.title, text, ...ex };
+        // The "**Your turn:**" paragraph (and anything after it) is the task: the app shows it in
+        // its own card above the editor, so it's obvious what the exercise asks for.
+        const full = s.text ?? "";
+        const at = full.indexOf("**Your turn:**");
+        if (at < 0) errors.push(`${where}: the text needs a "**Your turn:**" paragraph (the task)`);
+        const text = await checkExamples(where, at < 0 ? full : full.slice(0, at).trimEnd() + "\n");
+        const rest = full.slice(at + "**Your turn:**".length).trim();
+        const task = at < 0 ? "" : await checkExamples(where + " task", rest.charAt(0).toUpperCase() + rest.slice(1) + "\n");
+        // Extra challenges practice the same idea: each is a full exercise with its own task.
+        const more = [];
+        for (const [k, c] of (s.more ?? []).entries()) {
+          const w = `${where} challenge ${k + 2}`;
+          if (!c.task) errors.push(`${w}: needs a task`);
+          if (c.fill == null && c.seed == null) errors.push(`${w}: needs fill or seed (starter code)`);
+          const cx = await buildExercise(w, s.lang ?? m.lang, c, null);
+          if (cx) more.push({ task: await checkExamples(w, String(c.task ?? "").trim() + "\n"), ...cx });
+        }
+        const step = { id: s.id ?? `${m.id}-${i + 1}`, title: s.title, text, task, ...ex };
+        if (more.length) step.more = more;
+        return step;
       }),
     );
     modules.push({ id: m.id, title: m.title, lang: m.lang, phase: m.phase ?? "", summary: m.summary ?? "", steps: steps.filter(Boolean) });

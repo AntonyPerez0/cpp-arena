@@ -62,6 +62,53 @@ steps:
       - The type for whole numbers is `int`.
     tests:
       - expect: "Score: 42"
+    more:
+      - task: |
+          Declare two `int` variables: `kills` with the value `17` and `deaths` with the value `9`. The program should print `Kills: 17 Deaths: 9`.
+        fill: |
+          #include <stdio.h>
+
+          int main(void) {
+              [[int]] kills = [[17]];
+              [[int]] deaths = [[9]];
+              printf("Kills: %d Deaths: %d\n", kills, deaths);
+              return 0;
+          }
+        hints:
+          - Each declaration is the type, the name, `=`, then the value.
+        tests:
+          - expect: "Kills: 17 Deaths: 9"
+      - task: |
+          The `printf` is already written, but the variables it uses don't exist yet. Declare `level` (value `7`) and `xp` (value `1250`) as `int` so the program prints `Level 7, XP 1250`.
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              // declare level and xp here
+
+              printf("Level %d, XP %d\n", level, xp);
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              // declare level and xp here
+              int level = 7;
+              int xp = 1250;
+              printf("Level %d, XP %d\n", level, xp);
+              return 0;
+          }
+        require:
+          - pattern: "int\\s+level\\s*="
+            message: Declare an `int` named `level`.
+          - pattern: "int\\s+xp\\s*="
+            message: Declare an `int` named `xp`.
+        hints:
+          - A variable must be declared before the line that uses it.
+          - "`int level = 7;` declares the first one."
+        tests:
+          - expect: "Level 7, XP 1250"
 
   - title: Printing values with %d
     id: c-vars-2
@@ -110,6 +157,58 @@ steps:
       - Put a `%d` for each number, then list the variables after the string in the same order.
     tests:
       - expect: "K/D: 20/5"
+    more:
+      - task: |
+          The variables are declared in a different order than they are printed. Complete the `printf` so the program prints `Round 3 of 30`.
+        fill: |
+          #include <stdio.h>
+
+          int main(void) {
+              int total = 30;
+              int round = 3;
+              printf("Round [[%d]] of [[%d]]\n", [[round]], [[total]]);
+              return 0;
+          }
+        hints:
+          - The values after the string fill the `%d` slots from left to right. The first `%d` should be the round.
+        tests:
+          - expect: "Round 3 of 30"
+      - task: |
+          Print all three variables on one line, exactly like this:
+
+          ```
+          HP 100 | Armor 50 | $800
+          ```
+
+          Use a `%d` for each number instead of typing the numbers into the string.
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              int hp = 100;
+              int armor = 50;
+              int money = 800;
+              printf("HP | Armor | $\n");
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              int hp = 100;
+              int armor = 50;
+              int money = 800;
+              printf("HP %d | Armor %d | $%d\n", hp, armor, money);
+              return 0;
+          }
+        forbid:
+          - pattern: "HP 100|Armor 50|\\$800"
+            message: Print the numbers with `%d` and the variables, not by typing them into the string.
+        hints:
+          - Put `%d` right where each number should appear, for example `HP %d`.
+          - "After the string, list `hp, armor, money` in that order."
+        tests:
+          - expect: "HP 100 | Armor 50 | $800"
 
   - title: Changing a variable
     id: c-vars-3
@@ -177,6 +276,93 @@ steps:
       - "Write `money = money - 2700;` on the empty line."
     tests:
       - expect: "Money left: 500"
+    more:
+      - task: |
+          The player starts with `100` HP, takes `27` damage, then picks up a medkit that heals `15`. Change `hp` for each event so the program prints `HP: 88`.
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              int hp = 100;
+              // take 27 damage
+
+              // heal 15
+
+              printf("HP: %d\n", hp);
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              int hp = 100;
+              // take 27 damage
+              hp = hp - 27;
+              // heal 15
+              hp = hp + 15;
+              printf("HP: %d\n", hp);
+              return 0;
+          }
+        require:
+          - pattern: "hp\\s*(=\\s*hp\\s*-|-=)"
+            message: Subtract the damage from `hp` itself.
+          - pattern: "hp\\s*(=\\s*hp\\s*\\+|\\+=)"
+            message: Add the healing to `hp` itself.
+        hints:
+          - "`hp = hp - 27;` takes the damage."
+          - "`hp = hp + 15;` heals."
+        tests:
+          - expect: "HP: 88"
+      - task: |
+          The same variable changes three times, and the program prints it after each change. Starting from `800`, add the round win reward of `3250`, then buy a rifle for `2700`, then buy armor for `650`. The output should be:
+
+          ```
+          After win: 4050
+          After rifle: 1350
+          After armor: 700
+          ```
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              int money = 800;
+              // add the round win reward (3250)
+
+              printf("After win: %d\n", money);
+              // buy a rifle (2700)
+
+              printf("After rifle: %d\n", money);
+              // buy armor (650)
+
+              printf("After armor: %d\n", money);
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              int money = 800;
+              // add the round win reward (3250)
+              money = money + 3250;
+              printf("After win: %d\n", money);
+              // buy a rifle (2700)
+              money = money - 2700;
+              printf("After rifle: %d\n", money);
+              // buy armor (650)
+              money = money - 650;
+              printf("After armor: %d\n", money);
+              return 0;
+          }
+        require:
+          - pattern: "money\\s*(=\\s*money\\s*\\+|\\+=)"
+            message: Add the reward to `money` itself.
+          - pattern: "money\\s*(=\\s*money\\s*-|-=)"
+            message: Subtract each price from `money` itself.
+        hints:
+          - Each line after a comment changes `money`, and the printf below it shows the new value.
+          - "`money = money + 3250;` then `money = money - 2700;` and so on."
+        tests:
+          - expect: "After win: 4050\nAfter rifle: 1350\nAfter armor: 700"
 
   - title: Decimals with double
     id: c-vars-4
@@ -228,6 +414,61 @@ steps:
       - The type is `double`. The format for two decimals is `%.2f`.
     tests:
       - expect: "Rating: 1.25"
+    more:
+      - task: |
+          Store `45.678` in a `double` named `accuracy` and print it rounded to **one** decimal, so the output is `Accuracy: 45.7`.
+        fill: |
+          #include <stdio.h>
+
+          int main(void) {
+              [[double]] accuracy = [[45.678]];
+              printf("Accuracy: [[%.1f]]\n", accuracy);
+              return 0;
+          }
+        hints:
+          - The number after the dot in `%.2f` is how many decimals are printed. You want one.
+        tests:
+          - expect: "Accuracy: 45.7"
+      - task: |
+          A player's **eDPI** is their mouse sensitivity times their mouse DPI. Declare a `double` named `sens` equal to `1.75` and an `int` named `dpi` equal to `400`, compute the eDPI into a `double`, and print:
+
+          ```
+          Sensitivity: 1.75
+          eDPI: 700.00
+          ```
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              // declare sens and dpi, compute the eDPI, print both lines
+
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              // declare sens and dpi, compute the eDPI, print both lines
+              double sens = 1.75;
+              int dpi = 400;
+              double edpi = sens * dpi;
+              printf("Sensitivity: %.2f\n", sens);
+              printf("eDPI: %.2f\n", edpi);
+              return 0;
+          }
+        require:
+          - pattern: "double\\s+sens\\s*="
+            message: Declare a `double` named `sens`.
+          - pattern: "int\\s+dpi\\s*="
+            message: Declare an `int` named `dpi`.
+        forbid:
+          - pattern: "700"
+            message: Compute the eDPI by multiplying `sens` by `dpi` instead of typing 700.
+        hints:
+          - "`double edpi = sens * dpi;` multiplies them. The int is converted to a double automatically."
+          - Both lines use `%.2f` to print two decimals.
+        tests:
+          - expect: "Sensitivity: 1.75\neDPI: 700.00"
 
   - title: Characters with char
     id: c-vars-5
@@ -302,6 +543,57 @@ steps:
       - "Use `%c` for the letter and `%d` for its number code."
     tests:
       - expect: "Team: T\nCode: 84"
+    more:
+      - task: |
+          Store the letter `A` in a `char` named `grade` and print it as a letter, so the output is `Grade: A`.
+        fill: |
+          #include <stdio.h>
+
+          int main(void) {
+              [[char]] grade = [['A']];
+              printf("Grade: [[%c]]\n", grade);
+              return 0;
+          }
+        hints:
+          - A single character goes in single quotes, like `'A'`.
+          - The format for printing a char as a letter is `%c`.
+        tests:
+          - expect: "Grade: A"
+      - task: |
+          Characters are small numbers, so you can do arithmetic on them. Store `'a'` in a `char` named `key`, then print the key and the letter that comes after it by adding 1:
+
+          ```
+          Key: a
+          Next: b
+          ```
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              // declare key, then print it and key + 1 as letters
+
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              // declare key, then print it and key + 1 as letters
+              char key = 'a';
+              printf("Key: %c\n", key);
+              printf("Next: %c\n", key + 1);
+              return 0;
+          }
+        require:
+          - pattern: "char\\s+key\\s*="
+            message: Declare a `char` named `key`.
+          - pattern: "key\\s*\\+\\s*1"
+            message: Compute the next letter with `key + 1` instead of typing `b`.
+        hints:
+          - "`'a'` is 97, so `key + 1` is 98, which is the code for `'b'`."
+          - Print `key + 1` with `%c` to see it as a letter.
+        tests:
+          - expect: "Key: a\nNext: b"
 
   - title: Constants and sizeof
     id: c-vars-6
@@ -362,3 +654,63 @@ steps:
       - "`sizeof(int)` gives the size of an int in bytes."
     tests:
       - expect: "Round time: 115\nint bytes: 4"
+    more:
+      - task: |
+          Make `MAX_PLAYERS` a constant and print the size of a `double`. The output should be:
+
+          ```
+          Max players: 10
+          double bytes: 8
+          ```
+        fill: |
+          #include <stdio.h>
+
+          int main(void) {
+              [[const]] int MAX_PLAYERS = 10;
+              printf("Max players: %d\n", MAX_PLAYERS);
+              printf("double bytes: %zu\n", [[sizeof(double)]]);
+              return 0;
+          }
+        hints:
+          - "`const` goes before the type to make the variable read-only."
+          - "`sizeof(double)` is the size of a double in bytes."
+        tests:
+          - expect: "Max players: 10\ndouble bytes: 8"
+      - task: |
+          Use `sizeof` to print the size of three types, one per line, and don't type the numbers yourself:
+
+          ```
+          char: 1
+          int: 4
+          double: 8
+          ```
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              // print the size of char, int and double with sizeof and %zu
+
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              // print the size of char, int and double with sizeof and %zu
+              printf("char: %zu\n", sizeof(char));
+              printf("int: %zu\n", sizeof(int));
+              printf("double: %zu\n", sizeof(double));
+              return 0;
+          }
+        require:
+          - pattern: "sizeof\\s*\\(\\s*char\\s*\\)"
+            message: Use `sizeof(char)` for the first line.
+          - pattern: "sizeof\\s*\\(\\s*int\\s*\\)"
+            message: Use `sizeof(int)` for the second line.
+          - pattern: "sizeof\\s*\\(\\s*double\\s*\\)"
+            message: Use `sizeof(double)` for the third line.
+        hints:
+          - "sizeof gives a `size_t`, which is printed with `%zu`."
+          - "`printf(\"char: %zu\\n\", sizeof(char));` is the first line."
+        tests:
+          - expect: "char: 1\nint: 4\ndouble: 8"

@@ -125,8 +125,32 @@ await test("fill step passes with the right answer (downloads compiler)", async 
   await check();
   await page.locator(".banner", { hasText: "All tests passed" }).waitFor({ timeout: 5000 });
   console.log(`    first compile incl. toolchain download: ${((Date.now() - t0) / 1000).toFixed(1)}s`);
-  await page.getByText(/Step complete|unlocked/).waitFor();
+  await page.getByText(/Challenge 1 of 3 complete/).waitFor();
   await shot("step-pass");
+});
+
+await test("a step's extra challenges: task card, tracker, and the step completes after the last one", async () => {
+  const step = content.modules.find((m) => m.id === "c-hello").steps[0];
+  // The task card shows the exact output the program must print.
+  await page.locator(".task-card .task-count", { hasText: "Challenge 1 of 3" }).waitFor();
+  await page.getByRole("button", { name: /Next challenge/ }).click();
+  await page.locator(".task-card .task-count", { hasText: "Challenge 2 of 3" }).waitFor();
+  await page.locator(".task-card .task-output", { hasText: step.more[0].tests[0].expect }).waitFor();
+  const blanks = page.locator("input.blank");
+  await blanks.nth(0).fill("printf");
+  await blanks.nth(1).fill("return");
+  await check();
+  await page.getByText(/Challenge 2 of 3 complete/).waitFor({ timeout: 5000 });
+  await page.getByRole("button", { name: /Next challenge/ }).click();
+  await page.locator(".task-card .task-count", { hasText: "Challenge 3 of 3" }).waitFor();
+  await setEditor(step.more[1].solution);
+  await check();
+  await page.getByText(/Step complete|unlocked/).waitFor({ timeout: 5000 });
+  if ((await page.locator(".challenge-tab.challenge-done").count()) !== 3) throw new Error("not every challenge tab shows as done");
+  await shot("step-challenges");
+  // Going back to a finished challenge is practice and keeps the step done.
+  await page.getByRole("button", { name: /Challenge 1/ }).click();
+  await page.locator(".task-card .task-count", { hasText: "Challenge 1 of 3" }).waitFor();
 });
 
 await test("fill step fails with a wrong answer and shows expected vs got", async () => {

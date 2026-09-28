@@ -1,7 +1,22 @@
 // Tiny persistent store (localStorage) with a React hook.
 import { useSyncExternalStore } from "react";
 
-export type StepProgress = { done: boolean; code?: string; blanks?: string[]; hintsUsed: number; clean?: boolean; doneAt?: number };
+/** One of a step's extra challenges (the first challenge uses the step's own fields). */
+export type PartProgress = { done: boolean; code?: string; blanks?: string[]; hintsUsed: number };
+/**
+ * `done`: every challenge of the step passed (or, from before steps had several challenges,
+ * its only one). `firstDone`: the first challenge passed. `parts[k]`: challenge k + 1 (k >= 1).
+ */
+export type StepProgress = {
+  done: boolean;
+  code?: string;
+  blanks?: string[];
+  hintsUsed: number;
+  clean?: boolean;
+  doneAt?: number;
+  firstDone?: boolean;
+  parts?: Record<number, PartProgress>;
+};
 export type ProjectProgress = { milestone: number; code: string; completed: number[] };
 export type DrillStat = { box: number; right: number; wrong: number; last: number; due: number };
 export type DmMode = "deathmatch" | "casual" | "warmup" | "interview";
@@ -134,6 +149,17 @@ export function mergeStates(a: State, b: State): State {
     else {
       const newer = (x.doneAt ?? 0) > (y.doneAt ?? 0) ? x : y;
       steps[id] = { ...newer, done: x.done || y.done, hintsUsed: Math.max(x.hintsUsed, y.hintsUsed), clean: (x.done && x.clean) || (y.done && y.clean) || undefined, doneAt: Math.min(x.doneAt ?? Infinity, y.doneAt ?? Infinity) === Infinity ? undefined : Math.min(x.doneAt ?? Infinity, y.doneAt ?? Infinity) };
+      // Extra challenges: passed on either device counts as passed.
+      if (x.firstDone || y.firstDone) steps[id].firstDone = true;
+      if (x.parts || y.parts) {
+        const parts: Record<number, PartProgress> = { ...y.parts, ...x.parts };
+        for (const k of Object.keys(parts).map(Number)) {
+          const px = x.parts?.[k];
+          const py = y.parts?.[k];
+          parts[k] = { ...(newer === x ? { ...py, ...px } : { ...px, ...py }), done: !!(px?.done || py?.done), hintsUsed: Math.max(px?.hintsUsed ?? 0, py?.hintsUsed ?? 0) };
+        }
+        steps[id].parts = parts;
+      }
     }
   }
   const projects = { ...a.projects };
@@ -179,6 +205,14 @@ export function resetProgress() {
 // ------------------------------------------------------------- helpers
 export function patchStep(id: string, patch: Partial<StepProgress>) {
   update((s) => ({ ...s, steps: { ...s.steps, [id]: { ...{ done: false, hintsUsed: 0 }, ...s.steps[id], ...patch } } }));
+}
+
+export function patchPart(id: string, k: number, patch: Partial<PartProgress>) {
+  update((s) => {
+    const step = { ...{ done: false, hintsUsed: 0 }, ...s.steps[id] };
+    const parts = { ...step.parts, [k]: { ...{ done: false, hintsUsed: 0 }, ...step.parts?.[k], ...patch } };
+    return { ...s, steps: { ...s.steps, [id]: { ...step, parts } } };
+  });
 }
 
 export function patchProject(id: string, patch: Partial<ProjectProgress>) {

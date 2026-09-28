@@ -57,6 +57,64 @@ steps:
       - 30 times 4 is 120, and 120 minus 24 is 96.
     tests:
       - expect: "Damage: 96"
+    more:
+      - task: |
+          Every round a player earns a base of `20` points plus a bonus of `5`, and they played `3` rounds. Fill in the operators and the parentheses so the program prints `Total: 75`. Without parentheses, `*` happens before `+` and you get the wrong answer.
+        fill: |
+          #include <stdio.h>
+
+          int main(void) {
+              int base = 20;
+              int bonus = 5;
+              int rounds = 3;
+              int total = [[(]]base [[+]] bonus[[)]] [[*]] rounds;
+              printf("Total: %d\n", total);
+              return 0;
+          }
+        hints:
+          - First add base and bonus (25 per round), then multiply by the rounds.
+          - Parentheses make the addition happen first, `(base + bonus) * rounds`.
+        tests:
+          - expect: "Total: 75"
+      - task: |
+          Work out the player's money at the end of the round from the variables: they started with `start`, got `kill_reward` for each of their `kills`, got the `win_bonus`, and bought `grenades` grenades at `grenade_price` each. Print `Money: 4550` by computing it, not by typing the number.
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              int start = 1000;
+              int kills = 3;
+              int kill_reward = 300;
+              int win_bonus = 3250;
+              int grenades = 2;
+              int grenade_price = 300;
+              // compute the money and print it
+
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              int start = 1000;
+              int kills = 3;
+              int kill_reward = 300;
+              int win_bonus = 3250;
+              int grenades = 2;
+              int grenade_price = 300;
+              // compute the money and print it
+              int money = start + kills * kill_reward + win_bonus - grenades * grenade_price;
+              printf("Money: %d\n", money);
+              return 0;
+          }
+        forbid:
+          - pattern: "4550"
+            message: Compute the money from the variables instead of typing the answer.
+        hints:
+          - Money earned from kills is `kills * kill_reward`. The grenades cost `grenades * grenade_price`.
+          - "`*` happens before `+` and `-`, so you don't need parentheses here."
+        tests:
+          - expect: "Money: 4550"
 
   - title: The integer division trap
     id: c-ops-2
@@ -127,6 +185,63 @@ steps:
       - Turn one side into a double first. Write `(double)kills / rounds`. That `(double)` is called a *cast*.
     tests:
       - expect: "Kills per round: 2.50"
+    more:
+      - task: |
+          The average of `7`, `8` and `8` should print `Average: 7.67`, but it prints `7.00`. Fix the division so it keeps the decimals.
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              int a = 7;
+              int b = 8;
+              int c = 8;
+              double avg = (a + b + c) / 3;
+              printf("Average: %.2f\n", avg);
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              int a = 7;
+              int b = 8;
+              int c = 8;
+              double avg = (a + b + c) / 3.0;
+              printf("Average: %.2f\n", avg);
+              return 0;
+          }
+        hints:
+          - The sum is an int and 3 is an int, so the division throws the decimals away.
+          - Divide by `3.0` (a double) or cast the sum with `(double)`.
+        tests:
+          - expect: "Average: 7.67"
+      - task: |
+          A player hit `13` headshots out of `20` kills. The headshot rate in percent should print `Headshot rate: 65.0 percent`, but it prints `0.0`. Fix the calculation of `rate`. Be careful: `(double)(headshots / kills)` is still wrong, because the int division already happened inside the parentheses.
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              int headshots = 13;
+              int kills = 20;
+              double rate = headshots / kills * 100;
+              printf("Headshot rate: %.1f percent\n", rate);
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              int headshots = 13;
+              int kills = 20;
+              double rate = (double)headshots / kills * 100;
+              printf("Headshot rate: %.1f percent\n", rate);
+              return 0;
+          }
+        hints:
+          - "`13 / 20` in int math is 0, and 0 times 100 is still 0."
+          - Cast before dividing, `(double)headshots / kills * 100`.
+        tests:
+          - expect: "Headshot rate: 65.0 percent"
 
   - title: Remainder with %
     id: c-ops-3
@@ -190,6 +305,72 @@ steps:
       - Seconds are what's left over, so `total % 60`.
     tests:
       - expect: "12 min 34 sec"
+    more:
+      - task: |
+          There are `23` players and each team has `5` players. Compute how many full teams you can make and how many players are left over, and print `4 full teams, 3 left over`.
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              int players = 23;
+              int teams = 0; // fix me
+              int left = 0;  // fix me
+              printf("%d full teams, %d left over\n", teams, left);
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              int players = 23;
+              int teams = players / 5;
+              int left = players % 5;
+              printf("%d full teams, %d left over\n", teams, left);
+              return 0;
+          }
+        require:
+          - pattern: "players\\s*%\\s*5"
+            message: Use `%` on `players` to get the players left over.
+        hints:
+          - Full teams are how many 5s fit into 23, `players / 5`.
+          - The leftovers are the remainder, `players % 5`.
+        tests:
+          - expect: "4 full teams, 3 left over"
+      - task: |
+          A long match lasted `3725` seconds. Print it as hours, minutes and seconds: `1 h 2 min 5 sec`. You'll need both `/` and `%`, more than once.
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              int total = 3725;
+              int hours = 0;   // fix me
+              int minutes = 0; // fix me
+              int seconds = 0; // fix me
+              printf("%d h %d min %d sec\n", hours, minutes, seconds);
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              int total = 3725;
+              int hours = total / 3600;
+              int minutes = total % 3600 / 60;
+              int seconds = total % 60;
+              printf("%d h %d min %d sec\n", hours, minutes, seconds);
+              return 0;
+          }
+        require:
+          - pattern: "%\\s*60\\b"
+            message: Use `% 60` to get the seconds.
+          - pattern: "/\\s*3600"
+            message: Use `/ 3600` to get the hours (an hour is 3600 seconds).
+        hints:
+          - An hour is 3600 seconds, so the hours are `total / 3600`.
+          - The seconds left after the hours are `total % 3600`. Divide that by 60 for the minutes.
+          - The seconds are `total % 60`.
+        tests:
+          - expect: "1 h 2 min 5 sec"
 
   - title: Shorthand operators
     id: c-ops-4
@@ -251,6 +432,68 @@ steps:
       - "The comments say what each line should do: add 1, double, add 1, subtract 1."
     tests:
       - expect: "Streak: 12"
+    more:
+      - task: |
+          Fill in the shorthand operators so the program prints `Money: 100`. Follow the comments.
+        fill: |
+          #include <stdio.h>
+
+          int main(void) {
+              int money = 1000;
+              money [[-=]] 200;    // subtract 200 -> 800
+              money [[/=]] 2;      // halve it -> 400
+              money [[%=]] 150;    // keep the remainder after dividing by 150 -> 100
+              printf("Money: %d\n", money);
+              return 0;
+          }
+        hints:
+          - Every shorthand is an operator followed by `=`, like `+=`.
+          - The remainder operator is `%`, so its shorthand is `%=`.
+        tests:
+          - expect: "Money: 100"
+      - task: |
+          This program already prints `Score: 42`, but it uses the long form everywhere. Rewrite each of the four lines with the shortest operator: `+=`, `*=`, `-=` and `++`.
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              int score = 5;
+              score = score + 10;
+              score = score * 3;
+              score = score - 4;
+              score = score + 1;
+              printf("Score: %d\n", score);
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              int score = 5;
+              score += 10;
+              score *= 3;
+              score -= 4;
+              score++;
+              printf("Score: %d\n", score);
+              return 0;
+          }
+        require:
+          - pattern: "\\+="
+            message: Use `+=` for adding 10.
+          - pattern: "\\*="
+            message: Use `*=` for multiplying by 3.
+          - pattern: "-="
+            message: Use `-=` for subtracting 4.
+          - pattern: "\\+\\+"
+            message: Use `++` for adding 1.
+        forbid:
+          - pattern: "score\\s*=\\s*score"
+            message: Replace every `score = score ...` line with a shorthand operator.
+        hints:
+          - "`score = score + 10;` becomes `score += 10;`."
+          - "Adding exactly 1 is `score++;`."
+        tests:
+          - expect: "Score: 42"
 
   - title: Prefix vs postfix ++
     id: c-ops-5
@@ -300,6 +543,55 @@ steps:
       - "`c` must be 7 and `a` must also be 7, so increment first: `++a`."
     tests:
       - expect: "5 7 7"
+    more:
+      - task: |
+          Now with `--`. The variable `x` starts at 10. Choose prefix or postfix for each blank so the program prints `10 8 8`.
+        fill: |
+          #include <stdio.h>
+
+          int main(void) {
+              int x = 10;
+              int y = [[x--]];
+              int z = [[--x]];
+              printf("%d %d %d\n", y, z, x);
+              return 0;
+          }
+        hints:
+          - "`y` must get the old value 10, so decrement after reading: `x--`. Then `x` is 9."
+          - "`z` must be 8, so decrement first: `--x`."
+        tests:
+          - expect: "10 8 8"
+      - task: |
+          The magazine holds `30` bullets. Replace each `0` so that `before` gets the ammo count and **then** the ammo goes down by one, all in one expression, and `after` gets the ammo count **after** it goes down by one more. The program should print `30 28 28`.
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              int ammo = 30;
+              int before = 0; // read ammo, then decrease it
+              int after = 0;  // decrease ammo, then read it
+              printf("%d %d %d\n", before, after, ammo);
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              int ammo = 30;
+              int before = ammo--; // read ammo, then decrease it
+              int after = --ammo;  // decrease ammo, then read it
+              printf("%d %d %d\n", before, after, ammo);
+              return 0;
+          }
+        require:
+          - pattern: "ammo--"
+            message: Use postfix `ammo--` for `before`.
+          - pattern: "--ammo"
+            message: Use prefix `--ammo` for `after`.
+        hints:
+          - Postfix (`ammo--`) gives the old value. Prefix (`--ammo`) gives the new value.
+        tests:
+          - expect: "30 28 28"
 
   - title: Put it together
     id: c-ops-6
@@ -381,3 +673,84 @@ steps:
       - "Print with `%d` for the total and `%.2f` for the ADR."
     tests:
       - expect: "Total damage: 2090\nADR: 83.60"
+    more:
+      - task: |
+          A player got `36` kills and `16` deaths over `24` rounds. Compute their **K/D** (kills divided by deaths) and **KPR** (kills per round) and print:
+
+          ```
+          K/D: 2.25
+          KPR: 1.50
+          ```
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              int kills = 36;
+              int deaths = 16;
+              int rounds = 24;
+              // compute K/D and KPR as doubles, then print both lines
+
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              int kills = 36;
+              int deaths = 16;
+              int rounds = 24;
+              // compute K/D and KPR as doubles, then print both lines
+              double kd = (double)kills / deaths;
+              double kpr = (double)kills / rounds;
+              printf("K/D: %.2f\n", kd);
+              printf("KPR: %.2f\n", kpr);
+              return 0;
+          }
+        forbid:
+          - pattern: "2\\.25|1\\.5"
+            message: Compute the numbers from the variables instead of typing the answers.
+        hints:
+          - Both are divisions of ints, so cast one side, `(double)kills / deaths`.
+          - Print each with `%.2f`.
+        tests:
+          - expect: "K/D: 2.25\nKPR: 1.50"
+      - task: |
+          The match had `24` rounds lasting `97` seconds each on average, and the team spent `61200` money in total. Print the total match time in minutes and seconds, and the money spent per round with two decimals:
+
+          ```
+          Match time: 38 min 48 sec
+          Spent per round: 2550.00
+          ```
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              int rounds = 24;
+              int round_seconds = 97;
+              int spent = 61200;
+              // compute and print both lines
+
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              int rounds = 24;
+              int round_seconds = 97;
+              int spent = 61200;
+              // compute and print both lines
+              int total = rounds * round_seconds;
+              printf("Match time: %d min %d sec\n", total / 60, total % 60);
+              double per_round = (double)spent / rounds;
+              printf("Spent per round: %.2f\n", per_round);
+              return 0;
+          }
+        forbid:
+          - pattern: "\\b(38|48|2328|2550)\\b"
+            message: Compute the numbers from the variables instead of typing the answers.
+        hints:
+          - The total time in seconds is `rounds * round_seconds`. Then use `/ 60` and `% 60`.
+          - For the money per round, cast before dividing, `(double)spent / rounds`.
+        tests:
+          - expect: "Match time: 38 min 48 sec\nSpent per round: 2550.00"
