@@ -733,6 +733,10 @@ select, input[type="text"], input[type="url"], input[type="password"], input[typ
   .step-work .editor, .step-work .editor > div:not(.visually-hidden) { display: flex; flex-direction: column; min-height: 0; flex: 0 1 auto; }
   .step-work .editor .cm-editor { flex: 0 1 auto; min-height: 0; }
   .step-work .editor .cm-scroller { overflow: auto; }
+  /* Once results are showing the column scrolls anyway, so keep the whole program visible. */
+  .step-work:has(.results) .workbench > .editor, .step-work:has(.results) .workbench > .fillcode { flex-shrink: 0; }
+  /* The "complete" banner with its Next button stays pinned at the top while the results scroll. */
+  .step-work > .banner-pass { position: sticky; top: 0; z-index: 3; background: linear-gradient(var(--pass-bg), var(--pass-bg)), var(--bg); box-shadow: 0 6px 16px rgb(0 0 0 / 0.25); }
 }
 
 /* ==========================================================================
