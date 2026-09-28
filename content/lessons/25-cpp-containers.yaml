@@ -87,6 +87,77 @@ steps:
       - stdin: "solo\n"
       - stdin: "eco force eco full full full eco\n"
         hidden: true
+    more:
+      - task: |
+          The input is `name kills` pairs from several rounds. Add up each player's kills with a `std::map` and print `name total` lines in alphabetical order. Input `ropz 3 rain 1 ropz 4` prints `rain 1` and `ropz 7`.
+        seed: |
+          #include <iostream>
+          #include <map>
+          #include <string>
+
+          int main() {
+
+          }
+        solution: |
+          #include <iostream>
+          #include <map>
+          #include <string>
+
+          int main() {
+              std::map<std::string, int> total;
+              std::string name;
+              int kills;
+              while (std::cin >> name >> kills) total[name] += kills;
+              for (const auto& [n, k] : total) std::cout << n << " " << k << "\n";
+          }
+        require:
+          - pattern: "std::map\\s*<"
+            message: Keep the totals in a `std::map`.
+        hints:
+          - "`total[name] += kills;` works even for a new name, because `[]` creates the entry with 0 first."
+        tests:
+          - stdin: "ropz 3 rain 1 ropz 4\n"
+          - stdin: "solo 0\n"
+          - stdin: "b 2 a 5 b 2 c 1 a 1\n"
+            hidden: true
+      - task: |
+          Count the words in the input, then print `word count` lines sorted by count, **most first**, with ties in alphabetical order. A map sorts by key only, so copy its entries into a vector and sort that.
+        seed: |
+          #include <algorithm>
+          #include <iostream>
+          #include <map>
+          #include <string>
+          #include <vector>
+
+          int main() {
+
+          }
+        solution: |
+          #include <algorithm>
+          #include <iostream>
+          #include <map>
+          #include <string>
+          #include <vector>
+
+          int main() {
+              std::map<std::string, int> count;
+              std::string w;
+              while (std::cin >> w) count[w]++;
+              std::vector<std::pair<std::string, int>> v(count.begin(), count.end());
+              std::sort(v.begin(), v.end(), [](const auto& a, const auto& b) {
+                  if (a.second != b.second) return a.second > b.second;
+                  return a.first < b.first;
+              });
+              for (const auto& [word, n] : v) std::cout << word << " " << n << "\n";
+          }
+        hints:
+          - "`std::vector<std::pair<std::string, int>> v(count.begin(), count.end());` copies the map's entries."
+          - Sort with a lambda that compares counts first (bigger first) and names second.
+        tests:
+          - stdin: "rush b rush a b b\n"
+          - stdin: "x\n"
+          - stdin: "eco force eco full full full eco\n"
+            hidden: true
 
   - title: Look up without inserting
     id: cpp-containers-2
@@ -166,6 +237,73 @@ steps:
     hints:
       - "`auto it = prices.find(item);`"
       - "`it == prices.end()` means not found. Otherwise the value is `it->second`."
+    more:
+      - task: |
+          Write `bool buy(std::map<std::string, int>& stock, const std::string& item)`. If the item is in stock (count above 0), take one and return `true`, removing the item from the map when its count reaches 0. Otherwise return `false`, and don't add anything to the map.
+        seed: |
+          #include <map>
+          #include <string>
+
+          bool buy(std::map<std::string, int>& stock, const std::string& item) {
+
+          }
+        solution: |
+          #include <map>
+          #include <string>
+
+          bool buy(std::map<std::string, int>& stock, const std::string& item) {
+              auto it = stock.find(item);
+              if (it == stock.end() || it->second <= 0) return false;
+              it->second--;
+              if (it->second == 0) stock.erase(it);
+              return true;
+          }
+        harness: |
+          #include <map>
+          int main() {
+              std::map<std::string, int> s = {{"flash", 2}, {"smoke", 1}};
+              CHECK_EQ("buy a flash", buy(s, "flash"), true);
+              CHECK_EQ("one flash left", s["flash"], 1);
+              CHECK_EQ("buy the last smoke", buy(s, "smoke"), true);
+              CHECK("smoke removed at 0", s.count("smoke") == 0);
+              CHECK_EQ("buying a missing item fails", buy(s, "molotov"), false);
+              CHECK("the missing item wasn't added", s.count("molotov") == 0);
+          }
+        hints:
+          - Use `find`, not `[]`, so a missing item isn't inserted.
+          - The iterator lets you change the count through `it->second` and remove the entry with `stock.erase(it)`.
+        tests: []
+      - task: |
+          Write `std::map<char, int> letter_counts(const std::string& s)` that counts only the lowercase letters `a` to `z`, ignoring everything else. Letters that don't appear must not be in the map at all.
+        seed: |
+          #include <map>
+          #include <string>
+
+          std::map<char, int> letter_counts(const std::string& s) {
+
+          }
+        solution: |
+          #include <map>
+          #include <string>
+
+          std::map<char, int> letter_counts(const std::string& s) {
+              std::map<char, int> m;
+              for (char c : s) {
+                  if (c >= 'a' && c <= 'z') m[c]++;
+              }
+              return m;
+          }
+        harness: |
+          #include <map>
+          int main() {
+              auto m = letter_counts("gg wp, GG!");
+              CHECK("gg wp counts", m == (std::map<char, int>{{'g', 2}, {'p', 1}, {'w', 1}}));
+              CHECK("nothing to count", letter_counts("123 !?").empty());
+              CHECK_EQ("aaa", letter_counts("aaa")['a'], 3);
+          }
+        hints:
+          - Only call `m[c]++` for characters that pass the `a` to `z` check, so other characters never create entries.
+        tests: []
 
   - title: std::set
     id: cpp-containers-3
@@ -242,6 +380,71 @@ steps:
     hints:
       - Construct a set from the vector's range to deduplicate and sort.
       - "Then build a vector from the set's range: `std::vector<std::string>(s.begin(), s.end())`."
+    more:
+      - task: |
+          Write `std::vector<int> common(const std::vector<int>& a, const std::vector<int>& b)` that returns the values found in **both** vectors, each once, sorted.
+        seed: |
+          #include <set>
+          #include <vector>
+
+          std::vector<int> common(const std::vector<int>& a, const std::vector<int>& b) {
+
+          }
+        solution: |
+          #include <set>
+          #include <vector>
+
+          std::vector<int> common(const std::vector<int>& a, const std::vector<int>& b) {
+              std::set<int> in_a(a.begin(), a.end());
+              std::set<int> both;
+              for (int x : b) {
+                  if (in_a.count(x)) both.insert(x);
+              }
+              return std::vector<int>(both.begin(), both.end());
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("overlap", common({5, 1, 3, 3, 9}, {3, 9, 9, 4}), (std::vector<int>{3, 9}));
+              CHECK_EQ("nothing in common", common({1, 2}, {3, 4}), (std::vector<int>{}));
+              CHECK_EQ("one empty", common({}, {1}), (std::vector<int>{}));
+          }
+        hints:
+          - Put one vector into a `std::set` for fast lookups with `count`.
+          - Collect the matches into a second set, which removes duplicates and keeps them sorted.
+        tests: []
+      - task: |
+          Write `int first_repeat(const std::vector<std::string>& v)` that returns the index of the first element that already appeared earlier, or -1. `{"a", "b", "c", "b", "a"}` gives 3. `set::insert` returns a pair whose `.second` is `false` when the value was already there.
+        seed: |
+          #include <set>
+          #include <string>
+          #include <vector>
+
+          int first_repeat(const std::vector<std::string>& v) {
+
+          }
+        solution: |
+          #include <set>
+          #include <string>
+          #include <vector>
+
+          int first_repeat(const std::vector<std::string>& v) {
+              std::set<std::string> seen;
+              for (std::size_t i = 0; i < v.size(); i++) {
+                  if (!seen.insert(v[i]).second) return (int)i;
+              }
+              return -1;
+          }
+        harness: |
+          int main() {
+              using V = std::vector<std::string>;
+              CHECK_EQ("b repeats at 3", first_repeat(V{"a", "b", "c", "b", "a"}), 3);
+              CHECK_EQ("no repeats", first_repeat(V{"dust2", "nuke"}), -1);
+              CHECK_EQ("immediate repeat", first_repeat(V{"x", "x"}), 1);
+              CHECK_EQ("empty", first_repeat(V{}), -1);
+          }
+        hints:
+          - One pass is enough. Try to insert every element; the first time insert says "already there", you have your answer.
+        tests: []
 
   - title: unordered_map
     id: cpp-containers-4
@@ -333,6 +536,75 @@ steps:
     hints:
       - Map each value to its index as you go.
       - "Before storing v[j], check `seen.find(target - v[j])`. If found, return `{that index, j}`."
+    more:
+      - task: |
+          Write `char first_unique(const std::string& s)` that returns the first character appearing exactly **once** in the string, or `'\0'` if there is none. Count with a `std::unordered_map<char, int>`, then make a second pass over the string.
+        seed: |
+          #include <string>
+          #include <unordered_map>
+
+          char first_unique(const std::string& s) {
+
+          }
+        solution: |
+          #include <string>
+          #include <unordered_map>
+
+          char first_unique(const std::string& s) {
+              std::unordered_map<char, int> count;
+              for (char c : s) count[c]++;
+              for (char c : s) {
+                  if (count[c] == 1) return c;
+              }
+              return '\0';
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("\"ropz rain\"", first_unique("ropz rain"), 'o');
+              CHECK_EQ("\"aabbc\"", first_unique("aabbc"), 'c');
+              CHECK_EQ("no unique character", first_unique("abab"), '\0');
+              CHECK_EQ("empty", first_unique(""), '\0');
+          }
+        hints:
+          - The second pass goes over the **string**, not the map, because an unordered_map has no useful order.
+        tests: []
+      - task: |
+          Write `int longest_unique_run(const std::string& s)`: the length of the longest substring with no repeated characters. `"abcabcbb"` gives 3 (`"abc"`). Keep a window `[start, i]`, and an `unordered_map` from each character to the index where it was last seen; when the current character was seen inside the window, move `start` past it.
+        seed: |
+          #include <string>
+          #include <unordered_map>
+
+          int longest_unique_run(const std::string& s) {
+
+          }
+        solution: |
+          #include <string>
+          #include <unordered_map>
+
+          int longest_unique_run(const std::string& s) {
+              std::unordered_map<char, int> last;
+              int best = 0, start = 0;
+              for (int i = 0; i < (int)s.size(); i++) {
+                  auto it = last.find(s[i]);
+                  if (it != last.end() && it->second >= start) start = it->second + 1;
+                  last[s[i]] = i;
+                  if (i - start + 1 > best) best = i - start + 1;
+              }
+              return best;
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("abcabcbb", longest_unique_run("abcabcbb"), 3);
+              CHECK_EQ("bbbbb", longest_unique_run("bbbbb"), 1);
+              CHECK_EQ("pwwkew", longest_unique_run("pwwkew"), 3);
+              CHECK_EQ("abba", longest_unique_run("abba"), 2);
+              CHECK_EQ("empty", longest_unique_run(""), 0);
+              CHECK_EQ("all different", longest_unique_run("dust2"), 5);
+          }
+        hints:
+          - Only a repeat **inside** the current window matters, which is why the check is `it->second >= start`. `"abba"` tests exactly that.
+          - After updating `start`, the window length is `i - start + 1`.
+        tests: []
 
   - title: pair and tuple
     id: cpp-containers-5
@@ -410,6 +682,57 @@ steps:
       - A pair's members are `first` and `second`.
     tests:
       - expect: "4 9 awp 4750"
+    more:
+      - task: |
+          Read the fields of a `std::tuple` with `std::get`, using the index of each field. The program prints `ropz 25`.
+        fill: |
+          #include <iostream>
+          #include <string>
+          #include <tuple>
+
+          int main() {
+              std::tuple<std::string, int, double> t{"ropz", 25, 1.3};
+              std::cout << std::get<[[0]]>(t) << " " << std::[[get]]<1>(t) << "\n";
+          }
+        hints:
+          - Fields are numbered from 0, like array elements. The name is field 0 and the kills are field 1.
+        tests:
+          - expect: "ropz 25"
+      - task: |
+          Write `std::tuple<int, int, double> stats(const std::vector<int>& v)` that returns the minimum, the maximum and the average of a non-empty vector, all at once. The caller unpacks it with `auto [lo, hi, avg] = stats(v);`.
+        seed: |
+          #include <tuple>
+          #include <vector>
+
+          std::tuple<int, int, double> stats(const std::vector<int>& v) {
+
+          }
+        solution: |
+          #include <tuple>
+          #include <vector>
+
+          std::tuple<int, int, double> stats(const std::vector<int>& v) {
+              int lo = v[0], hi = v[0];
+              long sum = 0;
+              for (int x : v) {
+                  if (x < lo) lo = x;
+                  if (x > hi) hi = x;
+                  sum += x;
+              }
+              return {lo, hi, (double)sum / v.size()};
+          }
+        harness: |
+          int main() {
+              auto [lo, hi, avg] = stats({16, 9, 22, 13, 30});
+              CHECK_EQ("min", lo, 9);
+              CHECK_EQ("max", hi, 30);
+              CHECK_EQ("average", avg, 18.0);
+              auto [a, b, c] = stats({-4});
+              CHECK("one element", a == -4 && b == -4 && c == -4.0);
+          }
+        hints:
+          - "`return {lo, hi, average};` builds the tuple from the three values."
+        tests: []
 
   - title: "Challenge: balanced brackets"
     id: cpp-containers-6
@@ -519,3 +842,91 @@ steps:
       - Push opening brackets.
       - On a closing bracket, the stack must be non-empty and its top must be the matching opener. Pop it.
       - At the end, the stack must be empty.
+    more:
+      - task: |
+          Write `int eval_rpn(const std::vector<std::string>& tokens)` that evaluates an expression in **reverse Polish notation**, where operators come after their operands: `{"3", "4", "+", "2", "*"}` means `(3 + 4) * 2 = 14`. Numbers go on a `std::stack<int>`; an operator (`+ - * /`) pops two numbers, applies itself, and pushes the result. The input is always valid.
+        seed: |
+          #include <stack>
+          #include <string>
+          #include <vector>
+
+          int eval_rpn(const std::vector<std::string>& tokens) {
+
+          }
+        solution: |
+          #include <stack>
+          #include <string>
+          #include <vector>
+
+          int eval_rpn(const std::vector<std::string>& tokens) {
+              std::stack<int> st;
+              for (const auto& t : tokens) {
+                  if (t == "+" || t == "-" || t == "*" || t == "/") {
+                      int b = st.top(); st.pop();
+                      int a = st.top(); st.pop();
+                      if (t == "+") st.push(a + b);
+                      else if (t == "-") st.push(a - b);
+                      else if (t == "*") st.push(a * b);
+                      else st.push(a / b);
+                  } else {
+                      st.push(std::stoi(t));
+                  }
+              }
+              return st.top();
+          }
+        harness: |
+          int main() {
+              using V = std::vector<std::string>;
+              CHECK_EQ("(3 + 4) * 2", eval_rpn(V{"3", "4", "+", "2", "*"}), 14);
+              CHECK_EQ("10 - 3 (order matters)", eval_rpn(V{"10", "3", "-"}), 7);
+              CHECK_EQ("20 / 4", eval_rpn(V{"20", "4", "/"}), 5);
+              CHECK_EQ("negative number", eval_rpn(V{"-5", "2", "*"}), -10);
+              CHECK_EQ("just a number", eval_rpn(V{"42"}), 42);
+          }
+        hints:
+          - The first number popped is the **right** operand. For `10 3 -`, pop 3, then 10, then compute `10 - 3`.
+          - "`std::stoi(t)` turns a token like `\"-5\"` into an int. Check for operators first, since `\"-\"` alone is an operator."
+        tests: []
+      - task: |
+          Write `std::string simplify_path(const std::string& path)` for Unix-style paths: split on `/`, skip empty parts and `.`, and let `..` go back up one folder (at the root it does nothing). Join what's left with `/` after a leading `/`. `"/a/./b/../c/"` gives `"/a/c"`.
+        seed: |
+          #include <sstream>
+          #include <string>
+          #include <vector>
+
+          std::string simplify_path(const std::string& path) {
+
+          }
+        solution: |
+          #include <sstream>
+          #include <string>
+          #include <vector>
+
+          std::string simplify_path(const std::string& path) {
+              std::vector<std::string> parts;
+              std::istringstream in(path);
+              std::string part;
+              while (std::getline(in, part, '/')) {
+                  if (part.empty() || part == ".") continue;
+                  if (part == "..") {
+                      if (!parts.empty()) parts.pop_back();
+                  } else {
+                      parts.push_back(part);
+                  }
+              }
+              std::string out;
+              for (const auto& p : parts) out += "/" + p;
+              return out.empty() ? "/" : out;
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("/a/./b/../c/", simplify_path("/a/./b/../c/"), std::string("/a/c"));
+              CHECK_EQ("/../", simplify_path("/../"), std::string("/"));
+              CHECK_EQ("double slashes", simplify_path("/home//user"), std::string("/home/user"));
+              CHECK_EQ("root", simplify_path("/"), std::string("/"));
+              CHECK_EQ("up past a folder", simplify_path("/a/b/../../c"), std::string("/c"));
+          }
+        hints:
+          - "`std::getline(in, part, '/')` splits a string stream on `/`."
+          - A vector works as the stack of folders; `..` is a `pop_back`.
+        tests: []
