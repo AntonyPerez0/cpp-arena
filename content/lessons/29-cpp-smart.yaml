@@ -79,6 +79,85 @@ steps:
       - Members are reached through a pointer with `->`.
     tests:
       - expect: "A 35"
+    more:
+      - task: |
+          A `unique_ptr` can't be copied, only **moved**. Move `a` into `b`, check that `a` is now empty, then destroy the bomb early with `reset()`. The program prints `a empty`, `b has B`, then `b empty`.
+        fill: |
+          #include <iostream>
+          #include <memory>
+          #include <string>
+
+          struct Bomb {
+              std::string site;
+              int timer;
+          };
+
+          int main() {
+              auto a = std::make_unique<Bomb>(Bomb{"B", 40});
+              std::unique_ptr<Bomb> b = std::[[move]](a);
+              if (a == [[nullptr]]) std::cout << "a empty\n";
+              std::cout << "b has " << b->site << "\n";
+              b.[[reset]]();
+              if (!b) std::cout << "b empty\n";
+          }
+        hints:
+          - "`std::move(a)` hands the ownership over; after that `a` holds `nullptr`."
+          - "`reset()` deletes the object now and leaves the pointer empty."
+        tests:
+          - expect: "a empty\nb has B\nb empty"
+      - task: |
+          Write `int tick_all(std::vector<std::unique_ptr<Bomb>>& bombs)`. It lowers every bomb's `timer` by 1. A bomb whose timer reaches 0 explodes: `reset` its pointer and count it. Skip slots that are already empty. Return how many exploded on this tick.
+        seed: |
+          #include <memory>
+          #include <string>
+          #include <vector>
+
+          struct Bomb {
+              std::string site;
+              int timer;
+          };
+
+          int tick_all(std::vector<std::unique_ptr<Bomb>>& bombs) {
+
+          }
+        solution: |
+          #include <memory>
+          #include <string>
+          #include <vector>
+
+          struct Bomb {
+              std::string site;
+              int timer;
+          };
+
+          int tick_all(std::vector<std::unique_ptr<Bomb>>& bombs) {
+              int exploded = 0;
+              for (auto& b : bombs) {
+                  if (!b) continue;
+                  b->timer--;
+                  if (b->timer <= 0) {
+                      b.reset();
+                      exploded++;
+                  }
+              }
+              return exploded;
+          }
+        harness: |
+          int main() {
+              std::vector<std::unique_ptr<Bomb>> v;
+              v.push_back(std::make_unique<Bomb>(Bomb{"A", 1}));
+              v.push_back(nullptr);
+              v.push_back(std::make_unique<Bomb>(Bomb{"B", 2}));
+              CHECK_EQ("first tick", tick_all(v), 1);
+              CHECK("A exploded", v[0] == nullptr);
+              CHECK_EQ("B is at 1", v[2]->timer, 1);
+              CHECK_EQ("second tick", tick_all(v), 1);
+              CHECK("B exploded", v[2] == nullptr);
+              CHECK_EQ("nothing left", tick_all(v), 0);
+          }
+        hints:
+          - "Loop by reference, `for (auto& b : bombs)`, because a `unique_ptr` can't be copied."
+          - "`if (!b) continue;` skips empty slots before you touch `b->timer`."
 
   - title: Unique means unique
     id: cpp-smart-2
@@ -195,6 +274,136 @@ steps:
     hints:
       - "A unique_ptr parameter can't be copied into the vector, so move it: `items_.push_back(std::move(item));`"
       - "Loop with `for (const auto& it : items_) t += it->value;`"
+    more:
+      - task: |
+          Add `std::unique_ptr<Item> take(const std::string& name)` to `Inventory`: it finds the first item with that name, **moves it out** of the vector, erases the empty slot and returns it. Return `nullptr` when there is no such item.
+        seed: |
+          #include <memory>
+          #include <string>
+          #include <vector>
+
+          struct Item {
+              std::string name;
+              int value;
+          };
+
+          class Inventory {
+          public:
+              void add(std::unique_ptr<Item> item) { items_.push_back(std::move(item)); }
+              int count() const { return (int)items_.size(); }
+              std::unique_ptr<Item> take(const std::string& name) {
+
+              }
+
+          private:
+              std::vector<std::unique_ptr<Item>> items_;
+          };
+        solution: |
+          #include <memory>
+          #include <string>
+          #include <vector>
+
+          struct Item {
+              std::string name;
+              int value;
+          };
+
+          class Inventory {
+          public:
+              void add(std::unique_ptr<Item> item) { items_.push_back(std::move(item)); }
+              int count() const { return (int)items_.size(); }
+              std::unique_ptr<Item> take(const std::string& name) {
+                  for (auto it = items_.begin(); it != items_.end(); ++it) {
+                      if ((*it)->name == name) {
+                          std::unique_ptr<Item> out = std::move(*it);
+                          items_.erase(it);
+                          return out;
+                      }
+                  }
+                  return nullptr;
+              }
+
+          private:
+              std::vector<std::unique_ptr<Item>> items_;
+          };
+        harness: |
+          int main() {
+              Inventory inv;
+              inv.add(std::make_unique<Item>(Item{"helmet", 350}));
+              inv.add(std::make_unique<Item>(Item{"kit", 400}));
+              auto k = inv.take("kit");
+              CHECK("got the kit", k != nullptr && k->value == 400);
+              CHECK_EQ("one left", inv.count(), 1);
+              CHECK("missing item", inv.take("zeus") == nullptr);
+              CHECK_EQ("still one", inv.count(), 1);
+              CHECK_EQ("take the helmet", inv.take("helmet")->name, std::string("helmet"));
+              CHECK_EQ("empty now", inv.count(), 0);
+          }
+        hints:
+          - "`std::unique_ptr<Item> out = std::move(*it);` moves the item out and leaves a null in the vector."
+          - "Then `items_.erase(it);` removes the empty slot. Return right away, since `it` is no longer valid."
+      - task: |
+          A `Slot` holds at most one item. Write `std::unique_ptr<Item> equip(std::unique_ptr<Item> item)` that puts the new item in the slot and **returns the old one** (or `nullptr` if the slot was empty), and `std::string holding() const` returning the item's name or `"nothing"`.
+        seed: |
+          #include <memory>
+          #include <string>
+
+          struct Item {
+              std::string name;
+              int value;
+          };
+
+          class Slot {
+          public:
+              std::unique_ptr<Item> equip(std::unique_ptr<Item> item) {
+
+              }
+              std::string holding() const {
+
+              }
+
+          private:
+              std::unique_ptr<Item> item_;
+          };
+        solution: |
+          #include <memory>
+          #include <string>
+          #include <utility>
+
+          struct Item {
+              std::string name;
+              int value;
+          };
+
+          class Slot {
+          public:
+              std::unique_ptr<Item> equip(std::unique_ptr<Item> item) {
+                  return std::exchange(item_, std::move(item));
+              }
+              std::string holding() const {
+                  return item_ ? item_->name : "nothing";
+              }
+
+          private:
+              std::unique_ptr<Item> item_;
+          };
+        harness: |
+          int main() {
+              Slot s;
+              CHECK_EQ("starts empty", s.holding(), std::string("nothing"));
+              auto old = s.equip(std::make_unique<Item>(Item{"ak47", 2700}));
+              CHECK("nothing was there", old == nullptr);
+              CHECK_EQ("holding ak47", s.holding(), std::string("ak47"));
+              old = s.equip(std::make_unique<Item>(Item{"awp", 4750}));
+              CHECK("got the ak47 back", old != nullptr && old->name == "ak47");
+              CHECK_EQ("holding awp", s.holding(), std::string("awp"));
+              old = s.equip(nullptr);
+              CHECK_EQ("unequip returns the awp", old->name, std::string("awp"));
+              CHECK_EQ("empty again", s.holding(), std::string("nothing"));
+          }
+        hints:
+          - "Move the old item into a local first, then move the new one in: `auto old = std::move(item_); item_ = std::move(item); return old;`"
+          - "`std::exchange(item_, std::move(item))` from `<utility>` does both steps in one call."
 
   - title: Returning ownership
     id: cpp-smart-3
@@ -275,6 +484,110 @@ steps:
     hints:
       - "Return `nullptr` for invalid sites."
       - "`return std::make_unique<std::string>(\"bomb \" + site);`"
+    more:
+      - task: |
+          Write `std::unique_ptr<Weapon> buy(const std::string& name, int& money)`. Prices: `ak47` 2700, `awp` 4750, `p250` 300. If the weapon exists and `money` covers it, subtract the price and return a new `Weapon`. Otherwise return `nullptr` and leave `money` alone.
+        seed: |
+          #include <memory>
+          #include <string>
+
+          struct Weapon {
+              std::string name;
+              int price;
+          };
+
+          std::unique_ptr<Weapon> buy(const std::string& name, int& money) {
+
+          }
+        solution: |
+          #include <memory>
+          #include <string>
+
+          struct Weapon {
+              std::string name;
+              int price;
+          };
+
+          std::unique_ptr<Weapon> buy(const std::string& name, int& money) {
+              int price;
+              if (name == "ak47") price = 2700;
+              else if (name == "awp") price = 4750;
+              else if (name == "p250") price = 300;
+              else return nullptr;
+              if (money < price) return nullptr;
+              money -= price;
+              return std::make_unique<Weapon>(Weapon{name, price});
+          }
+        harness: |
+          int main() {
+              int money = 3000;
+              auto ak = buy("ak47", money);
+              CHECK("bought ak47", ak != nullptr && ak->price == 2700);
+              CHECK_EQ("money left", money, 300);
+              CHECK("can't afford awp", buy("awp", money) == nullptr);
+              CHECK_EQ("money unchanged", money, 300);
+              CHECK("unknown weapon", buy("raygun", money) == nullptr);
+              auto p = buy("p250", money);
+              CHECK_EQ("exact money works", p->name, std::string("p250"));
+              CHECK_EQ("broke", money, 0);
+          }
+        hints:
+          - "Work out the price first; return `nullptr` for an unknown name or too little money."
+          - "Only change `money` once you know the purchase goes through."
+      - task: |
+          A linked list can own its nodes with `unique_ptr`: each `Node` owns the next one, so deleting the head frees the whole chain. Write `std::unique_ptr<Node> build(const std::vector<int>& v)` that builds a list with the values in order (an empty vector gives `nullptr`), and `int sum(const Node* head)`.
+        seed: |
+          #include <memory>
+          #include <vector>
+
+          struct Node {
+              int value;
+              std::unique_ptr<Node> next;
+          };
+
+          std::unique_ptr<Node> build(const std::vector<int>& v) {
+
+          }
+
+          int sum(const Node* head) {
+
+          }
+        solution: |
+          #include <memory>
+          #include <vector>
+
+          struct Node {
+              int value;
+              std::unique_ptr<Node> next;
+          };
+
+          std::unique_ptr<Node> build(const std::vector<int>& v) {
+              std::unique_ptr<Node> head;
+              for (auto it = v.rbegin(); it != v.rend(); ++it) {
+                  head = std::make_unique<Node>(Node{*it, std::move(head)});
+              }
+              return head;
+          }
+
+          int sum(const Node* head) {
+              int total = 0;
+              for (const Node* n = head; n != nullptr; n = n->next.get()) total += n->value;
+              return total;
+          }
+        harness: |
+          int main() {
+              auto list = build({4, 8, 15});
+              CHECK_EQ("first", list->value, 4);
+              CHECK_EQ("second", list->next->value, 8);
+              CHECK_EQ("third", list->next->next->value, 15);
+              CHECK("ends with nullptr", list->next->next->next == nullptr);
+              CHECK_EQ("sum", sum(list.get()), 27);
+              CHECK("empty vector", build({}) == nullptr);
+              CHECK_EQ("sum of nothing", sum(nullptr), 0);
+          }
+        hints:
+          - "Build from the **back**: each new node takes the current head as its `next`, then becomes the head."
+          - "To walk the list without taking ownership, use raw pointers: `n = n->next.get()`."
 
   - title: shared_ptr
     id: cpp-smart-4
@@ -350,6 +663,83 @@ steps:
       - p2 is a third owner (a copy of map) until its block ends.
     tests:
       - expect: "1 2 3 2"
+    more:
+      - task: |
+          Three more owners copy the same `shared_ptr` into a vector. Fill in the blanks so the program prints `4 3 2 blue`: drop one owner from the vector, then let go of the original with `reset()`. The string stays alive while anyone still owns it.
+        fill: |
+          #include <iostream>
+          #include <memory>
+          #include <string>
+          #include <vector>
+
+          int main() {
+              auto flag = std::make_shared<std::string>("blue");
+              std::vector<std::shared_ptr<std::string>> holders(3, flag);
+              std::cout << flag.use_count() << " ";
+              holders.[[pop_back]]();
+              std::cout << flag.use_count() << " ";
+              flag.[[reset]]();
+              std::cout << holders.front().[[use_count]]() << " " << *holders.front() << "\n";
+          }
+        hints:
+          - "`pop_back()` destroys the last copy in the vector, so one owner fewer."
+          - "After `flag.reset()` only the two copies in the vector are left."
+        tests:
+          - expect: "4 3 2 blue"
+      - task: |
+          Loading a texture is slow, so `TextureCache::get(name)` should load each name **once** and hand every caller the same `std::shared_ptr`. A load creates the string `"texture:" + name` and adds 1 to `loads()`.
+        seed: |
+          #include <map>
+          #include <memory>
+          #include <string>
+
+          class TextureCache {
+          public:
+              std::shared_ptr<std::string> get(const std::string& name) {
+
+              }
+              int loads() const { return loads_; }
+
+          private:
+              int loads_ = 0;
+          };
+        solution: |
+          #include <map>
+          #include <memory>
+          #include <string>
+
+          class TextureCache {
+          public:
+              std::shared_ptr<std::string> get(const std::string& name) {
+                  auto it = cache_.find(name);
+                  if (it != cache_.end()) return it->second;
+                  loads_++;
+                  auto tex = std::make_shared<std::string>("texture:" + name);
+                  cache_[name] = tex;
+                  return tex;
+              }
+              int loads() const { return loads_; }
+
+          private:
+              int loads_ = 0;
+              std::map<std::string, std::shared_ptr<std::string>> cache_;
+          };
+        harness: |
+          int main() {
+              TextureCache c;
+              auto a = c.get("wall");
+              auto b = c.get("wall");
+              CHECK_EQ("value", *a, std::string("texture:wall"));
+              CHECK("same object", a.get() == b.get());
+              CHECK_EQ("loaded once", c.loads(), 1);
+              CHECK_EQ("owners: a, b and the cache", a.use_count(), 3);
+              auto f = c.get("floor");
+              CHECK_EQ("second name loads", c.loads(), 2);
+              CHECK("different object", f.get() != a.get());
+          }
+        hints:
+          - "Keep a `std::map<std::string, std::shared_ptr<std::string>>` member."
+          - "Returning the stored `shared_ptr` copies it, which adds an owner but doesn't copy the string."
 
   - title: weak_ptr
     id: cpp-smart-5
@@ -437,3 +827,95 @@ steps:
     hints:
       - "`if (auto p = w.lock())` both locks and checks."
       - "Inside, `*p` is the string."
+    more:
+      - task: |
+          Write `int alive_count(const std::vector<std::weak_ptr<int>>& ws)` that counts how many of the watched objects still exist.
+        seed: |
+          #include <memory>
+          #include <vector>
+
+          int alive_count(const std::vector<std::weak_ptr<int>>& ws) {
+
+          }
+        solution: |
+          #include <memory>
+          #include <vector>
+
+          int alive_count(const std::vector<std::weak_ptr<int>>& ws) {
+              int n = 0;
+              for (const auto& w : ws) {
+                  if (!w.expired()) n++;
+              }
+              return n;
+          }
+        harness: |
+          int main() {
+              auto a = std::make_shared<int>(1);
+              auto b = std::make_shared<int>(2);
+              std::vector<std::weak_ptr<int>> ws = {a, b, std::weak_ptr<int>()};
+              CHECK_EQ("two alive", alive_count(ws), 2);
+              a.reset();
+              CHECK_EQ("one alive", alive_count(ws), 1);
+              b.reset();
+              CHECK_EQ("none alive", alive_count(ws), 0);
+              CHECK_EQ("empty list", alive_count({}), 0);
+          }
+        hints:
+          - "`w.expired()` is true once the last `shared_ptr` owner is gone (or if it never watched anything)."
+      - task: |
+          Improve the texture cache so it **doesn't keep textures alive** by itself. Store `std::weak_ptr`s: `get(name)` returns the existing texture if some caller still holds it, and otherwise loads it again (`"texture:" + name`, adding 1 to `loads()`).
+        seed: |
+          #include <map>
+          #include <memory>
+          #include <string>
+
+          class TextureCache {
+          public:
+              std::shared_ptr<std::string> get(const std::string& name) {
+
+              }
+              int loads() const { return loads_; }
+
+          private:
+              int loads_ = 0;
+          };
+        solution: |
+          #include <map>
+          #include <memory>
+          #include <string>
+
+          class TextureCache {
+          public:
+              std::shared_ptr<std::string> get(const std::string& name) {
+                  if (auto existing = cache_[name].lock()) return existing;
+                  loads_++;
+                  auto tex = std::make_shared<std::string>("texture:" + name);
+                  cache_[name] = tex;
+                  return tex;
+              }
+              int loads() const { return loads_; }
+
+          private:
+              int loads_ = 0;
+              std::map<std::string, std::weak_ptr<std::string>> cache_;
+          };
+        require:
+          - pattern: "weak_ptr"
+            message: "Store `std::weak_ptr`s in the cache."
+        harness: |
+          int main() {
+              TextureCache c;
+              auto a = c.get("wall");
+              auto b = c.get("wall");
+              CHECK("same object while held", a.get() == b.get());
+              CHECK_EQ("loaded once", c.loads(), 1);
+              CHECK_EQ("the cache is not an owner", a.use_count(), 2);
+              a.reset();
+              b.reset();
+              auto again = c.get("wall");
+              CHECK_EQ("reloaded after everyone let go", c.loads(), 2);
+              CHECK_EQ("value", *again, std::string("texture:wall"));
+          }
+        hints:
+          - "`cache_[name].lock()` gives a `shared_ptr` that is empty if the texture is gone (or was never loaded)."
+          - "Assigning a `shared_ptr` to a `weak_ptr` watches it without owning it."

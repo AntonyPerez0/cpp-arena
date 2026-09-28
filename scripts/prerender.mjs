@@ -8,6 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { marked } from "marked";
+import { loadContent } from "./load-content.mjs";
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const DIST = path.join(ROOT, "dist");
@@ -19,7 +20,7 @@ const BASE = process.env.BASE_PATH ?? "/";
 const NAME = "C/C++ Arena";
 // The logo, as in src/components/Brand.tsx, so the page looks the same before the app starts.
 const BRAND_MARK = `<svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="bm" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fcd34d"/><stop offset="0.55" stop-color="#f59e0b"/><stop offset="1" stop-color="#ea580c"/></linearGradient></defs><rect width="32" height="32" rx="8" fill="url(#bm)"/><rect x="0.5" y="0.5" width="31" height="31" rx="7.5" fill="none" stroke="#fff" stroke-opacity="0.25"/><path d="M17.6 10.1a7.2 7.2 0 1 0 0 11.8" fill="none" stroke="#1c1003" stroke-width="3.4" stroke-linecap="round"/><path d="M23.4 12.6v6.8M20 16h6.8" stroke="#1c1003" stroke-width="3" stroke-linecap="round"/></svg>`;
-const content = JSON.parse(fs.readFileSync(path.join(ROOT, "src/generated/content.json"), "utf8"));
+const content = loadContent();
 const template = fs.readFileSync(path.join(DIST, "index.html"), "utf8");
 const today = new Date().toISOString().slice(0, 10);
 

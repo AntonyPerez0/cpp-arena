@@ -3,13 +3,13 @@
 // GCC builds the expected outputs; this makes sure Clang/WASI agrees.
 //
 // Usage: node scripts/verify-wasm.mjs [filter]
-import fs from "node:fs";
 import { loadNodeToolchain } from "./node-toolchain.mjs";
+import { loadContent } from "./load-content.mjs";
 import { runWasi } from "../src/compiler/core.js";
 import { harnessSource, parseChecks, normalizeOutput, drillProgram, looseOutput, runInput } from "../src/grader/assemble.js";
 
 const filter = process.argv[2] ?? "";
-const content = JSON.parse(fs.readFileSync(new URL("../src/generated/content.json", import.meta.url), "utf8"));
+const content = loadContent();
 const tc = await loadNodeToolchain();
 const problems = [];
 let n = 0;

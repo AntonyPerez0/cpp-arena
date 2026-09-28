@@ -89,6 +89,70 @@ steps:
       - "The base class is initialized in the initializer list by name: `: Weapon(\"awp\", 115)`."
     tests:
       - expect: "awp 115 0"
+    more:
+      - task: |
+          `protected` members are hidden from outside code but visible to derived classes. Make `hp_` protected so `Tank::repair` can change it. The program prints `tank 600`.
+        fill: |
+          #include <iostream>
+          #include <string>
+
+          class Unit {
+          public:
+              Unit(std::string name, int hp) : name_(name), hp_(hp) {}
+              std::string name() const { return name_; }
+
+          private:
+              std::string name_;
+
+          [[protected]]:
+              int hp_;
+          };
+
+          class Tank : public Unit {
+          public:
+              Tank() : [[Unit]]("tank", 500) {}
+              void repair() { [[hp_]] += 100; }
+              int hp() const { return hp_; }
+          };
+
+          int main() {
+              Tank t;
+              t.repair();
+              std::cout << t.name() << " " << t.hp() << "\n";
+          }
+        hints:
+          - "`private` members can't be touched even by a derived class; `protected` ones can."
+          - "The base part is built by calling the base constructor in the initializer list."
+        tests:
+          - expect: "tank 600"
+      - task: |
+          Objects are built **base first** and destroyed in the **reverse** order. Complete the chain `C : B : A` and the destructors so the program prints `A B C ~C ~B ~A`.
+        fill: |
+          #include <iostream>
+
+          struct A {
+              A() { std::cout << "A "; }
+              ~A() { std::cout << "~A\n"; }
+          };
+
+          struct B : [[public A]] {
+              B() { std::cout << "B "; }
+              [[~B]]() { std::cout << "~B "; }
+          };
+
+          struct C : [[public B]] {
+              C() { std::cout << "C "; }
+              ~C() { std::cout << "~C "; }
+          };
+
+          int main() {
+              C c;
+          }
+        hints:
+          - "`struct B : public A` makes B a kind of A."
+          - "A destructor is the class name with `~` in front."
+        tests:
+          - expect: "A B C ~C ~B ~A"
 
   - title: virtual and override
     id: cpp-oop-2
@@ -201,6 +265,117 @@ steps:
       }
     hints:
       - "Same signature as the base, plus `override`: `std::string attack() const override { ... }`."
+    more:
+      - task: |
+          `Player::status()` is **not** virtual, but it calls the virtual `max_hp()`, so each class's own version is used. Make `Heavy` report a max of 200 and `Scout` a max of 75 by overriding `max_hp`.
+        seed: |
+          #include <string>
+
+          class Player {
+          public:
+              explicit Player(int hp) : hp_(hp) {}
+              virtual ~Player() = default;
+              virtual int max_hp() const { return 100; }
+              std::string status() const { return std::to_string(hp_) + "/" + std::to_string(max_hp()); }
+
+          private:
+              int hp_;
+          };
+
+          class Heavy : public Player {
+          public:
+              using Player::Player;
+          };
+
+          class Scout : public Player {
+          public:
+              using Player::Player;
+          };
+        solution: |
+          #include <string>
+
+          class Player {
+          public:
+              explicit Player(int hp) : hp_(hp) {}
+              virtual ~Player() = default;
+              virtual int max_hp() const { return 100; }
+              std::string status() const { return std::to_string(hp_) + "/" + std::to_string(max_hp()); }
+
+          private:
+              int hp_;
+          };
+
+          class Heavy : public Player {
+          public:
+              using Player::Player;
+              int max_hp() const override { return 200; }
+          };
+
+          class Scout : public Player {
+          public:
+              using Player::Player;
+              int max_hp() const override { return 75; }
+          };
+        require:
+          - pattern: "override"
+            message: "Mark the overrides with `override`."
+        harness: |
+          int main() {
+              Heavy h(150);
+              Scout s(60);
+              Player p(90);
+              const Player& asPlayer = h;
+              CHECK_EQ("heavy", h.status(), std::string("150/200"));
+              CHECK_EQ("heavy through Player&", asPlayer.status(), std::string("150/200"));
+              CHECK_EQ("scout", s.status(), std::string("60/75"));
+              CHECK_EQ("plain player", p.status(), std::string("90/100"));
+          }
+        hints:
+          - "`int max_hp() const override { return 200; }` inside `Heavy`."
+          - "`using Player::Player;` lets the derived classes reuse the base constructor."
+      - task: |
+          Write `Rifle` and `Sniper`, both deriving from `Weapon` and overriding `damage(int distance)`. A rifle does 30 minus 1 for every full 10 units of distance, but never less than 10. A sniper always does 115. Mark `Sniper` as `final` so nothing can derive from it.
+        seed: |
+          class Weapon {
+          public:
+              virtual ~Weapon() = default;
+              virtual int damage(int distance) const = 0;
+          };
+        solution: |
+          class Weapon {
+          public:
+              virtual ~Weapon() = default;
+              virtual int damage(int distance) const = 0;
+          };
+
+          class Rifle : public Weapon {
+          public:
+              int damage(int distance) const override {
+                  int d = 30 - distance / 10;
+                  return d < 10 ? 10 : d;
+              }
+          };
+
+          class Sniper final : public Weapon {
+          public:
+              int damage(int) const override { return 115; }
+          };
+        harness: |
+          #include <type_traits>
+          int use(const Weapon& w, int dist) { return w.damage(dist); }
+          int main() {
+              Rifle r;
+              Sniper s;
+              CHECK_EQ("rifle close", use(r, 5), 30);
+              CHECK_EQ("rifle at 45", use(r, 45), 26);
+              CHECK_EQ("rifle far is capped at 10", use(r, 900), 10);
+              CHECK_EQ("sniper", use(s, 900), 115);
+              CHECK("Sniper is final", std::is_final_v<Sniper>);
+              CHECK("Rifle is not final", !std::is_final_v<Rifle>);
+          }
+        hints:
+          - "`class Sniper final : public Weapon { ... };`"
+          - "If you don't use a parameter, leave its name out, `int damage(int) const override`, to avoid an unused-parameter warning."
 
   - title: Abstract classes
     id: cpp-oop-3
@@ -322,6 +497,115 @@ steps:
     hints:
       - "Each class needs `double area() const override { ... }`."
       - "Circle: `3.14159265358979 * r_ * r_`. Rect: `w_ * h_`."
+    more:
+      - task: |
+          Add `Triangle(base, height)` and `Square(side)`, implementing both pure virtual functions (`area()` and `name()` returning `"triangle"` or `"square"`). Then write `std::string largest(const std::vector<const Shape*>& shapes)` returning the name of the shape with the biggest area (the first one on a tie, `""` for none).
+        seed: |
+          #include <string>
+          #include <vector>
+
+          class Shape {
+          public:
+              virtual ~Shape() = default;
+              virtual double area() const = 0;
+              virtual std::string name() const = 0;
+          };
+
+        solution: |
+          #include <string>
+          #include <vector>
+
+          class Shape {
+          public:
+              virtual ~Shape() = default;
+              virtual double area() const = 0;
+              virtual std::string name() const = 0;
+          };
+
+          class Triangle : public Shape {
+          public:
+              Triangle(double base, double height) : base_(base), height_(height) {}
+              double area() const override { return base_ * height_ / 2; }
+              std::string name() const override { return "triangle"; }
+
+          private:
+              double base_, height_;
+          };
+
+          class Square : public Shape {
+          public:
+              explicit Square(double side) : side_(side) {}
+              double area() const override { return side_ * side_; }
+              std::string name() const override { return "square"; }
+
+          private:
+              double side_;
+          };
+
+          std::string largest(const std::vector<const Shape*>& shapes) {
+              const Shape* best = nullptr;
+              for (const Shape* s : shapes) {
+                  if (!best || s->area() > best->area()) best = s;
+              }
+              return best ? best->name() : "";
+          }
+        harness: |
+          int main() {
+              Triangle t(4, 5);
+              Square s(3);
+              CHECK("triangle area", t.area() == 10);
+              CHECK("square area", s.area() == 9);
+              CHECK_EQ("largest", largest({&s, &t}), std::string("triangle"));
+              Square big(4);
+              CHECK_EQ("bigger square", largest({&t, &big, &s}), std::string("square"));
+              Triangle same(3, 6);
+              CHECK_EQ("tie keeps the first", largest({&s, &same}), std::string("square"));
+              CHECK_EQ("none", largest({}), std::string(""));
+          }
+        hints:
+          - "Both classes need both functions, or they stay abstract and can't be created."
+          - "Remember the best `const Shape*` so far, and only replace it on a strictly bigger area."
+      - task: |
+          An abstract class can still have ordinary functions that call the pure virtual ones. `Account::withdraw_cost` uses `fee`. Write `Basic`, whose fee is 2% of the amount, and `Premium`, whose fee is 0 up to 1000 and 1 above that.
+        seed: |
+          class Account {
+          public:
+              virtual ~Account() = default;
+              virtual double fee(double amount) const = 0;
+              double withdraw_cost(double amount) const { return amount + fee(amount); }
+          };
+
+        solution: |
+          class Account {
+          public:
+              virtual ~Account() = default;
+              virtual double fee(double amount) const = 0;
+              double withdraw_cost(double amount) const { return amount + fee(amount); }
+          };
+
+          class Basic : public Account {
+          public:
+              double fee(double amount) const override { return amount * 0.02; }
+          };
+
+          class Premium : public Account {
+          public:
+              double fee(double amount) const override { return amount > 1000 ? 1 : 0; }
+          };
+        harness: |
+          #include <type_traits>
+          int main() {
+              CHECK("Account is abstract", std::is_abstract_v<Account>);
+              Basic b;
+              Premium p;
+              const Account& a1 = b;
+              const Account& a2 = p;
+              CHECK("basic 500 costs 510", a1.withdraw_cost(500) == 510);
+              CHECK("premium 1000 costs 1000", a2.withdraw_cost(1000) == 1000);
+              CHECK("premium 1500 costs 1501", a2.withdraw_cost(1500) == 1501);
+          }
+        hints:
+          - "Each class only overrides `fee`; `withdraw_cost` in the base does the rest."
 
   - title: Polymorphic containers
     id: cpp-oop-4
@@ -451,6 +735,125 @@ steps:
       - "Each derived class implements `int damage(int hits) const override`."
       - "Shotgun: 0 for no hits, else `80 + 20 * (hits - 1)`."
       - "Sum with `for (const auto& w : ws) t += w->damage(hits);`"
+    more:
+      - task: |
+          Write effects that change a player's hp: `Poison` takes 10, `Heal` adds 25 but never goes above 100, and `Shield` changes nothing. Then write `int apply_all(const std::vector<std::unique_ptr<Effect>>& effects, int hp)` that applies them in order and never lets hp go below 0.
+        seed: |
+          #include <memory>
+          #include <vector>
+
+          class Effect {
+          public:
+              virtual ~Effect() = default;
+              virtual int apply(int hp) const = 0;
+          };
+
+        solution: |
+          #include <memory>
+          #include <vector>
+
+          class Effect {
+          public:
+              virtual ~Effect() = default;
+              virtual int apply(int hp) const = 0;
+          };
+
+          class Poison : public Effect {
+          public:
+              int apply(int hp) const override { return hp - 10; }
+          };
+
+          class Heal : public Effect {
+          public:
+              int apply(int hp) const override { return hp + 25 > 100 ? 100 : hp + 25; }
+          };
+
+          class Shield : public Effect {
+          public:
+              int apply(int hp) const override { return hp; }
+          };
+
+          int apply_all(const std::vector<std::unique_ptr<Effect>>& effects, int hp) {
+              for (const auto& e : effects) {
+                  hp = e->apply(hp);
+                  if (hp < 0) hp = 0;
+              }
+              return hp;
+          }
+        harness: |
+          int main() {
+              std::vector<std::unique_ptr<Effect>> fx;
+              fx.push_back(std::make_unique<Poison>());
+              fx.push_back(std::make_unique<Heal>());
+              fx.push_back(std::make_unique<Shield>());
+              fx.push_back(std::make_unique<Poison>());
+              CHECK_EQ("from 50", apply_all(fx, 50), 55);
+              CHECK_EQ("heal caps at 100", apply_all(fx, 95), 90);
+              std::vector<std::unique_ptr<Effect>> poison;
+              for (int i = 0; i < 5; i++) poison.push_back(std::make_unique<Poison>());
+              CHECK_EQ("never below 0", apply_all(poison, 30), 0);
+              CHECK_EQ("no effects", apply_all({}, 42), 42);
+          }
+        hints:
+          - "Clamp after every effect, not just at the end: poison then heal from 5 hp should give 25, not 20."
+      - task: |
+          Write a **factory**: `std::unique_ptr<Weapon> make_weapon(const std::string& name)` returns a new `Pistol` for `"pistol"`, a new `Shotgun` for `"shotgun"`, and `nullptr` otherwise. Implement both classes (pistol 25 per hit; shotgun 80 for the first hit and 20 for each after), then `int total_for(const std::vector<std::string>& names, int hits)`, which skips unknown names.
+        seed: |
+          #include <memory>
+          #include <string>
+          #include <vector>
+
+          class Weapon {
+          public:
+              virtual ~Weapon() = default;
+              virtual int damage(int hits) const = 0;
+          };
+
+        solution: |
+          #include <memory>
+          #include <string>
+          #include <vector>
+
+          class Weapon {
+          public:
+              virtual ~Weapon() = default;
+              virtual int damage(int hits) const = 0;
+          };
+
+          class Pistol : public Weapon {
+          public:
+              int damage(int hits) const override { return 25 * hits; }
+          };
+
+          class Shotgun : public Weapon {
+          public:
+              int damage(int hits) const override { return hits <= 0 ? 0 : 80 + 20 * (hits - 1); }
+          };
+
+          std::unique_ptr<Weapon> make_weapon(const std::string& name) {
+              if (name == "pistol") return std::make_unique<Pistol>();
+              if (name == "shotgun") return std::make_unique<Shotgun>();
+              return nullptr;
+          }
+
+          int total_for(const std::vector<std::string>& names, int hits) {
+              int total = 0;
+              for (const auto& n : names) {
+                  if (auto w = make_weapon(n)) total += w->damage(hits);
+              }
+              return total;
+          }
+        harness: |
+          int main() {
+              CHECK("unknown gives nullptr", make_weapon("railgun") == nullptr);
+              CHECK_EQ("pistol", make_weapon("pistol")->damage(2), 50);
+              CHECK_EQ("shotgun", make_weapon("shotgun")->damage(2), 100);
+              CHECK_EQ("total", total_for({"pistol", "railgun", "shotgun"}, 3), 75 + 120);
+              CHECK_EQ("none", total_for({}, 3), 0);
+          }
+        hints:
+          - "The factory returns `std::unique_ptr<Weapon>`; `std::make_unique<Pistol>()` converts to it automatically."
+          - "`if (auto w = make_weapon(n))` both creates the weapon and skips a `nullptr`."
 
   - title: Virtual destructors
     id: cpp-oop-5
@@ -544,6 +947,105 @@ steps:
       - The base class destructor needs to be `virtual`.
     tests:
       - expect: "+ base\n+ derived\n- derived\n- base"
+    more:
+      - task: |
+          Two resources are deleted through `std::unique_ptr<Resource>`, but only `free resource` gets printed for each. Fix it so the program prints:
+
+          ```
+          free sound
+          free resource
+          free texture
+          free resource
+          ```
+        seed: |
+          #include <iostream>
+          #include <memory>
+
+          struct Resource {
+              ~Resource() { std::cout << "free resource\n"; }
+          };
+
+          struct Texture : Resource {
+              ~Texture() { std::cout << "free texture\n"; }
+          };
+
+          struct Sound : Resource {
+              ~Sound() { std::cout << "free sound\n"; }
+          };
+
+          int main() {
+              std::unique_ptr<Resource> a = std::make_unique<Texture>();
+              std::unique_ptr<Resource> b = std::make_unique<Sound>();
+          }
+        solution: |
+          #include <iostream>
+          #include <memory>
+
+          struct Resource {
+              virtual ~Resource() { std::cout << "free resource\n"; }
+          };
+
+          struct Texture : Resource {
+              ~Texture() { std::cout << "free texture\n"; }
+          };
+
+          struct Sound : Resource {
+              ~Sound() { std::cout << "free sound\n"; }
+          };
+
+          int main() {
+              std::unique_ptr<Resource> a = std::make_unique<Texture>();
+              std::unique_ptr<Resource> b = std::make_unique<Sound>();
+          }
+        hints:
+          - "Deleting through a base pointer only runs the derived destructor when the base destructor is `virtual`."
+          - "Local variables are destroyed in reverse order, so `b` goes first."
+        tests:
+          - expect: "free sound\nfree resource\nfree texture\nfree resource"
+      - task: |
+          Write the interface `Plugin` (a pure virtual `std::string name() const` and a **virtual destructor**), and `Logger`, a plugin named `"logger"` whose destructor adds 1 to `Logger::destroyed`. The test deletes loggers through `Plugin` pointers.
+        seed: |
+          #include <string>
+
+          // class Plugin here
+
+          class Logger /* derive from Plugin */ {
+          public:
+              static inline int destroyed = 0;
+          };
+        solution: |
+          #include <string>
+
+          // class Plugin here
+          class Plugin {
+          public:
+              virtual ~Plugin() = default;
+              virtual std::string name() const = 0;
+          };
+
+          class Logger : public Plugin {
+          public:
+              static inline int destroyed = 0;
+              ~Logger() override { destroyed++; }
+              std::string name() const override { return "logger"; }
+          };
+        harness: |
+          #include <memory>
+          #include <type_traits>
+          int main() {
+              CHECK("Plugin has a virtual destructor", std::has_virtual_destructor_v<Plugin>);
+              CHECK("Plugin is abstract", std::is_abstract_v<Plugin>);
+              {
+                  std::vector<std::unique_ptr<Plugin>> ps;
+                  ps.push_back(std::make_unique<Logger>());
+                  ps.push_back(std::make_unique<Logger>());
+                  CHECK_EQ("name", ps[0]->name(), std::string("logger"));
+              }
+              CHECK_EQ("both destroyed through Plugin", Logger::destroyed, 2);
+          }
+        hints:
+          - "`virtual ~Plugin() = default;` is enough to make deleting through a `Plugin*` safe."
+          - "A destructor can be marked `override` too, which checks that the base one is virtual."
 
   - title: Calling the base version, and protected
     id: cpp-oop-6
@@ -679,6 +1181,147 @@ steps:
     hints:
       - "`std::string describe() const override { return Unit::describe() + \" +heal\"; }`"
       - "`void heal(Unit& u) const { u.restore(power_); }`: Medic can read `power_` because it's protected."
+    more:
+      - task: |
+          Finish `Sniper`. `toggle_scope()` flips `scoped_` and doubles the protected `damage_` when scoping in (halves it when scoping out). `describe()` returns the base description, plus `" [scoped]"` while scoped. Reuse `Weapon::describe()`.
+        seed: |
+          #include <string>
+
+          class Weapon {
+          public:
+              Weapon(std::string name, int damage) : name_(std::move(name)), damage_(damage) {}
+              virtual ~Weapon() = default;
+              virtual std::string describe() const { return name_ + " " + std::to_string(damage_); }
+
+          protected:
+              std::string name_;
+              int damage_;
+          };
+
+          class Sniper : public Weapon {
+          public:
+              Sniper() : Weapon("awp", 60) {}
+
+          private:
+              bool scoped_ = false;
+          };
+        solution: |
+          #include <string>
+
+          class Weapon {
+          public:
+              Weapon(std::string name, int damage) : name_(std::move(name)), damage_(damage) {}
+              virtual ~Weapon() = default;
+              virtual std::string describe() const { return name_ + " " + std::to_string(damage_); }
+
+          protected:
+              std::string name_;
+              int damage_;
+          };
+
+          class Sniper : public Weapon {
+          public:
+              Sniper() : Weapon("awp", 60) {}
+              void toggle_scope() {
+                  scoped_ = !scoped_;
+                  if (scoped_) damage_ *= 2;
+                  else damage_ /= 2;
+              }
+              std::string describe() const override {
+                  std::string base = Weapon::describe();
+                  return scoped_ ? base + " [scoped]" : base;
+              }
+
+          private:
+              bool scoped_ = false;
+          };
+        require:
+          - pattern: "Weapon::describe\\s*\\(\\s*\\)"
+            message: "Reuse the base text by calling `Weapon::describe()`."
+        harness: |
+          int main() {
+              Sniper s;
+              const Weapon& w = s;
+              CHECK_EQ("unscoped", w.describe(), std::string("awp 60"));
+              s.toggle_scope();
+              CHECK_EQ("scoped", w.describe(), std::string("awp 120 [scoped]"));
+              s.toggle_scope();
+              CHECK_EQ("back out", w.describe(), std::string("awp 60"));
+          }
+        hints:
+          - "Without the `Weapon::` prefix, `describe()` would call itself forever."
+      - task: |
+          `SavingsAccount` allows only **3** withdrawals. Override `withdraw`: once 3 have succeeded, return false; otherwise let `Account::withdraw` do the real work, and only count the withdrawal if it succeeded.
+        seed: |
+          class Account {
+          public:
+              explicit Account(int balance) : balance_(balance) {}
+              virtual ~Account() = default;
+              virtual bool withdraw(int amount) {
+                  if (amount <= 0 || amount > balance_) return false;
+                  balance_ -= amount;
+                  return true;
+              }
+              int balance() const { return balance_; }
+
+          protected:
+              int balance_;
+          };
+
+          class SavingsAccount : public Account {
+          public:
+              using Account::Account;
+
+          private:
+              int withdrawals_ = 0;
+          };
+        solution: |
+          class Account {
+          public:
+              explicit Account(int balance) : balance_(balance) {}
+              virtual ~Account() = default;
+              virtual bool withdraw(int amount) {
+                  if (amount <= 0 || amount > balance_) return false;
+                  balance_ -= amount;
+                  return true;
+              }
+              int balance() const { return balance_; }
+
+          protected:
+              int balance_;
+          };
+
+          class SavingsAccount : public Account {
+          public:
+              using Account::Account;
+              bool withdraw(int amount) override {
+                  if (withdrawals_ >= 3) return false;
+                  if (!Account::withdraw(amount)) return false;
+                  withdrawals_++;
+                  return true;
+              }
+
+          private:
+              int withdrawals_ = 0;
+          };
+        require:
+          - pattern: "Account::withdraw\\s*\\("
+            message: "Let the base class do the work with `Account::withdraw(amount)`."
+        harness: |
+          int main() {
+              SavingsAccount s(100);
+              Account& a = s;
+              CHECK("1st", a.withdraw(10));
+              CHECK("too much doesn't count", !a.withdraw(500));
+              CHECK("2nd", a.withdraw(10));
+              CHECK("3rd", a.withdraw(10));
+              CHECK("4th refused", !a.withdraw(10));
+              CHECK_EQ("balance", a.balance(), 70);
+              Account plain(50);
+              CHECK("plain account has no limit", plain.withdraw(1) && plain.withdraw(1) && plain.withdraw(1) && plain.withdraw(1));
+          }
+        hints:
+          - "Check the limit first, then call `Account::withdraw(amount)` and count only when it returns true."
 
   - title: Composition over inheritance
     id: cpp-oop-7
@@ -806,6 +1449,140 @@ steps:
     hints:
       - "Use `std::find` from `<algorithm>` to check for duplicates and to locate a name to erase."
       - "For the roster, add `\", \"` before every name except the first."
+    more:
+      - task: |
+          Write class `Backpack` that *has* a `std::map<std::string, int>` of item counts and a weight limit. `bool add(const std::string& item, int qty)` fails (changing nothing) if it would take the total over the limit or `qty <= 0`. `bool remove(const std::string& item, int qty)` fails if there aren't that many, and erases an item whose count reaches 0. `int total() const` and `int count(const std::string& item) const`.
+        seed: |
+          #include <map>
+          #include <string>
+
+          class Backpack {
+          public:
+              explicit Backpack(int limit) : limit_(limit) {}
+
+          private:
+              int limit_;
+              std::map<std::string, int> items_;
+          };
+        solution: |
+          #include <map>
+          #include <string>
+
+          class Backpack {
+          public:
+              explicit Backpack(int limit) : limit_(limit) {}
+              bool add(const std::string& item, int qty) {
+                  if (qty <= 0 || total_ + qty > limit_) return false;
+                  items_[item] += qty;
+                  total_ += qty;
+                  return true;
+              }
+              bool remove(const std::string& item, int qty) {
+                  auto it = items_.find(item);
+                  if (qty <= 0 || it == items_.end() || it->second < qty) return false;
+                  it->second -= qty;
+                  total_ -= qty;
+                  if (it->second == 0) items_.erase(it);
+                  return true;
+              }
+              int total() const { return total_; }
+              int count(const std::string& item) const {
+                  auto it = items_.find(item);
+                  return it == items_.end() ? 0 : it->second;
+              }
+
+          private:
+              int limit_;
+              std::map<std::string, int> items_;
+              int total_ = 0;
+          };
+        forbid:
+          - pattern: "class\\s+Backpack\\s*:"
+            message: "Don't inherit from the map. A backpack *has* items; keep them in the private member."
+        harness: |
+          int main() {
+              Backpack b(10);
+              CHECK("add 4 nades", b.add("nade", 4));
+              CHECK("add 5 ammo", b.add("ammo", 5));
+              CHECK("over the limit", !b.add("ammo", 2));
+              CHECK_EQ("total", b.total(), 9);
+              CHECK("zero qty refused", !b.add("kit", 0));
+              CHECK("remove too many", !b.remove("nade", 5));
+              CHECK("remove 4", b.remove("nade", 4));
+              CHECK_EQ("nades gone", b.count("nade"), 0);
+              CHECK("missing item", !b.remove("nade", 1));
+              CHECK("room again", b.add("kit", 5));
+              CHECK_EQ("total 10", b.total(), 10);
+          }
+        hints:
+          - "Keep a running `total_` member so you don't have to add up the map every time."
+          - "Check every failure condition before changing anything."
+      - task: |
+          Composition also lets you **swap behaviour at run time**. A `Bot` has a `std::unique_ptr<Strategy>`. Write `Aggressive` (always `"push"`) and `Careful` (`"retreat"` below 50 hp, otherwise `"hold"`), then `Bot::set_strategy` and `Bot::act(int hp)`, which returns `"idle"` when the bot has no strategy.
+        seed: |
+          #include <memory>
+          #include <string>
+
+          class Strategy {
+          public:
+              virtual ~Strategy() = default;
+              virtual std::string choose(int hp) const = 0;
+          };
+
+          // Aggressive and Careful here
+
+          class Bot {
+          public:
+              void set_strategy(std::unique_ptr<Strategy> s);
+              std::string act(int hp) const;
+
+          private:
+              std::unique_ptr<Strategy> strategy_;
+          };
+        solution: |
+          #include <memory>
+          #include <string>
+
+          class Strategy {
+          public:
+              virtual ~Strategy() = default;
+              virtual std::string choose(int hp) const = 0;
+          };
+
+          // Aggressive and Careful here
+          class Aggressive : public Strategy {
+          public:
+              std::string choose(int) const override { return "push"; }
+          };
+
+          class Careful : public Strategy {
+          public:
+              std::string choose(int hp) const override { return hp < 50 ? "retreat" : "hold"; }
+          };
+
+          class Bot {
+          public:
+              void set_strategy(std::unique_ptr<Strategy> s) { strategy_ = std::move(s); }
+              std::string act(int hp) const { return strategy_ ? strategy_->choose(hp) : "idle"; }
+
+          private:
+              std::unique_ptr<Strategy> strategy_;
+          };
+        harness: |
+          int main() {
+              Bot b;
+              CHECK_EQ("no strategy", b.act(100), std::string("idle"));
+              b.set_strategy(std::make_unique<Careful>());
+              CHECK_EQ("careful healthy", b.act(80), std::string("hold"));
+              CHECK_EQ("careful hurt", b.act(20), std::string("retreat"));
+              b.set_strategy(std::make_unique<Aggressive>());
+              CHECK_EQ("aggressive hurt", b.act(20), std::string("push"));
+              b.set_strategy(nullptr);
+              CHECK_EQ("strategy removed", b.act(20), std::string("idle"));
+          }
+        hints:
+          - "`set_strategy` takes ownership: `strategy_ = std::move(s);`"
+          - "Check `strategy_` before calling through it."
 
   - title: Casts, dynamic_cast and slicing
     id: cpp-oop-9
@@ -1011,6 +1788,133 @@ steps:
       - "`dynamic_cast<const Circle*>(s.get())` is a non-null pointer exactly when the shape is a circle."
       - "largest_square: keep a `const Square* best = nullptr` and replace it when you find a square with a bigger `side`."
       - "Return `best` at the end; it stays `nullptr` if no shape was a square."
+    more:
+      - task: |
+          Write `template <typename T> int count_of(const Shapes& shapes)` that counts how many shapes really are a `T`, using `dynamic_cast<const T*>`.
+        seed: |
+          #include <memory>
+          #include <vector>
+
+          struct Shape {
+              virtual ~Shape() = default;
+          };
+          struct Circle : Shape {};
+          struct Square : Shape {};
+
+          using Shapes = std::vector<std::unique_ptr<Shape>>;
+
+        solution: |
+          #include <memory>
+          #include <vector>
+
+          struct Shape {
+              virtual ~Shape() = default;
+          };
+          struct Circle : Shape {};
+          struct Square : Shape {};
+
+          using Shapes = std::vector<std::unique_ptr<Shape>>;
+
+          template <typename T>
+          int count_of(const Shapes& shapes) {
+              int n = 0;
+              for (const auto& s : shapes) {
+                  if (dynamic_cast<const T*>(s.get())) n++;
+              }
+              return n;
+          }
+        require:
+          - pattern: "dynamic_cast"
+            message: "Use `dynamic_cast` to test each shape's real type."
+        harness: |
+          int main() {
+              Shapes v;
+              v.push_back(std::make_unique<Circle>());
+              v.push_back(std::make_unique<Square>());
+              v.push_back(std::make_unique<Circle>());
+              CHECK_EQ("circles", count_of<Circle>(v), 2);
+              CHECK_EQ("squares", count_of<Square>(v), 1);
+              CHECK_EQ("every one is a Shape", count_of<Shape>(v), 3);
+              CHECK_EQ("empty", count_of<Circle>(Shapes{}), 0);
+          }
+        hints:
+          - "`dynamic_cast<const T*>(s.get())` is `nullptr` when the object isn't a `T`."
+      - task: |
+          Copying a `Shape` by value slices it, and a `unique_ptr<Shape>` can't be copied at all. The fix is a **virtual clone**. Add `virtual std::unique_ptr<Shape> clone() const = 0` to `Shape`, implement it in `Circle` and `Square` (return a new copy of `*this`), and write `Shapes copy_all(const Shapes& shapes)` that deep-copies the list.
+        seed: |
+          #include <memory>
+          #include <vector>
+
+          struct Shape {
+              virtual ~Shape() = default;
+              virtual double area() const = 0;
+          };
+
+          struct Circle : Shape {
+              double r;
+              explicit Circle(double radius) : r(radius) {}
+              double area() const override { return 3 * r * r; }
+          };
+
+          struct Square : Shape {
+              double side;
+              explicit Square(double s) : side(s) {}
+              double area() const override { return side * side; }
+          };
+
+          using Shapes = std::vector<std::unique_ptr<Shape>>;
+
+          Shapes copy_all(const Shapes& shapes) {
+
+          }
+        solution: |
+          #include <memory>
+          #include <vector>
+
+          struct Shape {
+              virtual ~Shape() = default;
+              virtual double area() const = 0;
+              virtual std::unique_ptr<Shape> clone() const = 0;
+          };
+
+          struct Circle : Shape {
+              double r;
+              explicit Circle(double radius) : r(radius) {}
+              double area() const override { return 3 * r * r; }
+              std::unique_ptr<Shape> clone() const override { return std::make_unique<Circle>(*this); }
+          };
+
+          struct Square : Shape {
+              double side;
+              explicit Square(double s) : side(s) {}
+              double area() const override { return side * side; }
+              std::unique_ptr<Shape> clone() const override { return std::make_unique<Square>(*this); }
+          };
+
+          using Shapes = std::vector<std::unique_ptr<Shape>>;
+
+          Shapes copy_all(const Shapes& shapes) {
+              Shapes out;
+              for (const auto& s : shapes) out.push_back(s->clone());
+              return out;
+          }
+        harness: |
+          int main() {
+              Shapes v;
+              v.push_back(std::make_unique<Circle>(2));
+              v.push_back(std::make_unique<Square>(3));
+              Shapes c = copy_all(v);
+              CHECK_EQ("same size", c.size(), 2u);
+              CHECK("new objects", c[0].get() != v[0].get() && c[1].get() != v[1].get());
+              CHECK("first is still a Circle", dynamic_cast<Circle*>(c[0].get()) != nullptr);
+              CHECK("second is still a Square", dynamic_cast<Square*>(c[1].get()) != nullptr);
+              CHECK("areas copied", c[0]->area() == 12 && c[1]->area() == 9);
+              dynamic_cast<Square*>(c[1].get())->side = 10;
+              CHECK("deep copy: the original is unchanged", v[1]->area() == 9);
+          }
+        hints:
+          - "Inside `Circle`, `std::make_unique<Circle>(*this)` copies the whole circle, with its real type."
+          - "`copy_all` just calls `s->clone()` on each element; the virtual call picks the right class."
 
   - title: "Challenge: program to an interface"
     id: cpp-oop-8
@@ -1145,3 +2049,136 @@ steps:
       - "Store `const Clock& clock_` and a `std::deque<long>` of call times."
       - "In `allow()`: read `t = clock_.now()`, pop calls from the front while `t >= front + window_`."
       - "Then if the deque holds `limit_` calls, return false; otherwise push t and return true."
+    more:
+      - task: |
+          Write class `Cooldown` that reads the time from a `const Clock&`. `use()` succeeds (returns true and remembers the time) only when the ability is ready; `ready()` is true if it was never used, or if at least `seconds` have passed since the last successful use.
+        seed: |
+          class Clock {
+          public:
+              virtual ~Clock() = default;
+              virtual long now() const = 0;
+          };
+
+          class Cooldown {
+          public:
+              Cooldown(const Clock& clock, long seconds);
+              bool ready() const;
+              bool use();
+
+          private:
+          };
+        solution: |
+          class Clock {
+          public:
+              virtual ~Clock() = default;
+              virtual long now() const = 0;
+          };
+
+          class Cooldown {
+          public:
+              Cooldown(const Clock& clock, long seconds) : clock_(clock), seconds_(seconds) {}
+              bool ready() const { return !used_ || clock_.now() >= last_ + seconds_; }
+              bool use() {
+                  if (!ready()) return false;
+                  used_ = true;
+                  last_ = clock_.now();
+                  return true;
+              }
+
+          private:
+              const Clock& clock_;
+              long seconds_;
+              bool used_ = false;
+              long last_ = 0;
+          };
+        harness: |
+          class FakeClock : public Clock {
+          public:
+              long t = 0;
+              long now() const override { return t; }
+          };
+          int main() {
+              FakeClock clock;
+              clock.t = 100;
+              Cooldown flash(clock, 30);
+              CHECK("ready at first", flash.ready());
+              CHECK("use at 100", flash.use());
+              clock.t = 129;
+              CHECK("not ready at 129", !flash.ready());
+              CHECK("use fails", !flash.use());
+              clock.t = 130;
+              CHECK("ready at 130", flash.ready());
+              CHECK("use at 130", flash.use());
+              CHECK("not ready right after", !flash.ready());
+          }
+        hints:
+          - "Store a reference to the clock and ask it for `now()` every time, so the test's fake clock controls time."
+          - "A separate `used_` flag handles the \"never used\" case."
+      - task: |
+          `Alerts` warns players about high ping through a `Notifier` interface, so tests can use a fake instead of real messages. Write `void report(const std::string& player, int ping)`: when `ping > 100`, send `"high ping: N"` to that player, but only **once** per player until `reset()` is called.
+        seed: |
+          #include <set>
+          #include <string>
+
+          class Notifier {
+          public:
+              virtual ~Notifier() = default;
+              virtual void send(const std::string& to, const std::string& msg) = 0;
+          };
+
+          class Alerts {
+          public:
+              explicit Alerts(Notifier& n) : notifier_(n) {}
+              void report(const std::string& player, int ping);
+              void reset();
+
+          private:
+              Notifier& notifier_;
+          };
+        solution: |
+          #include <set>
+          #include <string>
+
+          class Notifier {
+          public:
+              virtual ~Notifier() = default;
+              virtual void send(const std::string& to, const std::string& msg) = 0;
+          };
+
+          class Alerts {
+          public:
+              explicit Alerts(Notifier& n) : notifier_(n) {}
+              void report(const std::string& player, int ping) {
+                  if (ping <= 100) return;
+                  if (!warned_.insert(player).second) return;
+                  notifier_.send(player, "high ping: " + std::to_string(ping));
+              }
+              void reset() { warned_.clear(); }
+
+          private:
+              Notifier& notifier_;
+              std::set<std::string> warned_;
+          };
+        harness: |
+          class FakeNotifier : public Notifier {
+          public:
+              std::vector<std::string> sent;
+              void send(const std::string& to, const std::string& msg) override { sent.push_back(to + ": " + msg); }
+          };
+          int main() {
+              FakeNotifier fake;
+              Alerts a(fake);
+              a.report("ropz", 40);
+              a.report("ropz", 150);
+              a.report("ropz", 180);
+              a.report("jL", 101);
+              a.report("jL", 100);
+              CHECK_EQ("messages", fake.sent, (std::vector<std::string>{"ropz: high ping: 150", "jL: high ping: 101"}));
+              a.reset();
+              a.report("ropz", 120);
+              CHECK_EQ("after reset", fake.sent.size(), 3u);
+              CHECK_EQ("third message", fake.sent[2], std::string("ropz: high ping: 120"));
+          }
+        hints:
+          - "A `std::set<std::string>` of warned players remembers who already got a message."
+          - "`warned_.insert(player).second` is false when the player was already in the set."

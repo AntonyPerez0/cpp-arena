@@ -95,15 +95,31 @@ let state: State = load();
 const listeners = new Set<() => void>();
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
+function write() {
+  saveTimer = null;
+  try {
+    localStorage.setItem(KEY, JSON.stringify(state));
+  } catch {
+    /* storage full or blocked: progress lives for this session only */
+  }
+}
+
 function save() {
   if (saveTimer) clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    try {
-      localStorage.setItem(KEY, JSON.stringify(state));
-    } catch {
-      /* storage full or blocked: progress lives for this session only */
-    }
-  }, 150);
+  saveTimer = setTimeout(write, 150);
+}
+
+// Leaving the page right after finishing a step must not lose the pending save.
+function flush() {
+  if (!saveTimer) return;
+  clearTimeout(saveTimer);
+  write();
+}
+if (typeof window !== "undefined") {
+  window.addEventListener("pagehide", flush);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") flush();
+  });
 }
 
 export function getState() {

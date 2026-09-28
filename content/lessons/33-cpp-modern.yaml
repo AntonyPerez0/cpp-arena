@@ -99,6 +99,80 @@ steps:
     hints:
       - Handle an optional leading `-`, then require at least one more character.
       - "Build the number digit by digit: `v = v * 10 + (c - '0');`. Any non-digit means `return std::nullopt;`."
+    more:
+      - task: |
+          Write `std::optional<double> average(const std::vector<int>& v)` that returns the average, or `std::nullopt` for an empty vector (instead of dividing by zero).
+        seed: |
+          #include <optional>
+          #include <vector>
+
+          std::optional<double> average(const std::vector<int>& v) {
+
+          }
+        solution: |
+          #include <optional>
+          #include <vector>
+
+          std::optional<double> average(const std::vector<int>& v) {
+              if (v.empty()) return std::nullopt;
+              double sum = 0;
+              for (int x : v) sum += x;
+              return sum / v.size();
+          }
+        harness: |
+          int main() {
+              CHECK("{1, 2, 3, 4} -> 2.5", average({1, 2, 3, 4}) == 2.5);
+              CHECK("{7} -> 7", average({7}) == 7.0);
+              CHECK("empty -> nullopt", !average({}).has_value());
+              CHECK("value_or", average({}).value_or(-1) == -1);
+          }
+        hints:
+          - "`return std::nullopt;` for the empty case; returning a plain `double` wraps it automatically."
+      - task: |
+          Write `std::optional<std::pair<int, int>> parse_score(const std::string& s)` for scores like `"16-14"`. Both sides must be one or more digits around exactly one `-`. Anything else gives `std::nullopt`.
+        seed: |
+          #include <optional>
+          #include <string>
+          #include <utility>
+
+          std::optional<std::pair<int, int>> parse_score(const std::string& s) {
+
+          }
+        solution: |
+          #include <cctype>
+          #include <optional>
+          #include <string>
+          #include <utility>
+
+          static bool all_digits(const std::string& s) {
+              if (s.empty() || s.size() > 6) return false;
+              for (char c : s)
+                  if (!std::isdigit((unsigned char)c)) return false;
+              return true;
+          }
+
+          std::optional<std::pair<int, int>> parse_score(const std::string& s) {
+              auto dash = s.find('-');
+              if (dash == std::string::npos) return std::nullopt;
+              std::string left = s.substr(0, dash), right = s.substr(dash + 1);
+              if (!all_digits(left) || !all_digits(right)) return std::nullopt;
+              return std::pair{std::stoi(left), std::stoi(right)};
+          }
+        harness: |
+          int main() {
+              auto a = parse_score("16-14");
+              CHECK("16-14 parses", a.has_value());
+              CHECK("values", a && a->first == 16 && a->second == 14);
+              CHECK("0-13", parse_score("0-13") == std::pair{0, 13});
+              CHECK("no dash", !parse_score("1614"));
+              CHECK("empty side", !parse_score("16-"));
+              CHECK("two dashes", !parse_score("1-2-3"));
+              CHECK("letters", !parse_score("a-b"));
+              CHECK("empty", !parse_score(""));
+          }
+        hints:
+          - "Split at the first `-`, then check that both parts are non-empty and made only of digits (a second `-` fails that check)."
+          - "`return std::pair{a, b};` converts to the optional pair."
 
   - title: std::variant and std::visit
     id: cpp-modern-2
@@ -192,6 +266,115 @@ steps:
     hints:
       - "`std::get_if<Kill>(&e)` returns a pointer to the Kill, or nullptr if e holds something else."
       - "Careful: `\"bomb planted at \" + p->site` adds a char to a pointer. Wrap the literal in `std::string(...)` first."
+    more:
+      - task: |
+          `Value` holds an `int`, a `double` or a `std::string`. Write `std::string show(const Value& v)` with `std::visit`: an int prints as-is, a double as-is too (use `std::ostringstream`, so `2.5` prints `2.5`), and a string in double quotes.
+        seed: |
+          #include <sstream>
+          #include <string>
+          #include <variant>
+
+          using Value = std::variant<int, double, std::string>;
+
+          std::string show(const Value& v) {
+
+          }
+        solution: |
+          #include <sstream>
+          #include <string>
+          #include <type_traits>
+          #include <variant>
+
+          using Value = std::variant<int, double, std::string>;
+
+          std::string show(const Value& v) {
+              return std::visit([](const auto& x) -> std::string {
+                  using T = std::decay_t<decltype(x)>;
+                  if constexpr (std::is_same_v<T, std::string>) {
+                      return "\"" + x + "\"";
+                  } else {
+                      std::ostringstream out;
+                      out << x;
+                      return out.str();
+                  }
+              }, v);
+          }
+        require:
+          - pattern: "std::visit"
+            message: "Use `std::visit`."
+        harness: |
+          int main() {
+              CHECK_EQ("int", show(Value{42}), std::string("42"));
+              CHECK_EQ("double", show(Value{2.5}), std::string("2.5"));
+              CHECK_EQ("string", show(Value{std::string("gg")}), std::string("\"gg\""));
+          }
+        hints:
+          - "A generic lambda `[](const auto& x) { ... }` is called with whichever type is inside."
+          - "`using T = std::decay_t<decltype(x)>;` then `if constexpr (std::is_same_v<T, std::string>)` picks the string case."
+      - task: |
+          Model planting the bomb as a state machine. `State` is `Idle`, `Planting{progress}` or `Planted{timer}`. Write `State step(const State& s, const std::string& input)`:
+
+          - `Idle` + `"plant"` becomes `Planting{1}`
+          - `Planting` + `"plant"` adds 1 to progress, and at 3 it becomes `Planted{40}`
+          - `Planting` + anything else goes back to `Idle`
+          - `Planted` + `"tick"` lowers the timer by 1
+          - every other combination leaves the state unchanged
+        seed: |
+          #include <string>
+          #include <variant>
+
+          struct Idle {};
+          struct Planting { int progress; };
+          struct Planted { int timer; };
+          using State = std::variant<Idle, Planting, Planted>;
+
+          State step(const State& s, const std::string& input) {
+
+          }
+        solution: |
+          #include <string>
+          #include <variant>
+
+          struct Idle {};
+          struct Planting { int progress; };
+          struct Planted { int timer; };
+          using State = std::variant<Idle, Planting, Planted>;
+
+          State step(const State& s, const std::string& input) {
+              if (std::holds_alternative<Idle>(s)) {
+                  if (input == "plant") return Planting{1};
+                  return s;
+              }
+              if (const auto* p = std::get_if<Planting>(&s)) {
+                  if (input != "plant") return Idle{};
+                  if (p->progress + 1 >= 3) return Planted{40};
+                  return Planting{p->progress + 1};
+              }
+              const auto& planted = std::get<Planted>(s);
+              if (input == "tick") return Planted{planted.timer - 1};
+              return s;
+          }
+        harness: |
+          int main() {
+              State s = Idle{};
+              s = step(s, "tick");
+              CHECK("idle ignores tick", std::holds_alternative<Idle>(s));
+              s = step(s, "plant");
+              CHECK("planting 1", std::holds_alternative<Planting>(s) && std::get<Planting>(s).progress == 1);
+              s = step(s, "plant");
+              CHECK("planting 2", std::get<Planting>(s).progress == 2);
+              s = step(s, "move");
+              CHECK("interrupted", std::holds_alternative<Idle>(s));
+              s = step(step(step(s, "plant"), "plant"), "plant");
+              CHECK("planted", std::holds_alternative<Planted>(s) && std::get<Planted>(s).timer == 40);
+              s = step(step(s, "tick"), "tick");
+              CHECK("timer 38", std::get<Planted>(s).timer == 38);
+              s = step(s, "plant");
+              CHECK("planted ignores plant", std::get<Planted>(s).timer == 38);
+          }
+        hints:
+          - "`std::get_if<Planting>(&s)` gives a pointer to the `Planting` inside, or `nullptr` if `s` holds something else."
+          - "Returning `Idle{}` or `Planted{40}` converts to `State` automatically."
 
   - title: std::string_view
     id: cpp-modern-3
@@ -287,6 +470,83 @@ steps:
     hints:
       - "`s.remove_prefix(1)` drops the first char of the view, `s.remove_suffix(1)` the last."
       - Loop while the view isn't empty and its front (or back) is a space.
+    more:
+      - task: |
+          Write `std::vector<std::string_view> split(std::string_view s, char sep)` that returns views of the fields **inside the original text** (no copies). Empty fields count, so `"a,,b"` has 3 fields and `""` has 1 (empty) field.
+        seed: |
+          #include <string_view>
+          #include <vector>
+
+          std::vector<std::string_view> split(std::string_view s, char sep) {
+
+          }
+        solution: |
+          #include <string_view>
+          #include <vector>
+
+          std::vector<std::string_view> split(std::string_view s, char sep) {
+              std::vector<std::string_view> out;
+              std::size_t start = 0;
+              while (true) {
+                  std::size_t pos = s.find(sep, start);
+                  if (pos == std::string_view::npos) {
+                      out.push_back(s.substr(start));
+                      return out;
+                  }
+                  out.push_back(s.substr(start, pos - start));
+                  start = pos + 1;
+              }
+          }
+        harness: |
+          int main() {
+              std::string text = "ak47,m4a1,,awp";
+              auto f = split(text, ',');
+              CHECK_EQ("four fields", f.size(), 4u);
+              CHECK("first", f[0] == "ak47");
+              CHECK("empty field", f[2].empty());
+              CHECK("last", f[3] == "awp");
+              CHECK("views point into the text", f[1].data() == text.data() + 5);
+              CHECK_EQ("no separator", split("solo", ',').size(), 1u);
+              CHECK_EQ("empty text", split("", ',').size(), 1u);
+              CHECK_EQ("trailing separator", split("a,", ',').size(), 2u);
+          }
+        hints:
+          - "`s.find(sep, start)` looks for the next separator; `s.substr(start, len)` on a `string_view` is just another view."
+      - task: |
+          Write `std::string_view longest_word(std::string_view text)` that returns the first longest word (words are separated by one or more spaces), as a view into `text`. Return an empty view if there are no words.
+        seed: |
+          #include <string_view>
+
+          std::string_view longest_word(std::string_view text) {
+
+          }
+        solution: |
+          #include <string_view>
+
+          std::string_view longest_word(std::string_view text) {
+              std::string_view best;
+              std::size_t i = 0;
+              while (i < text.size()) {
+                  while (i < text.size() && text[i] == ' ') i++;
+                  std::size_t start = i;
+                  while (i < text.size() && text[i] != ' ') i++;
+                  if (i - start > best.size()) best = text.substr(start, i - start);
+              }
+              return best;
+          }
+        harness: |
+          int main() {
+              std::string s = "rush  b   dont stop";
+              auto w = longest_word(s);
+              CHECK("first longest", w == "rush");
+              CHECK("points into the text", w.data() == s.data());
+              CHECK("later longer word", longest_word("go go gadget") == "gadget");
+              CHECK("only spaces", longest_word("    ").empty());
+              CHECK("empty", longest_word("").empty());
+          }
+        hints:
+          - "Skip spaces, remember where the word starts, skip letters; the word is `text.substr(start, i - start)`."
+          - "Replace the best only on a strictly longer word so the first one wins ties."
 
   - title: Concepts
     id: cpp-modern-4
@@ -368,6 +628,80 @@ steps:
     hints:
       - "Write `template <std::integral T>` above the function instead of `template <typename T>`."
       - "Loop: `T t = a % b; a = b; b = t;` until b is 0, then return a."
+    more:
+      - task: |
+          Write a concept `Named` that accepts any type with a `name()` member function whose result converts to `std::string`. Then write `template <Named T> std::string greet(const T& x)` returning `"hi " + x.name()`.
+        seed: |
+          #include <concepts>
+          #include <string>
+
+        solution: |
+          #include <concepts>
+          #include <string>
+
+          template <typename T>
+          concept Named = requires(const T& t) {
+              { t.name() } -> std::convertible_to<std::string>;
+          };
+
+          template <Named T>
+          std::string greet(const T& x) {
+              return "hi " + std::string(x.name());
+          }
+        harness: |
+          struct Player {
+              std::string name() const { return "ropz"; }
+          };
+          struct Bot {
+              const char* name() const { return "bot Zed"; }
+          };
+          struct Crate {};
+          int main() {
+              CHECK("Player is Named", Named<Player>);
+              CHECK("Bot is Named (const char* converts)", Named<Bot>);
+              CHECK("Crate is not", !Named<Crate>);
+              CHECK("int is not", !Named<int>);
+              CHECK_EQ("greet player", greet(Player{}), std::string("hi ropz"));
+              CHECK_EQ("greet bot", greet(Bot{}), std::string("hi bot Zed"));
+          }
+        hints:
+          - "`concept Named = requires(const T& t) { { t.name() } -> std::convertible_to<std::string>; };`"
+          - "Wrap the result in `std::string(...)`, so a `const char*` name can be joined with `+` too."
+      - task: |
+          Concepts can pick between overloads. Write `template <std::integral T> std::string kind(T)` returning `"integer"`, `template <std::floating_point T> std::string kind(T)` returning `"real"`, and a plain `std::string kind(const std::string&)` returning `"text"`.
+        seed: |
+          #include <concepts>
+          #include <string>
+
+        solution: |
+          #include <concepts>
+          #include <string>
+
+          template <std::integral T>
+          std::string kind(T) {
+              return "integer";
+          }
+
+          template <std::floating_point T>
+          std::string kind(T) {
+              return "real";
+          }
+
+          std::string kind(const std::string&) {
+              return "text";
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("int", kind(3), std::string("integer"));
+              CHECK_EQ("long long", kind(3LL), std::string("integer"));
+              CHECK_EQ("char is an integral type too", kind('c'), std::string("integer"));
+              CHECK_EQ("float", kind(2.5f), std::string("real"));
+              CHECK_EQ("double", kind(2.5), std::string("real"));
+              CHECK_EQ("string", kind(std::string("gg")), std::string("text"));
+          }
+        hints:
+          - "Put the concept where `typename` would go: `template <std::integral T>`."
+          - "Leave the parameter unnamed, `kind(T)`, since only its type matters."
 
   - title: Ranges
     id: cpp-modern-5
@@ -466,6 +800,76 @@ steps:
     hints:
       - "`players | std::views::filter(...) | std::views::transform(...)` makes a lazy view."
       - The filter lambda captures `min_kills`; the transform lambda returns `p.first`. Then loop over the view and push_back.
+    more:
+      - task: |
+          Write `std::vector<int> even_squares(const std::vector<int>& v, int n)` returning the squares of the first `n` even numbers, using `views::filter`, `views::transform` and `views::take`.
+        seed: |
+          #include <ranges>
+          #include <vector>
+
+          std::vector<int> even_squares(const std::vector<int>& v, int n) {
+
+          }
+        solution: |
+          #include <ranges>
+          #include <vector>
+
+          std::vector<int> even_squares(const std::vector<int>& v, int n) {
+              std::vector<int> out;
+              for (int x : v | std::views::filter([](int x) { return x % 2 == 0; })
+                             | std::views::transform([](int x) { return x * x; })
+                             | std::views::take(n)) {
+                  out.push_back(x);
+              }
+              return out;
+          }
+        require:
+          - pattern: "views::take"
+            message: "Stop after n with `std::views::take`."
+          - pattern: "views::filter"
+            message: "Use `std::views::filter`."
+        harness: |
+          int main() {
+              CHECK_EQ("first 2", even_squares({1, 2, 3, 4, 5, 6}, 2), (std::vector<int>{4, 16}));
+              CHECK_EQ("fewer than n", even_squares({2, 3}, 5), (std::vector<int>{4}));
+              CHECK_EQ("negatives", even_squares({-4, 7}, 1), (std::vector<int>{16}));
+              CHECK_EQ("n = 0", even_squares({2, 4}, 0), (std::vector<int>{}));
+          }
+        hints:
+          - "Chain the views with `|`: filter, then transform, then take."
+      - task: |
+          Write `std::vector<int> last_positive(const std::vector<int>& v, int k)` returning the **last** `k` positive numbers, newest first. Use `views::reverse` so you start from the end.
+        seed: |
+          #include <ranges>
+          #include <vector>
+
+          std::vector<int> last_positive(const std::vector<int>& v, int k) {
+
+          }
+        solution: |
+          #include <ranges>
+          #include <vector>
+
+          std::vector<int> last_positive(const std::vector<int>& v, int k) {
+              std::vector<int> out;
+              for (int x : v | std::views::reverse
+                             | std::views::filter([](int x) { return x > 0; })
+                             | std::views::take(k)) {
+                  out.push_back(x);
+              }
+              return out;
+          }
+        require:
+          - pattern: "views::reverse"
+            message: "Walk from the end with `std::views::reverse`."
+        harness: |
+          int main() {
+              CHECK_EQ("last 2", last_positive({5, -1, 8, 0, 3, -7}, 2), (std::vector<int>{3, 8}));
+              CHECK_EQ("all of them", last_positive({1, 2}, 9), (std::vector<int>{2, 1}));
+              CHECK_EQ("none positive", last_positive({0, -3}, 2), (std::vector<int>{}));
+          }
+        hints:
+          - "`v | std::views::reverse | std::views::filter(...) | std::views::take(k)`"
 
   - title: std::span
     id: cpp-modern-6
@@ -565,6 +969,78 @@ steps:
     hints:
       - Sum the first k elements, then slide the window one step at a time.
       - "Sliding: add the element entering the window and subtract the one leaving it."
+    more:
+      - task: |
+          A `std::span<int>` (not `const int`) lets a function **change** the caller's elements. Write `void shift_to_zero(std::span<int> xs)` that subtracts the smallest element from every element, so the minimum becomes 0. An empty span is left alone.
+        seed: |
+          #include <span>
+
+          void shift_to_zero(std::span<int> xs) {
+
+          }
+        solution: |
+          #include <algorithm>
+          #include <span>
+
+          void shift_to_zero(std::span<int> xs) {
+              if (xs.empty()) return;
+              int lo = *std::min_element(xs.begin(), xs.end());
+              for (int& x : xs) x -= lo;
+          }
+        harness: |
+          #include <array>
+          int main() {
+              std::vector<int> v = {5, 3, 9};
+              shift_to_zero(v);
+              CHECK_EQ("vector", v, (std::vector<int>{2, 0, 6}));
+              int a[] = {-2, 4};
+              shift_to_zero(a);
+              CHECK("C array", a[0] == 0 && a[1] == 6);
+              std::array<int, 4> s = {7, 7, 8, 9};
+              shift_to_zero(std::span(s).subspan(2));
+              CHECK("only the subspan changes", s[0] == 7 && s[1] == 7 && s[2] == 0 && s[3] == 1);
+              std::vector<int> e;
+              shift_to_zero(e);
+              CHECK("empty", e.empty());
+          }
+        hints:
+          - "Find the minimum first, then loop with `int& x` so the change goes back to the caller's data."
+      - task: |
+          Write `int count_pattern(std::span<const int> xs, std::span<const int> pat)` that counts where `pat` appears in `xs`, overlaps included. Compare each window `xs.subspan(i, pat.size())` with `pat` using `std::ranges::equal`. An empty pattern counts 0.
+        seed: |
+          #include <span>
+
+          int count_pattern(std::span<const int> xs, std::span<const int> pat) {
+
+          }
+        solution: |
+          #include <algorithm>
+          #include <span>
+
+          int count_pattern(std::span<const int> xs, std::span<const int> pat) {
+              if (pat.empty() || pat.size() > xs.size()) return 0;
+              int n = 0;
+              for (std::size_t i = 0; i + pat.size() <= xs.size(); i++) {
+                  if (std::ranges::equal(xs.subspan(i, pat.size()), pat)) n++;
+              }
+              return n;
+          }
+        require:
+          - pattern: "subspan"
+            message: "Take each window with `subspan`."
+        harness: |
+          int main() {
+              std::vector<int> v = {1, 2, 1, 2, 1};
+              std::vector<int> p = {1, 2, 1};
+              CHECK_EQ("overlapping", count_pattern(v, p), 2);
+              int one[] = {2};
+              CHECK_EQ("single element", count_pattern(v, one), 2);
+              std::vector<int> longer = {1, 2, 1, 2, 1, 2};
+              CHECK_EQ("pattern longer than data", count_pattern(p, longer), 0);
+              CHECK_EQ("empty pattern", count_pattern(v, std::span<const int>{}), 0);
+          }
+        hints:
+          - "The last window starts at `xs.size() - pat.size()`, so loop while `i + pat.size() <= xs.size()`."
   - title: Attributes, consteval and constinit
     id: cpp-modern-7
     text: |
@@ -684,3 +1160,75 @@ steps:
       - "fnv1a: `std::uint32_t h = 2166136261u;` then for each char `h ^= static_cast<unsigned char>(c); h *= 16777619u;`. Unsigned arithmetic wraps, which the hash relies on."
       - "id_of just returns `fnv1a(s)`; being `consteval` forces it to happen at compile time."
       - "`switch (fnv1a(cmd)) { case id_of(\"start\"): return 1; ... default: return -1; }`"
+    more:
+      - task: |
+          Write `consteval int square(int n)`, then a constant `kLimit` equal to `square(64)`, and `[[nodiscard]] bool fits(int bytes)` that is true when `bytes <= kLimit`.
+        seed: |
+          // square, kLimit and fits here
+        solution: |
+          consteval int square(int n) {
+              return n * n;
+          }
+
+          constexpr int kLimit = square(64);
+
+          [[nodiscard]] bool fits(int bytes) {
+              return bytes <= kLimit;
+          }
+        require:
+          - pattern: "consteval"
+            message: "Make `square` `consteval`."
+          - pattern: "\\[\\[nodiscard\\]\\]"
+            message: "Mark `fits` `[[nodiscard]]`."
+        harness: |
+          static_assert(square(3) == 9, "square at compile time");
+          static_assert(kLimit == 4096, "64 * 64");
+          int main() {
+              CHECK("4096 fits", fits(4096));
+              CHECK("4097 doesn't", !fits(4097));
+              CHECK("0 fits", fits(0));
+          }
+        hints:
+          - "A `consteval` function can only run at compile time, which is fine for a `constexpr` constant."
+      - task: |
+          Grades stack up: `'S'` gets 50 **plus** everything `'A'` gets, `'A'` gets 30 plus everything `'B'` gets, and `'B'` gets 20. Anything else gets 0. Write `int bonus(char grade)` as a `switch` where each case **falls through** to the next, marked with `[[fallthrough]]`. The compiler warns about an unmarked fall-through, and warnings are errors here.
+        seed: |
+          int bonus(char grade) {
+              int total = 0;
+              switch (grade) {
+
+              }
+              return total;
+          }
+        solution: |
+          int bonus(char grade) {
+              int total = 0;
+              switch (grade) {
+                  case 'S':
+                      total += 50;
+                      [[fallthrough]];
+                  case 'A':
+                      total += 30;
+                      [[fallthrough]];
+                  case 'B':
+                      total += 20;
+                      break;
+                  default:
+                      break;
+              }
+              return total;
+          }
+        require:
+          - pattern: "\\[\\[fallthrough\\]\\]"
+            message: "Mark each intended fall-through with `[[fallthrough]];`."
+          - pattern: "switch"
+            message: "Use a `switch`."
+        harness: |
+          int main() {
+              CHECK_EQ("S", bonus('S'), 100);
+              CHECK_EQ("A", bonus('A'), 50);
+              CHECK_EQ("B", bonus('B'), 20);
+              CHECK_EQ("C", bonus('C'), 0);
+          }
+        hints:
+          - "Leave out `break` where you want to continue into the next case, and write `[[fallthrough]];` there instead."

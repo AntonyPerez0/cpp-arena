@@ -70,6 +70,46 @@ steps:
       - "It starts with `template <typename T>`."
     tests:
       - expect: "100 0"
+    more:
+      - task: |
+          `max_of(3, 4.5)` doesn't compile: `T` would have to be both `int` and `double`. Name the type **explicitly** in angle brackets to fix it. Do the same for the strings: without it, `T` is deduced as `const char*`, and the function would compare the addresses instead of the text. The program prints `9 4.5 bee`.
+        fill: |
+          #include <iostream>
+          #include <string>
+
+          template <typename T>
+          T max_of([[T]] a, T b) {
+              return a > b ? a : b;
+          }
+
+          int main() {
+              std::cout << max_of(3, 9) << " ";
+              std::cout << max_of[[<double>]](3, 4.5) << " ";
+              std::cout << max_of<[[std::string]]>("ant", "bee") << "\n";
+          }
+        hints:
+          - "`max_of<double>(3, 4.5)` tells the compiler that `T` is `double`, and the 3 is converted."
+          - "For the text, `T` should be `std::string`, so that `>` compares the characters."
+        tests:
+          - expect: "9 4.5 bee"
+      - task: |
+          Give `mul` **two** type parameters so it can multiply an `int` by a `double`, and let the compiler deduce the return type with `auto`. The program prints `7.5 8`.
+        fill: |
+          #include <iostream>
+
+          template <typename T, [[typename]] U>
+          [[auto]] mul(T a, U b) {
+              return a * b;
+          }
+
+          int main() {
+              std::cout << mul(3, 2.5) << " " << mul(2, 4) << "\n";
+          }
+        hints:
+          - "Each type parameter needs its own `typename`: `template <typename T, typename U>`."
+          - "With an `auto` return type, `int * double` gives a `double`."
+        tests:
+          - expect: "7.5 8"
 
   - title: Templates over containers
     id: cpp-templates-2
@@ -146,6 +186,60 @@ steps:
     hints:
       - "Start with `template <typename T>` on the line before the function."
       - Loop and compare each element with `==`.
+    more:
+      - task: |
+          Write `template <typename T> T sum_all(const std::vector<T>& v)` that adds up every element, starting from `T{}` (0 for numbers, `""` for strings). With strings, `+` joins them.
+        seed: |
+          #include <vector>
+
+        solution: |
+          #include <vector>
+
+          template <typename T>
+          T sum_all(const std::vector<T>& v) {
+              T total{};
+              for (const auto& x : v) total = total + x;
+              return total;
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("ints", sum_all(std::vector<int>{1, 2, 3, 4}), 10);
+              CHECK("doubles", sum_all(std::vector<double>{0.5, 0.25}) == 0.75);
+              CHECK_EQ("strings join", sum_all(std::vector<std::string>{"de_", "dust", "2"}), std::string("de_dust2"));
+              CHECK_EQ("empty", sum_all(std::vector<int>{}), 0);
+          }
+        hints:
+          - "`T total{};` value-initializes: 0 for numbers, an empty string for `std::string`."
+      - task: |
+          Write `template <typename K, typename V> std::vector<K> keys_with(const std::map<K, V>& m, const V& value)` that returns, in the map's order, every key whose value equals `value`.
+        seed: |
+          #include <map>
+          #include <vector>
+
+        solution: |
+          #include <map>
+          #include <vector>
+
+          template <typename K, typename V>
+          std::vector<K> keys_with(const std::map<K, V>& m, const V& value) {
+              std::vector<K> out;
+              for (const auto& [k, v] : m) {
+                  if (v == value) out.push_back(k);
+              }
+              return out;
+          }
+        harness: |
+          #include <map>
+          int main() {
+              std::map<std::string, int> kills = {{"ana", 3}, {"bo", 5}, {"cy", 3}};
+              CHECK_EQ("players with 3", keys_with(kills, 3), (std::vector<std::string>{"ana", "cy"}));
+              CHECK_EQ("nobody with 9", keys_with(kills, 9), (std::vector<std::string>{}));
+              std::map<int, std::string> sides = {{1, "T"}, {2, "CT"}, {3, "T"}};
+              CHECK_EQ("int keys", keys_with(sides, std::string("T")), (std::vector<int>{1, 3}));
+          }
+        hints:
+          - "A map iterates in key order, so a simple loop keeps the right order."
+          - "`for (const auto& [k, v] : m)` splits each entry into key and value."
 
   - title: Class templates
     id: cpp-templates-3
@@ -248,6 +342,101 @@ steps:
     hints:
       - "`push` is `items_.push_back(v);`."
       - "`pop` saves `items_.back()`, calls `items_.pop_back()`, and returns the saved value."
+    more:
+      - task: |
+          Write a class template `Registry<K, V>` backed by a `std::map<K, V>`: `void set(const K& key, const V& value)`, `V get_or(const K& key, const V& fallback) const` (the stored value, or `fallback` if the key is missing), and `int size() const`.
+        seed: |
+          #include <map>
+
+          template <typename K, typename V>
+          class Registry {
+          public:
+
+          private:
+              std::map<K, V> items_;
+          };
+        solution: |
+          #include <map>
+
+          template <typename K, typename V>
+          class Registry {
+          public:
+              void set(const K& key, const V& value) { items_[key] = value; }
+              V get_or(const K& key, const V& fallback) const {
+                  auto it = items_.find(key);
+                  return it == items_.end() ? fallback : it->second;
+              }
+              int size() const { return (int)items_.size(); }
+
+          private:
+              std::map<K, V> items_;
+          };
+        harness: |
+          int main() {
+              Registry<std::string, int> prices;
+              prices.set("ak47", 2700);
+              prices.set("awp", 4750);
+              prices.set("ak47", 2900);
+              CHECK_EQ("updated value", prices.get_or("ak47", 0), 2900);
+              CHECK_EQ("missing uses fallback", prices.get_or("zeus", -1), -1);
+              CHECK_EQ("size", prices.size(), 2);
+              const Registry<int, std::string>& empty = Registry<int, std::string>();
+              CHECK_EQ("const and empty", empty.get_or(1, std::string("none")), std::string("none"));
+          }
+        hints:
+          - "In a `const` function, use `find` rather than `[]`, because `[]` may insert."
+      - task: |
+          Write a class template `Grid<T>` with a constructor `Grid(int rows, int cols, const T& fill)`, `T& at(int r, int c)`, `int count(const T& value) const` and `int rows() const` / `int cols() const`. Store the cells in one `std::vector<T>` of size `rows * cols`, with cell `(r, c)` at index `r * cols + c`.
+        seed: |
+          #include <vector>
+
+          template <typename T>
+          class Grid {
+          public:
+
+          private:
+
+          };
+        solution: |
+          #include <vector>
+
+          template <typename T>
+          class Grid {
+          public:
+              Grid(int rows, int cols, const T& fill) : rows_(rows), cols_(cols), cells_(rows * cols, fill) {}
+              T& at(int r, int c) { return cells_[r * cols_ + c]; }
+              int count(const T& value) const {
+                  int n = 0;
+                  for (const auto& x : cells_)
+                      if (x == value) n++;
+                  return n;
+              }
+              int rows() const { return rows_; }
+              int cols() const { return cols_; }
+
+          private:
+              int rows_;
+              int cols_;
+              std::vector<T> cells_;
+          };
+        harness: |
+          int main() {
+              Grid<char> g(2, 3, '.');
+              CHECK_EQ("rows", g.rows(), 2);
+              CHECK_EQ("cols", g.cols(), 3);
+              CHECK_EQ("all dots", g.count('.'), 6);
+              g.at(1, 2) = '#';
+              g.at(0, 0) = '#';
+              CHECK_EQ("two walls", g.count('#'), 2);
+              CHECK_EQ("read back", g.at(1, 2), '#');
+              CHECK_EQ("neighbour untouched", g.at(1, 1), '.');
+              Grid<std::string> names(1, 2, "?");
+              names.at(0, 1) = "ropz";
+              CHECK_EQ("string grid", names.count("?"), 1);
+          }
+        hints:
+          - "`std::vector<T> cells_` initialized with `cells_(rows * cols, fill)` holds every cell."
+          - "Declare `cells_` after `rows_` and `cols_`, since members are initialized in declaration order."
 
   - title: constexpr
     id: cpp-templates-4
@@ -321,6 +510,78 @@ steps:
     hints:
       - Add `constexpr` in front of the return type.
       - A simple loop multiplying `r` by `base`, `exp` times, works in constexpr functions.
+    more:
+      - task: |
+          Write `constexpr bool is_prime(int n)` (false below 2) and `constexpr int count_primes_below(int n)`. The tests use `static_assert`, so both must work at compile time.
+        seed: |
+          bool is_prime(int n) {
+
+          }
+
+          int count_primes_below(int n) {
+
+          }
+        solution: |
+          constexpr bool is_prime(int n) {
+              if (n < 2) return false;
+              for (int d = 2; d * d <= n; d++) {
+                  if (n % d == 0) return false;
+              }
+              return true;
+          }
+
+          constexpr int count_primes_below(int n) {
+              int count = 0;
+              for (int i = 2; i < n; i++) {
+                  if (is_prime(i)) count++;
+              }
+              return count;
+          }
+        harness: |
+          static_assert(is_prime(97), "97 is prime");
+          static_assert(!is_prime(1), "1 is not prime");
+          static_assert(count_primes_below(100) == 25, "25 primes below 100");
+          int main() {
+              CHECK("2 is prime", is_prime(2));
+              CHECK("91 = 7 * 13", !is_prime(91));
+              CHECK("negatives", !is_prime(-7));
+              CHECK_EQ("below 10", count_primes_below(10), 4);
+              constexpr int c = count_primes_below(1000);
+              CHECK_EQ("below 1000", c, 168);
+          }
+        hints:
+          - "Only divisors up to the square root matter: loop while `d * d <= n`."
+          - "Both functions need the `constexpr` keyword in front."
+      - task: |
+          Write `template <std::size_t N> constexpr std::array<int, N> first_squares()` returning `{0, 1, 4, 9, ...}`, the first `N` squares. It must work at compile time.
+        seed: |
+          #include <array>
+          #include <cstddef>
+
+        solution: |
+          #include <array>
+          #include <cstddef>
+
+          template <std::size_t N>
+          constexpr std::array<int, N> first_squares() {
+              std::array<int, N> out{};
+              for (std::size_t i = 0; i < N; i++) out[i] = (int)(i * i);
+              return out;
+          }
+        harness: |
+          #include <array>
+          constexpr auto table = first_squares<6>();
+          static_assert(table[5] == 25, "5 squared is 25");
+          static_assert(first_squares<1>()[0] == 0, "the first square is 0");
+          int main() {
+              auto t = first_squares<4>();
+              CHECK_EQ("size", t.size(), 4u);
+              CHECK_EQ("squares", std::vector<int>(t.begin(), t.end()), (std::vector<int>{0, 1, 4, 9}));
+              CHECK_EQ("compile-time table", table[3], 9);
+          }
+        hints:
+          - "`std::array<int, N> out{};` starts zeroed; fill it in a loop and return it."
+          - "`std::array` works inside `constexpr` functions."
 
   - title: if constexpr
     id: cpp-templates-5
@@ -409,6 +670,70 @@ steps:
     hints:
       - "`if constexpr (std::is_arithmetic_v<T>) { ... } else { ... }`"
       - Without `constexpr`, the string branch would also be compiled for int and fail.
+    more:
+      - task: |
+          Write `template <typename T> std::size_t size_of(const T& v)`: for arithmetic types return 1, otherwise return `v.size()`. With a plain `if` this can't compile for `int`, because `int` has no `.size()`. `if constexpr` throws the other branch away.
+        seed: |
+          #include <cstddef>
+          #include <type_traits>
+
+        solution: |
+          #include <cstddef>
+          #include <type_traits>
+
+          template <typename T>
+          std::size_t size_of(const T& v) {
+              if constexpr (std::is_arithmetic_v<T>) {
+                  return 1;
+              } else {
+                  return v.size();
+              }
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("int", size_of(42), 1u);
+              CHECK_EQ("double", size_of(2.5), 1u);
+              CHECK_EQ("string", size_of(std::string("inferno")), 7u);
+              CHECK_EQ("vector", size_of(std::vector<int>{1, 2, 3}), 3u);
+          }
+        hints:
+          - "`if constexpr (std::is_arithmetic_v<T>) { ... } else { return v.size(); }`"
+      - task: |
+          Write `template <typename T> T half(const T& v)`. Integers are halved with integer division, floating-point numbers exactly (`/ 2`), and a `std::string` keeps its first half (`substr(0, size / 2)`). Use `if constexpr` with `std::is_integral_v`, `std::is_floating_point_v` and `std::is_same_v<T, std::string>`.
+        seed: |
+          #include <string>
+          #include <type_traits>
+
+        solution: |
+          #include <string>
+          #include <type_traits>
+
+          template <typename T>
+          T half(const T& v) {
+              if constexpr (std::is_integral_v<T>) {
+                  return v / 2;
+              } else if constexpr (std::is_floating_point_v<T>) {
+                  return v / 2;
+              } else if constexpr (std::is_same_v<T, std::string>) {
+                  return v.substr(0, v.size() / 2);
+              } else {
+                  return v;
+              }
+          }
+        require:
+          - pattern: "if\\s+constexpr"
+            message: "Choose the branch with `if constexpr`."
+        harness: |
+          int main() {
+              CHECK_EQ("int", half(7), 3);
+              CHECK("double", half(7.0) == 3.5);
+              CHECK_EQ("long", half(100L), 50L);
+              CHECK_EQ("string", half(std::string("overpass")), std::string("over"));
+              CHECK_EQ("odd string", half(std::string("abc")), std::string("a"));
+          }
+        hints:
+          - "Chain the checks: `if constexpr (...) {} else if constexpr (...) {} else if constexpr (...) {}`."
+          - "A `std::string` can't be divided by 2, which is exactly why a plain `if` won't compile here."
 
   - title: Values as template parameters
     id: cpp-templates-6
@@ -520,6 +845,102 @@ steps:
     hints:
       - "`push`: if `count_ == N` return false; otherwise `items_[count_++] = v;` and return true."
       - "`pop`: `return items_[--count_];`"
+    more:
+      - task: |
+          A template can **deduce** the length of a plain array. Write `template <typename T, std::size_t N> constexpr std::size_t length(const T (&arr)[N])` that returns `N`, and `template <typename T, std::size_t N> T sum_array(const T (&arr)[N])`.
+        seed: |
+          #include <cstddef>
+
+        solution: |
+          #include <cstddef>
+
+          template <typename T, std::size_t N>
+          constexpr std::size_t length(const T (&)[N]) {
+              return N;
+          }
+
+          template <typename T, std::size_t N>
+          T sum_array(const T (&arr)[N]) {
+              T total{};
+              for (std::size_t i = 0; i < N; i++) total += arr[i];
+              return total;
+          }
+        harness: |
+          int main() {
+              int kills[] = {3, 0, 7, 2};
+              double hp[] = {12.5, 30.0};
+              CHECK_EQ("length of int array", length(kills), 4u);
+              CHECK_EQ("length of double array", length(hp), 2u);
+              CHECK_EQ("sum ints", sum_array(kills), 12);
+              CHECK("sum doubles", sum_array(hp) == 42.5);
+              constexpr char word[] = "gg";
+              static_assert(length(word) == 3, "includes the terminating zero");
+          }
+        hints:
+          - "`const T (&arr)[N]` is a reference to an array of N elements. The brackets around `&arr` matter."
+          - "Passing the array by reference keeps its size; passing a pointer would lose it."
+      - task: |
+          Write `template <typename T, std::size_t N> class RingBuffer` that keeps the **last N** values pushed, in a `std::array<T, N>`. `push(const T& v)` overwrites the oldest when full. Also write `std::size_t size() const`, `const T& oldest() const` and `const T& newest() const` (assume non-empty for both).
+        seed: |
+          #include <array>
+          #include <cstddef>
+
+          template <typename T, std::size_t N>
+          class RingBuffer {
+          public:
+
+          private:
+              std::array<T, N> items_{};
+          };
+        solution: |
+          #include <array>
+          #include <cstddef>
+
+          template <typename T, std::size_t N>
+          class RingBuffer {
+          public:
+              void push(const T& v) {
+                  items_[(start_ + count_) % N] = v;
+                  if (count_ < N) count_++;
+                  else start_ = (start_ + 1) % N;
+              }
+              std::size_t size() const { return count_; }
+              const T& oldest() const { return items_[start_]; }
+              const T& newest() const { return items_[(start_ + count_ - 1) % N]; }
+
+          private:
+              std::array<T, N> items_{};
+              std::size_t start_ = 0;
+              std::size_t count_ = 0;
+          };
+        harness: |
+          int main() {
+              RingBuffer<int, 3> r;
+              r.push(1);
+              CHECK_EQ("one value", r.size(), 1u);
+              CHECK_EQ("oldest = newest", r.oldest(), 1);
+              r.push(2);
+              r.push(3);
+              CHECK_EQ("full", r.size(), 3u);
+              CHECK_EQ("oldest 1", r.oldest(), 1);
+              r.push(4);
+              CHECK_EQ("size stays 3", r.size(), 3u);
+              CHECK_EQ("1 was overwritten", r.oldest(), 2);
+              CHECK_EQ("newest", r.newest(), 4);
+              r.push(5);
+              r.push(6);
+              r.push(7);
+              CHECK_EQ("after wrapping twice", r.oldest(), 5);
+              CHECK_EQ("newest 7", r.newest(), 7);
+              RingBuffer<std::string, 2> s;
+              s.push("a");
+              s.push("b");
+              s.push("c");
+              CHECK_EQ("strings", s.oldest() + s.newest(), std::string("bc"));
+          }
+        hints:
+          - "Track where the oldest element is (`start_`) and how many are stored (`count_`)."
+          - "The next free slot is `(start_ + count_) % N`. When full, writing there overwrites the oldest, so move `start_` forward."
 
   - title: Template specialization
     id: cpp-templates-7
@@ -632,6 +1053,84 @@ steps:
     hints:
       - Copy the `TypeName<int>` block and change the type and the returned text.
       - "For strings, specialize on `std::string`: `template <> struct TypeName<std::string> { ... };`"
+    more:
+      - task: |
+          Function templates can be specialized too. The primary `quote` returns `std::to_string(v)`. Add full specializations for `std::string` (wrap it in double quotes) and `bool` (`"true"` or `"false"`).
+        seed: |
+          #include <string>
+
+          template <typename T>
+          std::string quote(const T& v) {
+              return std::to_string(v);
+          }
+
+          // your specializations here
+        solution: |
+          #include <string>
+
+          template <typename T>
+          std::string quote(const T& v) {
+              return std::to_string(v);
+          }
+
+          // your specializations here
+          template <>
+          std::string quote<std::string>(const std::string& v) {
+              return "\"" + v + "\"";
+          }
+
+          template <>
+          std::string quote<bool>(const bool& v) {
+              return v ? "true" : "false";
+          }
+        require:
+          - pattern: "template\\s*<\\s*>"
+            message: "Write the specializations with `template <>`."
+        harness: |
+          int main() {
+              CHECK_EQ("int", quote(12), std::string("12"));
+              CHECK_EQ("string", quote(std::string("gg")), std::string("\"gg\""));
+              CHECK_EQ("true", quote(true), std::string("true"));
+              CHECK_EQ("false", quote(false), std::string("false"));
+          }
+        hints:
+          - "The signature must match the primary with `T` replaced: `template <> std::string quote<bool>(const bool& v)`."
+      - task: |
+          A **partial** specialization matches a whole family of types. Write `Depth<T>`, where `Depth<T>::value` is how deeply vectors are nested: 0 for a non-vector type, and for `std::vector<U>` it is `1 + Depth<U>::value`. So `Depth<std::vector<std::vector<int>>>::value` is 2.
+        seed: |
+          #include <vector>
+
+          template <typename T>
+          struct Depth {
+              static constexpr int value = 0;
+          };
+
+          // partial specialization for std::vector<U> here
+        solution: |
+          #include <vector>
+
+          template <typename T>
+          struct Depth {
+              static constexpr int value = 0;
+          };
+
+          // partial specialization for std::vector<U> here
+          template <typename U>
+          struct Depth<std::vector<U>> {
+              static constexpr int value = 1 + Depth<U>::value;
+          };
+        harness: |
+          static_assert(Depth<int>::value == 0, "int is not a vector");
+          static_assert(Depth<std::vector<int>>::value == 1, "one level");
+          int main() {
+              CHECK_EQ("int", Depth<int>::value, 0);
+              CHECK_EQ("vector<string>", Depth<std::vector<std::string>>::value, 1);
+              CHECK_EQ("vector<vector<int>>", Depth<std::vector<std::vector<int>>>::value, 2);
+              CHECK_EQ("three levels", Depth<std::vector<std::vector<std::vector<double>>>>::value, 3);
+          }
+        hints:
+          - "`template <typename U> struct Depth<std::vector<U>> { ... };` matches any vector and names its element type `U`."
+          - "The value refers to `Depth<U>::value`, so the compiler works through the nesting one level at a time."
 
   - title: "Challenge: a MinStack<T>"
     id: cpp-templates-8
@@ -763,3 +1262,118 @@ steps:
       - "Keep two vectors: `items_` and `mins_`."
       - "On push, also push onto `mins_` when the value is less than or equal to the current min."
       - "On pop, if the value leaving equals `mins_.back()`, pop `mins_` too."
+    more:
+      - task: |
+          Write `template <typename T> class TopK` that remembers the `k` largest values added. `add(const T& v)` is O(log k): keep a min-heap (`std::priority_queue` with `std::greater<T>`) of at most `k` values. `std::vector<T> items() const` returns them largest first.
+        seed: |
+          #include <functional>
+          #include <queue>
+          #include <vector>
+
+          template <typename T>
+          class TopK {
+          public:
+              explicit TopK(int k) : k_(k) {}
+
+          private:
+              int k_;
+          };
+        solution: |
+          #include <algorithm>
+          #include <functional>
+          #include <queue>
+          #include <vector>
+
+          template <typename T>
+          class TopK {
+          public:
+              explicit TopK(int k) : k_(k) {}
+              void add(const T& v) {
+                  heap_.push(v);
+                  if ((int)heap_.size() > k_) heap_.pop();
+              }
+              std::vector<T> items() const {
+                  auto copy = heap_;
+                  std::vector<T> out;
+                  while (!copy.empty()) {
+                      out.push_back(copy.top());
+                      copy.pop();
+                  }
+                  std::reverse(out.begin(), out.end());
+                  return out;
+              }
+
+          private:
+              int k_;
+              std::priority_queue<T, std::vector<T>, std::greater<T>> heap_;
+          };
+        require:
+          - pattern: "priority_queue"
+            message: "Keep the values in a `std::priority_queue` min-heap."
+        harness: |
+          int main() {
+              TopK<int> t(3);
+              for (int x : {5, 1, 9, 3, 7, 9, 2}) t.add(x);
+              CHECK_EQ("top 3", t.items(), (std::vector<int>{9, 9, 7}));
+              CHECK_EQ("items() doesn't change it", t.items(), (std::vector<int>{9, 9, 7}));
+              TopK<std::string> w(2);
+              w.add("ancient");
+              CHECK_EQ("fewer than k", w.items(), (std::vector<std::string>{"ancient"}));
+              w.add("vertigo");
+              w.add("mirage");
+              CHECK_EQ("strings", w.items(), (std::vector<std::string>{"vertigo", "mirage"}));
+          }
+        hints:
+          - "The heap's top is the smallest of the k kept values, so it's the one to drop when a new value pushes the size over k."
+          - "`items()` is `const`, so pop from a copy of the heap."
+      - task: |
+          Write `template <typename T> class Tally` that counts values: `void add(const T& v)`, `int count(const T& v) const` (0 if never added) and `T most_common() const` (assume at least one value was added; on a tie return the **smallest** value).
+        seed: |
+          #include <map>
+
+          template <typename T>
+          class Tally {
+          public:
+
+          private:
+
+          };
+        solution: |
+          #include <map>
+
+          template <typename T>
+          class Tally {
+          public:
+              void add(const T& v) { counts_[v]++; }
+              int count(const T& v) const {
+                  auto it = counts_.find(v);
+                  return it == counts_.end() ? 0 : it->second;
+              }
+              T most_common() const {
+                  auto best = counts_.begin();
+                  for (auto it = counts_.begin(); it != counts_.end(); ++it) {
+                      if (it->second > best->second) best = it;
+                  }
+                  return best->first;
+              }
+
+          private:
+              std::map<T, int> counts_;
+          };
+        harness: |
+          int main() {
+              Tally<std::string> maps;
+              for (const char* m : {"nuke", "mirage", "nuke", "inferno", "mirage", "nuke"}) maps.add(m);
+              CHECK_EQ("nuke count", maps.count("nuke"), 3);
+              CHECK_EQ("never added", maps.count("cache"), 0);
+              CHECK_EQ("most common", maps.most_common(), std::string("nuke"));
+              Tally<int> n;
+              n.add(9);
+              n.add(4);
+              n.add(9);
+              n.add(4);
+              CHECK_EQ("tie goes to the smallest", n.most_common(), 4);
+          }
+        hints:
+          - "A `std::map<T, int>` keeps the counts, and `counts_[v]++` starts new values at 0."
+          - "Maps iterate in ascending key order, so only replacing the best on a strictly bigger count keeps the smallest value on ties."
