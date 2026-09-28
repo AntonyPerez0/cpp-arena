@@ -72,6 +72,79 @@ steps:
       - "Call it like `g.reload()`."
     tests:
       - expect: "28 30"
+    more:
+      - task: |
+          Complete the bomb: `tick` takes one second off the timer, `exploded` is true once the timer reaches 0, and the loop runs until it explodes. The program prints `3`, `2`, `1` and `boom` on four lines.
+        fill: |
+          #include <iostream>
+
+          struct Bomb {
+              int timer = 3;
+              void tick() { [[timer--]]; }
+              bool exploded() const { return timer [[<=]] 0; }
+          };
+
+          int main() {
+              Bomb b;
+              while (![[b.exploded()]]) {
+                  std::cout << b.timer << "\n";
+                  b.tick();
+              }
+              std::cout << "boom\n";
+          }
+        hints:
+          - Inside a member function, `timer` means this object's `timer`.
+          - Call a member function on the object with a dot, `b.exploded()`.
+        tests:
+          - expect: "3\n2\n1\nboom"
+      - task: |
+          Write a `struct Scoreboard` with two `int` fields, `t` and `ct`, both starting at 0, and three member functions:
+
+          - `void round_won(char side)`: `'T'` gives the T side a round, `'C'` the CT side
+          - `bool finished() const`: true once either side has 13
+          - `void print() const`: prints `T 2 - 1 CT`
+
+          `main` is written for you: it reads round winners until the match is finished.
+        seed: |
+          #include <iostream>
+
+          // struct Scoreboard here
+
+          int main() {
+              Scoreboard s;
+              char c;
+              while (!s.finished() && std::cin >> c) s.round_won(c);
+              s.print();
+          }
+        solution: |
+          #include <iostream>
+
+          // struct Scoreboard here
+          struct Scoreboard {
+              int t = 0;
+              int ct = 0;
+              void round_won(char side) {
+                  if (side == 'T') t++;
+                  else if (side == 'C') ct++;
+              }
+              bool finished() const { return t >= 13 || ct >= 13; }
+              void print() const { std::cout << "T " << t << " - " << ct << " CT\n"; }
+          };
+
+          int main() {
+              Scoreboard s;
+              char c;
+              while (!s.finished() && std::cin >> c) s.round_won(c);
+              s.print();
+          }
+        hints:
+          - Give the fields default values right where they're declared, `int t = 0;`.
+          - "`print` and `finished` don't change anything, so mark them `const`."
+        tests:
+          - stdin: "TCT\n"
+          - stdin: "TTTTTTTTTTTTTCCC\n"
+          - stdin: "CCCCCCCCCCCCTTTTC\n"
+            hidden: true
 
   - title: public and private
     id: cpp-classes-2
@@ -169,6 +242,101 @@ steps:
       - Put the three methods under `public:`.
       - "In buy: `if (price > money_) return false;` otherwise subtract and return true."
       - "In earn: add, then clamp with `if (money_ > 16000) money_ = 16000;`."
+    more:
+      - task: |
+          Write a class `Ammo` with a private magazine (starting at 30) and reserve (starting at 90), and public methods:
+
+          - `int mag() const` and `int reserve() const`
+          - `bool fire()`: uses one bullet and returns `true`, or returns `false` if the magazine is empty
+          - `void reload()`: fills the magazine back to 30 from the reserve, as far as the reserve allows
+        seed: |
+          class Ammo {
+          public:
+
+          private:
+
+          };
+        solution: |
+          class Ammo {
+          public:
+              int mag() const { return mag_; }
+              int reserve() const { return reserve_; }
+              bool fire() {
+                  if (mag_ == 0) return false;
+                  mag_--;
+                  return true;
+              }
+              void reload() {
+                  int need = 30 - mag_;
+                  if (need > reserve_) need = reserve_;
+                  mag_ += need;
+                  reserve_ -= need;
+              }
+
+          private:
+              int mag_ = 30;
+              int reserve_ = 90;
+          };
+        harness: |
+          int main() {
+              Ammo a;
+              for (int i = 0; i < 10; i++) a.fire();
+              CHECK_EQ("mag after 10 shots", a.mag(), 20);
+              a.reload();
+              CHECK("reload moves 10 from the reserve", a.mag() == 30 && a.reserve() == 80);
+              for (int i = 0; i < 30; i++) a.fire();
+              CHECK_EQ("firing on empty fails", a.fire(), false);
+              a.reload(); a.reload();
+              for (int i = 0; i < 30; i++) a.fire();
+              a.reload();
+              for (int i = 0; i < 30; i++) a.fire();
+              a.reload();
+              CHECK("the last reload only gets what's left", a.mag() == 20 && a.reserve() == 0);
+          }
+        hints:
+          - The magazine needs `30 - mag_` bullets, but the reserve might have fewer. Take the smaller of the two.
+        tests: []
+      - task: |
+          Write a class `Streak` that tracks kill streaks: `void kill()` adds one to the current streak, `void death()` resets it to 0, `int current() const` returns it, and `int best() const` returns the longest streak ever reached. Keep the data private.
+        seed: |
+          class Streak {
+          public:
+
+          private:
+
+          };
+        solution: |
+          class Streak {
+          public:
+              void kill() {
+                  current_++;
+                  if (current_ > best_) best_ = current_;
+              }
+              void death() { current_ = 0; }
+              int current() const { return current_; }
+              int best() const { return best_; }
+
+          private:
+              int current_ = 0;
+              int best_ = 0;
+          };
+        harness: |
+          int main() {
+              Streak s;
+              CHECK("starts at 0", s.current() == 0 && s.best() == 0);
+              s.kill(); s.kill(); s.kill();
+              CHECK_EQ("3 kills", s.current(), 3);
+              s.death();
+              CHECK_EQ("death resets current", s.current(), 0);
+              CHECK_EQ("best remembers 3", s.best(), 3);
+              s.kill(); s.kill();
+              CHECK_EQ("a shorter streak keeps best at 3", s.best(), 3);
+              s.kill(); s.kill();
+              CHECK_EQ("a longer streak raises best", s.best(), 4);
+          }
+        hints:
+          - Update `best_` every time `current_` grows past it, inside `kill()`.
+        tests: []
 
   - title: Constructors
     id: cpp-classes-3
@@ -244,6 +412,74 @@ steps:
       - "The initializer list starts with a colon: `: name_(name), damage_(damage)`."
     tests:
       - expect: "ak47 36"
+    more:
+      - task: |
+          Give the constructor a **default argument** so a player can be created with just a name (100 HP) or with a name and HP. The program prints `ropz 100` and `rain 50`.
+        fill: |
+          #include <iostream>
+          #include <string>
+
+          class Player {
+          public:
+              Player(std::string name, int hp = [[100]]) : name_([[name]]), hp_(hp) {}
+              void print() const { std::cout << name_ << " " << hp_ << "\n"; }
+          private:
+              std::string name_;
+              int hp_;
+          };
+
+          int main() {
+              Player a("ropz");
+              Player b("rain", 50);
+              a.print();
+              b.print();
+          }
+        hints:
+          - The default value is used when the caller leaves the argument off, as for `a`.
+          - "`name_(name)` sets the member from the parameter."
+        tests:
+          - expect: "ropz 100\nrain 50"
+      - task: |
+          Write a class `Map` with two constructors: `Map(const std::string& name, int max_rounds)`, and `Map(const std::string& name)` which **delegates** to the first with 24 rounds. Add `const std::string& name() const` and `int max_rounds() const`.
+        seed: |
+          #include <string>
+
+          class Map {
+          public:
+
+          private:
+              std::string name_;
+              int max_rounds_;
+          };
+        solution: |
+          #include <string>
+
+          class Map {
+          public:
+              Map(const std::string& name, int max_rounds) : name_(name), max_rounds_(max_rounds) {}
+              Map(const std::string& name) : Map(name, 24) {}
+              const std::string& name() const { return name_; }
+              int max_rounds() const { return max_rounds_; }
+
+          private:
+              std::string name_;
+              int max_rounds_;
+          };
+        harness: |
+          int main() {
+              Map a("mirage", 30);
+              CHECK_EQ("name", a.name(), std::string("mirage"));
+              CHECK_EQ("given rounds", a.max_rounds(), 30);
+              Map b("nuke");
+              CHECK_EQ("default rounds", b.max_rounds(), 24);
+              CHECK_EQ("delegated name", b.name(), std::string("nuke"));
+          }
+        require:
+          - pattern: "\\)\\s*:\\s*Map\\s*\\("
+            message: "Make the one-argument constructor delegate: `Map(const std::string& name) : Map(name, 24) {}`."
+        hints:
+          - A delegating constructor calls another constructor of the same class in its initializer list, instead of setting members itself.
+        tests: []
 
   - title: const member functions
     id: cpp-classes-4
@@ -353,6 +589,110 @@ steps:
       - "Add `const` after the parameter list of `name()` and `hp()`: `int hp() const { ... }`. Don't make `hit` const, since it modifies."
     tests:
       - expect: "s1mple has 73 hp"
+    more:
+      - task: |
+          `print_team` takes the team by `const` reference, but calls member functions that aren't marked `const`, so it doesn't compile. Fix the class, not the function.
+        seed: |
+          #include <iostream>
+          #include <string>
+          #include <vector>
+
+          class Player {
+          public:
+              Player(std::string name, int kills, int deaths) : name_(name), kills_(kills), deaths_(deaths) {}
+              std::string name() { return name_; }
+              int diff() { return kills_ - deaths_; }
+          private:
+              std::string name_;
+              int kills_, deaths_;
+          };
+
+          void print_team(const std::vector<Player>& team) {
+              for (const Player& p : team) std::cout << p.name() << " " << p.diff() << "\n";
+          }
+
+          int main() {
+              std::vector<Player> team = {{"ropz", 20, 12}, {"rain", 10, 15}};
+              print_team(team);
+          }
+        solution: |
+          #include <iostream>
+          #include <string>
+          #include <vector>
+
+          class Player {
+          public:
+              Player(std::string name, int kills, int deaths) : name_(name), kills_(kills), deaths_(deaths) {}
+              std::string name() const { return name_; }
+              int diff() const { return kills_ - deaths_; }
+          private:
+              std::string name_;
+              int kills_, deaths_;
+          };
+
+          void print_team(const std::vector<Player>& team) {
+              for (const Player& p : team) std::cout << p.name() << " " << p.diff() << "\n";
+          }
+
+          int main() {
+              std::vector<Player> team = {{"ropz", 20, 12}, {"rain", 10, 15}};
+              print_team(team);
+          }
+        require:
+          - pattern: "void\\s+print_team\\s*\\(\\s*const\\s+std::vector\\s*<\\s*Player\\s*>\\s*&"
+            message: Keep `print_team` taking a `const std::vector<Player>&`; fix the class instead.
+        hints:
+          - Functions that only read the object need `const` after their parameter list, like `int diff() const`.
+        tests:
+          - expect: "ropz 8\nrain -5"
+      - task: |
+          `Player` has one accessor, `int& hp()`, which returns a reference so `heal` can change the HP through it. But `show` gets a `const Player&` and can't call it. Add a second **const overload** `int hp() const` that returns a copy, and keep the first one.
+        seed: |
+          #include <iostream>
+
+          class Player {
+          public:
+              int& hp() { return hp_; }
+          private:
+              int hp_ = 60;
+          };
+
+          void heal(Player& p) { p.hp() += 25; }
+          void show(const Player& p) { std::cout << "hp " << p.hp() << "\n"; }
+
+          int main() {
+              Player p;
+              heal(p);
+              show(p);
+          }
+        solution: |
+          #include <iostream>
+
+          class Player {
+          public:
+              int& hp() { return hp_; }
+              int hp() const { return hp_; }
+          private:
+              int hp_ = 60;
+          };
+
+          void heal(Player& p) { p.hp() += 25; }
+          void show(const Player& p) { std::cout << "hp " << p.hp() << "\n"; }
+
+          int main() {
+              Player p;
+              heal(p);
+              show(p);
+          }
+        require:
+          - pattern: "int\\s*&\\s*hp\\s*\\(\\s*\\)\\s*\\{"
+            message: Keep the non-const `int& hp()` so `heal` can still change the HP.
+          - pattern: "int\\s+hp\\s*\\(\\s*\\)\\s*const"
+            message: "Add a const overload, `int hp() const { return hp_; }`."
+        hints:
+          - Two member functions can have the same name and parameters if one is `const`. Const objects use the const one, others use the non-const one.
+        tests:
+          - expect: "hp 85"
 
   - title: static members
     id: cpp-classes-5
@@ -434,6 +774,66 @@ steps:
     hints:
       - "A private `static inline int created_ = 0;` shared by all grenades, and a normal `int id_;` per grenade."
       - "The constructor can do `id_ = ++created_;` (or use `: id_(++created_)`)."
+    more:
+      - task: |
+          Write a class `Player` that knows how many players are **currently alive**: the constructor adds one, the destructor removes one, and `static int alive()` returns the count.
+        seed: |
+          class Player {
+          public:
+
+          };
+        solution: |
+          class Player {
+          public:
+              Player() { alive_++; }
+              ~Player() { alive_--; }
+              static int alive() { return alive_; }
+
+          private:
+              static inline int alive_ = 0;
+          };
+        harness: |
+          int main() {
+              CHECK_EQ("none at the start", Player::alive(), 0);
+              Player a;
+              {
+                  Player b;
+                  Player c;
+                  CHECK_EQ("three in scope", Player::alive(), 3);
+              }
+              CHECK_EQ("two left the scope", Player::alive(), 1);
+              Player d;
+              CHECK_EQ("one more", Player::alive(), 2);
+          }
+        hints:
+          - One counter shared by all objects is a `static` member. `static inline int alive_ = 0;` declares and initializes it in the class.
+          - A destructor is written `~Player() { ... }` and runs when the object goes out of scope.
+        tests: []
+      - task: |
+          Write a class `Config` with a `static constexpr int max_players = 10` and a `static bool valid_team_size(int n)` that accepts 1 up to half of `max_players`. Both are used through the class name, without creating an object.
+        seed: |
+          class Config {
+          public:
+
+          };
+        solution: |
+          class Config {
+          public:
+              static constexpr int max_players = 10;
+              static bool valid_team_size(int n) { return n >= 1 && n <= max_players / 2; }
+          };
+        harness: |
+          int main() {
+              CHECK_EQ("max_players", Config::max_players, 10);
+              CHECK_EQ("5 is valid", Config::valid_team_size(5), true);
+              CHECK_EQ("6 is too many", Config::valid_team_size(6), false);
+              CHECK_EQ("0 is too few", Config::valid_team_size(0), false);
+              CHECK_EQ("1 is fine", Config::valid_team_size(1), true);
+          }
+        hints:
+          - "`static constexpr` makes a constant that belongs to the class."
+          - "A `static` member function has no object, so it can only use other static members, like `max_players`."
+        tests: []
 
   - title: "Challenge: a Clock class"
     id: cpp-classes-6
@@ -542,6 +942,115 @@ steps:
       - Store the seconds left in a private int.
       - "Minutes are `left_ / 60`, seconds `left_ % 60`. Add a leading \"0\" when seconds < 10."
       - "`std::to_string(m) + \":\" + ...` builds the text."
+    more:
+      - task: |
+          Write a class `Bomb` for a planted bomb:
+
+          - `Bomb(int seconds)` starts the timer
+          - `void tick()` takes one second off, but only while it's still ticking (not defused, not exploded)
+          - `void defuse()` stops it, unless it already exploded
+          - `std::string status() const` returns `"planted 35"`, `"defused 12"` (the seconds that were left) or `"exploded"`
+        seed: |
+          #include <string>
+
+          class Bomb {
+          public:
+
+          private:
+
+          };
+        solution: |
+          #include <string>
+
+          class Bomb {
+          public:
+              explicit Bomb(int seconds) : left_(seconds) {}
+              void tick() {
+                  if (!defused_ && left_ > 0) left_--;
+              }
+              void defuse() {
+                  if (left_ > 0) defused_ = true;
+              }
+              std::string status() const {
+                  if (left_ == 0) return "exploded";
+                  if (defused_) return "defused " + std::to_string(left_);
+                  return "planted " + std::to_string(left_);
+              }
+
+          private:
+              int left_;
+              bool defused_ = false;
+          };
+        harness: |
+          int main() {
+              Bomb b(40);
+              for (int i = 0; i < 5; i++) b.tick();
+              CHECK_EQ("after 5 ticks", b.status(), std::string("planted 35"));
+              b.defuse();
+              b.tick();
+              CHECK_EQ("defused stops the timer", b.status(), std::string("defused 35"));
+              Bomb c(2);
+              c.tick(); c.tick(); c.tick();
+              CHECK_EQ("runs out", c.status(), std::string("exploded"));
+              c.defuse();
+              CHECK_EQ("too late to defuse", c.status(), std::string("exploded"));
+          }
+        hints:
+          - Keep the seconds left and a `bool` for defused. "Exploded" is simply 0 seconds left.
+          - Check the exploded case first in `status()`.
+        tests: []
+      - task: |
+          Write a class `Stopwatch` that records lap times: `void add(int seconds)` adds time to the current lap, `void lap()` finishes the current lap (recording its time) and starts a new one at 0, `std::vector<int> laps() const` returns the recorded laps in order, and `int best_lap() const` returns the shortest recorded lap, or -1 if there are none.
+        seed: |
+          #include <vector>
+
+          class Stopwatch {
+          public:
+
+          private:
+
+          };
+        solution: |
+          #include <vector>
+
+          class Stopwatch {
+          public:
+              void add(int seconds) { current_ += seconds; }
+              void lap() {
+                  laps_.push_back(current_);
+                  current_ = 0;
+              }
+              std::vector<int> laps() const { return laps_; }
+              int best_lap() const {
+                  if (laps_.empty()) return -1;
+                  int best = laps_[0];
+                  for (int t : laps_) {
+                      if (t < best) best = t;
+                  }
+                  return best;
+              }
+
+          private:
+              int current_ = 0;
+              std::vector<int> laps_;
+          };
+        harness: |
+          int main() {
+              Stopwatch s;
+              CHECK_EQ("no laps yet", s.best_lap(), -1);
+              s.add(30); s.add(12);
+              s.lap();
+              s.add(35);
+              s.lap();
+              s.add(50);
+              CHECK_EQ("two laps recorded", s.laps(), std::vector<int>{42, 35});
+              CHECK_EQ("best lap", s.best_lap(), 35);
+              s.lap();
+              CHECK_EQ("third lap", s.laps(), std::vector<int>{42, 35, 50});
+          }
+        hints:
+          - A `std::vector<int>` member holds the finished laps; an `int` holds the lap in progress.
+        tests: []
 
   - title: Member initializer lists
     id: cpp-classes-7
@@ -649,6 +1158,88 @@ steps:
     hints:
       - "The shape is `Player(const std::string& name, int max_hp) : name_(...), max_hp_(...), hp_(...) {}`."
       - "List members in the same order they are declared: name_, max_hp_, hp_. Then `hp_(max_hp_)` is safe because max_hp_ is already built."
+    more:
+      - task: |
+          `Weapon` has two `const` members, which can **only** be set in the initializer list. Write `Weapon(const std::string& name, int damage, int mag)` that sets `name_` and `damage_`, and starts `ammo_` at `mag`.
+        seed: |
+          #include <string>
+
+          class Weapon {
+          public:
+              // constructor here
+              const std::string& name() const { return name_; }
+              int damage() const { return damage_; }
+              int ammo() const { return ammo_; }
+
+          private:
+              const std::string name_;
+              const int damage_;
+              int ammo_;
+          };
+        solution: |
+          #include <string>
+
+          class Weapon {
+          public:
+              // constructor here
+              Weapon(const std::string& name, int damage, int mag) : name_(name), damage_(damage), ammo_(mag) {}
+              const std::string& name() const { return name_; }
+              int damage() const { return damage_; }
+              int ammo() const { return ammo_; }
+
+          private:
+              const std::string name_;
+              const int damage_;
+              int ammo_;
+          };
+        harness: |
+          int main() {
+              Weapon w("ak47", 36, 30);
+              CHECK_EQ("name", w.name(), std::string("ak47"));
+              CHECK_EQ("damage", w.damage(), 36);
+              CHECK_EQ("ammo starts at mag size", w.ammo(), 30);
+          }
+        require:
+          - pattern: "\\)\\s*:\\s*name_\\s*[({]"
+            message: "Set the members in the initializer list, starting with `: name_(name)`."
+        hints:
+          - Assigning a `const` member inside the constructor body is an error; it has to be initialized before the body runs.
+        tests: []
+      - task: |
+          A **reference member** must also be bound in the initializer list. Write `Round`, which keeps a reference to the caller's score: `Round(int& score)` binds it, and `void win()` adds one to that score, so the caller's variable changes.
+        seed: |
+          class Round {
+          public:
+
+          private:
+              int& score_;
+          };
+        solution: |
+          class Round {
+          public:
+              explicit Round(int& score) : score_(score) {}
+              void win() { score_++; }
+
+          private:
+              int& score_;
+          };
+        harness: |
+          int main() {
+              int score = 0;
+              Round r(score);
+              r.win();
+              r.win();
+              CHECK_EQ("the caller's score went up", score, 2);
+              Round other(score);
+              other.win();
+              CHECK_EQ("a second Round changes the same score", score, 3);
+          }
+        require:
+          - pattern: "\\)\\s*:\\s*score_\\s*[({]"
+            message: "Bind the reference in the initializer list, `: score_(score)`."
+        hints:
+          - A reference can't exist without something to refer to, so it can only be set in the initializer list.
+        tests: []
 
   - title: Keeping invariants
     id: cpp-classes-8
@@ -758,6 +1349,112 @@ steps:
     hints:
       - "Constructor: `explicit Health(int max) : max_(std::max(1, max)), hp_(max_) {}`"
       - "`damage`: if n > 0, `hp_ = std::max(0, hp_ - n);`. `heal` is the mirror image with `std::min(max_, ...)`."
+    more:
+      - task: |
+          Write class `Money` that keeps the in-game money between 0 and 16000:
+
+          - `Money(int start)`: a start below 0 becomes 0 and above 16000 becomes 16000
+          - `bool spend(int n)`: subtracts `n` and returns `true` if there's enough, otherwise changes nothing and returns `false`; a negative `n` returns `false`
+          - `void earn(int n)`: adds up to the 16000 cap; negative amounts are ignored
+          - `int amount() const`
+        seed: |
+          class Money {
+          public:
+
+          private:
+
+          };
+        solution: |
+          class Money {
+          public:
+              explicit Money(int start) : amount_(start < 0 ? 0 : (start > 16000 ? 16000 : start)) {}
+              bool spend(int n) {
+                  if (n < 0 || n > amount_) return false;
+                  amount_ -= n;
+                  return true;
+              }
+              void earn(int n) {
+                  if (n <= 0) return;
+                  amount_ += n;
+                  if (amount_ > 16000) amount_ = 16000;
+              }
+              int amount() const { return amount_; }
+
+          private:
+              int amount_;
+          };
+        harness: |
+          int main() {
+              Money m(800);
+              CHECK_EQ("spend 650", m.spend(650), true);
+              CHECK_EQ("150 left", m.amount(), 150);
+              CHECK_EQ("can't overspend", m.spend(200), false);
+              CHECK_EQ("negative spend fails", m.spend(-100), false);
+              CHECK_EQ("still 150", m.amount(), 150);
+              m.earn(20000);
+              CHECK_EQ("earning is capped", m.amount(), 16000);
+              m.earn(-500);
+              CHECK_EQ("negative earn ignored", m.amount(), 16000);
+              CHECK_EQ("start above the cap", Money(99999).amount(), 16000);
+              CHECK_EQ("start below 0", Money(-5).amount(), 0);
+          }
+        hints:
+          - Clamp the starting value in the constructor, so the invariant holds from the very first moment.
+          - Every function that changes the amount must keep it within `0..16000`.
+        tests: []
+      - task: |
+          Write class `Volume` with a level from 0 to 10 (starting at 5) and a mute switch:
+
+          - `void up()` and `void down()` change the level by 1 but stay within `0..10`; if muted, they unmute first
+          - `void mute()` and `void unmute()`; unmuting restores the level from before
+          - `int level() const` returns 0 while muted
+          - `bool muted() const`
+        seed: |
+          class Volume {
+          public:
+
+          private:
+
+          };
+        solution: |
+          class Volume {
+          public:
+              void up() {
+                  muted_ = false;
+                  if (level_ < 10) level_++;
+              }
+              void down() {
+                  muted_ = false;
+                  if (level_ > 0) level_--;
+              }
+              void mute() { muted_ = true; }
+              void unmute() { muted_ = false; }
+              int level() const { return muted_ ? 0 : level_; }
+              bool muted() const { return muted_; }
+
+          private:
+              int level_ = 5;
+              bool muted_ = false;
+          };
+        harness: |
+          int main() {
+              Volume v;
+              CHECK_EQ("starts at 5", v.level(), 5);
+              for (int i = 0; i < 20; i++) v.up();
+              CHECK_EQ("capped at 10", v.level(), 10);
+              v.mute();
+              CHECK("muted reads 0", v.muted() && v.level() == 0);
+              v.unmute();
+              CHECK_EQ("unmute restores 10", v.level(), 10);
+              v.mute();
+              v.down();
+              CHECK("down while muted unmutes, then lowers", !v.muted() && v.level() == 9);
+              for (int i = 0; i < 20; i++) v.down();
+              CHECK_EQ("floor at 0", v.level(), 0);
+          }
+        hints:
+          - Keep the real level separate from the muted flag. Muting doesn't change the stored level, so unmuting can restore it.
+        tests: []
 
   - title: "Challenge: a Fraction class"
     id: cpp-classes-9
@@ -880,3 +1577,131 @@ steps:
       - "In the constructor, first flip both signs if the denominator is negative, then divide both by `std::gcd(num_, den_)`."
       - "`gcd(0, d)` is `d`, so 0/5 becomes 0/1 automatically."
       - "`plus` and `times` just build a new Fraction and let the constructor reduce it: a/b + c/d = (ad + cb) / bd."
+    more:
+      - task: |
+          The `Fraction` class from this step is written for you. Add `Fraction minus(const Fraction& o) const` and `bool less(const Fraction& o) const`. Compare fractions without floating point: since both denominators are positive, `a/b < c/d` exactly when `a*d < c*b`.
+        seed: |
+          #include <numeric>
+          #include <string>
+
+          class Fraction {
+          public:
+              Fraction(int num, int den = 1) : num_(num), den_(den) {
+                  if (den_ < 0) {
+                      num_ = -num_;
+                      den_ = -den_;
+                  }
+                  int g = std::gcd(num_, den_);
+                  if (g > 1) {
+                      num_ /= g;
+                      den_ /= g;
+                  }
+              }
+              int num() const { return num_; }
+              int den() const { return den_; }
+              std::string str() const {
+                  if (den_ == 1) return std::to_string(num_);
+                  return std::to_string(num_) + "/" + std::to_string(den_);
+              }
+              // add minus and less here
+
+          private:
+              int num_;
+              int den_;
+          };
+        solution: |
+          #include <numeric>
+          #include <string>
+
+          class Fraction {
+          public:
+              Fraction(int num, int den = 1) : num_(num), den_(den) {
+                  if (den_ < 0) {
+                      num_ = -num_;
+                      den_ = -den_;
+                  }
+                  int g = std::gcd(num_, den_);
+                  if (g > 1) {
+                      num_ /= g;
+                      den_ /= g;
+                  }
+              }
+              int num() const { return num_; }
+              int den() const { return den_; }
+              std::string str() const {
+                  if (den_ == 1) return std::to_string(num_);
+                  return std::to_string(num_) + "/" + std::to_string(den_);
+              }
+              // add minus and less here
+              Fraction minus(const Fraction& o) const { return Fraction(num_ * o.den_ - o.num_ * den_, den_ * o.den_); }
+              bool less(const Fraction& o) const { return num_ * o.den_ < o.num_ * den_; }
+
+          private:
+              int num_;
+              int den_;
+          };
+        harness: |
+          int main() {
+              CHECK_EQ("1/2 - 1/3", Fraction(1, 2).minus(Fraction(1, 3)).str(), std::string("1/6"));
+              CHECK_EQ("1/3 - 1/2", Fraction(1, 3).minus(Fraction(1, 2)).str(), std::string("-1/6"));
+              CHECK_EQ("3/4 - 3/4", Fraction(3, 4).minus(Fraction(3, 4)).str(), std::string("0"));
+              CHECK_EQ("1/3 < 1/2", Fraction(1, 3).less(Fraction(1, 2)), true);
+              CHECK_EQ("1/2 < 1/3", Fraction(1, 2).less(Fraction(1, 3)), false);
+              CHECK_EQ("-1/2 < 1/3", Fraction(-1, 2).less(Fraction(1, 3)), true);
+              CHECK_EQ("2/4 < 1/2 (equal)", Fraction(2, 4).less(Fraction(1, 2)), false);
+          }
+        hints:
+          - "`minus` is `plus` with a minus sign: `(a*d - c*b) / (b*d)`. The constructor reduces it."
+          - Member functions can read the private members of **another** object of the same class, like `o.den_`.
+        tests: []
+      - task: |
+          Write class `Duration` with the invariant **seconds always 0 to 59, total never negative**:
+
+          - `Duration(int minutes, int seconds)`: extra seconds carry into minutes (`Duration(1, 75)` is 2:15); a negative total becomes 0:00
+          - `int minutes() const`, `int seconds() const`
+          - `Duration plus(const Duration& o) const`
+          - `std::string str() const`: `M:SS`, like `2:15` or `0:07`
+        seed: |
+          #include <string>
+
+          class Duration {
+          public:
+
+          private:
+
+          };
+        solution: |
+          #include <string>
+
+          class Duration {
+          public:
+              Duration(int minutes, int seconds) {
+                  int total = minutes * 60 + seconds;
+                  if (total < 0) total = 0;
+                  total_ = total;
+              }
+              int minutes() const { return total_ / 60; }
+              int seconds() const { return total_ % 60; }
+              Duration plus(const Duration& o) const { return Duration(0, total_ + o.total_); }
+              std::string str() const {
+                  int s = seconds();
+                  return std::to_string(minutes()) + ":" + (s < 10 ? "0" : "") + std::to_string(s);
+              }
+
+          private:
+              int total_;
+          };
+        harness: |
+          int main() {
+              CHECK_EQ("1:75 carries", Duration(1, 75).str(), std::string("2:15"));
+              CHECK_EQ("0:7 is 0:07", Duration(0, 7).str(), std::string("0:07"));
+              CHECK_EQ("negative becomes 0:00", Duration(-1, 30).str(), std::string("0:00"));
+              Duration d(1, 50);
+              CHECK("minutes and seconds", d.minutes() == 1 && d.seconds() == 50);
+              CHECK_EQ("1:50 + 0:25", d.plus(Duration(0, 25)).str(), std::string("2:15"));
+              CHECK_EQ("59 minutes plus a minute", Duration(59, 30).plus(Duration(0, 30)).str(), std::string("60:00"));
+          }
+        hints:
+          - Storing only the total number of seconds makes the invariant easy; minutes and seconds are computed from it.
+          - Do the carrying and the negative check once, in the constructor, and let `plus` build its result with that constructor.
+        tests: []

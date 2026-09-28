@@ -59,6 +59,55 @@ steps:
       - The fourth element has index 3.
     tests:
       - expect: "4 4"
+    more:
+      - task: |
+          Remove the last element, then print the first and the last of what's left. The program prints `2 3`.
+        fill: |
+          #include <iostream>
+          #include <vector>
+
+          int main() {
+              std::vector<int> kills = {2, 0, 3, 4};
+              kills.[[pop_back]]();
+              std::cout << kills.[[front]]() << " " << kills.[[back]]() << "\n";
+          }
+        hints:
+          - "`push_back` adds at the end, and its opposite removes from the end."
+          - "`front()` is the first element and `back()` is the last."
+        tests:
+          - expect: "2 3"
+      - task: |
+          Read numbers until the end of the input into a `std::vector<int>`, then print how many there were and the first and last one: `count 4, first 7, last 1`. With no numbers at all, print `empty`.
+        seed: |
+          #include <iostream>
+          #include <vector>
+
+          int main() {
+              std::vector<int> v;
+
+          }
+        solution: |
+          #include <iostream>
+          #include <vector>
+
+          int main() {
+              std::vector<int> v;
+              int x;
+              while (std::cin >> x) v.push_back(x);
+              if (v.empty()) {
+                  std::cout << "empty\n";
+                  return 0;
+              }
+              std::cout << "count " << v.size() << ", first " << v.front() << ", last " << v.back() << "\n";
+          }
+        hints:
+          - "`while (std::cin >> x) v.push_back(x);` reads everything. The vector grows as needed."
+          - Check `v.empty()` before calling `front()` or `back()`; on an empty vector they're undefined behavior.
+        tests:
+          - stdin: "7 3 9 1\n"
+          - stdin: ""
+          - stdin: "42\n"
+            hidden: true
 
   - title: Loop over a vector
     id: cpp-vector-2
@@ -135,6 +184,62 @@ steps:
     hints:
       - Start an empty result vector and a running sum.
       - For each element, add it to the sum and `push_back` the sum.
+    more:
+      - task: |
+          Write `std::vector<int> only_positive(const std::vector<int>& v)` that returns a new vector with just the elements greater than 0, in the same order.
+        seed: |
+          #include <vector>
+
+          std::vector<int> only_positive(const std::vector<int>& v) {
+
+          }
+        solution: |
+          #include <vector>
+
+          std::vector<int> only_positive(const std::vector<int>& v) {
+              std::vector<int> out;
+              for (int x : v) {
+                  if (x > 0) out.push_back(x);
+              }
+              return out;
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("{3,-1,0,5}", only_positive({3, -1, 0, 5}), std::vector<int>{3, 5});
+              CHECK_EQ("{-2,-3}", only_positive({-2, -3}), std::vector<int>{});
+              CHECK_EQ("{}", only_positive({}), std::vector<int>{});
+          }
+        hints:
+          - Start with an empty vector and `push_back` each element you keep.
+        tests: []
+      - task: |
+          Write `std::vector<int> pairwise_diff(const std::vector<int>& v)` that returns the difference between each element and the one before it. `{3, 7, 4}` becomes `{4, -3}`. A vector with fewer than 2 elements gives `{}`.
+        seed: |
+          #include <vector>
+
+          std::vector<int> pairwise_diff(const std::vector<int>& v) {
+
+          }
+        solution: |
+          #include <vector>
+
+          std::vector<int> pairwise_diff(const std::vector<int>& v) {
+              std::vector<int> out;
+              for (std::size_t i = 1; i < v.size(); i++) {
+                  out.push_back(v[i] - v[i - 1]);
+              }
+              return out;
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("{3,7,4}", pairwise_diff({3, 7, 4}), std::vector<int>{4, -3});
+              CHECK_EQ("{1,1,1,1}", pairwise_diff({1, 1, 1, 1}), std::vector<int>{0, 0, 0});
+              CHECK_EQ("{5}", pairwise_diff({5}), std::vector<int>{});
+              CHECK_EQ("{}", pairwise_diff({}), std::vector<int>{});
+          }
+        hints:
+          - Start the loop at index 1 so `v[i - 1]` always exists. Using `size_t` and `i < v.size()`, an empty vector simply skips the loop.
+        tests: []
 
   - title: Insert and erase
     id: cpp-vector-3
@@ -207,6 +312,77 @@ steps:
     hints:
       - "Guard first: `if (i < 0 || i >= (int)v.size()) return;`"
       - "`v.erase(v.begin() + i);`"
+    more:
+      - task: |
+          Write `void insert_at(std::vector<std::string>& v, int i, const std::string& s)` that inserts `s` so it ends up at index `i`. Valid positions are `0` up to `v.size()` (which appends at the end); for any other `i`, do nothing.
+        seed: |
+          #include <string>
+          #include <vector>
+
+          void insert_at(std::vector<std::string>& v, int i, const std::string& s) {
+
+          }
+        solution: |
+          #include <string>
+          #include <vector>
+
+          void insert_at(std::vector<std::string>& v, int i, const std::string& s) {
+              if (i < 0 || i > (int)v.size()) return;
+              v.insert(v.begin() + i, s);
+          }
+        harness: |
+          int main() {
+              std::vector<std::string> v = {"a", "c"};
+              insert_at(v, 1, "b");
+              CHECK_EQ("insert in the middle", v, std::vector<std::string>{"a", "b", "c"});
+              insert_at(v, 0, "start");
+              CHECK_EQ("insert at the front", v, std::vector<std::string>{"start", "a", "b", "c"});
+              insert_at(v, 4, "end");
+              CHECK_EQ("insert at size() appends", v, std::vector<std::string>{"start", "a", "b", "c", "end"});
+              insert_at(v, 9, "x");
+              insert_at(v, -1, "x");
+              CHECK_EQ("bad positions change nothing", v.size(), 5);
+          }
+        hints:
+          - "`v.insert(v.begin() + i, s)` inserts before position `i`, so `s` ends up at index `i`."
+          - Unlike `erase`, `i == v.size()` is valid here.
+        tests: []
+      - task: |
+          Write `void remove_all(std::vector<int>& v, int x)` that removes every element equal to `x`, keeping the others in order. Erasing inside a loop is easy to get wrong: after `erase`, the next element moves into the current index.
+        seed: |
+          #include <vector>
+
+          void remove_all(std::vector<int>& v, int x) {
+
+          }
+        solution: |
+          #include <vector>
+
+          void remove_all(std::vector<int>& v, int x) {
+              std::size_t i = 0;
+              while (i < v.size()) {
+                  if (v[i] == x) {
+                      v.erase(v.begin() + i);
+                  } else {
+                      i++;
+                  }
+              }
+          }
+        harness: |
+          int main() {
+              std::vector<int> v = {3, 1, 3, 3, 2, 3};
+              remove_all(v, 3);
+              CHECK_EQ("remove every 3", v, std::vector<int>{1, 2});
+              std::vector<int> w = {7, 7};
+              remove_all(w, 7);
+              CHECK_EQ("remove everything", w, std::vector<int>{});
+              std::vector<int> u = {1, 2};
+              remove_all(u, 9);
+              CHECK_EQ("nothing to remove", u, std::vector<int>{1, 2});
+          }
+        hints:
+          - Only move to the next index when you did **not** erase. Otherwise two equal elements in a row would skip one.
+        tests: []
 
   - title: 2D vectors
     id: cpp-vector-4
@@ -284,6 +460,77 @@ steps:
     hints:
       - "Make the result with `cols` rows of `rows` ints each."
       - "`t[c][r] = m[r][c];` in a nested loop."
+    more:
+      - task: |
+          Write `std::vector<std::vector<char>> make_grid(int rows, int cols, char fill)` that returns a `rows` by `cols` grid where every cell is `fill`.
+        seed: |
+          #include <vector>
+
+          std::vector<std::vector<char>> make_grid(int rows, int cols, char fill) {
+
+          }
+        solution: |
+          #include <vector>
+
+          std::vector<std::vector<char>> make_grid(int rows, int cols, char fill) {
+              return std::vector<std::vector<char>>(rows, std::vector<char>(cols, fill));
+          }
+        harness: |
+          int main() {
+              auto g = make_grid(3, 4, '.');
+              CHECK_EQ("rows", g.size(), 3);
+              CHECK_EQ("cols", g[0].size(), 4);
+              CHECK_EQ("every cell filled", g[2][3], '.');
+              g[1][2] = '#';
+              CHECK_EQ("rows are separate", g[0][2], '.');
+              auto e = make_grid(0, 5, '#');
+              CHECK_EQ("zero rows", e.size(), 0);
+          }
+        hints:
+          - "`std::vector<char>(cols, fill)` is one row. `std::vector<std::vector<char>>(rows, row)` makes `rows` copies of it."
+        tests: []
+      - task: |
+          The grid is a vector of strings, one string per row, where `#` is a wall. Write `int count_neighbors(const std::vector<std::string>& g, int r, int c)` that counts the `#` cells among the **8** cells around `(r, c)` (not counting the cell itself). Cells outside the grid don't count.
+        seed: |
+          #include <string>
+          #include <vector>
+
+          int count_neighbors(const std::vector<std::string>& g, int r, int c) {
+
+          }
+        solution: |
+          #include <string>
+          #include <vector>
+
+          int count_neighbors(const std::vector<std::string>& g, int r, int c) {
+              int count = 0;
+              for (int dr = -1; dr <= 1; dr++) {
+                  for (int dc = -1; dc <= 1; dc++) {
+                      if (dr == 0 && dc == 0) continue;
+                      int nr = r + dr, nc = c + dc;
+                      if (nr < 0 || nr >= (int)g.size()) continue;
+                      if (nc < 0 || nc >= (int)g[nr].size()) continue;
+                      if (g[nr][nc] == '#') count++;
+                  }
+              }
+              return count;
+          }
+        harness: |
+          int main() {
+              std::vector<std::string> g = {
+                  "#.#",
+                  ".#.",
+                  "##.",
+              };
+              CHECK_EQ("middle cell", count_neighbors(g, 1, 1), 4);
+              CHECK_EQ("top-left corner", count_neighbors(g, 0, 0), 1);
+              CHECK_EQ("bottom-right corner", count_neighbors(g, 2, 2), 2);
+              CHECK_EQ("top edge", count_neighbors(g, 0, 1), 3);
+          }
+        hints:
+          - Two loops for the offsets `-1`, `0`, `+1` in each direction, skipping `(0, 0)`.
+          - Check that the neighbor's row and column are inside the grid before reading it.
+        tests: []
 
   - title: string search and substrings
     id: cpp-vector-5
@@ -351,6 +598,65 @@ steps:
     hints:
       - "`s.find('_')` gives the index, or `std::string::npos`."
       - "`s.substr(pos + 1)` is everything after it."
+    more:
+      - task: |
+          Write `std::string file_extension(const std::string& path)` that returns the text after the **last** `.`, or `""` if there is no dot. `"archive.tar.gz"` gives `"gz"`.
+        seed: |
+          #include <string>
+
+          std::string file_extension(const std::string& path) {
+
+          }
+        solution: |
+          #include <string>
+
+          std::string file_extension(const std::string& path) {
+              std::size_t pos = path.rfind('.');
+              if (pos == std::string::npos) return "";
+              return path.substr(pos + 1);
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("demo.dem", file_extension("demo.dem"), std::string("dem"));
+              CHECK_EQ("archive.tar.gz", file_extension("archive.tar.gz"), std::string("gz"));
+              CHECK_EQ("no dot", file_extension("README"), std::string(""));
+              CHECK_EQ("ends with a dot", file_extension("odd."), std::string(""));
+          }
+        hints:
+          - "`rfind` searches from the end, so it finds the last dot."
+          - "`substr(pos + 1)` is everything after it. When the dot is the last character, that's an empty string."
+        tests: []
+      - task: |
+          Write `std::string replace_all(std::string s, const std::string& from, const std::string& to)` that replaces every occurrence of `from` (which is never empty) with `to`. Careful: if `to` contains `from`, like replacing `"a"` with `"aa"`, don't keep finding the text you just inserted.
+        seed: |
+          #include <string>
+
+          std::string replace_all(std::string s, const std::string& from, const std::string& to) {
+
+          }
+        solution: |
+          #include <string>
+
+          std::string replace_all(std::string s, const std::string& from, const std::string& to) {
+              std::size_t pos = s.find(from);
+              while (pos != std::string::npos) {
+                  s.replace(pos, from.size(), to);
+                  pos = s.find(from, pos + to.size());
+              }
+              return s;
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("gg -> GG", replace_all("gg wp gg", "gg", "GG"), std::string("GG wp GG"));
+              CHECK_EQ("longer replacement", replace_all("a-b", "-", " to "), std::string("a to b"));
+              CHECK_EQ("a -> aa doesn't loop forever", replace_all("aaa", "a", "aa"), std::string("aaaaaa"));
+              CHECK_EQ("no match", replace_all("dust2", "x", "y"), std::string("dust2"));
+              CHECK_EQ("remove text", replace_all("r u s h", " ", ""), std::string("rush"));
+          }
+        hints:
+          - "`s.replace(pos, from.size(), to)` swaps one match for the new text."
+          - Continue searching **after** the inserted text, at `pos + to.size()`.
+        tests: []
 
   - title: "Challenge: split"
     id: cpp-vector-6
@@ -445,3 +751,78 @@ steps:
     hints:
       - Build the current piece character by character.
       - When you hit `sep`, push the current piece and clear it. After the loop, push the last piece.
+    more:
+      - task: |
+          Write the opposite of `split`: `std::string join(const std::vector<std::string>& parts, const std::string& sep)` puts `sep` between the parts. `join({"a", "b", "c"}, ", ")` gives `"a, b, c"`.
+        seed: |
+          #include <string>
+          #include <vector>
+
+          std::string join(const std::vector<std::string>& parts, const std::string& sep) {
+
+          }
+        solution: |
+          #include <string>
+          #include <vector>
+
+          std::string join(const std::vector<std::string>& parts, const std::string& sep) {
+              std::string out;
+              for (std::size_t i = 0; i < parts.size(); i++) {
+                  if (i > 0) out += sep;
+                  out += parts[i];
+              }
+              return out;
+          }
+        harness: |
+          int main() {
+              using V = std::vector<std::string>;
+              CHECK_EQ("three parts", join(V{"a", "b", "c"}, ", "), std::string("a, b, c"));
+              CHECK_EQ("one part", join(V{"dust2"}, "-"), std::string("dust2"));
+              CHECK_EQ("no parts", join(V{}, "-"), std::string(""));
+              CHECK_EQ("empty parts are kept", join(V{"a", "", "b"}, ","), std::string("a,,b"));
+          }
+        hints:
+          - Add `sep` before every part except the first.
+        tests: []
+      - task: |
+          Write `std::vector<std::string> split_words(const std::string& s)` that splits on **runs** of spaces and never returns empty words. `"  rush   b  "` gives `{"rush", "b"}`, and a string of only spaces gives `{}`.
+        seed: |
+          #include <string>
+          #include <vector>
+
+          std::vector<std::string> split_words(const std::string& s) {
+
+          }
+        solution: |
+          #include <string>
+          #include <vector>
+
+          std::vector<std::string> split_words(const std::string& s) {
+              std::vector<std::string> words;
+              std::string cur;
+              for (char c : s) {
+                  if (c == ' ') {
+                      if (!cur.empty()) {
+                          words.push_back(cur);
+                          cur.clear();
+                      }
+                  } else {
+                      cur += c;
+                  }
+              }
+              if (!cur.empty()) words.push_back(cur);
+              return words;
+          }
+        harness: |
+          int main() {
+              using V = std::vector<std::string>;
+              CHECK_EQ("extra spaces", split_words("  rush   b  "), V{"rush", "b"});
+              CHECK_EQ("normal sentence", split_words("plant the bomb"), V{"plant", "the", "bomb"});
+              CHECK_EQ("only spaces", split_words("    "), V{});
+              CHECK_EQ("empty", split_words(""), V{});
+              CHECK_EQ("one word", split_words("eco"), V{"eco"});
+          }
+        hints:
+          - Like `split`, but only push a word when `cur` isn't empty.
+          - Remember the last word after the loop, if the string doesn't end with a space.
+        tests: []

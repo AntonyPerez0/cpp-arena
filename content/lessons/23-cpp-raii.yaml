@@ -71,6 +71,72 @@ steps:
       - "A destructor's name is `~` followed by the class name: `~Round`."
     tests:
       - expect: "round start\nplaying\nround end"
+    more:
+      - task: |
+          Complete the destructor so it prints `leave` and the guard's name. The program prints `enter site A` and then `leave site A`.
+        fill: |
+          #include <iostream>
+          #include <string>
+
+          struct Guard {
+              std::string name;
+              Guard(std::string n) : name(n) { std::cout << "enter " << name << "\n"; }
+              [[~Guard]]() { std::cout << "leave " << [[name]] << "\n"; }
+          };
+
+          int main() {
+              Guard g("site A");
+          }
+        hints:
+          - A destructor is the class name with a `~` in front, and it takes no arguments.
+          - The destructor can still use the object's members, so print `name`.
+        tests:
+          - expect: "enter site A\nleave site A"
+      - task: |
+          Write a `struct Timer` whose constructor prints `start` and whose destructor prints `stop`. `main` is written for you; because `t` is created inside the loop body, it is destroyed at the end of every round. The output is:
+
+          ```
+          start
+          round 1
+          stop
+          start
+          round 2
+          stop
+          done
+          ```
+        seed: |
+          #include <iostream>
+
+          // struct Timer here
+
+          int main() {
+              for (int round = 1; round <= 2; round++) {
+                  Timer t;
+                  std::cout << "round " << round << "\n";
+              }
+              std::cout << "done\n";
+          }
+        solution: |
+          #include <iostream>
+
+          // struct Timer here
+          struct Timer {
+              Timer() { std::cout << "start\n"; }
+              ~Timer() { std::cout << "stop\n"; }
+          };
+
+          int main() {
+              for (int round = 1; round <= 2; round++) {
+                  Timer t;
+                  std::cout << "round " << round << "\n";
+              }
+              std::cout << "done\n";
+          }
+        hints:
+          - "`Timer() { ... }` is the constructor and `~Timer() { ... }` is the destructor."
+          - A variable declared inside the loop body lives only until the end of that iteration.
+        tests:
+          - expect: "start\nround 1\nstop\nstart\nround 2\nstop\ndone"
 
   - title: Order of destruction
     id: cpp-raii-2
@@ -171,6 +237,104 @@ steps:
       - Do the same for C. A lives until the end of main.
     tests:
       - expect: "+ A\n+ B\n- B\n+ C\n- C\n- A"
+    more:
+      - task: |
+          Without changing `Tag`, write `main` so the output is exactly this. Objects in the same scope are destroyed in the **reverse** order they were created.
+
+          ```
+          + A
+          + B
+          + C
+          - C
+          - B
+          - A
+          ```
+        seed: |
+          #include <iostream>
+          #include <string>
+
+          struct Tag {
+              std::string name;
+              Tag(std::string n) : name(n) { std::cout << "+ " << name << "\n"; }
+              ~Tag() { std::cout << "- " << name << "\n"; }
+          };
+
+          int main() {
+
+          }
+        solution: |
+          #include <iostream>
+          #include <string>
+
+          struct Tag {
+              std::string name;
+              Tag(std::string n) : name(n) { std::cout << "+ " << name << "\n"; }
+              ~Tag() { std::cout << "- " << name << "\n"; }
+          };
+
+          int main() {
+              Tag a("A");
+              Tag b("B");
+              Tag c("C");
+          }
+        hints:
+          - Create the three tags one after another in `main`. You don't need any braces; the reverse order is automatic.
+        tests:
+          - expect: "+ A\n+ B\n+ C\n- C\n- B\n- A"
+      - task: |
+          Members are constructed in the order they're **declared** in the class and destroyed in reverse. Write a `struct Squad` with two `Tag` members, `leader` and `medic`, so that this `main` prints:
+
+          ```
+          + leader
+          + medic
+          fight
+          - medic
+          - leader
+          ```
+        seed: |
+          #include <iostream>
+          #include <string>
+
+          struct Tag {
+              std::string name;
+              Tag(std::string n) : name(n) { std::cout << "+ " << name << "\n"; }
+              ~Tag() { std::cout << "- " << name << "\n"; }
+          };
+
+          // struct Squad here
+
+          int main() {
+              Squad s;
+              std::cout << "fight\n";
+          }
+        solution: |
+          #include <iostream>
+          #include <string>
+
+          struct Tag {
+              std::string name;
+              Tag(std::string n) : name(n) { std::cout << "+ " << name << "\n"; }
+              ~Tag() { std::cout << "- " << name << "\n"; }
+          };
+
+          // struct Squad here
+          struct Squad {
+              Tag leader{"leader"};
+              Tag medic{"medic"};
+          };
+
+          int main() {
+              Squad s;
+              std::cout << "fight\n";
+          }
+        require:
+          - pattern: "struct\\s+Squad"
+            message: "Write `struct Squad { ... };` with two Tag members."
+        hints:
+          - "A member can be given its constructor arguments right where it's declared, `Tag leader{\"leader\"};`."
+          - Declare `leader` before `medic`.
+        tests:
+          - expect: "+ leader\n+ medic\nfight\n- medic\n- leader"
 
   - title: RAII
     id: cpp-raii-3
@@ -283,6 +447,132 @@ steps:
     hints:
       - "`~IntArray() { delete[] data_; }`"
       - "`int& at(int i) { return data_[i]; }` returns a reference, so `a.at(0) = 10` works."
+    more:
+      - task: |
+          Finish `Buffer`, which owns a `char` array from `new char[n]`: the destructor, `int size() const`, `void fill(char c)` (every character becomes `c`), and `std::string str() const` (the characters as a string).
+        seed: |
+          #include <string>
+
+          class Buffer {
+          public:
+              explicit Buffer(int n) : data_(new char[n]), n_(n) {}
+              Buffer(const Buffer&) = delete;
+              Buffer& operator=(const Buffer&) = delete;
+              // destructor, size, fill, str
+
+          private:
+              char* data_;
+              int n_;
+          };
+        solution: |
+          #include <string>
+
+          class Buffer {
+          public:
+              explicit Buffer(int n) : data_(new char[n]), n_(n) {}
+              Buffer(const Buffer&) = delete;
+              Buffer& operator=(const Buffer&) = delete;
+              // destructor, size, fill, str
+              ~Buffer() { delete[] data_; }
+              int size() const { return n_; }
+              void fill(char c) {
+                  for (int i = 0; i < n_; i++) data_[i] = c;
+              }
+              std::string str() const { return std::string(data_, n_); }
+
+          private:
+              char* data_;
+              int n_;
+          };
+        harness: |
+          int main() {
+              Buffer b(4);
+              CHECK_EQ("size", b.size(), 4);
+              b.fill('#');
+              CHECK_EQ("filled", b.str(), std::string("####"));
+              b.fill('x');
+              CHECK_EQ("filled again", b.str(), std::string("xxxx"));
+              for (int k = 0; k < 1000; k++) {
+                  Buffer tmp(512);
+                  tmp.fill('a');
+              }
+              CHECK("1000 temporary buffers freed cleanly", true);
+          }
+        require:
+          - pattern: "~Buffer\\s*\\(\\s*\\)\\s*\\{[^}]*delete\\s*\\[\\s*\\]"
+            message: "Free the array in the destructor with `delete[] data_;`."
+        hints:
+          - Memory from `new[]` must be released with `delete[]`, not plain `delete`.
+          - "`std::string(data_, n_)` builds a string from the first `n_` characters."
+        tests: []
+      - task: |
+          RAII isn't just for memory. Write `FileLog`, which owns an open file: the constructor opens `path` for writing with `std::fopen`, `bool ok() const` says whether that worked, `void write(const std::string& line)` writes the line plus a newline, and the destructor closes the file. Closing is what makes sure everything reaches the disk.
+        seed: |
+          #include <cstdio>
+          #include <string>
+
+          class FileLog {
+          public:
+              explicit FileLog(const std::string& path) : f_(std::fopen(path.c_str(), "w")) {}
+              FileLog(const FileLog&) = delete;
+              FileLog& operator=(const FileLog&) = delete;
+              // ok, write, destructor
+
+          private:
+              std::FILE* f_;
+          };
+        solution: |
+          #include <cstdio>
+          #include <string>
+
+          class FileLog {
+          public:
+              explicit FileLog(const std::string& path) : f_(std::fopen(path.c_str(), "w")) {}
+              FileLog(const FileLog&) = delete;
+              FileLog& operator=(const FileLog&) = delete;
+              // ok, write, destructor
+              ~FileLog() {
+                  if (f_) std::fclose(f_);
+              }
+              bool ok() const { return f_ != nullptr; }
+              void write(const std::string& line) {
+                  if (f_) std::fprintf(f_, "%s\n", line.c_str());
+              }
+
+          private:
+              std::FILE* f_;
+          };
+        harness: |
+          #include <cstdio>
+          static std::string slurp(const char* path) {
+              std::string s;
+              std::FILE* f = std::fopen(path, "r");
+              if (!f) return "(missing)";
+              int c;
+              while ((c = std::fgetc(f)) != EOF) s += static_cast<char>(c);
+              std::fclose(f);
+              return s;
+          }
+          int main() {
+              {
+                  FileLog log("match.log");
+                  CHECK_EQ("the file opened", log.ok(), true);
+                  log.write("round 1");
+                  log.write("round 2");
+              }
+              CHECK_EQ("both lines are in the file after the scope", slurp("match.log"), std::string("round 1\nround 2\n"));
+              FileLog bad("no/such/dir/x.log");
+              CHECK_EQ("a bad path isn't ok", bad.ok(), false);
+              bad.write("ignored");
+              CHECK("writing to a failed log is harmless", true);
+          }
+        require:
+          - pattern: "~FileLog\\s*\\(\\s*\\)\\s*\\{[^}]*fclose"
+            message: "Close the file in the destructor with `std::fclose`."
+        hints:
+          - The file might have failed to open, so check `f_` before writing or closing.
+          - "`line.c_str()` gives the `const char *` that `fprintf` needs."
+        tests: []
 
   - title: The copy problem
     id: cpp-raii-4
@@ -402,6 +692,130 @@ steps:
     hints:
       - "Signature: `IntArray(const IntArray& other)`."
       - "Allocate new memory of `other.n_` ints, then copy each element in a loop."
+    more:
+      - task: |
+          `Name` owns a heap copy of a C string. Add the **deep-copy** constructor: allocate a new array of the same length plus one and copy the characters, so the copy doesn't share the original's memory.
+        seed: |
+          #include <cstring>
+          #include <utility>
+
+          class Name {
+          public:
+              explicit Name(const char* s) : s_(new char[std::strlen(s) + 1]) { std::strcpy(s_, s); }
+              ~Name() { delete[] s_; }
+              // copy constructor here
+              Name& operator=(Name other) {
+                  std::swap(s_, other.s_);
+                  return *this;
+              }
+              const char* c_str() const { return s_; }
+              void set_first(char c) { s_[0] = c; }
+
+          private:
+              char* s_;
+          };
+        solution: |
+          #include <cstring>
+          #include <utility>
+
+          class Name {
+          public:
+              explicit Name(const char* s) : s_(new char[std::strlen(s) + 1]) { std::strcpy(s_, s); }
+              ~Name() { delete[] s_; }
+              // copy constructor here
+              Name(const Name& other) : s_(new char[std::strlen(other.s_) + 1]) { std::strcpy(s_, other.s_); }
+              Name& operator=(Name other) {
+                  std::swap(s_, other.s_);
+                  return *this;
+              }
+              const char* c_str() const { return s_; }
+              void set_first(char c) { s_[0] = c; }
+
+          private:
+              char* s_;
+          };
+        harness: |
+          int main() {
+              Name a("ropz");
+              Name b = a;
+              CHECK("copy has its own memory", b.c_str() != a.c_str());
+              CHECK_EQ("copy has the same text", std::string(b.c_str()), std::string("ropz"));
+              b.set_first('R');
+              CHECK_EQ("changing the copy leaves the original alone", std::string(a.c_str()), std::string("ropz"));
+              Name c("x");
+              c = a;
+              CHECK_EQ("assignment copies", std::string(c.c_str()), std::string("ropz"));
+          }
+        hints:
+          - The signature is `Name(const Name& other)`.
+          - "Allocate `std::strlen(other.s_) + 1` bytes, then `std::strcpy` the text into them."
+        tests: []
+      - task: |
+          `Matrix` owns a flat `int` array of `rows * cols` values. Write **both** the deep-copy constructor and the copy assignment operator (use copy-and-swap for the assignment), so copies never share memory and self-assignment is safe.
+        seed: |
+          #include <utility>
+
+          class Matrix {
+          public:
+              Matrix(int rows, int cols) : rows_(rows), cols_(cols), data_(new int[rows * cols]()) {}
+              ~Matrix() { delete[] data_; }
+              // copy constructor and copy assignment here
+              int& at(int r, int c) { return data_[r * cols_ + c]; }
+              int rows() const { return rows_; }
+              int cols() const { return cols_; }
+              const int* raw() const { return data_; }
+
+          private:
+              int rows_, cols_;
+              int* data_;
+          };
+        solution: |
+          #include <utility>
+
+          class Matrix {
+          public:
+              Matrix(int rows, int cols) : rows_(rows), cols_(cols), data_(new int[rows * cols]()) {}
+              ~Matrix() { delete[] data_; }
+              // copy constructor and copy assignment here
+              Matrix(const Matrix& o) : rows_(o.rows_), cols_(o.cols_), data_(new int[o.rows_ * o.cols_]) {
+                  for (int i = 0; i < rows_ * cols_; i++) data_[i] = o.data_[i];
+              }
+              Matrix& operator=(Matrix o) {
+                  std::swap(rows_, o.rows_);
+                  std::swap(cols_, o.cols_);
+                  std::swap(data_, o.data_);
+                  return *this;
+              }
+              int& at(int r, int c) { return data_[r * cols_ + c]; }
+              int rows() const { return rows_; }
+              int cols() const { return cols_; }
+              const int* raw() const { return data_; }
+
+          private:
+              int rows_, cols_;
+              int* data_;
+          };
+        harness: |
+          int main() {
+              Matrix a(2, 3);
+              a.at(1, 2) = 7;
+              Matrix b = a;
+              CHECK("copy has its own memory", b.raw() != a.raw());
+              CHECK_EQ("copy has the value", b.at(1, 2), 7);
+              b.at(0, 0) = 5;
+              CHECK_EQ("original unchanged", a.at(0, 0), 0);
+              Matrix c(1, 1);
+              c = a;
+              CHECK("assignment takes the shape", c.rows() == 2 && c.cols() == 3);
+              CHECK_EQ("assignment copies values", c.at(1, 2), 7);
+              Matrix& alias = c;
+              c = alias;
+              CHECK_EQ("self-assignment keeps the values", c.at(1, 2), 7);
+          }
+        hints:
+          - The copy constructor allocates `rows * cols` ints and copies them one by one.
+          - "Copy-and-swap: take the parameter **by value** (that makes the copy), swap every member with it, and let its destructor free the old data."
+        tests: []
 
   - title: Non-copyable classes
     id: cpp-raii-5
@@ -483,6 +897,78 @@ steps:
     hints:
       - "`Lock(const Lock&) = delete;`"
       - "`Lock& operator=(const Lock&) = delete;`"
+    more:
+      - task: |
+          Make `Token` non-copyable, while it can still be created with an id. The tests check it at compile time.
+        seed: |
+          class Token {
+          public:
+              explicit Token(int id) : id_(id) {}
+              // forbid copying here
+              int id() const { return id_; }
+
+          private:
+              int id_;
+          };
+        solution: |
+          class Token {
+          public:
+              explicit Token(int id) : id_(id) {}
+              // forbid copying here
+              Token(const Token&) = delete;
+              Token& operator=(const Token&) = delete;
+              int id() const { return id_; }
+
+          private:
+              int id_;
+          };
+        harness: |
+          #include <type_traits>
+          int main() {
+              Token t(7);
+              CHECK_EQ("id", t.id(), 7);
+              CHECK("Token cannot be copy-constructed", !std::is_copy_constructible_v<Token>);
+              CHECK("Token cannot be copy-assigned", !std::is_copy_assignable_v<Token>);
+          }
+        hints:
+          - "Delete both copy operations: `Token(const Token&) = delete;` and `Token& operator=(const Token&) = delete;`."
+        tests: []
+      - task: |
+          Write `UniqueId`, where every object gets a different number: the default constructor takes the next id from a static counter (1, 2, 3, ...), and `int value() const` returns it. Make it non-copyable, because a copy would carry a duplicate id.
+        seed: |
+          class UniqueId {
+          public:
+
+          };
+        solution: |
+          class UniqueId {
+          public:
+              UniqueId() : value_(++next_) {}
+              UniqueId(const UniqueId&) = delete;
+              UniqueId& operator=(const UniqueId&) = delete;
+              int value() const { return value_; }
+
+          private:
+              int value_;
+              static inline int next_ = 0;
+          };
+        harness: |
+          #include <type_traits>
+          int main() {
+              UniqueId a;
+              UniqueId b;
+              {
+                  UniqueId c;
+                  CHECK_EQ("third id", c.value(), 3);
+              }
+              UniqueId d;
+              CHECK("ids never repeat", a.value() == 1 && b.value() == 2 && d.value() == 4);
+              CHECK("cannot be copied", !std::is_copy_constructible_v<UniqueId>);
+              CHECK("cannot be copy-assigned", !std::is_copy_assignable_v<UniqueId>);
+          }
+        hints:
+          - "A `static inline int next_ = 0;` member is shared by all objects; the constructor takes `++next_`."
+        tests: []
 
   - title: Copy assignment with copy-and-swap
     id: cpp-raii-6
@@ -608,6 +1094,153 @@ steps:
     hints:
       - "`void swap(IntArray& other) noexcept` swaps both members with `std::swap`."
       - "`IntArray& operator=(IntArray other) { swap(other); return *this; }` (note: other is taken **by value**)."
+    more:
+      - task: |
+          `Name` already has its constructor, destructor and copy constructor. Write the member `void swap(Name& other) noexcept` and the copy-and-swap `operator=`.
+        seed: |
+          #include <cstring>
+          #include <utility>
+
+          class Name {
+          public:
+              explicit Name(const char* s) : s_(new char[std::strlen(s) + 1]) { std::strcpy(s_, s); }
+              ~Name() { delete[] s_; }
+              Name(const Name& other) : s_(new char[std::strlen(other.s_) + 1]) { std::strcpy(s_, other.s_); }
+              // swap and operator= here
+              const char* c_str() const { return s_; }
+
+          private:
+              char* s_;
+          };
+        solution: |
+          #include <cstring>
+          #include <utility>
+
+          class Name {
+          public:
+              explicit Name(const char* s) : s_(new char[std::strlen(s) + 1]) { std::strcpy(s_, s); }
+              ~Name() { delete[] s_; }
+              Name(const Name& other) : s_(new char[std::strlen(other.s_) + 1]) { std::strcpy(s_, other.s_); }
+              // swap and operator= here
+              void swap(Name& other) noexcept { std::swap(s_, other.s_); }
+              Name& operator=(Name other) {
+                  swap(other);
+                  return *this;
+              }
+              const char* c_str() const { return s_; }
+
+          private:
+              char* s_;
+          };
+        harness: |
+          int main() {
+              Name a("ropz");
+              Name b("a much longer name");
+              b = a;
+              CHECK_EQ("assignment copies the text", std::string(b.c_str()), std::string("ropz"));
+              CHECK("b has its own memory", b.c_str() != a.c_str());
+              Name& alias = a;
+              a = alias;
+              CHECK_EQ("self-assignment keeps the text", std::string(a.c_str()), std::string("ropz"));
+              Name x("x"), y("y");
+              x.swap(y);
+              CHECK("swap exchanges the texts", std::string(x.c_str()) == "y" && std::string(y.c_str()) == "x");
+          }
+        hints:
+          - "`swap` exchanges the pointers with `std::swap(s_, other.s_);`."
+          - "`operator=` takes its parameter **by value**, swaps with it, and returns `*this`."
+        tests: []
+      - task: |
+          Write all three copy operations for `IntStack`, which owns a growable `int` array: the deep-copy constructor, a `swap`, and the copy-and-swap `operator=`. Copies must have their own array and the same `size_` and `cap_`.
+        seed: |
+          #include <utility>
+
+          class IntStack {
+          public:
+              IntStack() : data_(new int[4]), size_(0), cap_(4) {}
+              ~IntStack() { delete[] data_; }
+              // copy constructor, swap and operator= here
+              void push(int v) {
+                  if (size_ == cap_) {
+                      int* bigger = new int[cap_ * 2];
+                      for (int i = 0; i < size_; i++) bigger[i] = data_[i];
+                      delete[] data_;
+                      data_ = bigger;
+                      cap_ *= 2;
+                  }
+                  data_[size_++] = v;
+              }
+              int pop() { return data_[--size_]; }
+              int size() const { return size_; }
+              const int* raw() const { return data_; }
+
+          private:
+              int* data_;
+              int size_;
+              int cap_;
+          };
+        solution: |
+          #include <utility>
+
+          class IntStack {
+          public:
+              IntStack() : data_(new int[4]), size_(0), cap_(4) {}
+              ~IntStack() { delete[] data_; }
+              // copy constructor, swap and operator= here
+              IntStack(const IntStack& o) : data_(new int[o.cap_]), size_(o.size_), cap_(o.cap_) {
+                  for (int i = 0; i < size_; i++) data_[i] = o.data_[i];
+              }
+              void swap(IntStack& o) noexcept {
+                  std::swap(data_, o.data_);
+                  std::swap(size_, o.size_);
+                  std::swap(cap_, o.cap_);
+              }
+              IntStack& operator=(IntStack o) {
+                  swap(o);
+                  return *this;
+              }
+              void push(int v) {
+                  if (size_ == cap_) {
+                      int* bigger = new int[cap_ * 2];
+                      for (int i = 0; i < size_; i++) bigger[i] = data_[i];
+                      delete[] data_;
+                      data_ = bigger;
+                      cap_ *= 2;
+                  }
+                  data_[size_++] = v;
+              }
+              int pop() { return data_[--size_]; }
+              int size() const { return size_; }
+              const int* raw() const { return data_; }
+
+          private:
+              int* data_;
+              int size_;
+              int cap_;
+          };
+        harness: |
+          int main() {
+              IntStack a;
+              for (int i = 1; i <= 6; i++) a.push(i);
+              IntStack b = a;
+              CHECK("copy has its own array", b.raw() != a.raw());
+              CHECK_EQ("copy has the same size", b.size(), 6);
+              CHECK_EQ("top of the copy", b.pop(), 6);
+              CHECK_EQ("original still has 6", a.size(), 6);
+              IntStack c;
+              c.push(99);
+              c = a;
+              CHECK_EQ("assignment copies", c.pop(), 6);
+              c.push(7);
+              CHECK_EQ("the copy keeps working after growing", c.pop(), 7);
+              IntStack& alias = a;
+              a = alias;
+              CHECK_EQ("self-assignment is safe", a.pop(), 6);
+          }
+        hints:
+          - The copy constructor allocates `o.cap_` ints and copies the first `o.size_` of them.
+          - "`swap` must exchange all three members. Then `operator=` is the same two lines as always."
+        tests: []
 
   - title: The rule of zero
     id: cpp-raii-7
@@ -710,6 +1343,107 @@ steps:
     hints:
       - "Keep a `std::vector<std::string> items_;` as the only data member."
       - "`has` can use `std::find(items_.begin(), items_.end(), item) != items_.end()` from `<algorithm>`."
+    more:
+      - task: |
+          Write class `Team` with the rule of zero: `void add(const std::string& name)`, `bool remove(const std::string& name)` (removes the first match, returns whether it found one), and `std::vector<std::string> names() const`. No `new`, no `delete`, no destructor.
+        seed: |
+          #include <string>
+          #include <vector>
+
+          class Team {
+          public:
+
+          private:
+
+          };
+        solution: |
+          #include <algorithm>
+          #include <string>
+          #include <vector>
+
+          class Team {
+          public:
+              void add(const std::string& name) { names_.push_back(name); }
+              bool remove(const std::string& name) {
+                  auto it = std::find(names_.begin(), names_.end(), name);
+                  if (it == names_.end()) return false;
+                  names_.erase(it);
+                  return true;
+              }
+              std::vector<std::string> names() const { return names_; }
+
+          private:
+              std::vector<std::string> names_;
+          };
+        harness: |
+          int main() {
+              using V = std::vector<std::string>;
+              Team a;
+              a.add("ropz");
+              a.add("rain");
+              a.add("broky");
+              CHECK_EQ("remove rain", a.remove("rain"), true);
+              CHECK_EQ("names after removing", a.names(), V{"ropz", "broky"});
+              CHECK_EQ("removing a missing name", a.remove("zywoo"), false);
+              Team b = a;
+              b.add("frozen");
+              CHECK_EQ("copies are independent", a.names(), V{"ropz", "broky"});
+              CHECK_EQ("copy got the new name", b.names(), V{"ropz", "broky", "frozen"});
+          }
+        forbid:
+          - pattern: "\\bnew\\b|\\bdelete\\b|~\\s*Team"
+            message: Let a `std::vector` own the data, so you need no `new`, `delete` or destructor.
+        hints:
+          - "`std::find` from `<algorithm>` returns an iterator to the first match, or `end()`. Pass that iterator to `erase`."
+        tests: []
+      - task: |
+          Write class `History` that keeps only the **last N** messages, with N given to the constructor: `void push(const std::string& msg)` adds a message and drops the oldest when there are more than N, and `std::vector<std::string> last() const` returns them oldest first. Rule of zero again.
+        seed: |
+          #include <string>
+          #include <vector>
+
+          class History {
+          public:
+
+          private:
+
+          };
+        solution: |
+          #include <string>
+          #include <vector>
+
+          class History {
+          public:
+              explicit History(int n) : n_(n) {}
+              void push(const std::string& msg) {
+                  msgs_.push_back(msg);
+                  if ((int)msgs_.size() > n_) msgs_.erase(msgs_.begin());
+              }
+              std::vector<std::string> last() const { return msgs_; }
+
+          private:
+              int n_;
+              std::vector<std::string> msgs_;
+          };
+        harness: |
+          int main() {
+              using V = std::vector<std::string>;
+              History h(3);
+              h.push("a"); h.push("b");
+              CHECK_EQ("fewer than N", h.last(), V{"a", "b"});
+              h.push("c"); h.push("d"); h.push("e");
+              CHECK_EQ("only the last 3", h.last(), V{"c", "d", "e"});
+              History copy = h;
+              copy.push("f");
+              CHECK_EQ("the copy is independent", h.last(), V{"c", "d", "e"});
+              CHECK_EQ("the copy moved on", copy.last(), V{"d", "e", "f"});
+          }
+        forbid:
+          - pattern: "\\bnew\\b|\\bdelete\\b|~\\s*History"
+            message: Let a `std::vector` own the data, so you need no `new`, `delete` or destructor.
+        hints:
+          - "After `push_back`, if there are too many, remove the first one with `msgs_.erase(msgs_.begin())`."
+        tests: []
 
   - title: "Challenge: a scope guard"
     id: cpp-raii-8
@@ -821,3 +1555,91 @@ steps:
       - "Store the function in a `std::function<void()> f_;` and a `bool active_ = true;`."
       - "The destructor: `if (active_ && f_) f_();`. `dismiss()` sets active_ to false."
       - "Delete the copy constructor and copy assignment, like the Lock step."
+    more:
+      - task: |
+          Write `ValueRestorer`, a guard for "try a change, undo it if we don't finish": `ValueRestorer(int& target)` remembers the target's current value, the destructor puts that value back unless `commit()` was called. Make it non-copyable.
+        seed: |
+          class ValueRestorer {
+          public:
+
+          };
+        solution: |
+          class ValueRestorer {
+          public:
+              explicit ValueRestorer(int& target) : target_(target), saved_(target) {}
+              ~ValueRestorer() {
+                  if (!committed_) target_ = saved_;
+              }
+              ValueRestorer(const ValueRestorer&) = delete;
+              ValueRestorer& operator=(const ValueRestorer&) = delete;
+              void commit() { committed_ = true; }
+
+          private:
+              int& target_;
+              int saved_;
+              bool committed_ = false;
+          };
+        harness: |
+          #include <type_traits>
+          int main() {
+              int money = 800;
+              {
+                  ValueRestorer r(money);
+                  money -= 650;
+                  CHECK_EQ("changed inside the scope", money, 150);
+              }
+              CHECK_EQ("restored at the end of the scope", money, 800);
+              {
+                  ValueRestorer r(money);
+                  money -= 300;
+                  r.commit();
+              }
+              CHECK_EQ("committed change is kept", money, 500);
+              CHECK("not copyable", !std::is_copy_constructible_v<ValueRestorer>);
+          }
+        hints:
+          - Keep a reference to the target and a copy of its old value, both set in the initializer list.
+          - The destructor writes the saved value back through the reference, unless a `bool committed_` flag was set.
+        tests: []
+      - task: |
+          Write `Indent`, an RAII helper for nested output: a `static int` level shared by all objects goes up by one in the constructor and down by one in the destructor, and `static std::string pad()` returns two spaces per level. Make it non-copyable, because copying would unbalance the level.
+        seed: |
+          #include <string>
+
+          class Indent {
+          public:
+
+          };
+        solution: |
+          #include <string>
+
+          class Indent {
+          public:
+              Indent() { level_++; }
+              ~Indent() { level_--; }
+              Indent(const Indent&) = delete;
+              Indent& operator=(const Indent&) = delete;
+              static std::string pad() { return std::string(level_ * 2, ' '); }
+
+          private:
+              static inline int level_ = 0;
+          };
+        harness: |
+          #include <type_traits>
+          int main() {
+              CHECK_EQ("no indent at the start", Indent::pad(), std::string(""));
+              {
+                  Indent a;
+                  CHECK_EQ("one level", Indent::pad(), std::string("  "));
+                  {
+                      Indent b;
+                      CHECK_EQ("two levels", Indent::pad(), std::string("    "));
+                  }
+                  CHECK_EQ("back to one", Indent::pad(), std::string("  "));
+              }
+              CHECK_EQ("back to none", Indent::pad(), std::string(""));
+              CHECK("not copyable", !std::is_copy_constructible_v<Indent>);
+          }
+        hints:
+          - "`std::string(n, ' ')` makes `n` spaces."
+        tests: []

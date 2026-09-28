@@ -50,6 +50,62 @@ steps:
       - The output stream is `std::cout` and the operator that sends to it is `<<`.
     tests:
       - expect: "Rounds won: 13"
+    more:
+      - task: |
+          Print the K/D as `25/12` by chaining the two variables and a `"/"` in one `std::cout` statement.
+        fill: |
+          #include <iostream>
+
+          int main() {
+              int kills = 25;
+              int deaths = 12;
+              std::cout << [[kills]] << [["/"]] << [[deaths]] << "\n";
+          }
+        hints:
+          - Each `<<` sends one more thing to the output, in order.
+          - The slash is text, so it goes in double quotes.
+        tests:
+          - expect: "25/12"
+      - task: |
+          Using the variables, print these three lines with `std::cout`. Compute the rounds played instead of typing 24:
+
+          ```
+          Map: mirage
+          Rounds: 24
+          Score: 13-11
+          ```
+        seed: |
+          #include <iostream>
+          #include <string>
+
+          int main() {
+              std::string map = "mirage";
+              int t = 13;
+              int ct = 11;
+              // print the three lines
+
+          }
+        solution: |
+          #include <iostream>
+          #include <string>
+
+          int main() {
+              std::string map = "mirage";
+              int t = 13;
+              int ct = 11;
+              // print the three lines
+              std::cout << "Map: " << map << "\n";
+              std::cout << "Rounds: " << t + ct << "\n";
+              std::cout << "Score: " << t << "-" << ct << "\n";
+          }
+        require:
+          - pattern: "t\\s*\\+\\s*ct|ct\\s*\\+\\s*t"
+            message: Compute the rounds as `t + ct`.
+        hints:
+          - "A `std::string` prints with `<<` just like a number: `std::cout << \"Map: \" << map << \"\\n\";`"
+          - "You can put an expression straight into the chain: `<< t + ct <<`."
+        tests:
+          - expect: "Map: mirage\nRounds: 24\nScore: 13-11"
 
   - title: Reading with cin
     id: cpp-basics-2
@@ -109,6 +165,56 @@ steps:
       - stdin: "twistzz 3\n"
       - stdin: "karrigan 0\n"
         hidden: true
+    more:
+      - task: |
+          Read two whole numbers and print their sum. Input `18 7` prints `25`.
+        fill: |
+          #include <iostream>
+
+          int main() {
+              int a, b;
+              std::cin [[>>]] a [[>>]] b;
+              std::cout << a + b << "\n";
+          }
+        hints:
+          - Input flows **out of** `std::cin` **into** the variables, so the arrows point right, `>>`.
+        tests:
+          - stdin: "18 7\n"
+          - stdin: "-3 3\n"
+          - stdin: "100\n250\n"
+            hidden: true
+      - task: |
+          The input is pairs of `name kills` until the end. Print the player with the most kills (the first one on a tie) as `MVP NAME KILLS`. Input `rain 18 ropz 25 broky 25` prints `MVP ropz 25`.
+        seed: |
+          #include <iostream>
+          #include <string>
+
+          int main() {
+
+          }
+        solution: |
+          #include <iostream>
+          #include <string>
+
+          int main() {
+              std::string name, best;
+              int kills, best_kills = -1;
+              while (std::cin >> name >> kills) {
+                  if (kills > best_kills) {
+                      best_kills = kills;
+                      best = name;
+                  }
+              }
+              std::cout << "MVP " << best << " " << best_kills << "\n";
+          }
+        hints:
+          - "`while (std::cin >> name >> kills)` keeps reading pairs and stops at the end of the input."
+          - Copying a `std::string` is just `best = name;`, no `strcpy` needed.
+        tests:
+          - stdin: "rain 18 ropz 25 broky 25\n"
+          - stdin: "solo 0\n"
+          - stdin: "a 1\nb 2\nc 9\nd 3\n"
+            hidden: true
 
   - title: std::string is easy
     id: cpp-basics-3
@@ -181,6 +287,64 @@ steps:
       - stdin: "Ada Lovelace\n"
       - stdin: "Li Na\n"
         hidden: true
+    more:
+      - task: |
+          Read a player's name and print how long it is and its first and last letter. Input `ropz` prints `ropz: 4 letters, starts with r, ends with z`.
+        seed: |
+          #include <iostream>
+          #include <string>
+
+          int main() {
+              std::string name;
+              std::cin >> name;
+
+          }
+        solution: |
+          #include <iostream>
+          #include <string>
+
+          int main() {
+              std::string name;
+              std::cin >> name;
+              std::cout << name << ": " << name.size() << " letters, starts with " << name[0]
+                        << ", ends with " << name.back() << "\n";
+          }
+        hints:
+          - "`name.size()` is the length, `name[0]` is the first character, and `name.back()` is the last."
+        tests:
+          - stdin: "ropz\n"
+          - stdin: "s1mple\n"
+          - stdin: "x\n"
+            hidden: true
+      - task: |
+          Read words until the end of the input and join them with `-` into one `std::string`, then print it and its length. Input `rush b now` prints `rush-b-now 10`.
+        seed: |
+          #include <iostream>
+          #include <string>
+
+          int main() {
+
+          }
+        solution: |
+          #include <iostream>
+          #include <string>
+
+          int main() {
+              std::string word, joined;
+              while (std::cin >> word) {
+                  if (!joined.empty()) joined += "-";
+                  joined += word;
+              }
+              std::cout << joined << " " << joined.size() << "\n";
+          }
+        hints:
+          - "`joined += word;` appends to a string. It grows by itself, so there's no buffer size to worry about."
+          - Add the `-` before every word except the first. `joined.empty()` tells you if nothing was added yet.
+        tests:
+          - stdin: "rush b now\n"
+          - stdin: "gg\n"
+          - stdin: "a b c d\n"
+            hidden: true
 
   - title: bool, auto and range-for
     id: cpp-basics-4
@@ -263,6 +427,83 @@ steps:
     hints:
       - "`for (char c : s)` gives you each character."
       - "Check `c == 'a' || c == 'e' || ...` and count."
+    more:
+      - task: |
+          Write `int count_upper(std::string s)` that counts the capital letters `A` to `Z` using a range-based for loop.
+        seed: |
+          #include <string>
+
+          int count_upper(std::string s) {
+
+          }
+        solution: |
+          #include <string>
+
+          int count_upper(std::string s) {
+              int n = 0;
+              for (char c : s) {
+                  if (c >= 'A' && c <= 'Z') n++;
+              }
+              return n;
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("count_upper(\"NaVi\")", count_upper("NaVi"), 2);
+              CHECK_EQ("count_upper(\"GG WP\")", count_upper("GG WP"), 4);
+              CHECK_EQ("count_upper(\"quiet\")", count_upper("quiet"), 0);
+              CHECK_EQ("count_upper(\"\")", count_upper(""), 0);
+          }
+        require:
+          - pattern: "for\\s*\\(\\s*(auto|char|const\\s+char|const\\s+auto)\\s*&?\\s*\\w+\\s*:"
+            message: "Use a range-based for loop, like `for (char c : s)`."
+        hints:
+          - "`for (char c : s)` visits every character of the string."
+        tests: []
+      - task: |
+          Write two functions with range-based for loops: `std::string without_spaces(std::string s)`, which returns `s` with every space removed, and `bool all_digits(std::string s)`, which is `true` when every character is `0` to `9` (an empty string is **not** all digits).
+        seed: |
+          #include <string>
+
+          std::string without_spaces(std::string s) {
+
+          }
+
+          bool all_digits(std::string s) {
+
+          }
+        solution: |
+          #include <string>
+
+          std::string without_spaces(std::string s) {
+              std::string out;
+              for (char c : s) {
+                  if (c != ' ') out += c;
+              }
+              return out;
+          }
+
+          bool all_digits(std::string s) {
+              if (s.empty()) return false;
+              for (char c : s) {
+                  if (c < '0' || c > '9') return false;
+              }
+              return true;
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("without_spaces(\"rush b now\")", without_spaces("rush b now"), std::string("rushbnow"));
+              CHECK_EQ("without_spaces(\"  \")", without_spaces("  "), std::string(""));
+              CHECK_EQ("all_digits(\"2024\")", all_digits("2024"), true);
+              CHECK_EQ("all_digits(\"12a\")", all_digits("12a"), false);
+              CHECK_EQ("all_digits(\"\")", all_digits(""), false);
+          }
+        require:
+          - pattern: "for\\s*\\(\\s*(auto|char|const\\s+char|const\\s+auto)\\s*&?\\s*\\w+\\s*:"
+            message: "Use a range-based for loop, like `for (char c : s)`."
+        hints:
+          - "Build the result with `out += c;` for every character you keep."
+          - For `all_digits`, check for empty first, then return `false` at the first character outside `'0'` to `'9'`.
+        tests: []
 
   - title: Namespaces and using
     id: cpp-basics-5
@@ -327,6 +568,63 @@ steps:
       - The scope operator is `::`.
     tests:
       - expect: "faceit 128"
+    more:
+      - task: |
+          Put the function in a namespace called `scoring` and call it through that namespace, so the program prints `900`.
+        fill: |
+          #include <iostream>
+
+          namespace [[scoring]] {
+              int kill_reward() { return 300; }
+          }
+
+          int main() {
+              std::cout << scoring[[::]]kill_reward() * 3 << "\n";
+          }
+        hints:
+          - The namespace's name comes right after the keyword `namespace`.
+          - Names inside a namespace are reached with `::`, like `std::cout`.
+        tests:
+          - expect: "900"
+      - task: |
+          Two namespaces can each have a function with the same name without clashing. Create namespaces `ct` and `t`, each with a function `std::string side_name()`, returning `"Counter-Terrorists"` and `"Terrorists"`, and print both, one per line.
+        seed: |
+          #include <iostream>
+          #include <string>
+
+          // two namespaces here
+
+          int main() {
+
+          }
+        solution: |
+          #include <iostream>
+          #include <string>
+
+          // two namespaces here
+          namespace ct {
+              std::string side_name() { return "Counter-Terrorists"; }
+          }
+
+          namespace t {
+              std::string side_name() { return "Terrorists"; }
+          }
+
+          int main() {
+              std::cout << ct::side_name() << "\n";
+              std::cout << t::side_name() << "\n";
+          }
+        require:
+          - pattern: "namespace\\s+ct\\b"
+            message: "Create `namespace ct { ... }`."
+          - pattern: "namespace\\s+t\\b"
+            message: "Create `namespace t { ... }`."
+          - pattern: "ct::side_name[\\s\\S]*t::side_name|t::side_name[\\s\\S]*ct::side_name"
+            message: "Call both functions through their namespaces, `ct::side_name()` and `t::side_name()`."
+        hints:
+          - "`namespace ct { std::string side_name() { return \"Counter-Terrorists\"; } }`"
+        tests:
+          - expect: "Counter-Terrorists\nTerrorists"
 
   - title: Whole lines with getline
     id: cpp-basics-6
@@ -407,6 +705,76 @@ steps:
       - stdin: ""
       - stdin: "a b c\n\nlast\n"
         hidden: true
+    more:
+      - task: |
+          Read lines until the end and print the **longest** line (the first one on a tie) as `longest: LINE`. With no input at all, print `no lines`.
+        seed: |
+          #include <iostream>
+          #include <string>
+
+          int main() {
+
+          }
+        solution: |
+          #include <iostream>
+          #include <string>
+
+          int main() {
+              std::string line, longest;
+              bool any = false;
+              while (std::getline(std::cin, line)) {
+                  if (!any || line.size() > longest.size()) longest = line;
+                  any = true;
+              }
+              if (any) std::cout << "longest: " << longest << "\n";
+              else std::cout << "no lines\n";
+          }
+        hints:
+          - "`while (std::getline(std::cin, line))` reads one whole line at a time, spaces included."
+          - Keep a flag for whether you read anything, since the longest line itself could be empty.
+        tests:
+          - stdin: "rush b\ndon't stop now\ngg\n"
+          - stdin: ""
+          - stdin: "same\nsize\n"
+            hidden: true
+      - task: |
+          The first line is a number `n`, followed by `n` lines of chat. Print the chat lines in **reverse** order. Careful: `std::cin >> n` leaves the newline after the number waiting, so the next `getline` would read an empty line. Skip it first with `std::cin >> std::ws`.
+        seed: |
+          #include <iostream>
+          #include <string>
+          #include <vector>
+
+          int main() {
+              int n;
+              std::cin >> n;
+              std::vector<std::string> lines;
+
+          }
+        solution: |
+          #include <iostream>
+          #include <string>
+          #include <vector>
+
+          int main() {
+              int n;
+              std::cin >> n;
+              std::vector<std::string> lines;
+              std::cin >> std::ws;
+              for (int i = 0; i < n; i++) {
+                  std::string line;
+                  std::getline(std::cin, line);
+                  lines.push_back(line);
+              }
+              for (int i = n - 1; i >= 0; i--) std::cout << lines[i] << "\n";
+          }
+        hints:
+          - "`std::cin >> std::ws;` skips spaces and newlines, including the one after the number."
+          - Store the lines with `lines.push_back(line);`, then print from index `n - 1` down to 0.
+        tests:
+          - stdin: "3\ngg\nnice shot\nwp\n"
+          - stdin: "1\nhello there\n"
+          - stdin: "2\nfirst line\nsecond line\n"
+            hidden: true
   - title: Where C and C++ differ
     id: cpp-basics-7
     text: |
@@ -515,3 +883,81 @@ steps:
       - "Designators in declaration order: `{.data = nullptr, .size = (int)std::strlen(text)}`."
       - "`std::malloc` returns `void *`; C++ needs `static_cast<char *>(std::malloc(b.size + 1))`."
       - "`struct Buffer` still works in C++, but plain `Buffer` is the usual C++ spelling."
+    more:
+      - task: |
+          This C function compiles as C, but not as C++: it uses `new` and `class` as variable names, and both are **keywords** in C++. Rename the variables so it compiles and still returns the sum of the scores.
+        seed: |
+          int sum_scores(const int *new, int count) {
+              int class = 0;
+              for (int i = 0; i < count; i++) class += new[i];
+              return class;
+          }
+        solution: |
+          int sum_scores(const int *scores, int count) {
+              int total = 0;
+              for (int i = 0; i < count; i++) total += scores[i];
+              return total;
+          }
+        harness: |
+          int main() {
+              int a[] = {10, 20, 30};
+              CHECK_EQ("sum of 10, 20, 30", sum_scores(a, 3), 60);
+              CHECK_EQ("no scores", sum_scores(a, 0), 0);
+          }
+        forbid:
+          - pattern: "\\bnew\\b|\\bclass\\b"
+            message: "`new` and `class` are C++ keywords, so they can't be variable names. Rename them."
+        hints:
+          - Any other names work, like `scores` and `total`.
+        tests: []
+      - task: |
+          Two more C habits that C++ rejects. Fix both so the code compiles as C++:
+
+          - `malloc` returns `void *`, which C converts to `char *` silently. C++ needs a `static_cast<char *>(...)`.
+          - A string literal is read-only in C++, so it can't be pointed to by a plain `char *`. Make `name` a `const char *`.
+        seed: |
+          #include <cstdlib>
+          #include <cstring>
+
+          char *shout(const char *s) {
+              char *out = std::malloc(std::strlen(s) + 2);
+              std::strcpy(out, s);
+              std::strcat(out, "!");
+              return out;
+          }
+
+          const char *default_name() {
+              char *name = "anon";
+              return name;
+          }
+        solution: |
+          #include <cstdlib>
+          #include <cstring>
+
+          char *shout(const char *s) {
+              char *out = static_cast<char *>(std::malloc(std::strlen(s) + 2));
+              std::strcpy(out, s);
+              std::strcat(out, "!");
+              return out;
+          }
+
+          const char *default_name() {
+              const char *name = "anon";
+              return name;
+          }
+        harness: |
+          int main() {
+              char *s = shout("gg");
+              CHECK("shout(\"gg\") is \"gg!\"", s && std::strcmp(s, "gg!") == 0);
+              std::free(s);
+              CHECK("default_name() is \"anon\"", std::strcmp(default_name(), "anon") == 0);
+          }
+        require:
+          - pattern: "static_cast\\s*<\\s*char\\s*\\*\\s*>"
+            message: "Convert malloc's result with `static_cast<char *>(...)`."
+          - pattern: "const\\s+char\\s*\\*\\s*name"
+            message: "Point at the string literal with a `const char *`."
+        hints:
+          - "C++ never converts `void *` to another pointer type on its own. `static_cast` says you mean it."
+          - Writing into a string literal is undefined behavior, which is why C++ insists on `const`.
+        tests: []

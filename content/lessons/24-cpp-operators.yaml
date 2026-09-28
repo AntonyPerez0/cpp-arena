@@ -62,6 +62,64 @@ steps:
       - "The function for `-` is named `operator-`."
     tests:
       - expect: "6 8"
+    more:
+      - task: |
+          Complete `operator+=` as a **member** function: it changes this vector and returns it by reference, so calls can be chained. The program prints `4 6`.
+        fill: |
+          #include <iostream>
+
+          struct Vec2 {
+              double x, y;
+              Vec2& operator[[+=]](Vec2 o) {
+                  x += o.x;
+                  y += o.y;
+                  return [[*this]];
+              }
+          };
+
+          int main() {
+              Vec2 v{1, 2};
+              v += Vec2{1, 1};
+              v += Vec2{2, 3};
+              std::cout << v.x << " " << v.y << "\n";
+          }
+        hints:
+          - The operator's name is `operator` followed by the symbol, here `+=`.
+          - "`this` is a pointer to the current object, so the object itself is `*this`."
+        tests:
+          - expect: "4 6"
+      - task: |
+          Write `operator+` for two `Vec2`s and the **unary** `operator-` that negates a vector (`-v` flips both signs), so the program prints `-4 -1`.
+        seed: |
+          #include <iostream>
+
+          struct Vec2 { double x, y; };
+
+          // operator+ and unary operator- here
+
+          int main() {
+              Vec2 a{1, 2}, b{3, -1};
+              Vec2 c = -(a + b);
+              std::cout << c.x << " " << c.y << "\n";
+          }
+        solution: |
+          #include <iostream>
+
+          struct Vec2 { double x, y; };
+
+          // operator+ and unary operator- here
+          Vec2 operator+(Vec2 a, Vec2 b) { return {a.x + b.x, a.y + b.y}; }
+          Vec2 operator-(Vec2 v) { return {-v.x, -v.y}; }
+
+          int main() {
+              Vec2 a{1, 2}, b{3, -1};
+              Vec2 c = -(a + b);
+              std::cout << c.x << " " << c.y << "\n";
+          }
+        hints:
+          - A binary operator written outside the struct takes two parameters. The unary minus takes just one.
+        tests:
+          - expect: "-4 -1"
 
   - title: operator== and !=
     id: cpp-operators-2
@@ -171,6 +229,76 @@ steps:
     hints:
       - "`bool operator==(const Score& a, const Score& b)`"
       - Compare only `t` and `ct`.
+    more:
+      - task: |
+          Write `operator==` for `Weapon`: two weapons are equal when both the name **and** the price match.
+        seed: |
+          #include <string>
+
+          struct Weapon {
+              std::string name;
+              int price;
+          };
+
+          // operator== here
+        solution: |
+          #include <string>
+
+          struct Weapon {
+              std::string name;
+              int price;
+          };
+
+          // operator== here
+          bool operator==(const Weapon& a, const Weapon& b) {
+              return a.name == b.name && a.price == b.price;
+          }
+        harness: |
+          int main() {
+              Weapon ak{"ak47", 2700}, ak2{"ak47", 2700}, cheap{"ak47", 2000}, m4{"m4a4", 2700};
+              CHECK("same name and price", ak == ak2);
+              CHECK("different price", !(ak == cheap));
+              CHECK("different name", !(ak == m4));
+              CHECK("!= comes for free (C++20)", ak != m4);
+          }
+        hints:
+          - Take both by `const` reference and compare field by field with `&&`.
+        tests: []
+      - task: |
+          Write `operator==` and `operator<` for `Version`, compared by `major` first, then `minor`, then `patch`. `1.9.9 < 1.10.0` must be true, which a string comparison would get wrong.
+        seed: |
+          struct Version {
+              int major, minor, patch;
+          };
+
+          // operator== and operator< here
+        solution: |
+          struct Version {
+              int major, minor, patch;
+          };
+
+          // operator== and operator< here
+          bool operator==(const Version& a, const Version& b) {
+              return a.major == b.major && a.minor == b.minor && a.patch == b.patch;
+          }
+
+          bool operator<(const Version& a, const Version& b) {
+              if (a.major != b.major) return a.major < b.major;
+              if (a.minor != b.minor) return a.minor < b.minor;
+              return a.patch < b.patch;
+          }
+        harness: |
+          int main() {
+              CHECK("1.9.9 < 1.10.0", Version{1, 9, 9} < Version{1, 10, 0});
+              CHECK("2.0.0 is not < 1.99.99", !(Version{2, 0, 0} < Version{1, 99, 99}));
+              CHECK("1.2.3 < 1.2.4", Version{1, 2, 3} < Version{1, 2, 4});
+              CHECK("equal versions are not <", !(Version{1, 2, 3} < Version{1, 2, 3}));
+              CHECK("==", Version{3, 1, 4} == Version{3, 1, 4});
+              CHECK("!=", Version{3, 1, 4} != Version{3, 1, 5});
+          }
+        hints:
+          - Compare the first field that differs; only when a field is equal move on to the next one.
+        tests: []
 
   - title: Printing with operator<<
     id: cpp-operators-3
@@ -258,6 +386,94 @@ steps:
     hints:
       - "Signature: `std::ostream& operator<<(std::ostream& os, const Score& s)`."
       - "`return os << \"T \" << s.t << \" - \" << s.ct << \" CT\";`"
+    more:
+      - task: |
+          Make `Weapon` printable as `ak47 ($2700)`.
+        seed: |
+          #include <iostream>
+          #include <string>
+
+          struct Weapon {
+              std::string name;
+              int price;
+          };
+
+          // operator<< here
+        solution: |
+          #include <iostream>
+          #include <string>
+
+          struct Weapon {
+              std::string name;
+              int price;
+          };
+
+          // operator<< here
+          std::ostream& operator<<(std::ostream& os, const Weapon& w) {
+              return os << w.name << " ($" << w.price << ")";
+          }
+        harness: |
+          #include <sstream>
+          int main() {
+              std::ostringstream out;
+              out << Weapon{"ak47", 2700};
+              CHECK_EQ("print one", out.str(), std::string("ak47 ($2700)"));
+              std::ostringstream out2;
+              out2 << Weapon{"p250", 300} << ", " << Weapon{"awp", 4750};
+              CHECK_EQ("chained", out2.str(), std::string("p250 ($300), awp ($4750)"));
+          }
+        hints:
+          - "The signature is `std::ostream& operator<<(std::ostream& os, const Weapon& w)`, and it returns `os` so `<<` can chain."
+        tests: []
+      - task: |
+          Make `Team` printable as `NaVi: s1mple, b1t, jL`, with the players separated by `, `. A team without players prints `NaVi: (no players)`.
+        seed: |
+          #include <iostream>
+          #include <string>
+          #include <vector>
+
+          struct Team {
+              std::string name;
+              std::vector<std::string> players;
+          };
+
+          // operator<< here
+        solution: |
+          #include <iostream>
+          #include <string>
+          #include <vector>
+
+          struct Team {
+              std::string name;
+              std::vector<std::string> players;
+          };
+
+          // operator<< here
+          std::ostream& operator<<(std::ostream& os, const Team& t) {
+              os << t.name << ": ";
+              if (t.players.empty()) return os << "(no players)";
+              for (std::size_t i = 0; i < t.players.size(); i++) {
+                  if (i > 0) os << ", ";
+                  os << t.players[i];
+              }
+              return os;
+          }
+        harness: |
+          #include <sstream>
+          int main() {
+              std::ostringstream out;
+              out << Team{"NaVi", {"s1mple", "b1t", "jL"}};
+              CHECK_EQ("three players", out.str(), std::string("NaVi: s1mple, b1t, jL"));
+              std::ostringstream out2;
+              out2 << Team{"G2", {}};
+              CHECK_EQ("no players", out2.str(), std::string("G2: (no players)"));
+              std::ostringstream out3;
+              out3 << Team{"FaZe", {"ropz"}} << "!";
+              CHECK_EQ("one player, chained", out3.str(), std::string("FaZe: ropz!"));
+          }
+        hints:
+          - Write the parts to `os` in a loop, putting `, ` before every player except the first. Return `os` at the end.
+        tests: []
 
   - title: operator[]
     id: cpp-operators-4
@@ -343,6 +559,81 @@ steps:
     hints:
       - "Slot 1 is index 0, so return `slots_[slot - 1]`."
       - Write both `std::string& operator[](int)` and a `const` version returning `const std::string&`.
+    more:
+      - task: |
+          `Grid` is a 3 by 3 board. Give it `operator()(int r, int c)` so you can write `g(1, 2)`, in two versions: a non-const one returning `char&` (so you can assign through it) and a const one returning `char`.
+        seed: |
+          class Grid {
+          public:
+              // operator() here
+
+          private:
+              char cells_[3][3] = {{'.', '.', '.'}, {'.', '.', '.'}, {'.', '.', '.'}};
+          };
+        solution: |
+          class Grid {
+          public:
+              // operator() here
+              char& operator()(int r, int c) { return cells_[r][c]; }
+              char operator()(int r, int c) const { return cells_[r][c]; }
+
+          private:
+              char cells_[3][3] = {{'.', '.', '.'}, {'.', '.', '.'}, {'.', '.', '.'}};
+          };
+        harness: |
+          int main() {
+              Grid g;
+              CHECK_EQ("starts empty", g(1, 1), '.');
+              g(1, 2) = 'X';
+              g(0, 0) = 'O';
+              CHECK_EQ("g(1, 2)", g(1, 2), 'X');
+              const Grid& c = g;
+              CHECK_EQ("const access c(0, 0)", c(0, 0), 'O');
+          }
+        hints:
+          - "`operator()` can take any number of parameters, which is why grids and matrices often use it instead of `operator[]`."
+        tests: []
+      - task: |
+          Write class `Ring`, a vector of ints whose `operator[]` **wraps around**: index `size()` is element 0 again, and `-1` is the last element. Give it a constructor from a `std::vector<int>` and `int& operator[](int i)`.
+        seed: |
+          #include <vector>
+
+          class Ring {
+          public:
+
+          private:
+              std::vector<int> v_;
+          };
+        solution: |
+          #include <vector>
+
+          class Ring {
+          public:
+              explicit Ring(std::vector<int> v) : v_(v) {}
+              int& operator[](int i) {
+                  int n = (int)v_.size();
+                  int k = i % n;
+                  if (k < 0) k += n;
+                  return v_[k];
+              }
+
+          private:
+              std::vector<int> v_;
+          };
+        harness: |
+          int main() {
+              Ring r({10, 20, 30});
+              CHECK_EQ("r[0]", r[0], 10);
+              CHECK_EQ("r[3] wraps to r[0]", r[3], 10);
+              CHECK_EQ("r[7] wraps to r[1]", r[7], 20);
+              CHECK_EQ("r[-1] is the last", r[-1], 30);
+              CHECK_EQ("r[-4] is the last too", r[-4], 30);
+              r[4] = 99;
+              CHECK_EQ("assigning through a wrapped index", r[1], 99);
+          }
+        hints:
+          - "`i % n` wraps, but in C++ it can be negative for negative `i`. Add `n` when it is."
+        tests: []
 
   - title: operator< and sorting
     id: cpp-operators-5
@@ -428,3 +719,82 @@ steps:
     hints:
       - "\"Comes first\" means \"is less\". a comes before b if a has **more** kills."
       - "`if (a.kills != b.kills) return a.kills > b.kills; return a.name < b.name;`"
+    more:
+      - task: |
+          Define `operator<` for `Match` so sorting orders matches by map name alphabetically, and by round number within the same map.
+        seed: |
+          #include <string>
+
+          struct Match {
+              std::string map;
+              int round;
+          };
+
+          // operator< here
+        solution: |
+          #include <string>
+
+          struct Match {
+              std::string map;
+              int round;
+          };
+
+          // operator< here
+          bool operator<(const Match& a, const Match& b) {
+              if (a.map != b.map) return a.map < b.map;
+              return a.round < b.round;
+          }
+        harness: |
+          #include <algorithm>
+          int main() {
+              std::vector<Match> m = {{"nuke", 3}, {"dust2", 12}, {"nuke", 1}, {"dust2", 4}};
+              std::sort(m.begin(), m.end());
+              std::vector<std::string> got;
+              for (auto& x : m) got.push_back(x.map + " " + std::to_string(x.round));
+              CHECK_EQ("sorted", got, std::vector<std::string>{"dust2 4", "dust2 12", "nuke 1", "nuke 3"});
+          }
+        hints:
+          - "`std::string` already has `<` for alphabetical order."
+        tests: []
+      - task: |
+          Define `operator<` for playing cards: by `rank` (2 to 14) first, and for equal ranks by suit in the order `C`, `D`, `H`, `S`.
+        seed: |
+          struct Card {
+              int rank;
+              char suit;
+          };
+
+          // operator< here
+        solution: |
+          struct Card {
+              int rank;
+              char suit;
+          };
+
+          // operator< here
+          static int suit_order(char s) {
+              switch (s) {
+                  case 'C': return 0;
+                  case 'D': return 1;
+                  case 'H': return 2;
+                  case 'S': return 3;
+              }
+              return 4;
+          }
+
+          bool operator<(const Card& a, const Card& b) {
+              if (a.rank != b.rank) return a.rank < b.rank;
+              return suit_order(a.suit) < suit_order(b.suit);
+          }
+        harness: |
+          #include <algorithm>
+          int main() {
+              std::vector<Card> hand = {{14, 'S'}, {2, 'H'}, {10, 'C'}, {2, 'C'}, {10, 'S'}, {10, 'D'}};
+              std::sort(hand.begin(), hand.end());
+              std::string got;
+              for (auto& c : hand) got += std::to_string(c.rank) + c.suit + " ";
+              CHECK_EQ("sorted hand", got, std::string("2C 2H 10C 10D 10S 14S "));
+          }
+        hints:
+          - "The letters `C D H S` happen to be in alphabetical order, but mapping each suit to a number with a small helper makes the intent clear and easy to change."
+        tests: []
