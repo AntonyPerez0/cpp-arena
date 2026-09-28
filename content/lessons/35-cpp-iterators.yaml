@@ -118,6 +118,101 @@ steps:
     hints:
       - "`int* begin() { return scores_; }` and `int* end() { return scores_ + count_; }`"
       - "The const versions are the same but return `const int*` and are marked `const`."
+    more:
+      - task: |
+          A class that stores its items in a standard container can simply **hand out that container's iterators**. Give `Team` `begin()` and `end()`, both non-const and const, returning the iterators of its `players_` vector.
+        seed: |
+          #include <string>
+          #include <vector>
+
+          class Team {
+          public:
+              void add(const std::string& name) { players_.push_back(name); }
+              // begin() and end() here
+
+          private:
+              std::vector<std::string> players_;
+          };
+        solution: |
+          #include <string>
+          #include <vector>
+
+          class Team {
+          public:
+              void add(const std::string& name) { players_.push_back(name); }
+              // begin() and end() here
+              std::vector<std::string>::iterator begin() { return players_.begin(); }
+              std::vector<std::string>::iterator end() { return players_.end(); }
+              std::vector<std::string>::const_iterator begin() const { return players_.begin(); }
+              std::vector<std::string>::const_iterator end() const { return players_.end(); }
+
+          private:
+              std::vector<std::string> players_;
+          };
+        harness: |
+          #include <algorithm>
+          int main() {
+              Team t;
+              t.add("ropz");
+              t.add("broky");
+              t.add("frozen");
+              std::string all;
+              for (const auto& p : t) all += p + " ";
+              CHECK_EQ("range-for", all, std::string("ropz broky frozen "));
+              std::sort(t.begin(), t.end());
+              CHECK_EQ("std::sort", *t.begin(), std::string("broky"));
+              const Team& ct = t;
+              CHECK_EQ("const count", std::count_if(ct.begin(), ct.end(), [](const std::string& s) { return s.size() == 4; }), 1);
+              for (auto& p : t) p[0] = (char)(p[0] - 32);
+              CHECK_EQ("modify through iterators", *t.begin(), std::string("Broky"));
+          }
+        hints:
+          - "`std::vector<std::string>::iterator begin() { return players_.begin(); }`"
+          - "The const versions return `const_iterator` and are marked `const`."
+      - task: |
+          `Grid` stores a 3 by 3 board in one flat array. Write `RowView row(int r)`, where `RowView` holds two `int*` and has `begin()` and `end()`, so `for (int& x : g.row(1))` walks just that row and can change it.
+        seed: |
+          struct RowView {
+              // two pointers, begin() and end() here
+          };
+
+          class Grid {
+          public:
+              RowView row(int r);
+
+          private:
+              int cells_[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
+          };
+        solution: |
+          struct RowView {
+              int* first;
+              int* last;
+              int* begin() const { return first; }
+              int* end() const { return last; }
+          };
+
+          class Grid {
+          public:
+              RowView row(int r) { return RowView{cells_ + r * 3, cells_ + r * 3 + 3}; }
+
+          private:
+              int cells_[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
+          };
+        harness: |
+          #include <numeric>
+          int main() {
+              Grid g;
+              int sum = 0;
+              for (int x : g.row(1)) sum += x;
+              CHECK_EQ("row 1 sums 4 + 5 + 6", sum, 15);
+              CHECK_EQ("row 2 with std::accumulate", std::accumulate(g.row(2).begin(), g.row(2).end(), 0), 24);
+              for (int& x : g.row(0)) x = 0;
+              CHECK_EQ("row 0 cleared", std::accumulate(g.row(0).begin(), g.row(0).end(), 0), 0);
+              CHECK_EQ("row 1 untouched", *g.row(1).begin(), 4);
+          }
+        hints:
+          - "Row `r` starts at `cells_ + r * 3` and ends 3 elements later."
+          - "A range-for only needs `begin()` and `end()`; plain pointers work as iterators."
 
   - title: Writing an iterator class
     id: cpp-iterators-2
@@ -265,6 +360,139 @@ steps:
       - "`int& operator*() const { return node_->value; }`"
       - "`Iterator& operator++() { node_ = node_->next.get(); return *this; }`"
       - "`begin()` wraps `head_.get()`; `end()` wraps `nullptr`."
+    more:
+      - task: |
+          Write an iterator that **skips** values. `Evens(v)` is a view of a `std::vector<int>` whose iterator only stops on even numbers: `++` moves to the next even one, and `begin()` starts at the first even one.
+        seed: |
+          #include <cstddef>
+          #include <vector>
+
+          class Evens {
+          public:
+              explicit Evens(const std::vector<int>& v) : v_(v) {}
+
+              class Iterator {
+              public:
+                  Iterator(const std::vector<int>* v, std::size_t i);
+                  // operator*, operator++, operator== here
+              };
+
+              // begin() and end() here
+
+          private:
+              const std::vector<int>& v_;
+          };
+        solution: |
+          #include <cstddef>
+          #include <vector>
+
+          class Evens {
+          public:
+              explicit Evens(const std::vector<int>& v) : v_(v) {}
+
+              class Iterator {
+              public:
+                  Iterator(const std::vector<int>* v, std::size_t i) : v_(v), i_(i) { skip(); }
+                  int operator*() const { return (*v_)[i_]; }
+                  Iterator& operator++() {
+                      ++i_;
+                      skip();
+                      return *this;
+                  }
+                  bool operator==(const Iterator& o) const { return i_ == o.i_; }
+
+              private:
+                  void skip() {
+                      while (i_ < v_->size() && (*v_)[i_] % 2 != 0) ++i_;
+                  }
+                  const std::vector<int>* v_;
+                  std::size_t i_;
+              };
+
+              Iterator begin() const { return Iterator(&v_, 0); }
+              Iterator end() const { return Iterator(&v_, v_.size()); }
+
+          private:
+              const std::vector<int>& v_;
+          };
+        harness: |
+          std::vector<int> collect(const Evens& e) {
+              std::vector<int> out;
+              for (int x : e) out.push_back(x);
+              return out;
+          }
+          int main() {
+              std::vector<int> v = {1, 4, 7, 8, -2, 3};
+              CHECK_EQ("evens only", collect(Evens(v)), (std::vector<int>{4, 8, -2}));
+              std::vector<int> odd = {1, 3, 5};
+              CHECK_EQ("no evens", collect(Evens(odd)).size(), 0u);
+              std::vector<int> empty;
+              CHECK("empty", Evens(empty).begin() == Evens(empty).end());
+              std::vector<int> first = {2, 1};
+              CHECK_EQ("even at the start", collect(Evens(first)), (std::vector<int>{2}));
+          }
+        hints:
+          - "A private `skip()` that moves forward past odd numbers, called from the constructor and after every `++`, keeps the iterator on an even number or at the end."
+      - task: |
+          Iterators don't need a container at all. `Fib(n)` yields the first `n` Fibonacci numbers `0 1 1 2 3 5 ...`, computing each one only when `++` asks for it. The iterator keeps the current pair of numbers and how many it has produced.
+        seed: |
+          class Fib {
+          public:
+              explicit Fib(int n) : n_(n) {}
+
+              class Iterator {
+                  // current values and a count here
+              };
+
+              // begin() and end() here
+
+          private:
+              int n_;
+          };
+        solution: |
+          class Fib {
+          public:
+              explicit Fib(int n) : n_(n) {}
+
+              class Iterator {
+              public:
+                  explicit Iterator(int count) : count_(count) {}
+                  long long operator*() const { return a_; }
+                  Iterator& operator++() {
+                      long long next = a_ + b_;
+                      a_ = b_;
+                      b_ = next;
+                      ++count_;
+                      return *this;
+                  }
+                  bool operator==(const Iterator& o) const { return count_ == o.count_; }
+
+              private:
+                  long long a_ = 0, b_ = 1;
+                  int count_;
+              };
+
+              Iterator begin() const { return Iterator(0); }
+              Iterator end() const { return Iterator(n_); }
+
+          private:
+              int n_;
+          };
+        harness: |
+          int main() {
+              std::vector<long long> v;
+              for (long long x : Fib(8)) v.push_back(x);
+              CHECK_EQ("first 8", v, (std::vector<long long>{0, 1, 1, 2, 3, 5, 8, 13}));
+              long long last = 0;
+              for (long long x : Fib(90)) last = x;
+              CHECK_EQ("the 90th", last, 1779979416004714189LL);
+              int n = 0;
+              for (long long x : Fib(0)) n += (int)x + 1;
+              CHECK_EQ("Fib(0) is empty", n, 0);
+          }
+        hints:
+          - "Equality only needs to compare the count: `end()` is the iterator whose count is `n`."
+          - "Use `long long`, because Fibonacci numbers grow fast."
 
   - title: Iterator concepts and algorithms
     id: cpp-iterators-3
@@ -425,6 +653,174 @@ steps:
       - "Add `using iterator_category = std::forward_iterator_tag;`, `using value_type = int;` and `using difference_type = std::ptrdiff_t;`."
       - "Add `Iterator() = default;` so it can be default-constructed."
       - "Post-increment takes a dummy int: `Iterator operator++(int) { Iterator old = *this; --v_; return old; }`"
+    more:
+      - task: |
+          Make `Lines::Iterator` a proper **input** iterator that reads a stream line by line: all five member types (`iterator_category = std::input_iterator_tag`, `value_type = std::string`, `difference_type = std::ptrdiff_t`, `pointer = const std::string*` and `reference = const std::string&`; the older algorithms need all five), `operator*` returning the current line, `++` reading the next one, and `==`. An iterator whose stream pointer is `nullptr` is the end; reading past the last line turns an iterator into the end.
+        seed: |
+          #include <cstddef>
+          #include <istream>
+          #include <iterator>
+          #include <string>
+
+          class Lines {
+          public:
+              explicit Lines(std::istream& in) : in_(&in) {}
+
+              class Iterator {
+              public:
+                  // member types, constructors, *, ++ (both), == here
+              };
+
+              Iterator begin() const { return Iterator(in_); }
+              Iterator end() const { return Iterator(nullptr); }
+
+          private:
+              std::istream* in_;
+          };
+        solution: |
+          #include <cstddef>
+          #include <istream>
+          #include <iterator>
+          #include <string>
+
+          class Lines {
+          public:
+              explicit Lines(std::istream& in) : in_(&in) {}
+
+              class Iterator {
+              public:
+                  using iterator_category = std::input_iterator_tag;
+                  using value_type = std::string;
+                  using difference_type = std::ptrdiff_t;
+                  using pointer = const std::string*;
+                  using reference = const std::string&;
+
+                  Iterator() = default;
+                  explicit Iterator(std::istream* in) : in_(in) { read(); }
+                  const std::string& operator*() const { return line_; }
+                  Iterator& operator++() {
+                      read();
+                      return *this;
+                  }
+                  void operator++(int) { read(); }
+                  bool operator==(const Iterator& o) const { return in_ == o.in_; }
+
+              private:
+                  void read() {
+                      if (in_ && !std::getline(*in_, line_)) in_ = nullptr;
+                  }
+                  std::istream* in_ = nullptr;
+                  std::string line_;
+              };
+
+              Iterator begin() const { return Iterator(in_); }
+              Iterator end() const { return Iterator(nullptr); }
+
+          private:
+              std::istream* in_;
+          };
+        harness: |
+          #include <algorithm>
+          int main() {
+              static_assert(std::input_iterator<Lines::Iterator>, "must satisfy std::input_iterator");
+              std::istringstream in("de_dust2\nde_nuke\n\nde_mirage\n");
+              Lines lines(in);
+              std::vector<std::string> v(lines.begin(), lines.end());
+              CHECK_EQ("all four lines, including the empty one", v, (std::vector<std::string>{"de_dust2", "de_nuke", "", "de_mirage"}));
+              std::istringstream in2("a\nbb\nccc");
+              Lines l2(in2);
+              CHECK_EQ("count_if on a stream", std::count_if(l2.begin(), l2.end(), [](const std::string& s) { return s.size() > 1; }), 2);
+              std::istringstream empty("");
+              Lines l3(empty);
+              CHECK("empty stream: begin == end", l3.begin() == l3.end());
+          }
+        hints:
+          - "The constructor reads the first line; a failed `std::getline` sets the stream pointer to `nullptr`, which makes the iterator equal to `end()`."
+          - "An input iterator's post-increment may return `void`."
+      - task: |
+          A **bidirectional** iterator can also go back with `--`. Write `Span(lo, hi)`, a range of the ints `lo` to `hi - 1`, whose iterator satisfies `std::bidirectional_iterator`: the member types (`std::bidirectional_iterator_tag`), a default constructor, `*`, `==`, and pre- and post- `++` and `--`. The tests walk it backwards with `std::reverse_iterator`.
+        seed: |
+          #include <cstddef>
+          #include <iterator>
+
+          class Span {
+          public:
+              Span(int lo, int hi) : lo_(lo), hi_(hi) {}
+
+              class Iterator {
+                  // make this a bidirectional iterator
+              };
+
+              Iterator begin() const;
+              Iterator end() const;
+
+          private:
+              int lo_, hi_;
+          };
+        solution: |
+          #include <cstddef>
+          #include <iterator>
+
+          class Span {
+          public:
+              Span(int lo, int hi) : lo_(lo), hi_(hi) {}
+
+              class Iterator {
+              public:
+                  using iterator_category = std::bidirectional_iterator_tag;
+                  using value_type = int;
+                  using difference_type = std::ptrdiff_t;
+
+                  Iterator() = default;
+                  explicit Iterator(int v) : v_(v) {}
+                  int operator*() const { return v_; }
+                  Iterator& operator++() {
+                      ++v_;
+                      return *this;
+                  }
+                  Iterator operator++(int) {
+                      Iterator old = *this;
+                      ++v_;
+                      return old;
+                  }
+                  Iterator& operator--() {
+                      --v_;
+                      return *this;
+                  }
+                  Iterator operator--(int) {
+                      Iterator old = *this;
+                      --v_;
+                      return old;
+                  }
+                  bool operator==(const Iterator& o) const { return v_ == o.v_; }
+
+              private:
+                  int v_ = 0;
+              };
+
+              Iterator begin() const { return Iterator(lo_); }
+              Iterator end() const { return Iterator(hi_ < lo_ ? lo_ : hi_); }
+
+          private:
+              int lo_, hi_;
+          };
+        harness: |
+          #include <algorithm>
+          int main() {
+              static_assert(std::bidirectional_iterator<Span::Iterator>, "must satisfy std::bidirectional_iterator");
+              Span s(3, 7);
+              CHECK_EQ("forwards", std::vector<int>(s.begin(), s.end()), (std::vector<int>{3, 4, 5, 6}));
+              std::vector<int> back(std::make_reverse_iterator(s.end()), std::make_reverse_iterator(s.begin()));
+              CHECK_EQ("backwards", back, (std::vector<int>{6, 5, 4, 3}));
+              CHECK_EQ("std::prev(end)", *std::prev(s.end()), 6);
+              auto it = s.end();
+              auto old = it--;
+              CHECK("post-decrement returns the old position", old == s.end() && *it == 6);
+              CHECK("empty when hi <= lo", Span(5, 2).begin() == Span(5, 2).end());
+          }
+        hints:
+          - "The iterator can simply hold the current int."
+          - "Post-increment and post-decrement copy `*this`, change the value, and return the copy."
 
   - title: A lazy range
     id: cpp-iterators-4
@@ -536,6 +932,115 @@ steps:
       - "Give Range a nested `Iterator` holding the current value and the step."
       - "Compute how many values there are: `n = (stop - start + step - 1) / step` (or 0 if start >= stop). Then `end()` is at `start + n * step`, a value begin really reaches."
       - "Alternatively, make `operator==` treat 'at or past stop' as equal to end. Either way, `for` must stop."
+    more:
+      - task: |
+          Write `Repeat(text, n)`, a lazy range that yields the same string `n` times without storing any copies. Its iterator only needs a pointer to the string and a counter.
+        seed: |
+          #include <string>
+
+          class Repeat {
+          public:
+              Repeat(std::string text, int n) : text_(std::move(text)), n_(n) {}
+
+          private:
+              std::string text_;
+              int n_;
+          };
+        solution: |
+          #include <string>
+
+          class Repeat {
+          public:
+              Repeat(std::string text, int n) : text_(std::move(text)), n_(n) {}
+
+              class Iterator {
+              public:
+                  Iterator(const std::string* s, int i) : s_(s), i_(i) {}
+                  const std::string& operator*() const { return *s_; }
+                  Iterator& operator++() {
+                      ++i_;
+                      return *this;
+                  }
+                  bool operator==(const Iterator& o) const { return i_ == o.i_; }
+
+              private:
+                  const std::string* s_;
+                  int i_;
+              };
+
+              Iterator begin() const { return Iterator(&text_, 0); }
+              Iterator end() const { return Iterator(&text_, n_ < 0 ? 0 : n_); }
+
+          private:
+              std::string text_;
+              int n_;
+          };
+        harness: |
+          int main() {
+              std::string out;
+              for (const auto& s : Repeat("gg", 3)) out += s;
+              CHECK_EQ("three times", out, std::string("gggggg"));
+              int n = 0;
+              for (const auto& s : Repeat("x", 0)) n += (int)s.size();
+              CHECK_EQ("zero times", n, 0);
+              Repeat r("wp", 2);
+              CHECK("every element is the same object", &*r.begin() == &*++r.begin());
+          }
+        hints:
+          - "`operator*` returns a reference to the one stored string, so nothing is copied."
+      - task: |
+          Write `Collatz(n)`, the lazy sequence that starts at `n` and repeatedly halves an even number or turns an odd one into `3 * x + 1`, ending **with** the 1. `Collatz(6)` yields `6 3 10 5 16 8 4 2 1`. The end can't be a known value, so the iterator keeps a `done` flag: stepping past the 1 sets it.
+        seed: |
+          class Collatz {
+          public:
+              explicit Collatz(long long start) : start_(start) {}
+
+          private:
+              long long start_;
+          };
+        solution: |
+          class Collatz {
+          public:
+              explicit Collatz(long long start) : start_(start) {}
+
+              class Iterator {
+              public:
+                  Iterator(long long v, bool done) : v_(v), done_(done) {}
+                  long long operator*() const { return v_; }
+                  Iterator& operator++() {
+                      if (v_ == 1) done_ = true;
+                      else if (v_ % 2 == 0) v_ /= 2;
+                      else v_ = 3 * v_ + 1;
+                      return *this;
+                  }
+                  bool operator==(const Iterator& o) const { return done_ == o.done_ && (done_ || v_ == o.v_); }
+
+              private:
+                  long long v_;
+                  bool done_;
+              };
+
+              Iterator begin() const { return Iterator(start_, start_ < 1); }
+              Iterator end() const { return Iterator(0, true); }
+
+          private:
+              long long start_;
+          };
+        harness: |
+          std::vector<long long> collect(const Collatz& c) {
+              std::vector<long long> v;
+              for (long long x : c) v.push_back(x);
+              return v;
+          }
+          int main() {
+              CHECK_EQ("from 6", collect(Collatz(6)), (std::vector<long long>{6, 3, 10, 5, 16, 8, 4, 2, 1}));
+              CHECK_EQ("from 1", collect(Collatz(1)), (std::vector<long long>{1}));
+              CHECK_EQ("27 takes 112 values", collect(Collatz(27)).size(), 112u);
+              CHECK_EQ("0 gives nothing", collect(Collatz(0)).size(), 0u);
+          }
+        hints:
+          - "Two finished iterators are equal whatever their value; two running ones are equal when their values match."
+          - "Treat a start below 1 as already done, or the sequence would never reach 1."
 
   - title: "Challenge: a ring buffer"
     id: cpp-iterators-5
@@ -694,3 +1199,137 @@ steps:
       - "When not full, write at `(head_ + size_) % N` and grow size_. When full, overwrite `data_[head_]` and advance head_."
       - "`operator[](i)` is `data_[(head_ + i) % N]`."
       - "The iterator can store a pointer to the buffer and a logical index 0..size_; `operator*` returns `(*rb_)[i_]`."
+    more:
+      - task: |
+          Write `Chunks(v, size)`, a range over a `std::vector<int>` that yields **consecutive pieces** of at most `size` elements as `std::span<const int>`. `Chunks({1, 2, 3, 4, 5}, 2)` yields `{1, 2}`, `{3, 4}`, `{5}`.
+        seed: |
+          #include <cstddef>
+          #include <span>
+          #include <vector>
+
+          class Chunks {
+          public:
+              Chunks(const std::vector<int>& v, std::size_t size) : all_(v), size_(size) {}
+
+          private:
+              std::span<const int> all_;
+              std::size_t size_;
+          };
+        solution: |
+          #include <algorithm>
+          #include <cstddef>
+          #include <span>
+          #include <vector>
+
+          class Chunks {
+          public:
+              Chunks(const std::vector<int>& v, std::size_t size) : all_(v), size_(size) {}
+
+              class Iterator {
+              public:
+                  Iterator(std::span<const int> all, std::size_t size, std::size_t pos) : all_(all), size_(size), pos_(pos) {}
+                  std::span<const int> operator*() const { return all_.subspan(pos_, std::min(size_, all_.size() - pos_)); }
+                  Iterator& operator++() {
+                      pos_ = std::min(pos_ + size_, all_.size());
+                      return *this;
+                  }
+                  bool operator==(const Iterator& o) const { return pos_ == o.pos_; }
+
+              private:
+                  std::span<const int> all_;
+                  std::size_t size_;
+                  std::size_t pos_;
+              };
+
+              Iterator begin() const { return Iterator(all_, size_, 0); }
+              Iterator end() const { return Iterator(all_, size_, all_.size()); }
+
+          private:
+              std::span<const int> all_;
+              std::size_t size_;
+          };
+        harness: |
+          int main() {
+              std::vector<int> v = {1, 2, 3, 4, 5};
+              std::vector<std::vector<int>> got;
+              for (auto c : Chunks(v, 2)) got.push_back(std::vector<int>(c.begin(), c.end()));
+              CHECK_EQ("three chunks", got.size(), 3u);
+              CHECK_EQ("first", got[0], (std::vector<int>{1, 2}));
+              CHECK_EQ("last is short", got[2], (std::vector<int>{5}));
+              int sums = 0;
+              for (auto c : Chunks(v, 5)) sums += (int)c.size();
+              CHECK_EQ("one chunk of 5", sums, 5);
+              std::vector<int> e;
+              CHECK("empty vector", Chunks(e, 3).begin() == Chunks(e, 3).end());
+              auto first = *Chunks(v, 2).begin();
+              CHECK("chunks are views, not copies", first.data() == v.data());
+          }
+        hints:
+          - "The iterator keeps the position of the chunk's start. `++` moves it forward by `size`, but never past the end."
+          - "The last chunk's length is `min(size, all.size() - pos)`."
+      - task: |
+          Write `template <typename A, typename B> class Zip` that walks two vectors side by side, yielding `std::pair<const A&, const B&>` and stopping at the end of the **shorter** one.
+        seed: |
+          #include <cstddef>
+          #include <utility>
+          #include <vector>
+
+          template <typename A, typename B>
+          class Zip {
+          public:
+              Zip(const std::vector<A>& a, const std::vector<B>& b) : a_(a), b_(b) {}
+
+          private:
+              const std::vector<A>& a_;
+              const std::vector<B>& b_;
+          };
+        solution: |
+          #include <algorithm>
+          #include <cstddef>
+          #include <utility>
+          #include <vector>
+
+          template <typename A, typename B>
+          class Zip {
+          public:
+              Zip(const std::vector<A>& a, const std::vector<B>& b) : a_(a), b_(b) {}
+
+              class Iterator {
+              public:
+                  Iterator(const Zip* z, std::size_t i) : z_(z), i_(i) {}
+                  std::pair<const A&, const B&> operator*() const { return {z_->a_[i_], z_->b_[i_]}; }
+                  Iterator& operator++() {
+                      ++i_;
+                      return *this;
+                  }
+                  bool operator==(const Iterator& o) const { return i_ == o.i_; }
+
+              private:
+                  const Zip* z_;
+                  std::size_t i_;
+              };
+
+              Iterator begin() const { return Iterator(this, 0); }
+              Iterator end() const { return Iterator(this, std::min(a_.size(), b_.size())); }
+
+          private:
+              const std::vector<A>& a_;
+              const std::vector<B>& b_;
+          };
+        harness: |
+          int main() {
+              std::vector<std::string> names = {"ropz", "broky", "frozen"};
+              std::vector<int> kills = {21, 17};
+              std::string out;
+              for (auto [name, k] : Zip<std::string, int>(names, kills)) out += name + ":" + std::to_string(k) + " ";
+              CHECK_EQ("stops at the shorter one", out, std::string("ropz:21 broky:17 "));
+              std::vector<double> none;
+              int n = 0;
+              for (auto p : Zip<std::string, double>(names, none)) n += (int)p.second;
+              CHECK_EQ("one side empty", n, 0);
+              auto first = *Zip<std::string, int>(names, kills).begin();
+              CHECK("pairs refer to the originals", &first.first == &names[0]);
+          }
+        hints:
+          - "The iterator can hold a pointer to the `Zip` and an index; `end()` uses the smaller size."
+          - "Return `{z_->a_[i_], z_->b_[i_]}` so the pair holds references, not copies."

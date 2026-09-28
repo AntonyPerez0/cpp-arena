@@ -104,6 +104,72 @@ steps:
     hints:
       - "distinct_lines: put `offset / line_size` for each offset into a `std::set` and return its size."
       - "column_sums: `std::vector<long long> sums(cols, 0);` then loop rows outside, columns inside, `sums[c] += grid[r * cols + c];`."
+    more:
+      - task: |
+          Write `std::vector<int> transpose(const std::vector<int>& g, int rows, int cols)`, which turns a row-major `rows x cols` grid into its `cols x rows` transpose (row-major too): cell `(r, c)` moves to `(c, r)`. Read the input in order, so the outer loop goes over the **input's** rows.
+        seed: |
+          #include <vector>
+
+          std::vector<int> transpose(const std::vector<int>& g, int rows, int cols) {
+
+          }
+        solution: |
+          #include <vector>
+
+          std::vector<int> transpose(const std::vector<int>& g, int rows, int cols) {
+              std::vector<int> out(g.size());
+              for (int r = 0; r < rows; r++)
+                  for (int c = 0; c < cols; c++) out[c * rows + r] = g[r * cols + c];
+              return out;
+          }
+        harness: |
+          int main() {
+              std::vector<int> g = {1, 2, 3, 4, 5, 6};   // 2 rows, 3 columns
+              CHECK_EQ("2 x 3 becomes 3 x 2", transpose(g, 2, 3), (std::vector<int>{1, 4, 2, 5, 3, 6}));
+              CHECK_EQ("twice gives the original", transpose(transpose(g, 2, 3), 3, 2), g);
+              CHECK_EQ("one row becomes one column", transpose({7, 8, 9}, 1, 3), (std::vector<int>{7, 8, 9}));
+              std::vector<int> big(500 * 400);
+              for (int i = 0; i < (int)big.size(); i++) big[i] = i;
+              auto t = transpose(big, 500, 400);
+              CHECK("500 x 400", t[1] == 400 && t[500] == 1 && t.back() == (int)big.size() - 1);
+          }
+        hints:
+          - "In a row-major grid with `cols` columns, cell `(r, c)` is at index `r * cols + c`."
+          - "The output has `rows` columns, so `(c, r)` there is at `c * rows + r`."
+      - task: |
+          **Loop tiling** processes a big grid in small square tiles that fit in the cache. Write `std::vector<std::pair<int, int>> tile_order(int rows, int cols, int tile)` returning the order the cells are visited in: tiles row by row, and inside each tile the cells row by row. Tiles at the right and bottom edges may be cut short.
+        seed: |
+          #include <utility>
+          #include <vector>
+
+          std::vector<std::pair<int, int>> tile_order(int rows, int cols, int tile) {
+
+          }
+        solution: |
+          #include <algorithm>
+          #include <utility>
+          #include <vector>
+
+          std::vector<std::pair<int, int>> tile_order(int rows, int cols, int tile) {
+              std::vector<std::pair<int, int>> out;
+              for (int tr = 0; tr < rows; tr += tile)
+                  for (int tc = 0; tc < cols; tc += tile)
+                      for (int r = tr; r < std::min(tr + tile, rows); r++)
+                          for (int c = tc; c < std::min(tc + tile, cols); c++) out.push_back({r, c});
+              return out;
+          }
+        harness: |
+          #include <set>
+          int main() {
+              using P = std::vector<std::pair<int, int>>;
+              CHECK("2 x 4 in 2 x 2 tiles", tile_order(2, 4, 2) == P{{0, 0}, {0, 1}, {1, 0}, {1, 1}, {0, 2}, {0, 3}, {1, 2}, {1, 3}});
+              CHECK("3 x 3 in 2 x 2 tiles, cut short at the edges", tile_order(3, 3, 2) == P{{0, 0}, {0, 1}, {1, 0}, {1, 1}, {0, 2}, {1, 2}, {2, 0}, {2, 1}, {2, 2}});
+              auto big = tile_order(50, 70, 16);
+              CHECK("every cell exactly once", big.size() == 3500 && std::set<std::pair<int, int>>(big.begin(), big.end()).size() == 3500);
+          }
+        hints:
+          - "Four nested loops: the tile's row, the tile's column, then the cells inside that tile."
+          - "The inner loops stop at `std::min(start + tile, size)` so edge tiles are cut short."
 
   - title: Arrays of structs vs structs of arrays
     id: cpp-performance-2
@@ -234,6 +300,144 @@ steps:
       - "add pushes one value onto each vector, and `1` onto `alive`."
       - "step loops over the indexes and skips particles with `alive[i] == 0`."
       - "alive_count adds up the 1s in `alive`."
+    more:
+      - task: |
+          Convert an array of structs into a struct of arrays. Write `Enemies to_soa(const std::vector<Enemy>& list)`, then `long long total_hp(const Enemies& e)` and `std::size_t count_low(const Enemies& e, int limit)` (how many have hp below `limit`). The last two only read the `hp` array.
+        seed: |
+          #include <cstddef>
+          #include <vector>
+
+          struct Enemy {
+              float x, y;
+              int hp;
+          };
+
+          struct Enemies {
+              std::vector<float> x, y;
+              std::vector<int> hp;
+          };
+
+          Enemies to_soa(const std::vector<Enemy>& list) {
+
+          }
+
+          long long total_hp(const Enemies& e) {
+
+          }
+
+          std::size_t count_low(const Enemies& e, int limit) {
+
+          }
+        solution: |
+          #include <cstddef>
+          #include <vector>
+
+          struct Enemy {
+              float x, y;
+              int hp;
+          };
+
+          struct Enemies {
+              std::vector<float> x, y;
+              std::vector<int> hp;
+          };
+
+          Enemies to_soa(const std::vector<Enemy>& list) {
+              Enemies e;
+              e.x.reserve(list.size());
+              e.y.reserve(list.size());
+              e.hp.reserve(list.size());
+              for (const auto& en : list) {
+                  e.x.push_back(en.x);
+                  e.y.push_back(en.y);
+                  e.hp.push_back(en.hp);
+              }
+              return e;
+          }
+
+          long long total_hp(const Enemies& e) {
+              long long t = 0;
+              for (int h : e.hp) t += h;
+              return t;
+          }
+
+          std::size_t count_low(const Enemies& e, int limit) {
+              std::size_t n = 0;
+              for (int h : e.hp) n += h < limit;
+              return n;
+          }
+        harness: |
+          int main() {
+              auto e = to_soa({{0, 1, 100}, {2, 3, 20}, {4, 5, 55}});
+              CHECK("x array", e.x == (std::vector<float>{0, 2, 4}));
+              CHECK("y array", e.y == (std::vector<float>{1, 3, 5}));
+              CHECK_EQ("hp array", e.hp, (std::vector<int>{100, 20, 55}));
+              CHECK_EQ("total hp", total_hp(e), 175LL);
+              CHECK_EQ("below 60", count_low(e, 60), 2u);
+              CHECK_EQ("empty", total_hp(to_soa({})), 0LL);
+          }
+        hints:
+          - "Copy each field into its own vector, in the same order, so index `i` still means the same enemy in every array."
+      - task: |
+          Removing dead particles from a struct of arrays must keep the arrays **in step**. Write `void compact(Particles& p)` that removes every particle with `alive[i] == 0` from all five arrays, keeping the order, in **one pass** with a write index (no `erase`).
+        seed: |
+          #include <cstddef>
+          #include <vector>
+
+          struct Particles {
+              std::vector<float> x, y, vx, vy;
+              std::vector<char> alive;
+          };
+
+          void compact(Particles& p) {
+
+          }
+        solution: |
+          #include <cstddef>
+          #include <vector>
+
+          struct Particles {
+              std::vector<float> x, y, vx, vy;
+              std::vector<char> alive;
+          };
+
+          void compact(Particles& p) {
+              std::size_t w = 0;
+              for (std::size_t i = 0; i < p.alive.size(); i++) {
+                  if (!p.alive[i]) continue;
+                  p.x[w] = p.x[i];
+                  p.y[w] = p.y[i];
+                  p.vx[w] = p.vx[i];
+                  p.vy[w] = p.vy[i];
+                  p.alive[w] = 1;
+                  w++;
+              }
+              p.x.resize(w);
+              p.y.resize(w);
+              p.vx.resize(w);
+              p.vy.resize(w);
+              p.alive.resize(w);
+          }
+        forbid:
+          - pattern: "erase\\s*\\("
+            message: "Compact in one pass with a write index instead of erasing."
+        harness: |
+          int main() {
+              Particles p{{1, 2, 3, 4}, {10, 20, 30, 40}, {0, 0, 0, 0}, {1, 1, 1, 1}, {1, 0, 1, 0}};
+              compact(p);
+              CHECK("x", p.x == (std::vector<float>{1, 3}));
+              CHECK("y kept in step", p.y == (std::vector<float>{10, 30}));
+              CHECK("every array shrank", p.vx.size() == 2 && p.vy.size() == 2 && p.alive.size() == 2);
+              Particles none{{5}, {5}, {5}, {5}, {0}};
+              compact(none);
+              CHECK("all dead", none.x.empty() && none.alive.empty());
+              Particles all{{1, 2}, {1, 2}, {1, 2}, {1, 2}, {1, 1}};
+              compact(all);
+              CHECK("all alive", all.x == (std::vector<float>{1, 2}));
+          }
+        hints:
+          - "Walk `i` over every particle and copy each living one down to position `w`, then `w++`."
+          - "At the end, `resize(w)` every array."
 
   - title: Branches and branch prediction
     id: cpp-performance-3
@@ -326,6 +530,93 @@ steps:
       - "`(x >= lo) & (x <= hi)` is 1 exactly when both comparisons are true; add it to the count."
       - "`-static_cast<int>(b > a)` is -1 (all bits set) or 0."
       - "`a ^ ((a ^ b) & mask)`: with a full mask it's `a ^ a ^ b`, which is `b`; with a zero mask it's `a`."
+    more:
+      - task: |
+          Write `int abs_branchless(int x)` and `int clamp_branchless(int x, int lo, int hi)` without `if`, `?:`, `&&`, `||` or library functions. For the absolute value, `x >> 31` is all 1-bits for a negative `x` and 0 otherwise, and `(x ^ m) - m` flips the sign when `m` is all 1-bits. For the clamp, build a branchless max and min with the mask trick from the lesson.
+        seed: |
+          int abs_branchless(int x) {
+
+          }
+
+          int clamp_branchless(int x, int lo, int hi) {
+
+          }
+        solution: |
+          static int max_b(int a, int b) { return a ^ ((a ^ b) & -(b > a)); }
+          static int min_b(int a, int b) { return a ^ ((a ^ b) & -(b < a)); }
+
+          int abs_branchless(int x) {
+              int m = x >> 31;
+              return (x ^ m) - m;
+          }
+
+          int clamp_branchless(int x, int lo, int hi) {
+              return min_b(max_b(x, lo), hi);
+          }
+        forbid:
+          - pattern: "\\bif\\s*\\(|\\?|&&|\\|\\||std::"
+            message: Write these without branches, conditional operators or library functions.
+        harness: |
+          int main() {
+              CHECK_EQ("abs(-7)", abs_branchless(-7), 7);
+              CHECK_EQ("abs(7)", abs_branchless(7), 7);
+              CHECK_EQ("abs(0)", abs_branchless(0), 0);
+              CHECK_EQ("abs(-2147483647)", abs_branchless(-2147483647), 2147483647);
+              CHECK_EQ("clamp below", clamp_branchless(-5, 0, 100), 0);
+              CHECK_EQ("clamp above", clamp_branchless(150, 0, 100), 100);
+              CHECK_EQ("clamp inside", clamp_branchless(42, 0, 100), 42);
+              CHECK_EQ("clamp at the edges", clamp_branchless(100, 0, 100), 100);
+          }
+        hints:
+          - "Branchless min is the max trick with the comparison flipped: `a ^ ((a ^ b) & -(b < a))`."
+          - "Clamping is `min(max(x, lo), hi)`."
+      - task: |
+          Binary search branches on every comparison, and those branches are hard to predict. Write a **branchless** `std::size_t count_less(const std::vector<int>& sorted, int x)`, the number of elements less than `x` (the same as `std::lower_bound`'s position). Keep a pointer `first` and a length `len`; while `len > 1`, take `half = len / 2`, move `first` forward by `half` when `first[half - 1] < x` (multiply instead of branching), and shrink `len` by `half`. Finish with `(first - data) + (*first < x)`. `sorted` is never empty.
+        seed: |
+          #include <cstddef>
+          #include <vector>
+
+          std::size_t count_less(const std::vector<int>& sorted, int x) {
+
+          }
+        solution: |
+          #include <cstddef>
+          #include <vector>
+
+          std::size_t count_less(const std::vector<int>& sorted, int x) {
+              const int* data = sorted.data();
+              const int* first = data;
+              std::size_t len = sorted.size();
+              while (len > 1) {
+                  std::size_t half = len / 2;
+                  first += (first[half - 1] < x) * half;
+                  len -= half;
+              }
+              return (std::size_t)(first - data) + (*first < x);
+          }
+        forbid:
+          - pattern: "\\bif\\s*\\(|\\?|&&|\\|\\||lower_bound|upper_bound"
+            message: No branches or library search here.
+        harness: |
+          #include <algorithm>
+          int main() {
+              std::vector<int> v = {1, 3, 3, 5, 8, 13};
+              CHECK_EQ("less than 5", count_less(v, 5), 3u);
+              CHECK_EQ("less than 3", count_less(v, 3), 1u);
+              CHECK_EQ("below everything", count_less(v, 0), 0u);
+              CHECK_EQ("above everything", count_less(v, 100), 6u);
+              bool ok = true;
+              for (int n = 1; n <= 40; n++) {
+                  std::vector<int> s(n);
+                  for (int i = 0; i < n; i++) s[i] = i * 2;
+                  for (int x = -1; x <= 2 * n + 1; x++)
+                      ok = ok && count_less(s, x) == (std::size_t)(std::lower_bound(s.begin(), s.end(), x) - s.begin());
+              }
+              CHECK("matches std::lower_bound for every size from 1 to 40", ok);
+          }
+        hints:
+          - "A `bool` becomes 0 or 1 in arithmetic, so `(first[half - 1] < x) * half` moves by `half` or not at all."
+          - "When `len` reaches 1, `first` points at the only candidate left; add 1 if it's still less than `x`."
 
   - title: False sharing and alignment
     id: cpp-performance-4
@@ -428,6 +719,89 @@ steps:
       - "`struct alignas(64) PaddedCounter { std::atomic<long long> value{0}; ... };`"
       - "add: `value.fetch_add(n, std::memory_order_relaxed);` and get: `return value.load();`."
       - "Stats just holds `PaddedCounter hits;` and `PaddedCounter misses;`; the alignment keeps them apart."
+    more:
+      - task: |
+          Write `struct alignas(64) Slot { int value; }`, then `bool same_line(const void* a, const void* b)`, true when both addresses are in the same 64-byte cache line, and `std::size_t lines_spanned(const void* p, std::size_t bytes)`, how many cache lines the `bytes` bytes starting at `p` touch (at least 1 byte). Convert pointers with `reinterpret_cast<std::uintptr_t>`.
+        seed: |
+          #include <cstddef>
+          #include <cstdint>
+
+          // Slot, same_line and lines_spanned here
+        solution: |
+          #include <cstddef>
+          #include <cstdint>
+
+          // Slot, same_line and lines_spanned here
+          struct alignas(64) Slot {
+              int value;
+          };
+
+          bool same_line(const void* a, const void* b) {
+              return reinterpret_cast<std::uintptr_t>(a) / 64 == reinterpret_cast<std::uintptr_t>(b) / 64;
+          }
+
+          std::size_t lines_spanned(const void* p, std::size_t bytes) {
+              std::uintptr_t start = reinterpret_cast<std::uintptr_t>(p);
+              return (start + bytes - 1) / 64 - start / 64 + 1;
+          }
+        require:
+          - pattern: "alignas\\s*\\(\\s*64\\s*\\)"
+            message: "Align `Slot` with `alignas(64)`."
+        harness: |
+          int main() {
+              CHECK("Slot is 64-byte aligned", alignof(Slot) == 64 && sizeof(Slot) == 64);
+              Slot slots[2];
+              CHECK("neighbouring slots never share a line", !same_line(&slots[0], &slots[1]));
+              alignas(64) char buf[256];
+              CHECK("start and byte 63 share a line", same_line(buf, buf + 63));
+              CHECK("byte 64 is the next line", !same_line(buf, buf + 64));
+              CHECK_EQ("64 aligned bytes: one line", lines_spanned(buf, 64), 1u);
+              CHECK_EQ("65 bytes: two lines", lines_spanned(buf, 65), 2u);
+              CHECK_EQ("8 bytes across a boundary", lines_spanned(buf + 60, 8), 2u);
+              CHECK_EQ("one byte", lines_spanned(buf + 10, 1), 1u);
+          }
+        hints:
+          - "An address's line number is `address / 64`."
+          - "The last byte is at `start + bytes - 1`; count the lines from the first byte's line to the last byte's line."
+      - task: |
+          Make the padding reusable: write `template <typename T> struct Padded` holding `alignas(64) T value;`, so every `Padded` fills at least a whole cache line. Then write `long long sum_all(const std::vector<Padded<long long>>& per_thread)`, adding the per-thread totals.
+        seed: |
+          #include <vector>
+
+          // Padded and sum_all here
+        solution: |
+          #include <vector>
+
+          // Padded and sum_all here
+          template <typename T>
+          struct Padded {
+              alignas(64) T value;
+          };
+
+          long long sum_all(const std::vector<Padded<long long>>& per_thread) {
+              long long total = 0;
+              for (const auto& p : per_thread) total += p.value;
+              return total;
+          }
+        require:
+          - pattern: "alignas\\s*\\(\\s*64\\s*\\)"
+            message: "Align the member with `alignas(64)`."
+        harness: |
+          #include <atomic>
+          #include <cstdint>
+          int main() {
+              CHECK("Padded<char> takes a whole line", sizeof(Padded<char>) == 64 && alignof(Padded<char>) == 64);
+              CHECK("works for atomics", alignof(Padded<std::atomic<int>>) == 64);
+              std::vector<Padded<long long>> v(4);
+              for (int i = 0; i < 4; i++) v[i].value = (i + 1) * 10;
+              CHECK_EQ("sum", sum_all(v), 100LL);
+              auto gap = reinterpret_cast<std::uintptr_t>(&v[1].value) - reinterpret_cast<std::uintptr_t>(&v[0].value);
+              CHECK("elements in a vector are a line apart", gap >= 64);
+              CHECK("the vector respects the alignment", reinterpret_cast<std::uintptr_t>(v.data()) % 64 == 0);
+          }
+        hints:
+          - "Putting `alignas(64)` on the member makes the whole struct 64-byte aligned, and its size rounds up to 64."
+          - "Since C++17, `std::vector` allocates over-aligned types correctly."
 
   - title: Custom allocators with std::pmr
     id: cpp-performance-5
@@ -559,3 +933,129 @@ steps:
       - "do_allocate: `void* p = upstream_->allocate(bytes, alignment);`, then count the allocation and add `bytes` to what's in use, and return `p`."
       - "do_deallocate: pass the call on to `upstream_->deallocate(p, bytes, alignment)` and subtract `bytes`."
       - "do_is_equal: memory from this resource can only be freed by this same object, so `return this == &other;`."
+    more:
+      - task: |
+          A `std::pmr::monotonic_buffer_resource` hands out memory from a buffer you give it, which is very fast. With `std::pmr::null_memory_resource()` as its upstream, it **throws** `std::bad_alloc` instead of falling back to the heap once the buffer runs out. Write `bool fits(std::size_t count)`: with a local 1024-byte buffer, build a `std::pmr::vector<int>` and `reserve(count)`; return false if that throws.
+        seed: |
+          #include <cstddef>
+          #include <memory_resource>
+          #include <new>
+          #include <vector>
+
+          bool fits(std::size_t count) {
+
+          }
+        solution: |
+          #include <array>
+          #include <cstddef>
+          #include <memory_resource>
+          #include <new>
+          #include <vector>
+
+          bool fits(std::size_t count) {
+              std::array<std::byte, 1024> buffer;
+              std::pmr::monotonic_buffer_resource arena(buffer.data(), buffer.size(), std::pmr::null_memory_resource());
+              try {
+                  std::pmr::vector<int> v(&arena);
+                  v.reserve(count);
+                  return true;
+              } catch (const std::bad_alloc&) {
+                  return false;
+              }
+          }
+        require:
+          - pattern: "monotonic_buffer_resource"
+            message: "Use a `std::pmr::monotonic_buffer_resource`."
+          - pattern: "null_memory_resource"
+            message: "Give it `std::pmr::null_memory_resource()` as the upstream, so it can't fall back to the heap."
+        harness: |
+          int main() {
+              CHECK("100 ints fit in 1024 bytes", fits(100));
+              CHECK("200 ints fit", fits(200));
+              CHECK("300 ints don't", !fits(300));
+              CHECK("a million certainly don't", !fits(1000000));
+          }
+        hints:
+          - "`std::pmr::monotonic_buffer_resource arena(buffer.data(), buffer.size(), std::pmr::null_memory_resource());`"
+          - "Catch `std::bad_alloc` around the `reserve`."
+      - task: |
+          Write `CappedResource`, a memory resource that passes requests on to an upstream resource but refuses (throws `std::bad_alloc`) any allocation that would take the bytes in use over `cap`. Freed memory counts again, so it can be reused.
+        seed: |
+          #include <cstddef>
+          #include <memory_resource>
+          #include <new>
+
+          class CappedResource : public std::pmr::memory_resource {
+          public:
+              explicit CappedResource(std::size_t cap, std::pmr::memory_resource* upstream = std::pmr::new_delete_resource())
+                  : cap_(cap), upstream_(upstream) {}
+              std::size_t bytes_in_use() const { return in_use_; }
+
+          private:
+              void* do_allocate(std::size_t bytes, std::size_t alignment) override {
+
+              }
+              void do_deallocate(void* p, std::size_t bytes, std::size_t alignment) override {
+
+              }
+              bool do_is_equal(const std::pmr::memory_resource& other) const noexcept override {
+
+              }
+              std::size_t cap_;
+              std::pmr::memory_resource* upstream_;
+              std::size_t in_use_ = 0;
+          };
+        solution: |
+          #include <cstddef>
+          #include <memory_resource>
+          #include <new>
+
+          class CappedResource : public std::pmr::memory_resource {
+          public:
+              explicit CappedResource(std::size_t cap, std::pmr::memory_resource* upstream = std::pmr::new_delete_resource())
+                  : cap_(cap), upstream_(upstream) {}
+              std::size_t bytes_in_use() const { return in_use_; }
+
+          private:
+              void* do_allocate(std::size_t bytes, std::size_t alignment) override {
+                  if (in_use_ + bytes > cap_) throw std::bad_alloc();
+                  void* p = upstream_->allocate(bytes, alignment);
+                  in_use_ += bytes;
+                  return p;
+              }
+              void do_deallocate(void* p, std::size_t bytes, std::size_t alignment) override {
+                  upstream_->deallocate(p, bytes, alignment);
+                  in_use_ -= bytes;
+              }
+              bool do_is_equal(const std::pmr::memory_resource& other) const noexcept override {
+                  return this == &other;
+              }
+              std::size_t cap_;
+              std::pmr::memory_resource* upstream_;
+              std::size_t in_use_ = 0;
+          };
+        harness: |
+          #include <new>
+          int main() {
+              CappedResource capped(400);
+              bool threw = false;
+              {
+                  std::pmr::vector<int> v(&capped);
+                  v.reserve(50);
+                  CHECK_EQ("200 bytes in use", capped.bytes_in_use(), 200u);
+                  try {
+                      std::pmr::vector<int> w(&capped);
+                      w.reserve(60);
+                  } catch (const std::bad_alloc&) {
+                      threw = true;
+                  }
+              }
+              CHECK("going over the cap throws", threw);
+              CHECK_EQ("everything freed", capped.bytes_in_use(), 0u);
+              std::pmr::vector<int> again(&capped);
+              again.reserve(100);
+              CHECK_EQ("freed memory can be used again", capped.bytes_in_use(), 400u);
+          }
+        hints:
+          - "Check the cap before asking the upstream for memory, so a refused request allocates nothing."
+          - "`do_is_equal` can compare addresses: two capped resources are only equal to themselves."
