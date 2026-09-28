@@ -24,9 +24,10 @@ export type Challenge = Exercise & { task: string };
 
 /**
  * `slug` is the step's permanent address: /learn/<module>/<slug>. `task` is what the first
- * challenge asks for (the step's own exercise); `more` are the step's further challenges.
+ * challenge asks for (the step's own exercise); `moreCount` is how many further challenges the
+ * step has. Their details load on demand (see challenges.ts).
  */
-export type Step = Exercise & { id: string; title: string; text: string; task: string; more?: Challenge[]; slug: string };
+export type Step = Exercise & { id: string; title: string; text: string; task: string; moreCount?: number; slug: string };
 
 export type Module = {
   id: string;

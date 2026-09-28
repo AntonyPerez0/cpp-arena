@@ -596,7 +596,18 @@ if (errors.length) {
 }
 const content = { generatedAt: new Date().toISOString(), modules, projects, drills, pro, placement, topics, next };
 fs.mkdirSync(path.join(ROOT, "src/generated"), { recursive: true });
+// Extra challenges are only needed on step pages, so they live in their own file that the app
+// loads on demand. The main file keeps a count so progress works before they arrive.
+const challenges = {};
+for (const m of modules)
+  for (const s of m.steps)
+    if (s.more) {
+      challenges[s.id] = s.more;
+      s.moreCount = s.more.length;
+      delete s.more;
+    }
 fs.writeFileSync(path.join(ROOT, "src/generated/content.json"), JSON.stringify(content));
+fs.writeFileSync(path.join(ROOT, "src/generated/challenges.json"), JSON.stringify(challenges));
 const steps = modules.reduce((a, m) => a + m.steps.length, 0);
 const ms = projects.reduce((a, p) => a + p.milestones.length, 0);
 console.log(`content ok: ${modules.length} modules, ${steps} steps, ${drills.length} drills, ${projects.length} projects (${ms} milestones), ${pro.length} pro projects, ${placement.length} placement questions, ${topics.length} topic pages in ${((Date.now() - t0) / 1000).toFixed(1)}s`);

@@ -8,12 +8,14 @@ import Workbench from "../components/Workbench";
 import TaskCard from "../components/TaskCard";
 import type { Challenge, Step } from "../content/types";
 import { useTitle } from "../lib/title";
+import { challengesNow, loadChallenges } from "../content/challenges";
 import { visualsForStep } from "../content/visuals";
 import ShareButton from "../components/ShareButton";
 
-/** The step's challenges: its own exercise first, then its extra ones. */
-function challengesOf(step: Step): Challenge[] {
-  return [step, ...(step.more ?? [])];
+/** The step's challenges: its own exercise first, then its extra ones (null until they've loaded). */
+function challengesOf(step: Step, extra: Record<string, Challenge[]> | null): (Challenge | null)[] {
+  const more = extra?.[step.id];
+  return [step, ...Array.from({ length: step.moreCount ?? 0 }, (_, i) => more?.[i] ?? null)];
 }
 
 /** Whether challenge k passed. Before steps had several challenges, `done` meant the only one passed. */
@@ -31,13 +33,23 @@ export default function StepPage() {
   const step = found?.step;
   const idx = m && step ? m.steps.indexOf(step) : 0;
   const progress = useStore((s) => (step ? s.steps[step.id] : undefined));
-  const challenges = useMemo(() => (step ? challengesOf(step) : []), [step]);
+  const [extra, setExtra] = useState(challengesNow);
+  const [wantExtra, setWantExtra] = useState(false);
+  useEffect(() => {
+    if (!extra && wantExtra) loadChallenges().then(setExtra, () => {});
+  }, [extra, wantExtra]);
+  const challenges = useMemo(() => (step ? challengesOf(step, extra) : []), [step, extra]);
   const firstOpen = () => {
     const p = step ? getState().steps[step.id] : undefined;
     const k = challenges.findIndex((_, i) => !challengeDone(p, i));
     return k < 0 ? 0 : k;
   };
   const [cur, setCur] = useState(firstOpen);
+  // The extra challenges' details are fetched once they're about to be needed: when one is open,
+  // or as soon as the first challenge passes (so "Next challenge" is instant).
+  useEffect(() => {
+    if (cur > 0) setWantExtra(true);
+  }, [cur]);
   const [justPassed, setJustPassed] = useState<string | null>(null);
   const [nextChallenge, setNextChallenge] = useState<number | null>(null);
   const [finishedModule, setFinishedModule] = useState(false);
@@ -61,6 +73,7 @@ export default function StepPage() {
   const onPass = useCallback(
     (k: number, { hintsUsed, sawSolution }: { hintsUsed: number; sawSolution: boolean }) => {
       if (!step || !m) return;
+      if (step.moreCount) setWantExtra(true);
       if (k === 0) patchStep(step.id, { firstDone: true });
       else patchPart(step.id, k, { done: true });
       const now = getState().steps[step.id];
@@ -200,7 +213,13 @@ export default function StepPage() {
               })}
             </nav>
           )}
-          <TaskCard ex={challenges[cur]} task={challenges[cur].task} index={cur} total={challenges.length} />
+          {challenges[cur] ? (
+            <TaskCard ex={challenges[cur]} task={challenges[cur].task} index={cur} total={challenges.length} />
+          ) : (
+            <p className="muted" role="status">
+              Loading challenge {cur + 1}…
+            </p>
+          )}
           {cur === 0 ? (
             <Workbench
               key={step.id}
@@ -213,7 +232,7 @@ export default function StepPage() {
               onPass={(info) => onPass(0, info)}
               report={{ kind: "Lesson step", title: `${m.title}: ${step.title}`, id: step.id, path: stepPath(m, step) }}
             />
-          ) : (
+          ) : challenges[cur] ? (
             <Workbench
               key={`${step.id}#${cur}`}
               ex={challenges[cur]}
@@ -225,7 +244,7 @@ export default function StepPage() {
               onPass={(info) => onPass(cur, info)}
               report={{ kind: "Lesson step", title: `${m.title}: ${step.title} (challenge ${cur + 1})`, id: `${step.id}#${cur + 1}`, path: stepPath(m, step) }}
             />
-          )}
+          ) : null}
           <div className="step-nav">
             {prev ? (
               <Link className="btn btn-ghost" to={prev} onClick={() => setJustPassed(null)}>

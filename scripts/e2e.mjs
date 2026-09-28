@@ -8,6 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { chromium } from "playwright";
 import AxeBuilder from "@axe-core/playwright";
+import { loadContent } from "./load-content.mjs";
 
 const DIST = path.resolve("dist");
 const PORT = 4789;
@@ -103,7 +104,7 @@ const check = async (label = /^Check/) => {
   await page.waitForFunction(() => !document.querySelector(".actions .btn-primary")?.hasAttribute("disabled"), null, { timeout: 240000 });
 };
 
-const content = JSON.parse(fs.readFileSync("src/generated/content.json", "utf8"));
+const content = loadContent();
 /** The address of a module's nth step (1-based, today's order). */
 const L = (moduleId, n) => {
   const m = content.modules.find((x) => x.id === moduleId);
