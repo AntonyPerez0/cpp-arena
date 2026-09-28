@@ -65,6 +65,45 @@ steps:
     hints:
       - The function returns an int, so the return type is `int`.
       - "`return` sends a value back to the caller."
+    more:
+      - task: |
+          Complete `area` so it takes a width and a height and returns the area of the rectangle (width times height).
+        fill: |
+          [[int]] area([[int]] w, int h) {
+              [[return]] w [[*]] h;
+          }
+        harness: |
+          int main(void) {
+              CHECK_INT("area(3, 4)", area(3, 4), 12);
+              CHECK_INT("area(0, 9)", area(0, 9), 0);
+              CHECK_INT("area(7, 7)", area(7, 7), 49);
+              return 0;
+          }
+        hints:
+          - Every parameter needs a type, just like a variable. Both are ints.
+          - The area is `w * h`, sent back with `return`.
+        tests: []
+      - task: |
+          Write `int to_seconds(int minutes, int seconds)` that returns the total number of seconds. `to_seconds(2, 5)` returns `125`.
+        seed: |
+          int to_seconds(int minutes, int seconds) {
+
+          }
+        solution: |
+          int to_seconds(int minutes, int seconds) {
+              return minutes * 60 + seconds;
+          }
+        harness: |
+          int main(void) {
+              CHECK_INT("to_seconds(2, 5)", to_seconds(2, 5), 125);
+              CHECK_INT("to_seconds(0, 59)", to_seconds(0, 59), 59);
+              CHECK_INT("to_seconds(12, 34)", to_seconds(12, 34), 754);
+              CHECK_INT("to_seconds(0, 0)", to_seconds(0, 0), 0);
+              return 0;
+          }
+        hints:
+          - Each minute is 60 seconds, so `minutes * 60 + seconds`.
+        tests: []
 
   - title: Write a function
     id: c-funcs-2
@@ -147,6 +186,60 @@ steps:
       }
     hints:
       - Keep a running best. Start with `int m = a;` and compare it with b, then c.
+    more:
+      - task: |
+          Write `int clamp(int x, int lo, int hi)` that returns `x` if it is between `lo` and `hi`, `lo` if `x` is smaller than that, and `hi` if it is bigger. Games use this to keep values like HP inside a range.
+        seed: |
+          int clamp(int x, int lo, int hi) {
+
+          }
+        solution: |
+          int clamp(int x, int lo, int hi) {
+              if (x < lo) return lo;
+              if (x > hi) return hi;
+              return x;
+          }
+        harness: |
+          int main(void) {
+              CHECK_INT("clamp(5, 0, 10)", clamp(5, 0, 10), 5);
+              CHECK_INT("clamp(-3, 0, 10)", clamp(-3, 0, 10), 0);
+              CHECK_INT("clamp(42, 0, 10)", clamp(42, 0, 10), 10);
+              CHECK_INT("clamp(0, 0, 10)", clamp(0, 0, 10), 0);
+              CHECK_INT("clamp(10, 0, 10)", clamp(10, 0, 10), 10);
+              CHECK_INT("clamp(150, 1, 100)", clamp(150, 1, 100), 100);
+              return 0;
+          }
+        hints:
+          - A function can have more than one `return`. The first one that runs ends the function.
+          - Return `lo` if `x < lo`, return `hi` if `x > hi`, and otherwise return `x`.
+        tests: []
+      - task: |
+          Write `int median3(int a, int b, int c)` that returns the **middle** value of the three: the one that is neither the smallest nor the largest. `median3(9, 2, 5)` returns `5`. Equal values count too, so `median3(4, 4, 1)` returns `4`.
+        seed: |
+          int median3(int a, int b, int c) {
+
+          }
+        solution: |
+          int median3(int a, int b, int c) {
+              if ((a >= b && a <= c) || (a <= b && a >= c)) return a;
+              if ((b >= a && b <= c) || (b <= a && b >= c)) return b;
+              return c;
+          }
+        harness: |
+          int main(void) {
+              CHECK_INT("median3(9, 2, 5)", median3(9, 2, 5), 5);
+              CHECK_INT("median3(1, 2, 3)", median3(1, 2, 3), 2);
+              CHECK_INT("median3(3, 2, 1)", median3(3, 2, 1), 2);
+              CHECK_INT("median3(2, 3, 1)", median3(2, 3, 1), 2);
+              CHECK_INT("median3(4, 4, 1)", median3(4, 4, 1), 4);
+              CHECK_INT("median3(-5, 0, -9)", median3(-5, 0, -9), -5);
+              CHECK_INT("median3(7, 7, 7)", median3(7, 7, 7), 7);
+              return 0;
+          }
+        hints:
+          - "`a` is the middle one if it sits between the other two, in either order: `(a >= b && a <= c) || (a <= b && a >= c)`."
+          - Do the same check for `b`. If neither `a` nor `b` is the middle, it must be `c`.
+        tests: []
 
   - title: void functions
     id: c-funcs-3
@@ -218,6 +311,76 @@ steps:
     compare: stdout
     hints:
       - Loop n times printing `=`, then print `\n` once after the loop.
+    more:
+      - task: |
+          Write `void print_row(char c, int n)` that prints the character `c` exactly `n` times, then a newline. `print_row('#', 3)` prints `###`.
+        seed: |
+          #include <stdio.h>
+
+          void print_row(char c, int n) {
+
+          }
+        solution: |
+          #include <stdio.h>
+
+          void print_row(char c, int n) {
+              for (int i = 0; i < n; i++) {
+                  printf("%c", c);
+              }
+              printf("\n");
+          }
+        harness: |
+          int main(void) {
+              print_row('#', 3);
+              print_row('-', 5);
+              print_row('*', 1);
+              return 0;
+          }
+        compare: stdout
+        hints:
+          - Same idea as `print_bar`, but print `c` with `%c` instead of a fixed `=`.
+        tests:
+          - expect: "###\n-----\n*"
+      - task: |
+          Write `void print_box(int w, int h)` that prints a hollow box `w` characters wide and `h` rows tall. The first and last rows are all `#`. The rows in between have `#` at both ends and spaces inside. `print_box(4, 3)` prints:
+
+          ```
+          ####
+          #  #
+          ####
+          ```
+        seed: |
+          #include <stdio.h>
+
+          void print_box(int w, int h) {
+
+          }
+        solution: |
+          #include <stdio.h>
+
+          void print_box(int w, int h) {
+              for (int row = 0; row < h; row++) {
+                  for (int col = 0; col < w; col++) {
+                      int edge = row == 0 || row == h - 1 || col == 0 || col == w - 1;
+                      printf("%c", edge ? '#' : ' ');
+                  }
+                  printf("\n");
+              }
+          }
+        harness: |
+          int main(void) {
+              print_box(4, 3);
+              print_box(5, 4);
+              print_box(2, 2);
+              print_box(1, 1);
+              return 0;
+          }
+        compare: stdout
+        hints:
+          - Use two loops, one for the rows and one for the columns inside each row.
+          - A position is on the edge if it is in the first or last row, or the first or last column. Print `#` there and a space everywhere else.
+        tests:
+          - expect: "####\n#  #\n####\n#####\n#   #\n#   #\n#####\n##\n##\n#"
 
   - title: Prototypes
     id: c-funcs-4
@@ -289,6 +452,103 @@ steps:
       - Put it after the `#include` and before `main`.
     tests:
       - expect: "5"
+    more:
+      - task: |
+          This time `main` calls two functions that are both defined below it. Press **Check** to see the errors, then add a prototype for each one above `main`.
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              printf("%d %d\n", double_it(4), triple(5));
+              return 0;
+          }
+
+          int double_it(int x) {
+              return x * 2;
+          }
+
+          int triple(int x) {
+              return x * 3;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int double_it(int x);
+          int triple(int x);
+
+          int main(void) {
+              printf("%d %d\n", double_it(4), triple(5));
+              return 0;
+          }
+
+          int double_it(int x) {
+              return x * 2;
+          }
+
+          int triple(int x) {
+              return x * 3;
+          }
+        require:
+          - pattern: "int\\s+double_it\\s*\\(\\s*int\\s*\\w*\\s*\\)\\s*;"
+            message: Add a prototype `int double_it(int x);` above main.
+          - pattern: "int\\s+triple\\s*\\(\\s*int\\s*\\w*\\s*\\)\\s*;"
+            message: Add a prototype `int triple(int x);` above main.
+        hints:
+          - A prototype is the first line of the function with a `;` instead of the body.
+        tests:
+          - expect: "8 15"
+      - task: |
+          Here `main` calls `report`, and `report` calls `square`, and both are defined below `main` with `square` last. Work out which prototypes are needed (it's more than one), and add them so the program prints:
+
+          ```
+          7 squared is 49
+          12 squared is 144
+          ```
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              report(7);
+              report(12);
+              return 0;
+          }
+
+          void report(int n) {
+              printf("%d squared is %d\n", n, square(n));
+          }
+
+          int square(int n) {
+              return n * n;
+          }
+        solution: |
+          #include <stdio.h>
+
+          void report(int n);
+          int square(int n);
+
+          int main(void) {
+              report(7);
+              report(12);
+              return 0;
+          }
+
+          void report(int n) {
+              printf("%d squared is %d\n", n, square(n));
+          }
+
+          int square(int n) {
+              return n * n;
+          }
+        require:
+          - pattern: "void\\s+report\\s*\\(\\s*int\\s*\\w*\\s*\\)\\s*;"
+            message: "`main` uses `report` before its definition. Add `void report(int n);` above main."
+          - pattern: "int\\s+square\\s*\\(\\s*int\\s*\\w*\\s*\\)\\s*;"
+            message: "`report` uses `square` before its definition. Add `int square(int n);` above them."
+        hints:
+          - A function must be declared before any line that calls it, not only before `main`.
+          - "`report` calls `square`, but `square` is defined after `report`."
+        tests:
+          - expect: "7 squared is 49\n12 squared is 144"
 
   - title: Scope and pass by value
     id: c-funcs-5
@@ -370,6 +630,107 @@ steps:
       - "In main, store the result: `hp = heal(hp, 25);`"
     tests:
       - expect: "hp 75"
+    more:
+      - task: |
+          `spend` tries to change `money`, but it only changes its own copy. Rewrite it so it **returns** the money left, and so a purchase that costs more than you have changes nothing. Then store the result in `main` after each call. The program should print `money 150`.
+        seed: |
+          #include <stdio.h>
+
+          void spend(int money, int price) {
+              money = money - price;
+          }
+
+          int main(void) {
+              int money = 1000;
+              spend(money, 650);
+              spend(money, 2700); // too expensive: nothing should change
+              spend(money, 200);
+              printf("money %d\n", money);
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int spend(int money, int price) {
+              if (price > money) {
+                  return money;
+              }
+              return money - price;
+          }
+
+          int main(void) {
+              int money = 1000;
+              money = spend(money, 650);
+              money = spend(money, 2700); // too expensive: nothing should change
+              money = spend(money, 200);
+              printf("money %d\n", money);
+              return 0;
+          }
+        require:
+          - pattern: "int\\s+spend\\s*\\("
+            message: Change `spend` to return an `int`.
+          - pattern: "money\\s*=\\s*spend\\s*\\("
+            message: Store what `spend` returns, like `money = spend(money, 650);`.
+        forbid:
+          - pattern: "\\b150\\b"
+            message: Let `spend` compute the money instead of typing 150.
+        hints:
+          - The return type changes from `void` to `int`, and the function ends with `return`.
+          - If `price > money`, return `money` unchanged.
+          - In main, each call becomes `money = spend(money, ...);`.
+        tests:
+          - expect: "money 150"
+      - task: |
+          `split` tries to hand back two results through its parameters, which can't work because parameters are copies. Replace it with two functions, `int minutes_of(int total)` and `int seconds_of(int total)`, that each **return** one result, and use them in `main`. Input `754` prints `12 min 34 sec`.
+        seed: |
+          #include <stdio.h>
+
+          void split(int total, int minutes, int seconds) {
+              minutes = total / 60;
+              seconds = total % 60;
+          }
+
+          int main(void) {
+              int total;
+              scanf("%d", &total);
+              int minutes = 0;
+              int seconds = 0;
+              split(total, minutes, seconds);
+              printf("%d min %d sec\n", minutes, seconds);
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int minutes_of(int total) {
+              return total / 60;
+          }
+
+          int seconds_of(int total) {
+              return total % 60;
+          }
+
+          int main(void) {
+              int total;
+              scanf("%d", &total);
+              int minutes = minutes_of(total);
+              int seconds = seconds_of(total);
+              printf("%d min %d sec\n", minutes, seconds);
+              return 0;
+          }
+        require:
+          - pattern: "int\\s+minutes_of\\s*\\(\\s*int"
+            message: Write `int minutes_of(int total)`.
+          - pattern: "int\\s+seconds_of\\s*\\(\\s*int"
+            message: Write `int seconds_of(int total)`.
+        hints:
+          - A C function returns one value, so each result gets its own function.
+          - "In main, `int minutes = minutes_of(total);` and the same for the seconds."
+        tests:
+          - stdin: "754\n"
+          - stdin: "59\n"
+          - stdin: "3600\n"
+            hidden: true
 
   - title: Recursion
     id: c-funcs-6
@@ -435,6 +796,60 @@ steps:
     hints:
       - "Base cases: if n is 0 or 1, return n."
       - "Otherwise return `fib(n - 1) + fib(n - 2)`."
+    more:
+      - task: |
+          Write a **recursive** `int sum_to(int n)` that returns `1 + 2 + ... + n`, and `0` when `n` is 0. Don't use a loop: `sum_to(n)` is `n` plus `sum_to(n - 1)`.
+        seed: |
+          int sum_to(int n) {
+
+          }
+        solution: |
+          int sum_to(int n) {
+              if (n == 0) return 0;
+              return n + sum_to(n - 1);
+          }
+        harness: |
+          int main(void) {
+              CHECK_INT("sum_to(0)", sum_to(0), 0);
+              CHECK_INT("sum_to(1)", sum_to(1), 1);
+              CHECK_INT("sum_to(4)", sum_to(4), 10);
+              CHECK_INT("sum_to(100)", sum_to(100), 5050);
+              return 0;
+          }
+        forbid:
+          - pattern: "\\b(for|while)\\b"
+            message: Solve it with recursion, without a loop.
+        hints:
+          - The base case is `n == 0`, which returns 0.
+          - Otherwise, return `n + sum_to(n - 1)`.
+        tests: []
+      - task: |
+          Write a **recursive** `int power(int base, int exp)` that returns `base` raised to `exp` (for `exp` of 0 or more). Anything to the power 0 is 1. Don't use a loop.
+        seed: |
+          int power(int base, int exp) {
+
+          }
+        solution: |
+          int power(int base, int exp) {
+              if (exp == 0) return 1;
+              return base * power(base, exp - 1);
+          }
+        harness: |
+          int main(void) {
+              CHECK_INT("power(2, 0)", power(2, 0), 1);
+              CHECK_INT("power(2, 10)", power(2, 10), 1024);
+              CHECK_INT("power(3, 4)", power(3, 4), 81);
+              CHECK_INT("power(-2, 3)", power(-2, 3), -8);
+              CHECK_INT("power(7, 1)", power(7, 1), 7);
+              return 0;
+          }
+        forbid:
+          - pattern: "\\b(for|while)\\b"
+            message: Solve it with recursion, without a loop.
+        hints:
+          - The base case is `exp == 0`, which returns 1.
+          - "`base` to the power `exp` is `base` times `base` to the power `exp - 1`."
+        tests: []
 
   - title: "Challenge: is it prime?"
     id: c-funcs-7
@@ -508,3 +923,69 @@ steps:
     hints:
       - Anything below 2 is not prime.
       - Try every d from 2 while `d * d <= n`. If `n % d == 0`, it's not prime.
+    more:
+      - task: |
+          Write `int gcd(int a, int b)` that returns the greatest common divisor of two numbers that are 0 or more, using Euclid's method: while `b` is not 0, replace `(a, b)` with `(b, a % b)`. When `b` reaches 0, the answer is `a`.
+        seed: |
+          int gcd(int a, int b) {
+
+          }
+        solution: |
+          int gcd(int a, int b) {
+              while (b != 0) {
+                  int r = a % b;
+                  a = b;
+                  b = r;
+              }
+              return a;
+          }
+        harness: |
+          int main(void) {
+              CHECK_INT("gcd(12, 18)", gcd(12, 18), 6);
+              CHECK_INT("gcd(7, 5)", gcd(7, 5), 1);
+              CHECK_INT("gcd(0, 9)", gcd(0, 9), 9);
+              CHECK_INT("gcd(9, 0)", gcd(9, 0), 9);
+              CHECK_INT("gcd(100, 75)", gcd(100, 75), 25);
+              CHECK_INT("gcd(13, 13)", gcd(13, 13), 13);
+              return 0;
+          }
+        hints:
+          - Save `a % b` in a temporary variable before you overwrite `a` and `b`.
+          - "Loop `while (b != 0)`, then return `a`."
+        tests: []
+      - task: |
+          Write `int next_prime(int n)` that returns the smallest prime **bigger** than `n`. `next_prime(13)` returns `17`. Writing your own `is_prime` helper above it keeps the code short, and it must stay fast for `next_prime(1000000)`.
+        seed: |
+          int next_prime(int n) {
+
+          }
+        solution: |
+          int is_prime(int n) {
+              if (n < 2) return 0;
+              for (int d = 2; d * d <= n; d++) {
+                  if (n % d == 0) return 0;
+              }
+              return 1;
+          }
+
+          int next_prime(int n) {
+              int x = n + 1;
+              while (!is_prime(x)) {
+                  x++;
+              }
+              return x;
+          }
+        harness: |
+          int main(void) {
+              CHECK_INT("next_prime(1)", next_prime(1), 2);
+              CHECK_INT("next_prime(2)", next_prime(2), 3);
+              CHECK_INT("next_prime(13)", next_prime(13), 17);
+              CHECK_INT("next_prime(-5)", next_prime(-5), 2);
+              CHECK_INT("next_prime(100)", next_prime(100), 101);
+              CHECK_INT("next_prime(1000000)", next_prime(1000000), 1000003);
+              return 0;
+          }
+        hints:
+          - Put the `is_prime` function from this step above `next_prime`, so it's declared before it's used.
+          - Start at `n + 1` and keep adding 1 until `is_prime` says yes.
+        tests: []

@@ -10,8 +10,9 @@ import { fromB64url, pipe, toB64url } from "./pack";
 function slim(s: State): State {
   const steps: State["steps"] = {};
   for (const [id, st] of Object.entries(s.steps)) {
-    if (!st.done && !st.hintsUsed) continue;
-    steps[id] = { done: st.done, hintsUsed: st.hintsUsed, clean: st.clean, doneAt: st.doneAt };
+    if (!st.done && !st.hintsUsed && !st.firstDone && !st.parts) continue;
+    steps[id] = { done: st.done, hintsUsed: st.hintsUsed, clean: st.clean, doneAt: st.doneAt, firstDone: st.firstDone };
+    if (st.parts) steps[id].parts = Object.fromEntries(Object.entries(st.parts).map(([k, p]) => [k, { done: p.done, hintsUsed: p.hintsUsed }]));
   }
   const projects: State["projects"] = {};
   for (const [id, p] of Object.entries(s.projects)) projects[id] = { milestone: p.milestone, completed: p.completed, code: "" };

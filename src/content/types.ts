@@ -12,13 +12,21 @@ export type Exercise = {
   harness?: string;
   tests: TestCase[];
   checks?: number;
+  /** Harness exercises: the name of each check, shown as "what the tests check". */
+  checkNames?: string[];
   hints: string[];
   require: Rule[];
   forbid: Rule[];
 };
 
-/** `slug` is the step's permanent address: /learn/<module>/<slug>. */
-export type Step = Exercise & { id: string; title: string; text: string; slug: string };
+/** One more exercise on a lesson step's idea, with its own task. */
+export type Challenge = Exercise & { task: string };
+
+/**
+ * `slug` is the step's permanent address: /learn/<module>/<slug>. `task` is what the first
+ * challenge asks for (the step's own exercise); `more` are the step's further challenges.
+ */
+export type Step = Exercise & { id: string; title: string; text: string; task: string; more?: Challenge[]; slug: string };
 
 export type Module = {
   id: string;

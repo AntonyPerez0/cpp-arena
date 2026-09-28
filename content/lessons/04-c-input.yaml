@@ -57,6 +57,56 @@ steps:
       - stdin: "-5\n"
       - stdin: "1000\n"
         hidden: true
+    more:
+      - task: |
+          Read an int and print it squared (the number times itself). Input `7` prints `49`.
+        fill: |
+          #include <stdio.h>
+
+          int main(void) {
+              int n;
+              scanf("[[%d]]", [[&n]]);
+              printf("%d\n", n [[*]] n);
+              return 0;
+          }
+        hints:
+          - The format for an int is `%d`, and scanf needs the address, `&n`.
+          - A number squared is `n * n`.
+        tests:
+          - stdin: "7\n"
+          - stdin: "-3\n"
+          - stdin: "12\n"
+            hidden: true
+      - task: |
+          Read a number of seconds and print it as minutes and seconds. Input `125` prints `2 min 5 sec`.
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              // read the seconds, then print minutes and seconds
+
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              // read the seconds, then print minutes and seconds
+              int total;
+              scanf("%d", &total);
+              printf("%d min %d sec\n", total / 60, total % 60);
+              return 0;
+          }
+        hints:
+          - Declare an int, then `scanf("%d", &total);`.
+          - The minutes are `total / 60` and the seconds are `total % 60`.
+        tests:
+          - stdin: "125\n"
+          - stdin: "60\n"
+          - stdin: "59\n"
+            hidden: true
+          - stdin: "3601\n"
+            hidden: true
 
   - title: Several values at once
     id: c-input-2
@@ -123,6 +173,66 @@ steps:
       - stdin: "3 9\n"
       - stdin: "40\n40\n"
         hidden: true
+    more:
+      - task: |
+          Read three round scores and print their total. Input `10 20 5` prints `Total: 35`.
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              int a, b, c;
+              // read all three numbers
+
+              printf("Total: %d\n", a + b + c);
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              int a, b, c;
+              // read all three numbers
+              scanf("%d %d %d", &a, &b, &c);
+              printf("Total: %d\n", a + b + c);
+              return 0;
+          }
+        hints:
+          - One `%d` per number in the format, and one address per number after it.
+          - "`scanf(\"%d %d %d\", &a, &b, &c);`"
+        tests:
+          - stdin: "10 20 5\n"
+          - stdin: "0 0 0\n"
+          - stdin: "7\n-2\n100\n"
+            hidden: true
+      - task: |
+          Read the price of a grenade and the money you have, both ints. Print how many grenades you can buy and how much money is left. Input `300 1000` prints `3 bought, 100 left`.
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              int price, money;
+              // read both, then print how many you can buy and what's left
+
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              int price, money;
+              // read both, then print how many you can buy and what's left
+              scanf("%d %d", &price, &money);
+              printf("%d bought, %d left\n", money / price, money % price);
+              return 0;
+          }
+        hints:
+          - Read them in the order they come, price first.
+          - How many fit is `money / price`, and what's left is `money % price`.
+        tests:
+          - stdin: "300 1000\n"
+          - stdin: "650 600\n"
+          - stdin: "200 800\n"
+            hidden: true
 
   - title: Reading doubles
     id: c-input-3
@@ -190,6 +300,62 @@ steps:
       - stdin: "36.6\n"
       - stdin: "-40\n"
         hidden: true
+    more:
+      - task: |
+          Read a price and a discount in percent (both can have decimals) and print the new price with two decimals. The new price is `price * (100 - discount) / 100`. Input `20 25` prints `15.00`.
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              double price, discount;
+
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              double price, discount;
+              scanf("%lf %lf", &price, &discount);
+              printf("%.2f\n", price * (100 - discount) / 100);
+              return 0;
+          }
+        hints:
+          - Read two doubles with `scanf("%lf %lf", &price, &discount);`.
+          - Print the result with `%.2f`.
+        tests:
+          - stdin: "20 25\n"
+          - stdin: "100 0\n"
+          - stdin: "4.5 50\n"
+            hidden: true
+      - task: |
+          Read a player's total damage and the number of rounds, both **ints**, and print their ADR (damage per round) with one decimal. Input `2090 25` prints `83.6`. Reading ints is easy; the trap is the division.
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              int damage, rounds;
+
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              int damage, rounds;
+              scanf("%d %d", &damage, &rounds);
+              double adr = (double)damage / rounds;
+              printf("%.1f\n", adr);
+              return 0;
+          }
+        hints:
+          - These are ints, so read them with `%d`, not `%lf`.
+          - Cast before dividing, `(double)damage / rounds`, then print with `%.1f`.
+        tests:
+          - stdin: "2090 25\n"
+          - stdin: "100 4\n"
+          - stdin: "7 2\n"
+            hidden: true
 
   - title: Characters and words
     id: c-input-4
@@ -250,6 +416,61 @@ steps:
         expect: "ZywOo plays on C"
       - stdin: "niko\nT\n"
         hidden: true
+    more:
+      - task: |
+          The input is a name followed by a score, like `ropz 24`. Print `ropz scored 24`.
+        fill: |
+          #include <stdio.h>
+
+          int main(void) {
+              char name[32];
+              int score;
+              scanf("%31s [[%d]]", name, [[&score]]);
+              printf("%s scored %d\n", name, score);
+              return 0;
+          }
+        hints:
+          - The score is an int, so its format is `%d`.
+          - "`name` is an array and needs no `&`, but `score` does: `&score`."
+        tests:
+          - stdin: "ropz 24\n"
+          - stdin: "m0NESY 31\n"
+          - stdin: "karrigan\n0\n"
+            hidden: true
+      - task: |
+          The input is a first initial, a last name and a rank, like `K Smith 7`. Print them in a different order: `Smith, K. (rank 7)`.
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              char initial;
+              char last[32];
+              int rank;
+              // read all three, then print them
+
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              char initial;
+              char last[32];
+              int rank;
+              // read all three, then print them
+              scanf(" %c %31s %d", &initial, last, &rank);
+              printf("%s, %c. (rank %d)\n", last, initial, rank);
+              return 0;
+          }
+        hints:
+          - The formats are `%c` for the initial, `%31s` for the name and `%d` for the rank.
+          - "`scanf(\" %c %31s %d\", &initial, last, &rank);` reads all three."
+          - In printf, list the values in the order they appear in the output, not the order you read them.
+        tests:
+          - stdin: "K Smith 7\n"
+          - stdin: "A Lee 1\n"
+          - stdin: "Z\nNguyen\n42\n"
+            hidden: true
 
   - title: Did the read work?
     id: c-input-5
@@ -324,3 +545,74 @@ steps:
       - stdin: ""
       - stdin: "-3\n"
         hidden: true
+    more:
+      - task: |
+          Read two ints. If both were read, print their sum. Otherwise print `Need two numbers`. Input `3 4` prints `7`.
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              int a, b;
+              if (/* check the scanf result here */ 0) {
+                  printf("%d\n", a + b);
+              } else {
+                  printf("Need two numbers\n");
+              }
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              int a, b;
+              if (scanf("%d %d", &a, &b) == 2) {
+                  printf("%d\n", a + b);
+              } else {
+                  printf("Need two numbers\n");
+              }
+              return 0;
+          }
+        hints:
+          - scanf returns how many values it read. With two `%d` that should be 2.
+        tests:
+          - stdin: "3 4\n"
+          - stdin: "3 x\n"
+          - stdin: ""
+          - stdin: "-1 1\n"
+            hidden: true
+      - task: |
+          Try to read three ints and report how many worked: print `Read N of 3`. If the input is completely empty, scanf returns `EOF` instead of a count, so print `No input` for that case. Input `5 x 7` prints `Read 1 of 3`.
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              int a, b, c;
+              // store what scanf returns, then check it
+
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              int a, b, c;
+              // store what scanf returns, then check it
+              int got = scanf("%d %d %d", &a, &b, &c);
+              if (got == EOF) {
+                  printf("No input\n");
+              } else {
+                  printf("Read %d of 3\n", got);
+              }
+              return 0;
+          }
+        hints:
+          - "Save the result: `int got = scanf(\"%d %d %d\", &a, &b, &c);`"
+          - Check `got == EOF` first, and otherwise print `got`.
+        tests:
+          - stdin: "5 x 7\n"
+          - stdin: "1 2 3\n"
+          - stdin: ""
+          - stdin: "8 9\n"
+            hidden: true
+          - stdin: "abc\n"
+            hidden: true

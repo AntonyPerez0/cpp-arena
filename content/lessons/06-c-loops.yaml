@@ -69,6 +69,72 @@ steps:
       - stdin: "1\n"
       - stdin: "0\n"
         hidden: true
+    more:
+      - task: |
+          Read `n` and count **up** from 1 to `n`, one number per line, then print `done`.
+        fill: |
+          #include <stdio.h>
+
+          int main(void) {
+              int n;
+              scanf("%d", &n);
+              int i = [[1]];
+              while (i [[<=]] n) {
+                  printf("%d\n", i);
+                  [[i++]];
+              }
+              printf("done\n");
+              return 0;
+          }
+        hints:
+          - Start `i` at the first number to print.
+          - Keep going while `i` is at most `n`, which is `i <= n`.
+          - Without `i++` the loop never ends.
+        tests:
+          - stdin: "3\n"
+          - stdin: "1\n"
+          - stdin: "0\n"
+            hidden: true
+      - task: |
+          Read `n` and keep halving it (integer division by 2) until it reaches 1. Print every value on one line, separated by spaces, starting with `n` itself. Input `20` prints `20 10 5 2 1`.
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              int n;
+              scanf("%d", &n);
+              // while loop here
+
+              printf("\n");
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              int n;
+              scanf("%d", &n);
+              // while loop here
+              printf("%d", n);
+              while (n > 1) {
+                  n = n / 2;
+                  printf(" %d", n);
+              }
+              printf("\n");
+              return 0;
+          }
+        require:
+          - pattern: "while\\s*\\("
+            message: Use a `while` loop.
+        hints:
+          - Print `n` first, then loop while `n > 1`.
+          - Inside the loop, halve `n` with `n = n / 2;` and print the new value.
+        tests:
+          - stdin: "20\n"
+          - stdin: "1\n"
+          - stdin: "7\n"
+          - stdin: "100\n"
+            hidden: true
 
   - title: for loops
     id: c-loops-2
@@ -152,6 +218,81 @@ steps:
       - stdin: "1\n"
       - stdin: "10\n"
         hidden: true
+    more:
+      - task: |
+          Read `n` and print every multiple of 3 from 3 up to `n` on one line, separated by spaces. Input `10` prints `3 6 9`.
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              int n;
+              scanf("%d", &n);
+              // for loop here
+
+              printf("\n");
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              int n;
+              scanf("%d", &n);
+              // for loop here
+              for (int i = 3; i <= n; i += 3) {
+                  printf("%d ", i);
+              }
+              printf("\n");
+              return 0;
+          }
+        require:
+          - pattern: "for\\s*\\("
+            message: Use a `for` loop.
+        hints:
+          - The update part of a for loop can be anything, not only `i++`. Try `i += 3`.
+          - Start at 3 and keep going while `i <= n`.
+        tests:
+          - stdin: "10\n"
+          - stdin: "3\n"
+          - stdin: "30\n"
+            hidden: true
+      - task: |
+          Read `n` and print the sum `1 + 2 + ... + n` and the product `1 * 2 * ... * n` using one `for` loop. Input `4` prints `sum 10, product 24`.
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              int n;
+              scanf("%d", &n);
+
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              int n;
+              scanf("%d", &n);
+              int sum = 0;
+              int product = 1;
+              for (int i = 1; i <= n; i++) {
+                  sum += i;
+                  product *= i;
+              }
+              printf("sum %d, product %d\n", sum, product);
+              return 0;
+          }
+        require:
+          - pattern: "for\\s*\\("
+            message: Use a `for` loop.
+        hints:
+          - Keep two variables. The sum starts at 0, but the product must start at 1 (anything times 0 is 0).
+          - Inside the loop, `sum += i;` and `product *= i;`.
+        tests:
+          - stdin: "4\n"
+          - stdin: "1\n"
+          - stdin: "10\n"
+            hidden: true
 
   - title: Accumulating a total
     id: c-loops-3
@@ -255,6 +396,99 @@ steps:
       - stdin: "1\n5\n"
       - stdin: "6\n10 20 30 40 50 60\n"
         hidden: true
+    more:
+      - task: |
+          The first number is `n`, followed by `n` damage values. Print the **smallest** hit and the average with two decimals. Input `4` then `27 100 64 9` prints:
+
+          ```
+          min 9
+          avg 50.00
+          ```
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              int n;
+              scanf("%d", &n);
+
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              int n;
+              scanf("%d", &n);
+              int total = 0;
+              int min = 0;
+              for (int i = 0; i < n; i++) {
+                  int d;
+                  scanf("%d", &d);
+                  total += d;
+                  if (i == 0 || d < min) {
+                      min = d;
+                  }
+              }
+              printf("min %d\n", min);
+              printf("avg %.2f\n", (double)total / n);
+              return 0;
+          }
+        hints:
+          - Starting `min` at 0 doesn't work, because no hit would ever be smaller. Take the first value as the starting minimum, for example with `if (i == 0 || d < min)`.
+          - For the average, add everything up and divide with a cast, `(double)total / n`.
+        tests:
+          - stdin: "4\n27 100 64 9\n"
+          - stdin: "1\n5\n"
+          - stdin: "3\n-5 10 -20\n"
+            hidden: true
+      - task: |
+          The first number is `n`, followed by `n` damage values. A hit of 100 or more is a headshot. Print how many headshots there were and the position (starting at 1) of the biggest hit. If two hits tie for the biggest, report the first one. Input `5` then `27 100 64 120 9` prints:
+
+          ```
+          headshots 2
+          best hit #4
+          ```
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              int n;
+              scanf("%d", &n);
+
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              int n;
+              scanf("%d", &n);
+              int headshots = 0;
+              int best = 0;
+              int best_pos = 0;
+              for (int i = 1; i <= n; i++) {
+                  int d;
+                  scanf("%d", &d);
+                  if (d >= 100) {
+                      headshots++;
+                  }
+                  if (i == 1 || d > best) {
+                      best = d;
+                      best_pos = i;
+                  }
+              }
+              printf("headshots %d\n", headshots);
+              printf("best hit #%d\n", best_pos);
+              return 0;
+          }
+        hints:
+          - Keep a counter for headshots, plus the biggest value and where you saw it.
+          - Use `>` (not `>=`) when comparing to the biggest so a tie keeps the first position.
+        tests:
+          - stdin: "5\n27 100 64 120 9\n"
+          - stdin: "1\n50\n"
+          - stdin: "4\n100 30 100 20\n"
+            hidden: true
 
   - title: break and continue
     id: c-loops-4
@@ -349,6 +583,102 @@ steps:
       - stdin: "0\n"
       - stdin: "-1 -2 4 0\n"
         hidden: true
+    more:
+      - task: |
+          Read scores until you see `-1`. A score above 100 is invalid, so skip it. Print how many valid scores there were and their total. Input `50 200 60 40 -1` prints `3 scores, total 150`. Use `break` and `continue`.
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              int count = 0;
+              int total = 0;
+              int x;
+              while (scanf("%d", &x) == 1) {
+
+              }
+              printf("%d scores, total %d\n", count, total);
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              int count = 0;
+              int total = 0;
+              int x;
+              while (scanf("%d", &x) == 1) {
+                  if (x == -1) break;
+                  if (x > 100) continue;
+                  count++;
+                  total += x;
+              }
+              printf("%d scores, total %d\n", count, total);
+              return 0;
+          }
+        require:
+          - pattern: "\\bbreak\\b"
+            message: Use `break` to stop at -1.
+          - pattern: "\\bcontinue\\b"
+            message: Use `continue` to skip invalid scores.
+        hints:
+          - Check for -1 first and `break`.
+          - Then `continue` if the score is above 100. Anything that gets past both checks is counted.
+        tests:
+          - stdin: "50 200 60 40 -1\n"
+          - stdin: "-1\n"
+          - stdin: "100 101 0 -1 5\n"
+            hidden: true
+      - task: |
+          Read numbers and find the first **non-negative** one that is divisible by 7. Skip negative numbers with `continue`, and stop with `break` as soon as you find one. Print `found N at position P`, where P counts every number read (starting at 1). If the input runs out first, print `none`. Input `3 -14 10 21 7` prints `found 21 at position 4`.
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              int x;
+              int pos = 0;
+              while (scanf("%d", &x) == 1) {
+
+              }
+
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              int x;
+              int pos = 0;
+              int found = 0;
+              while (scanf("%d", &x) == 1) {
+                  pos++;
+                  if (x < 0) continue;
+                  if (x % 7 == 0) {
+                      found = 1;
+                      break;
+                  }
+              }
+              if (found) {
+                  printf("found %d at position %d\n", x, pos);
+              } else {
+                  printf("none\n");
+              }
+              return 0;
+          }
+        require:
+          - pattern: "\\bbreak\\b"
+            message: Use `break` to stop at the first match.
+          - pattern: "\\bcontinue\\b"
+            message: Use `continue` to skip negative numbers.
+        hints:
+          - Count the position before the `continue`, so skipped numbers still count.
+          - After the loop you need to know whether it stopped because of `break` or because the input ended. Set a variable like `found = 1` just before `break`.
+        tests:
+          - stdin: "3 -14 10 21 7\n"
+          - stdin: "1 2 3\n"
+          - stdin: "5 -7 49\n"
+            hidden: true
+          - stdin: "70\n"
+            hidden: true
 
   - title: do-while
     id: c-loops-5
@@ -429,6 +759,93 @@ steps:
       - stdin: "5\n"
       - stdin: "-4 6 7 1\n"
         hidden: true
+    more:
+      - task: |
+          Keep reading numbers and adding them up until the total is at least 100. Then print the total and how many numbers it took. Use a `do { ... } while (...);` loop. Input `40 30 50` prints:
+
+          ```
+          total 120
+          numbers 3
+          ```
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              int total = 0;
+              int count = 0;
+
+              printf("total %d\n", total);
+              printf("numbers %d\n", count);
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              int total = 0;
+              int count = 0;
+              do {
+                  int x;
+                  scanf("%d", &x);
+                  total += x;
+                  count++;
+              } while (total < 100);
+              printf("total %d\n", total);
+              printf("numbers %d\n", count);
+              return 0;
+          }
+        require:
+          - pattern: "\\bdo\\s*\\{"
+            message: Use a `do { ... } while (...);` loop.
+        hints:
+          - Inside the loop, read one number, add it to `total` and count it.
+          - Repeat while the total is still below 100, `while (total < 100);`.
+        tests:
+          - stdin: "40 30 50\n"
+          - stdin: "150\n"
+          - stdin: "99 1\n"
+            hidden: true
+      - task: |
+          Read a number that is 0 or more and print how many digits it has. Divide by 10 until nothing is left, counting each division. A `do-while` makes `0` come out right (it has 1 digit) without a special case. Input `12345` prints `5`.
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              int n;
+              scanf("%d", &n);
+              int digits = 0;
+
+              printf("%d\n", digits);
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              int n;
+              scanf("%d", &n);
+              int digits = 0;
+              do {
+                  digits++;
+                  n /= 10;
+              } while (n > 0);
+              printf("%d\n", digits);
+              return 0;
+          }
+        require:
+          - pattern: "\\bdo\\s*\\{"
+            message: Use a `do { ... } while (...);` loop.
+        hints:
+          - Each `n /= 10` removes the last digit.
+          - The body runs at least once, so even 0 is counted as one digit. Repeat while `n > 0`.
+        tests:
+          - stdin: "12345\n"
+          - stdin: "0\n"
+          - stdin: "7\n"
+          - stdin: "1000\n"
+            hidden: true
+          - stdin: "999999\n"
+            hidden: true
 
   - title: Nested loops
     id: c-loops-6
@@ -508,6 +925,90 @@ steps:
       - stdin: "1\n"
       - stdin: "6\n"
         hidden: true
+    more:
+      - task: |
+          Read `n` and print an upside-down triangle of `#` with `n` rows. For `n = 4`:
+
+          ```
+          ####
+          ###
+          ##
+          #
+          ```
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              int n;
+              scanf("%d", &n);
+
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              int n;
+              scanf("%d", &n);
+              for (int row = n; row >= 1; row--) {
+                  for (int i = 0; i < row; i++) {
+                      printf("#");
+                  }
+                  printf("\n");
+              }
+              return 0;
+          }
+        hints:
+          - Let the outer loop count down, from `n` to 1.
+          - The inner loop prints `row` characters, then the outer loop prints `\n`.
+        tests:
+          - stdin: "4\n"
+          - stdin: "1\n"
+          - stdin: "6\n"
+            hidden: true
+      - task: |
+          Read `n` and print a staircase that leans to the right: each row has spaces first, then `#`, and the last row has no spaces. For `n = 4`:
+
+          ```
+             #
+            ##
+           ###
+          ####
+          ```
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              int n;
+              scanf("%d", &n);
+
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              int n;
+              scanf("%d", &n);
+              for (int row = 1; row <= n; row++) {
+                  for (int i = 0; i < n - row; i++) {
+                      printf(" ");
+                  }
+                  for (int i = 0; i < row; i++) {
+                      printf("#");
+                  }
+                  printf("\n");
+              }
+              return 0;
+          }
+        hints:
+          - Row number `row` has `n - row` spaces followed by `row` hashes.
+          - Use two inner loops one after the other, one for the spaces and one for the hashes.
+        tests:
+          - stdin: "4\n"
+          - stdin: "1\n"
+          - stdin: "6\n"
+            hidden: true
 
   - title: One character at a time
     id: c-loops-7
@@ -590,3 +1091,80 @@ steps:
       - stdin: "a   b    c\nsecond     line\n"
       - stdin: " x  \n\n  y\n"
         hidden: true
+    more:
+      - task: |
+          Count the lines and the characters in the input. Don't count the newline characters themselves. Input `gg wp` (one line) prints `lines 1, chars 5`.
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              int c;
+              int lines = 0;
+              int chars = 0;
+
+              printf("lines %d, chars %d\n", lines, chars);
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              int c;
+              int lines = 0;
+              int chars = 0;
+              while ((c = getchar()) != EOF) {
+                  if (c == '\n') {
+                      lines++;
+                  } else {
+                      chars++;
+                  }
+              }
+              printf("lines %d, chars %d\n", lines, chars);
+              return 0;
+          }
+        hints:
+          - "Read with `while ((c = getchar()) != EOF)`."
+          - Every `'\n'` ends a line. Everything else is a character to count.
+        tests:
+          - stdin: "gg wp\n"
+          - stdin: "a\nbc\n\n"
+          - stdin: "one two three\nfour\n"
+            hidden: true
+      - task: |
+          Copy the input to the output, but make the first letter of every word a capital. A word starts at the beginning of the input or right after a space or newline. Only change lowercase letters `a` to `z`. Input `gg wp` prints `Gg Wp`.
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              int c;
+              int prev = ' ';
+              while ((c = getchar()) != EOF) {
+
+              }
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              int c;
+              int prev = ' ';
+              while ((c = getchar()) != EOF) {
+                  if ((prev == ' ' || prev == '\n') && c >= 'a' && c <= 'z') {
+                      c = c - 'a' + 'A';
+                  }
+                  putchar(c);
+                  prev = c;
+              }
+              return 0;
+          }
+        hints:
+          - Remember the previous character. Starting it at `' '` makes the very first letter count as the start of a word.
+          - "Letters are numbers in order, so `c - 'a' + 'A'` turns a lowercase letter into its capital."
+        tests:
+          - stdin: "gg wp\n"
+          - stdin: "hello   world\nnice shot\n"
+          - stdin: "1v1 me\n"
+            hidden: true
+          - stdin: "Already Capital\n"
+            hidden: true

@@ -143,6 +143,9 @@ for (const m of content.modules) {
 <p>Step ${i + 1} of ${m.steps.length}</p>
 <h1>${esc(s.title)}</h1>
 ${mdAt(s.text, 2)}
+<h2>Your task</h2>
+${mdAt(s.task ?? "", 3)}
+${(s.more ?? []).map((c, k) => `<h3>Challenge ${k + 2}</h3>\n${mdAt(c.task, 4)}`).join("\n")}
 <p>${prev} ${next}</p>`,
     });
   });

@@ -50,6 +50,39 @@ steps:
       - The function that prints text is spelled `printf` (print formatted).
     tests:
       - expect: "Hello, World!"
+    more:
+      - task: |
+          Fill in both blanks: the function that prints text, and the keyword that ends `main` and hands back 0. The program should print `GG, well played!`.
+        fill: |
+          #include <stdio.h>
+
+          int main(void) {
+              [[printf]]("GG, well played!\n");
+              [[return]] 0;
+          }
+        hints:
+          - Printing is done with `printf`.
+          - The last line of main gives a value back to the operating system with `return`.
+        tests:
+          - expect: "GG, well played!"
+      - task: |
+          This time there is no starter program. Write the whole thing yourself: the `#include`, `main`, a `printf` and `return 0;`. It should print `Welcome to the arena`.
+        seed: |
+          // Write a complete C program below that prints: Welcome to the arena
+
+        solution: |
+          // Write a complete C program below that prints: Welcome to the arena
+          #include <stdio.h>
+
+          int main(void) {
+              printf("Welcome to the arena\n");
+              return 0;
+          }
+        hints:
+          - Start with `#include <stdio.h>` so the compiler knows what printf is.
+          - "Then `int main(void) {`, a printf line, `return 0;` and a closing `}`."
+        tests:
+          - expect: "Welcome to the arena"
 
   - title: Printing your own text
     id: c-hello-2
@@ -95,6 +128,41 @@ steps:
       - Type the sentence between the quotes. Capital letters and spaces matter.
     tests:
       - expect: "I am learning C"
+    more:
+      - task: |
+          Make the program print exactly `Round 1 starts NOW`. Watch the capital letters.
+        fill: |
+          #include <stdio.h>
+
+          int main(void) {
+              printf("[[Round 1 starts NOW]]\n");
+              return 0;
+          }
+        hints:
+          - Copy the text character by character. `NOW` is all capitals and `starts` is not.
+        tests:
+          - expect: "Round 1 starts NOW"
+      - task: |
+          The starter code prints the right words but not the exact text. Fix the string so the program prints exactly `I like C programming.` with a capital `I` and `C`, one space between words and a period at the end.
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              printf("i like c  programming\n");
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              printf("I like C programming.\n");
+              return 0;
+          }
+        hints:
+          - There are four differences. Two letters need to be capitals.
+          - There are two spaces before `programming` and the period is missing.
+        tests:
+          - expect: "I like C programming."
 
   - title: Several lines
     id: c-hello-3
@@ -165,6 +233,71 @@ steps:
       - "The second line is `printf(\"is a game\\n\");`"
     tests:
       - expect: "Counter-Strike\nis a game\nabout aim"
+    more:
+      - task: |
+          The program prints all three words on one line. Change the string so each word is on its own line, and keep using **one** `printf` call:
+
+          ```
+          Ready
+          Set
+          Go
+          ```
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              printf("Ready Set Go\n");
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              printf("Ready\nSet\nGo\n");
+              return 0;
+          }
+        forbid:
+          - pattern: "printf[\\s\\S]*printf"
+            message: Use a single printf call. Put `\n` inside the string wherever a new line should start.
+        hints:
+          - Replace each space between the words with `\n`.
+        tests:
+          - expect: "Ready\nSet\nGo"
+      - task: |
+          The starter code has four `printf` calls and prints four lines. Keep all four calls, but change the text inside them so the output is only two lines:
+
+          ```
+          Headshot! +100 points
+          Next round
+          ```
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              printf("Headshot!\n");
+              printf("+100\n");
+              printf("points\n");
+              printf("Next round\n");
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              printf("Headshot! ");
+              printf("+100 ");
+              printf("points\n");
+              printf("Next round\n");
+              return 0;
+          }
+        require:
+          - pattern: "printf[\\s\\S]*printf[\\s\\S]*printf[\\s\\S]*printf"
+            message: Keep all four printf calls. Change only the text inside them.
+        hints:
+          - A `printf` without `\n` leaves the cursor on the same line, so the next call continues there.
+          - Replace the first two `\n` with a space.
+        tests:
+          - expect: "Headshot! +100 points\nNext round"
 
   - title: Escape sequences
     id: c-hello-4
@@ -221,6 +354,53 @@ steps:
       - A plain `"` would end the string early. Write `\"` for each quote you want printed.
     tests:
       - expect: 'She said "gg" and left'
+    more:
+      - task: |
+          Print a small table where the columns are separated by a **tab**. Fill each blank with the escape sequence for a tab.
+
+          ```
+          Player	Kills
+          Ada	21
+          ```
+        fill: |
+          #include <stdio.h>
+
+          int main(void) {
+              printf("Player[[\t]]Kills\n");
+              printf("Ada[[\t]]21\n");
+              return 0;
+          }
+        hints:
+          - A tab is written `\t`, a backslash followed by the letter t.
+        tests:
+          - expect: "Player\tKills\nAda\t21"
+      - task: |
+          Print this line exactly. It has both double quotes and backslashes, and each one needs its own escape sequence:
+
+          ```
+          Saved to "C:\games\arena\save1.txt"
+          ```
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              // print: Saved to "C:\games\arena\save1.txt"
+              printf("Saved to \n");
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              // print: Saved to "C:\games\arena\save1.txt"
+              printf("Saved to \"C:\\games\\arena\\save1.txt\"\n");
+              return 0;
+          }
+        hints:
+          - Each `"` you want printed is written `\"`.
+          - Each `\` you want printed is written `\\`.
+        tests:
+          - expect: 'Saved to "C:\games\arena\save1.txt"'
 
   - title: Comments and reading errors
     id: c-hello-5
@@ -278,3 +458,50 @@ steps:
       - Both `printf(...)` and `return 0` need a `;` at the end.
     tests:
       - expect: "Fixed it"
+    more:
+      - task: |
+          This program has two different mistakes: something missing at the top and a misspelled name. Press **Check** to read the errors, then fix both so it prints `Bug squashed`.
+        seed: |
+          int main(void) {
+              Printf("Bug squashed\n");
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              printf("Bug squashed\n");
+              return 0;
+          }
+        hints:
+          - C is case sensitive. The function is `printf` with a lowercase p.
+          - "`printf` lives in the standard input/output library. Add `#include <stdio.h>` at the top."
+        tests:
+          - expect: "Bug squashed"
+      - task: |
+          Two harder mistakes this time: a string that never ends, and a block that never closes. The errors may point to a later line than the real mistake. Fix both so the program prints:
+
+          ```
+          Line one
+          Line two
+          ```
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              printf("Line one\n");
+              printf("Line two\n);
+              return 0;
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              printf("Line one\n");
+              printf("Line two\n");
+              return 0;
+          }
+        hints:
+          - Look at the quotes on the second printf. Every string needs a closing `"`.
+          - Every `{` needs a matching `}`. Is main's body closed?
+        tests:
+          - expect: "Line one\nLine two"
