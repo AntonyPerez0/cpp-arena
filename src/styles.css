@@ -240,6 +240,7 @@ button.pill:hover { border-color: var(--line-strong); color: var(--text); }
 .pill-loading { min-width: 130px; }
 .pill-bar { position: absolute; left: 0; top: 0; bottom: 0; background: color-mix(in srgb, var(--accent) 22%, transparent); transition: width 0.2s; }
 .pill-text { position: relative; color: var(--accent2); }
+:root[data-theme="light"] .pill-text { color: #92400e; }
 .live-dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 22%, transparent); }
 .badge { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.75rem; font-weight: 600; padding: 0.2rem 0.55rem; border-radius: 999px; border: 1px solid var(--line); color: var(--text2); background: var(--panel2); }
 
