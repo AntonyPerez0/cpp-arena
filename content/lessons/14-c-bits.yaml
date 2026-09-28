@@ -52,6 +52,57 @@ steps:
       - "`#define NAME value`, with no `=` and no semicolon."
     tests:
       - expect: "10 players"
+    more:
+      - task: |
+          Define `MAX_ROUNDS` as `24`, and define `HALF` in terms of `MAX_ROUNDS`, so the program prints `24 rounds, half at 12`.
+        fill: |
+          #include <stdio.h>
+
+          #define MAX_ROUNDS [[24]]
+          #define HALF ([[MAX_ROUNDS]] / 2)
+
+          int main(void) {
+              printf("%d rounds, half at %d\n", MAX_ROUNDS, HALF);
+              return 0;
+          }
+        hints:
+          - A macro can use another macro. `HALF` is `MAX_ROUNDS` divided by 2.
+        tests:
+          - expect: "24 rounds, half at 12"
+      - task: |
+          Define two constants with `#define`: `ROUND_SECONDS` as `115` and `ROUNDS` as `24`. Use them to print the longest possible match time in whole minutes: `46 min`.
+        seed: |
+          #include <stdio.h>
+
+          // define ROUND_SECONDS and ROUNDS here
+
+          int main(void) {
+
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          // define ROUND_SECONDS and ROUNDS here
+          #define ROUND_SECONDS 115
+          #define ROUNDS 24
+
+          int main(void) {
+              printf("%d min\n", ROUND_SECONDS * ROUNDS / 60);
+              return 0;
+          }
+        require:
+          - pattern: "#define\\s+ROUND_SECONDS\\s+115"
+            message: "Add `#define ROUND_SECONDS 115`."
+          - pattern: "#define\\s+ROUNDS\\s+24"
+            message: "Add `#define ROUNDS 24`."
+          - pattern: "ROUND_SECONDS\\s*\\*\\s*ROUNDS|ROUNDS\\s*\\*\\s*ROUND_SECONDS"
+            message: Compute the time from the two constants.
+        hints:
+          - "`#define` lines have no `=` and no semicolon."
+          - The total is `ROUND_SECONDS * ROUNDS` seconds. Divide by 60 for minutes.
+        tests:
+          - expect: "46 min"
 
   - title: Macro pitfalls
     id: c-bits-2
@@ -123,6 +174,62 @@ steps:
         message: "Parenthesize the macro fully: `((x) + (x))`."
     tests:
       - expect: "28"
+    more:
+      - task: |
+          `SQUARE(2 + 3)` should be 25, but this prints 11. Fix the `SQUARE` macro.
+        seed: |
+          #include <stdio.h>
+
+          #define SQUARE(x) x * x
+
+          int main(void) {
+              printf("%d\n", SQUARE(2 + 3));
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          #define SQUARE(x) ((x) * (x))
+
+          int main(void) {
+              printf("%d\n", SQUARE(2 + 3));
+              return 0;
+          }
+        require:
+          - pattern: "#define\\s+SQUARE\\(x\\)\\s*\\(\\s*\\(x\\)\\s*\\*\\s*\\(x\\)\\s*\\)"
+            message: "Put parentheses around each `x` and around the whole body: `((x) * (x))`."
+        hints:
+          - "The macro pastes text, so `SQUARE(2 + 3)` becomes `2 + 3 * 2 + 3`, which is 11."
+        tests:
+          - expect: "25"
+      - task: |
+          `MAX(10, 7) + 1` should be 11, but this prints 10. Work out why, and fix the `MAX` macro. The fixed form is `((a) > (b) ? (a) : (b))`.
+        seed: |
+          #include <stdio.h>
+
+          #define MAX(a, b) a > b ? a : b
+
+          int main(void) {
+              printf("%d\n", MAX(10, 7) + 1);
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          #define MAX(a, b) ((a) > (b) ? (a) : (b))
+
+          int main(void) {
+              printf("%d\n", MAX(10, 7) + 1);
+              return 0;
+          }
+        require:
+          - pattern: "#define\\s+MAX\\(a,\\s*b\\)\\s*\\(\\s*\\(a\\)\\s*>\\s*\\(b\\)\\s*\\?\\s*\\(a\\)\\s*:\\s*\\(b\\)\\s*\\)"
+            message: "Write the macro as `((a) > (b) ? (a) : (b))`."
+        hints:
+          - "After pasting, the line is `10 > 7 ? 10 : 7 + 1`. The `+ 1` only belongs to the last part."
+          - Parentheses around the whole body keep the `?:` together, and parentheses around each parameter protect arguments like `x + 1`.
+        tests:
+          - expect: "11"
 
   - title: Bitwise operators
     id: c-bits-3
@@ -201,6 +308,68 @@ steps:
       }
     hints:
       - Loop while x is not 0. Add `x & 1` to the count, then `x >>= 1`.
+    more:
+      - task: |
+          Write `int bit_at(unsigned x, int i)`, which returns bit number `i` (0 is the lowest) as `0` or `1`, and `unsigned set_bit(unsigned x, int i)`, which returns `x` with bit `i` turned on.
+        seed: |
+          int bit_at(unsigned x, int i) {
+
+          }
+
+          unsigned set_bit(unsigned x, int i) {
+
+          }
+        solution: |
+          int bit_at(unsigned x, int i) {
+              return (x >> i) & 1;
+          }
+
+          unsigned set_bit(unsigned x, int i) {
+              return x | (1u << i);
+          }
+        harness: |
+          int main(void) {
+              CHECK_INT("bit_at(5, 0)", bit_at(5, 0), 1);
+              CHECK_INT("bit_at(5, 1)", bit_at(5, 1), 0);
+              CHECK_INT("bit_at(5, 2)", bit_at(5, 2), 1);
+              CHECK_INT("bit_at(0x80000000, 31)", bit_at(0x80000000u, 31), 1);
+              CHECK_INT("set_bit(0, 3)", set_bit(0, 3), 8);
+              CHECK_INT("set_bit(5, 0) is already set", set_bit(5, 0), 5);
+              CHECK_INT("set_bit(5, 1)", set_bit(5, 1), 7);
+              return 0;
+          }
+        hints:
+          - Shift the bit you want down to position 0 with `x >> i`, then keep only it with `& 1`.
+          - "`1u << i` has only bit `i` set. OR it into `x`."
+        tests: []
+      - task: |
+          Write `unsigned reverse8(unsigned x)` that reverses the lowest 8 bits of `x` (bit 0 swaps with bit 7, bit 1 with bit 6, and so on). `reverse8(1)` is `128`, and `reverse8(0x0F)` is `0xF0`.
+        seed: |
+          unsigned reverse8(unsigned x) {
+
+          }
+        solution: |
+          unsigned reverse8(unsigned x) {
+              unsigned r = 0;
+              for (int i = 0; i < 8; i++) {
+                  r = (r << 1) | ((x >> i) & 1);
+              }
+              return r;
+          }
+        harness: |
+          int main(void) {
+              CHECK_INT("reverse8(1)", reverse8(1), 128);
+              CHECK_INT("reverse8(128)", reverse8(128), 1);
+              CHECK_INT("reverse8(0x0F)", reverse8(0x0F), 0xF0);
+              CHECK_INT("reverse8(0)", reverse8(0), 0);
+              CHECK_INT("reverse8(0xFF)", reverse8(0xFF), 0xFF);
+              CHECK_INT("reverse8(0x06)", reverse8(0x06), 0x60);
+              return 0;
+          }
+        hints:
+          - Build the result one bit at a time. Take bit `i` of `x` with `(x >> i) & 1`.
+          - "Shift the result left before adding each bit: `r = (r << 1) | bit`. The first bit you add ends up highest."
+        tests: []
 
   - title: Flags
     id: c-bits-4
@@ -295,6 +464,72 @@ steps:
       - "On: `|=`, off: `&= ~`, toggle: `^=`, test: `&`."
     tests:
       - expect: "5 1 0"
+    more:
+      - task: |
+          Fill in the operators: check the scope flag, turn the scope **off**, then turn the kit **on**. The output is `1` and then `3`.
+        fill: |
+          #include <stdio.h>
+
+          #define HAS_HELMET (1u << 0)
+          #define HAS_KIT    (1u << 1)
+          #define IS_SCOPED  (1u << 2)
+
+          int main(void) {
+              unsigned s = HAS_HELMET | IS_SCOPED;
+              printf("%d\n", (s [[&]] IS_SCOPED) != 0);   // is the scope on?
+              s [[&=]] ~IS_SCOPED;                        // turn the scope off
+              s [[|=]] HAS_KIT;                           // turn the kit on
+              printf("%u\n", s);
+              return 0;
+          }
+        hints:
+          - Testing a flag uses `&`.
+          - Turning a flag off is `&= ~FLAG`, and turning it on is `|= FLAG`.
+        tests:
+          - expect: "1\n3"
+      - task: |
+          Write `unsigned apply(unsigned s, char cmd)` that returns the new flags after one command: `'h'` turns the helmet on, `'k'` turns the kit on, `'d'` drops the kit (turns it off), `'s'` toggles the scope. Any other command changes nothing.
+        seed: |
+          #define HAS_HELMET (1u << 0)
+          #define HAS_KIT    (1u << 1)
+          #define IS_SCOPED  (1u << 2)
+
+          unsigned apply(unsigned s, char cmd) {
+
+          }
+        solution: |
+          #define HAS_HELMET (1u << 0)
+          #define HAS_KIT    (1u << 1)
+          #define IS_SCOPED  (1u << 2)
+
+          unsigned apply(unsigned s, char cmd) {
+              switch (cmd) {
+                  case 'h': return s | HAS_HELMET;
+                  case 'k': return s | HAS_KIT;
+                  case 'd': return s & ~HAS_KIT;
+                  case 's': return s ^ IS_SCOPED;
+              }
+              return s;
+          }
+        harness: |
+          int main(void) {
+              CHECK_INT("'h' on nothing", apply(0, 'h'), HAS_HELMET);
+              CHECK_INT("'k' keeps the helmet", apply(HAS_HELMET, 'k'), HAS_HELMET | HAS_KIT);
+              CHECK_INT("'d' drops only the kit", apply(HAS_HELMET | HAS_KIT, 'd'), HAS_HELMET);
+              CHECK_INT("'d' without a kit does nothing", apply(HAS_HELMET, 'd'), HAS_HELMET);
+              CHECK_INT("'s' turns the scope on", apply(0, 's'), IS_SCOPED);
+              CHECK_INT("'s' again turns it off", apply(IS_SCOPED | HAS_KIT, 's'), HAS_KIT);
+              CHECK_INT("unknown command", apply(HAS_KIT, 'x'), HAS_KIT);
+              unsigned s = 0;
+              const char *cmds = "hkssd";
+              for (const char *p = cmds; *p; p++) s = apply(s, *p);
+              CHECK_INT("after \"hkssd\"", s, HAS_HELMET);
+              return 0;
+          }
+        hints:
+          - A `switch` on `cmd`, returning the changed flags in each case.
+          - "On is `|`, off is `& ~`, toggle is `^`."
+        tests: []
 
   - title: "Challenge: power of two"
     id: c-bits-5
@@ -366,3 +601,65 @@ steps:
     hints:
       - Zero is not a power of two, so handle it.
       - "`return x != 0 && (x & (x - 1)) == 0;`"
+    more:
+      - task: |
+          Write `unsigned lowest_bit(unsigned x)` that returns only the lowest `1` bit of `x` (so `12`, binary `1100`, gives `4`), or `0` for `0`. No loops. Hint from the lesson: `x & (x - 1)` **clears** the lowest bit, so compare `x` with that.
+        seed: |
+          unsigned lowest_bit(unsigned x) {
+
+          }
+        solution: |
+          unsigned lowest_bit(unsigned x) {
+              return x & ~(x - 1);
+          }
+        harness: |
+          int main(void) {
+              CHECK_INT("lowest_bit(12)", lowest_bit(12), 4);
+              CHECK_INT("lowest_bit(1)", lowest_bit(1), 1);
+              CHECK_INT("lowest_bit(0)", lowest_bit(0), 0);
+              CHECK_INT("lowest_bit(10)", lowest_bit(10), 2);
+              CHECK_INT("lowest_bit(0x80000000)", lowest_bit(0x80000000u), 0x80000000u);
+              CHECK_INT("lowest_bit(0xFFFFFFFF)", lowest_bit(0xFFFFFFFFu), 1);
+              return 0;
+          }
+        forbid:
+          - pattern: "\\bfor\\b|\\bwhile\\b"
+            message: Solve it without loops, with bit operations.
+        hints:
+          - "`x - 1` flips the lowest 1 bit and every 0 below it. The bits above stay the same."
+          - "So `x & ~(x - 1)` keeps only the lowest 1 bit. `x ^ (x & (x - 1))` works too."
+        tests: []
+      - task: |
+          Write `unsigned next_pow2(unsigned x)` that returns the smallest power of two that is **at least** `x`, for `x` from 1 to `0x80000000`. `next_pow2(5)` is 8 and `next_pow2(8)` is 8. No loops. The trick: subtract 1, copy the highest 1 bit into every bit below it with `x |= x >> 1; x |= x >> 2;` and so on up to `>> 16`, then add 1.
+        seed: |
+          unsigned next_pow2(unsigned x) {
+
+          }
+        solution: |
+          unsigned next_pow2(unsigned x) {
+              x--;
+              x |= x >> 1;
+              x |= x >> 2;
+              x |= x >> 4;
+              x |= x >> 8;
+              x |= x >> 16;
+              return x + 1;
+          }
+        harness: |
+          int main(void) {
+              CHECK_INT("next_pow2(1)", next_pow2(1), 1);
+              CHECK_INT("next_pow2(2)", next_pow2(2), 2);
+              CHECK_INT("next_pow2(5)", next_pow2(5), 8);
+              CHECK_INT("next_pow2(8)", next_pow2(8), 8);
+              CHECK_INT("next_pow2(1000)", next_pow2(1000), 1024);
+              CHECK_INT("next_pow2(65537)", next_pow2(65537), 131072);
+              CHECK_INT("next_pow2(0x80000000)", next_pow2(0x80000000u), 0x80000000u);
+              return 0;
+          }
+        forbid:
+          - pattern: "\\bfor\\b|\\bwhile\\b"
+            message: Solve it without loops, with shifts and ORs.
+        hints:
+          - Subtracting 1 first makes exact powers of two come out as themselves.
+          - After the five `x |= x >> k` lines (k = 1, 2, 4, 8, 16), every bit below the highest 1 is also 1, like `0111`. Adding 1 gives the power of two.
+        tests: []

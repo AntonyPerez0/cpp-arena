@@ -201,9 +201,9 @@ steps:
               printf("HP %d | Armor %d | $%d\n", hp, armor, money);
               return 0;
           }
-        forbid:
-          - pattern: "HP 100|Armor 50|\\$800"
-            message: Print the numbers with `%d` and the variables, not by typing them into the string.
+        require:
+          - pattern: "hp\\s*,\\s*armor\\s*,\\s*money"
+            message: Print the numbers with `%d` and pass `hp, armor, money` to printf, not by typing them into the string.
         hints:
           - Put `%d` right where each number should appear, for example `HP %d`.
           - "After the string, list `hp, armor, money` in that order."
@@ -461,6 +461,8 @@ steps:
             message: Declare a `double` named `sens`.
           - pattern: "int\\s+dpi\\s*="
             message: Declare an `int` named `dpi`.
+          - pattern: "sens\\s*\\*\\s*dpi|dpi\\s*\\*\\s*sens"
+            message: Compute the eDPI by multiplying `sens` by `dpi`.
         forbid:
           - pattern: "700"
             message: Compute the eDPI by multiplying `sens` by `dpi` instead of typing 700.

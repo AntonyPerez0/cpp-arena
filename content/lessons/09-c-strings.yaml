@@ -60,6 +60,58 @@ steps:
       - The terminator character is written `'\0'` (backslash zero, in single quotes).
     tests:
       - expect: "ak"
+    more:
+      - task: |
+          A string ends at the first `'\0'`, even if more characters come after it. Put a terminator in the right place so `msg` prints only `rush`.
+        fill: |
+          #include <stdio.h>
+
+          int main(void) {
+              char msg[] = "rush b";
+              msg[[[4]]] = [['\0']];
+              printf("%s\n", msg);
+              return 0;
+          }
+        hints:
+          - "`r` is at index 0, so the space after `rush` is at index 4."
+          - The terminator is written `'\0'`.
+        tests:
+          - expect: "rush"
+      - task: |
+          Fill `s` with the letters `a` to `e` **using a loop**, end the string yourself, and print it. The output is `abcde`.
+        seed: |
+          #include <stdio.h>
+
+          int main(void) {
+              char s[6];
+              // put 'a' to 'e' into s with a loop, then end the string
+
+              printf("%s\n", s);
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          int main(void) {
+              char s[6];
+              // put 'a' to 'e' into s with a loop, then end the string
+              for (int i = 0; i < 5; i++) {
+                  s[i] = 'a' + i;
+              }
+              s[5] = '\0';
+              printf("%s\n", s);
+              return 0;
+          }
+        require:
+          - pattern: "for\\s*\\("
+            message: Fill the letters with a `for` loop.
+          - pattern: "s\\s*\\[\\s*5\\s*\\]\\s*="
+            message: End the string by storing `'\0'` in `s[5]`.
+        hints:
+          - "`'a' + i` is the letter `i` places after `a`."
+          - Five letters need six chars. The last one, `s[5]`, must be `'\0'`.
+        tests:
+          - expect: "abcde"
 
   - title: strlen and friends
     id: c-strings-2
@@ -149,6 +201,84 @@ steps:
       - stdin: "a b\n"
       - stdin: "mirage inferno\n"
         hidden: true
+    more:
+      - task: |
+          Read a team tag and a player name and build the string `[tag] name` in `out`, then print it with its length. Input `NaVi s1mple` prints `[NaVi] s1mple 13`.
+        seed: |
+          #include <stdio.h>
+          #include <string.h>
+
+          int main(void) {
+              char tag[16], name[32];
+              scanf("%15s %31s", tag, name);
+              char out[64];
+              // build out = "[" + tag + "] " + name
+
+              printf("%s %zu\n", out, strlen(out));
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+          #include <string.h>
+
+          int main(void) {
+              char tag[16], name[32];
+              scanf("%15s %31s", tag, name);
+              char out[64];
+              // build out = "[" + tag + "] " + name
+              strcpy(out, "[");
+              strcat(out, tag);
+              strcat(out, "] ");
+              strcat(out, name);
+              printf("%s %zu\n", out, strlen(out));
+              return 0;
+          }
+        hints:
+          - Start with `strcpy(out, "[");` so `out` is a proper string.
+          - Then `strcat` the tag, `"] "` and the name, in that order.
+        tests:
+          - stdin: "NaVi s1mple\n"
+          - stdin: "G2 m0NESY\n"
+          - stdin: "FaZe ropz\n"
+            hidden: true
+      - task: |
+          Read three words and print the **longest** one and its length. If two are equally long, keep the first. Input `dust2 inferno nuke` prints `inferno 7`.
+        seed: |
+          #include <stdio.h>
+          #include <string.h>
+
+          int main(void) {
+              char w[3][32];
+              for (int i = 0; i < 3; i++) {
+                  scanf("%31s", w[i]);
+              }
+
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+          #include <string.h>
+
+          int main(void) {
+              char w[3][32];
+              for (int i = 0; i < 3; i++) {
+                  scanf("%31s", w[i]);
+              }
+              int best = 0;
+              for (int i = 1; i < 3; i++) {
+                  if (strlen(w[i]) > strlen(w[best])) best = i;
+              }
+              printf("%s %zu\n", w[best], strlen(w[best]));
+              return 0;
+          }
+        hints:
+          - "`w[i]` is the i-th word, and `strlen(w[i])` is its length."
+          - Keep the index of the longest word so far, and use `>` so ties keep the first.
+        tests:
+          - stdin: "dust2 inferno nuke\n"
+          - stdin: "aa bb cc\n"
+          - stdin: "go vertigo anubis\n"
+            hidden: true
 
   - title: Write your own strlen
     id: c-strings-3
@@ -220,6 +350,72 @@ steps:
       }
     hints:
       - Start a counter at 0 and move forward while `s[n] != '\0'`.
+    more:
+      - task: |
+          Write `void my_strcpy(char dst[], const char src[])` that copies `src` into `dst`, **including** the terminator. Don't use `<string.h>`.
+        seed: |
+          void my_strcpy(char dst[], const char src[]) {
+
+          }
+        solution: |
+          void my_strcpy(char dst[], const char src[]) {
+              int i = 0;
+              while (src[i] != '\0') {
+                  dst[i] = src[i];
+                  i++;
+              }
+              dst[i] = '\0';
+          }
+        harness: |
+          int main(void) {
+              char d[32];
+              my_strcpy(d, "headshot");
+              CHECK_STR("copy \"headshot\"", d, "headshot");
+              my_strcpy(d, "ak");
+              CHECK_STR("a shorter string ends in the right place", d, "ak");
+              my_strcpy(d, "");
+              CHECK_STR("empty string", d, "");
+              return 0;
+          }
+        forbid:
+          - pattern: "\\bstrcpy\\s*\\(|\\bmemcpy\\s*\\("
+            message: Copy the characters yourself with a loop.
+        hints:
+          - Copy characters until you reach `'\0'` in `src`.
+          - The loop stops before copying the terminator, so write `dst[i] = '\0';` after it. The second test fails without it.
+        tests: []
+      - task: |
+          Write `int my_strcmp(const char a[], const char b[])` that works like `strcmp`: return a negative number if `a` comes first in dictionary order, `0` if they are equal, and a positive number if `b` comes first. Compare character by character; at the first difference, return `a[i] - b[i]`.
+        seed: |
+          int my_strcmp(const char a[], const char b[]) {
+
+          }
+        solution: |
+          int my_strcmp(const char a[], const char b[]) {
+              int i = 0;
+              while (a[i] != '\0' && a[i] == b[i]) {
+                  i++;
+              }
+              return (unsigned char)a[i] - (unsigned char)b[i];
+          }
+        harness: |
+          int main(void) {
+              CHECK("\"abc\" vs \"abc\" is 0", my_strcmp("abc", "abc") == 0);
+              CHECK("\"abc\" vs \"abd\" is negative", my_strcmp("abc", "abd") < 0);
+              CHECK("\"b\" vs \"a\" is positive", my_strcmp("b", "a") > 0);
+              CHECK("\"ab\" vs \"abc\" is negative (prefix first)", my_strcmp("ab", "abc") < 0);
+              CHECK("\"abc\" vs \"ab\" is positive", my_strcmp("abc", "ab") > 0);
+              CHECK("\"\" vs \"\" is 0", my_strcmp("", "") == 0);
+              CHECK("\"Z\" vs \"a\" is negative (capitals first)", my_strcmp("Z", "a") < 0);
+              return 0;
+          }
+        forbid:
+          - pattern: "\\bstrcmp\\s*\\("
+            message: Compare the characters yourself instead of calling strcmp.
+        hints:
+          - Move forward while the characters are equal and `a` hasn't ended.
+          - When the loop stops, `a[i] - b[i]` has the right sign. When one string is a prefix of the other, its `'\0'` (which is 0) makes it come first.
+        tests: []
 
   - title: Compare strings correctly
     id: c-strings-4
@@ -311,6 +507,85 @@ steps:
       - stdin: "rush\n"
       - stdin: "Plant\n"
         hidden: true
+    more:
+      - task: |
+          Read two player names and print which one comes first in dictionary order, as `X comes first`. If they're the same, print `same name`. Input `ropz broky` prints `broky comes first`.
+        seed: |
+          #include <stdio.h>
+          #include <string.h>
+
+          int main(void) {
+              char a[32], b[32];
+              scanf("%31s %31s", a, b);
+
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+          #include <string.h>
+
+          int main(void) {
+              char a[32], b[32];
+              scanf("%31s %31s", a, b);
+              int c = strcmp(a, b);
+              if (c == 0) {
+                  printf("same name\n");
+              } else if (c < 0) {
+                  printf("%s comes first\n", a);
+              } else {
+                  printf("%s comes first\n", b);
+              }
+              return 0;
+          }
+        require:
+          - pattern: "strcmp\\s*\\("
+            message: Compare the names with `strcmp`.
+        hints:
+          - "`strcmp(a, b)` is negative when `a` comes first, 0 when equal, positive when `b` comes first."
+        tests:
+          - stdin: "ropz broky\n"
+          - stdin: "apex apex\n"
+          - stdin: "karrigan niko\n"
+          - stdin: "abc ab\n"
+            hidden: true
+      - task: |
+          Read words until the word `end` (or until the input runs out) and count how many of them were `gg`. Input `gg wp gg ez end gg` prints `2`, because the last `gg` comes after `end`.
+        seed: |
+          #include <stdio.h>
+          #include <string.h>
+
+          int main(void) {
+              char w[32];
+              int count = 0;
+
+              printf("%d\n", count);
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+          #include <string.h>
+
+          int main(void) {
+              char w[32];
+              int count = 0;
+              while (scanf("%31s", w) == 1) {
+                  if (strcmp(w, "end") == 0) break;
+                  if (strcmp(w, "gg") == 0) count++;
+              }
+              printf("%d\n", count);
+              return 0;
+          }
+        require:
+          - pattern: "strcmp\\s*\\("
+            message: Compare the words with `strcmp`.
+        hints:
+          - "Loop with `while (scanf(\"%31s\", w) == 1)` so the loop also stops when the input ends."
+          - "`break` on `end`, and add 1 when `strcmp(w, \"gg\") == 0`."
+        tests:
+          - stdin: "gg wp gg ez end gg\n"
+          - stdin: "wp\n"
+          - stdin: "gg gg GG gg\n"
+            hidden: true
 
   - title: Characters are numbers
     id: c-strings-5
@@ -387,6 +662,83 @@ steps:
     hints:
       - Loop until you reach `'\0'`.
       - "If `s[i]` is between 'a' and 'z', subtract `'a' - 'A'` (or call `toupper` from `<ctype.h>`)."
+    more:
+      - task: |
+          Write `void capitalize(char s[])` that makes the first letter of every word uppercase and every other letter lowercase, in place. A word starts at the beginning or right after a space.
+        seed: |
+          void capitalize(char s[]) {
+
+          }
+        solution: |
+          void capitalize(char s[]) {
+              for (int i = 0; s[i] != '\0'; i++) {
+                  int start = (i == 0 || s[i - 1] == ' ');
+                  if (start && s[i] >= 'a' && s[i] <= 'z') {
+                      s[i] = s[i] - 'a' + 'A';
+                  } else if (!start && s[i] >= 'A' && s[i] <= 'Z') {
+                      s[i] = s[i] - 'A' + 'a';
+                  }
+              }
+          }
+        harness: |
+          int main(void) {
+              char a[] = "rush b";
+              capitalize(a);
+              CHECK_STR("\"rush b\"", a, "Rush B");
+              char b[] = "hELLO wORLD";
+              capitalize(b);
+              CHECK_STR("\"hELLO wORLD\"", b, "Hello World");
+              char c[] = "";
+              capitalize(c);
+              CHECK_STR("empty string", c, "");
+              char d[] = "a1B c";
+              capitalize(d);
+              CHECK_STR("\"a1B c\"", d, "A1b C");
+              return 0;
+          }
+        hints:
+          - A character starts a word if `i == 0` or `s[i - 1] == ' '`.
+          - "Uppercase: `s[i] - 'a' + 'A'`. Lowercase: `s[i] - 'A' + 'a'`. Only change letters."
+        tests: []
+      - task: |
+          Write `void caesar(char s[], int shift)` that shifts every letter `shift` places forward in the alphabet (with `shift` from 0 to 25), wrapping around from `z` to `a`. Keep capitals capital, and leave everything that isn't a letter alone. `caesar("Hello, World!", 13)` gives `"Uryyb, Jbeyq!"`.
+        seed: |
+          void caesar(char s[], int shift) {
+
+          }
+        solution: |
+          void caesar(char s[], int shift) {
+              for (int i = 0; s[i] != '\0'; i++) {
+                  if (s[i] >= 'a' && s[i] <= 'z') {
+                      s[i] = 'a' + (s[i] - 'a' + shift) % 26;
+                  } else if (s[i] >= 'A' && s[i] <= 'Z') {
+                      s[i] = 'A' + (s[i] - 'A' + shift) % 26;
+                  }
+              }
+          }
+        harness: |
+          int main(void) {
+              char a[] = "abc";
+              caesar(a, 1);
+              CHECK_STR("\"abc\" shifted by 1", a, "bcd");
+              char b[] = "xyz";
+              caesar(b, 3);
+              CHECK_STR("\"xyz\" shifted by 3 wraps around", b, "abc");
+              char c[] = "Hello, World!";
+              caesar(c, 13);
+              CHECK_STR("\"Hello, World!\" shifted by 13", c, "Uryyb, Jbeyq!");
+              char d[] = "Zz";
+              caesar(d, 1);
+              CHECK_STR("\"Zz\" shifted by 1", d, "Aa");
+              char e[] = "gg wp";
+              caesar(e, 0);
+              CHECK_STR("shift 0 changes nothing", e, "gg wp");
+              return 0;
+          }
+        hints:
+          - "Turn the letter into a position from 0 to 25 with `s[i] - 'a'`, add the shift, and wrap with `% 26`."
+          - Then turn it back into a letter by adding `'a'`. Do the same with `'A'` for capitals.
+        tests: []
 
   - title: "Challenge: palindromes"
     id: c-strings-6
@@ -472,3 +824,94 @@ steps:
     hints:
       - "Two indexes: `i = 0` and `j = strlen(s) - 1`."
       - While `i < j`, if `s[i] != s[j]` it's not a palindrome. Otherwise move both inward.
+    more:
+      - task: |
+          Write `int is_palindrome_nocase(const char s[])` that ignores the difference between capitals and lowercase letters. `"Level"` and `"RaceCar"` are palindromes.
+        seed: |
+          #include <string.h>
+
+          int is_palindrome_nocase(const char s[]) {
+
+          }
+        solution: |
+          #include <string.h>
+
+          char lower(char c) {
+              if (c >= 'A' && c <= 'Z') return c - 'A' + 'a';
+              return c;
+          }
+
+          int is_palindrome_nocase(const char s[]) {
+              int i = 0;
+              int j = (int)strlen(s) - 1;
+              while (i < j) {
+                  if (lower(s[i]) != lower(s[j])) return 0;
+                  i++;
+                  j--;
+              }
+              return 1;
+          }
+        harness: |
+          int main(void) {
+              CHECK_INT("\"Level\"", is_palindrome_nocase("Level"), 1);
+              CHECK_INT("\"RaceCar\"", is_palindrome_nocase("RaceCar"), 1);
+              CHECK_INT("\"abBA\"", is_palindrome_nocase("abBA"), 1);
+              CHECK_INT("\"Ab\"", is_palindrome_nocase("Ab"), 0);
+              CHECK_INT("\"\"", is_palindrome_nocase(""), 1);
+              CHECK_INT("\"Nuke\"", is_palindrome_nocase("Nuke"), 0);
+              return 0;
+          }
+        hints:
+          - Write a small helper that turns a capital into its lowercase letter and leaves everything else alone.
+          - Compare `lower(s[i])` with `lower(s[j])` instead of the raw characters.
+        tests: []
+      - task: |
+          Write `int is_phrase_palindrome(const char s[])` that ignores capitals **and** skips every character that isn't a letter. `"A man, a plan, a canal: Panama"` is a palindrome. A string with no letters counts as one.
+        seed: |
+          #include <string.h>
+
+          int is_phrase_palindrome(const char s[]) {
+
+          }
+        solution: |
+          #include <string.h>
+
+          int is_letter(char c) {
+              return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+          }
+
+          char lower(char c) {
+              if (c >= 'A' && c <= 'Z') return c - 'A' + 'a';
+              return c;
+          }
+
+          int is_phrase_palindrome(const char s[]) {
+              int i = 0;
+              int j = (int)strlen(s) - 1;
+              while (i < j) {
+                  if (!is_letter(s[i])) {
+                      i++;
+                  } else if (!is_letter(s[j])) {
+                      j--;
+                  } else {
+                      if (lower(s[i]) != lower(s[j])) return 0;
+                      i++;
+                      j--;
+                  }
+              }
+              return 1;
+          }
+        harness: |
+          int main(void) {
+              CHECK_INT("\"A man, a plan, a canal: Panama\"", is_phrase_palindrome("A man, a plan, a canal: Panama"), 1);
+              CHECK_INT("\"No lemon, no melon\"", is_phrase_palindrome("No lemon, no melon"), 1);
+              CHECK_INT("\"gg wp\"", is_phrase_palindrome("gg wp"), 0);
+              CHECK_INT("\"\"", is_phrase_palindrome(""), 1);
+              CHECK_INT("\"!!\"", is_phrase_palindrome("!!"), 1);
+              CHECK_INT("\"a.b\"", is_phrase_palindrome("a.b"), 0);
+              return 0;
+          }
+        hints:
+          - Keep the two indexes. If `s[i]` isn't a letter, move `i` forward and try again; same for `s[j]` moving backward.
+          - Only compare when both are letters, using a lowercase helper.
+        tests: []

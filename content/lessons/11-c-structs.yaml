@@ -62,6 +62,74 @@ steps:
       - "Members are accessed with a dot: `w.name`, `w.damage`."
     tests:
       - expect: "deagle does 53"
+    more:
+      - task: |
+          Give the point the coordinates `3` and `4`, then move it 10 to the right by changing only its `x` field. The output is `13 4`.
+        fill: |
+          #include <stdio.h>
+
+          struct Point {
+              int x;
+              int y;
+          };
+
+          int main(void) {
+              struct Point p = {[[3]], [[4]]};
+              p.[[x]] += 10;
+              printf("%d %d\n", p.x, p.y);
+              return 0;
+          }
+        hints:
+          - The values in `{ }` fill the fields in the order they are declared, `x` first.
+          - "`p.x` is the x field of `p`."
+        tests:
+          - expect: "13 4"
+      - task: |
+          Define a `struct Round` with two `int` fields, `number` and `kills`. Create two rounds, round 1 with 3 kills and round 2 with 5 kills, and print:
+
+          ```
+          round 1: 3 kills
+          round 2: 5 kills
+          total 8
+          ```
+
+          Compute the total from the two structs.
+        seed: |
+          #include <stdio.h>
+
+          // define struct Round here
+
+          int main(void) {
+
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          // define struct Round here
+          struct Round {
+              int number;
+              int kills;
+          };
+
+          int main(void) {
+              struct Round a = {1, 3};
+              struct Round b = {2, 5};
+              printf("round %d: %d kills\n", a.number, a.kills);
+              printf("round %d: %d kills\n", b.number, b.kills);
+              printf("total %d\n", a.kills + b.kills);
+              return 0;
+          }
+        require:
+          - pattern: "struct\\s+Round\\s*\\{"
+            message: Define `struct Round { ... };` above main.
+          - pattern: "\\.kills\\s*\\+"
+            message: Compute the total by adding the `kills` fields of the two rounds.
+        hints:
+          - "A struct definition is `struct Round { int number; int kills; };`, with a semicolon after the `}`."
+          - "Create one with `struct Round a = {1, 3};` and read a field with `a.kills`."
+        tests:
+          - expect: "round 1: 3 kills\nround 2: 5 kills\ntotal 8"
 
   - title: Structs in functions
     id: c-structs-2
@@ -143,6 +211,86 @@ steps:
     hints:
       - Guard `p.deaths == 0` first.
       - "Cast to avoid integer division: `(double)p.kills / p.deaths`."
+    more:
+      - task: |
+          Write `int score(struct Player p)` that returns `kills * 2 - deaths`, but never less than 0.
+        seed: |
+          struct Player {
+              const char *name;
+              int kills;
+              int deaths;
+          };
+
+          int score(struct Player p) {
+
+          }
+        solution: |
+          struct Player {
+              const char *name;
+              int kills;
+              int deaths;
+          };
+
+          int score(struct Player p) {
+              int s = p.kills * 2 - p.deaths;
+              if (s < 0) return 0;
+              return s;
+          }
+        harness: |
+          int main(void) {
+              struct Player a = {"a", 20, 10};
+              struct Player b = {"b", 1, 9};
+              struct Player c = {"c", 5, 10};
+              CHECK_INT("20 kills, 10 deaths", score(a), 30);
+              CHECK_INT("1 kill, 9 deaths is not negative", score(b), 0);
+              CHECK_INT("5 kills, 10 deaths", score(c), 0);
+              struct Player d = {"d", 0, 0};
+              CHECK_INT("no kills, no deaths", score(d), 0);
+              return 0;
+          }
+        hints:
+          - Read the fields with `p.kills` and `p.deaths`.
+          - Compute the score into a variable, then return 0 if it is negative.
+        tests: []
+      - task: |
+          Write `struct Player better(struct Player a, struct Player b)` that returns whichever player has the bigger **kills minus deaths**. On a tie, return `a`. A function can return a whole struct.
+        seed: |
+          struct Player {
+              const char *name;
+              int kills;
+              int deaths;
+          };
+
+          struct Player better(struct Player a, struct Player b) {
+
+          }
+        solution: |
+          struct Player {
+              const char *name;
+              int kills;
+              int deaths;
+          };
+
+          struct Player better(struct Player a, struct Player b) {
+              if (b.kills - b.deaths > a.kills - a.deaths) return b;
+              return a;
+          }
+        harness: |
+          int main(void) {
+              struct Player ropz = {"ropz", 20, 12};
+              struct Player rain = {"rain", 25, 20};
+              struct Player niko = {"niko", 18, 10};
+              CHECK_STR("ropz (+8) vs rain (+5)", better(ropz, rain).name, "ropz");
+              CHECK_STR("rain (+5) vs niko (+8)", better(rain, niko).name, "niko");
+              CHECK_STR("a tie returns the first", better(ropz, niko).name, "ropz");
+              struct Player w = better(rain, ropz);
+              CHECK("the whole struct is returned", w.kills == 20 && w.deaths == 12);
+              return 0;
+          }
+        hints:
+          - Compare `b.kills - b.deaths` with `a.kills - a.deaths`.
+          - Use `>` so that a tie falls through to `return a;`.
+        tests: []
 
   - title: Pointers to structs and ->
     id: c-structs-3
@@ -228,6 +376,83 @@ steps:
     hints:
       - "`p->kills += kills;`"
       - "`if (died) p->deaths++;`"
+    more:
+      - task: |
+          Write `void merge(struct Player *into, const struct Player *from)` that adds `from`'s kills and deaths to `into`. Leave `into`'s name as it is.
+        seed: |
+          struct Player {
+              const char *name;
+              int kills;
+              int deaths;
+          };
+
+          void merge(struct Player *into, const struct Player *from) {
+
+          }
+        solution: |
+          struct Player {
+              const char *name;
+              int kills;
+              int deaths;
+          };
+
+          void merge(struct Player *into, const struct Player *from) {
+              into->kills += from->kills;
+              into->deaths += from->deaths;
+          }
+        harness: |
+          int main(void) {
+              struct Player season = {"you", 100, 60};
+              struct Player match = {"you (today)", 22, 14};
+              merge(&season, &match);
+              CHECK_INT("kills added", season.kills, 122);
+              CHECK_INT("deaths added", season.deaths, 74);
+              CHECK_STR("name unchanged", season.name, "you");
+              CHECK_INT("from is unchanged", match.kills, 22);
+              return 0;
+          }
+        hints:
+          - With a pointer to a struct, use `->`, like `into->kills += from->kills;`.
+        tests: []
+      - task: |
+          Write `void swap_players(struct Player *a, struct Player *b)` that swaps the **whole** structs, names included. A struct can be copied with a single `=`.
+        seed: |
+          struct Player {
+              const char *name;
+              int kills;
+              int deaths;
+          };
+
+          void swap_players(struct Player *a, struct Player *b) {
+
+          }
+        solution: |
+          struct Player {
+              const char *name;
+              int kills;
+              int deaths;
+          };
+
+          void swap_players(struct Player *a, struct Player *b) {
+              struct Player tmp = *a;
+              *a = *b;
+              *b = tmp;
+          }
+        harness: |
+          int main(void) {
+              struct Player x = {"ropz", 20, 12};
+              struct Player y = {"rain", 25, 20};
+              swap_players(&x, &y);
+              CHECK_STR("x has rain's name", x.name, "rain");
+              CHECK("x has rain's stats", x.kills == 25 && x.deaths == 20);
+              CHECK_STR("y has ropz's name", y.name, "ropz");
+              CHECK("y has ropz's stats", y.kills == 20 && y.deaths == 12);
+              return 0;
+          }
+        hints:
+          - It's the same as swapping two ints, but the temporary is a `struct Player`.
+          - "`struct Player tmp = *a;` copies every field at once."
+        tests: []
 
   - title: Arrays of structs
     id: c-structs-4
@@ -337,6 +562,111 @@ steps:
       - stdin: "1\nsolo 0\n"
       - stdin: "4\na 1\nb 2\nc 9\nd 3\n"
         hidden: true
+    more:
+      - task: |
+          The input is `n` followed by `n` lines of `name kills deaths`. Print the name of every player with **more kills than deaths**, one per line, in input order. If there are none, print `nobody`.
+        seed: |
+          #include <stdio.h>
+
+          struct Player {
+              char name[32];
+              int kills;
+              int deaths;
+          };
+
+          int main(void) {
+              struct Player team[10];
+              int n;
+              scanf("%d", &n);
+
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          struct Player {
+              char name[32];
+              int kills;
+              int deaths;
+          };
+
+          int main(void) {
+              struct Player team[10];
+              int n;
+              scanf("%d", &n);
+              for (int i = 0; i < n; i++) {
+                  scanf("%31s %d %d", team[i].name, &team[i].kills, &team[i].deaths);
+              }
+              int printed = 0;
+              for (int i = 0; i < n; i++) {
+                  if (team[i].kills > team[i].deaths) {
+                      printf("%s\n", team[i].name);
+                      printed++;
+                  }
+              }
+              if (printed == 0) printf("nobody\n");
+              return 0;
+          }
+        hints:
+          - "Read each line with `scanf(\"%31s %d %d\", team[i].name, &team[i].kills, &team[i].deaths);`"
+          - Count how many you printed so you know whether to print `nobody`.
+        tests:
+          - stdin: "3\nropz 18 10\nbroky 9 15\nrain 12 11\n"
+          - stdin: "2\na 1 5\nb 3 3\n"
+          - stdin: "4\nw 10 1\nx 0 0\ny 5 6\nz 7 2\n"
+            hidden: true
+      - task: |
+          The input is `n` (at most 10) followed by `n` lines of `name kills`. Print the players sorted by kills, **most first**, as `name kills` lines. Players with equal kills keep their input order. Sort the array of structs itself, swapping whole structs.
+        seed: |
+          #include <stdio.h>
+
+          struct Player {
+              char name[32];
+              int kills;
+          };
+
+          int main(void) {
+              struct Player team[10];
+              int n;
+              scanf("%d", &n);
+
+              return 0;
+          }
+        solution: |
+          #include <stdio.h>
+
+          struct Player {
+              char name[32];
+              int kills;
+          };
+
+          int main(void) {
+              struct Player team[10];
+              int n;
+              scanf("%d", &n);
+              for (int i = 0; i < n; i++) {
+                  scanf("%31s %d", team[i].name, &team[i].kills);
+              }
+              for (int i = 1; i < n; i++) {
+                  for (int j = i; j > 0 && team[j].kills > team[j - 1].kills; j--) {
+                      struct Player tmp = team[j];
+                      team[j] = team[j - 1];
+                      team[j - 1] = tmp;
+                  }
+              }
+              for (int i = 0; i < n; i++) {
+                  printf("%s %d\n", team[i].name, team[i].kills);
+              }
+              return 0;
+          }
+        hints:
+          - "Insertion sort keeps ties in order: move each player left while the one before it has **fewer** kills."
+          - "Swap whole structs with a temporary, `struct Player tmp = team[j];`."
+        tests:
+          - stdin: "3\nropz 18\nbroky 25\nrain 18\n"
+          - stdin: "1\nsolo 0\n"
+          - stdin: "5\na 1\nb 9\nc 3\nd 9\ne 0\n"
+            hidden: true
 
   - title: enum
     id: c-structs-5
@@ -419,6 +749,77 @@ steps:
     hints:
       - "`switch (w) { case RIFLE: return \"rifle\"; ... }`"
       - Return `"?"` after the switch for anything unmatched.
+    more:
+      - task: |
+          Write `int price(enum Weapon w)` that returns what each weapon costs: `RIFLE` is `2700`, `PISTOL` is `500`, `KNIFE` is `0`, and any other value returns `-1`.
+        seed: |
+          enum Weapon { RIFLE, PISTOL, KNIFE };
+
+          int price(enum Weapon w) {
+
+          }
+        solution: |
+          enum Weapon { RIFLE, PISTOL, KNIFE };
+
+          int price(enum Weapon w) {
+              switch (w) {
+                  case RIFLE: return 2700;
+                  case PISTOL: return 500;
+                  case KNIFE: return 0;
+              }
+              return -1;
+          }
+        harness: |
+          int main(void) {
+              CHECK_INT("RIFLE", price(RIFLE), 2700);
+              CHECK_INT("PISTOL", price(PISTOL), 500);
+              CHECK_INT("KNIFE", price(KNIFE), 0);
+              CHECK_INT("unknown value", price((enum Weapon)9), -1);
+              return 0;
+          }
+        hints:
+          - A `switch` on the enum with one `case` per weapon, and `return -1;` after the switch.
+        tests: []
+      - task: |
+          The compass directions are `NORTH, EAST, SOUTH, WEST`, so their values are 0 to 3 in clockwise order. Write `turn_right(d)` and `turn_left(d)` **without a switch**: use the numbers and `%` so that turning right from `WEST` gives `NORTH`.
+        seed: |
+          enum Dir { NORTH, EAST, SOUTH, WEST };
+
+          enum Dir turn_right(enum Dir d) {
+
+          }
+
+          enum Dir turn_left(enum Dir d) {
+
+          }
+        solution: |
+          enum Dir { NORTH, EAST, SOUTH, WEST };
+
+          enum Dir turn_right(enum Dir d) {
+              return (enum Dir)((d + 1) % 4);
+          }
+
+          enum Dir turn_left(enum Dir d) {
+              return (enum Dir)((d + 3) % 4);
+          }
+        harness: |
+          int main(void) {
+              CHECK_INT("right from NORTH is EAST", turn_right(NORTH), EAST);
+              CHECK_INT("right from WEST is NORTH", turn_right(WEST), NORTH);
+              CHECK_INT("left from NORTH is WEST", turn_left(NORTH), WEST);
+              CHECK_INT("left from SOUTH is EAST", turn_left(SOUTH), EAST);
+              enum Dir d = NORTH;
+              for (int i = 0; i < 4; i++) d = turn_left(d);
+              CHECK_INT("four lefts is back to NORTH", d, NORTH);
+              return 0;
+          }
+        forbid:
+          - pattern: "\\bswitch\\b|\\bif\\b"
+            message: Use the enum's numbers and `%` instead of a switch or if.
+        hints:
+          - Turning right adds 1. `% 4` wraps 4 back around to 0.
+          - Turning left is the same as turning right three times, so add 3 before `% 4`. That avoids a negative number.
+        tests: []
 
   - title: typedef
     id: c-structs-6
@@ -500,6 +901,89 @@ steps:
       }
     hints:
       - "Build the result: `Vec2 r = {a.x + b.x, a.y + b.y};` and return it."
+    more:
+      - task: |
+          Write `Vec2 scale(Vec2 v, double k)`, which multiplies both components by `k`, and `double dot(Vec2 a, Vec2 b)`, which returns `a.x * b.x + a.y * b.y`.
+        seed: |
+          typedef struct {
+              double x, y;
+          } Vec2;
+
+          Vec2 scale(Vec2 v, double k) {
+
+          }
+
+          double dot(Vec2 a, Vec2 b) {
+
+          }
+        solution: |
+          typedef struct {
+              double x, y;
+          } Vec2;
+
+          Vec2 scale(Vec2 v, double k) {
+              Vec2 r = {v.x * k, v.y * k};
+              return r;
+          }
+
+          double dot(Vec2 a, Vec2 b) {
+              return a.x * b.x + a.y * b.y;
+          }
+        harness: |
+          int main(void) {
+              Vec2 v = {1.5, -2};
+              Vec2 s = scale(v, 2);
+              CHECK_DBL("scale x", s.x, 3.0);
+              CHECK_DBL("scale y", s.y, -4.0);
+              Vec2 z = scale(v, 0);
+              CHECK("scale by 0", z.x == 0 && z.y == 0);
+              CHECK_DBL("dot of (1,2) and (3,4)", dot((Vec2){1, 2}, (Vec2){3, 4}), 11.0);
+              CHECK_DBL("perpendicular vectors", dot((Vec2){1, 0}, (Vec2){0, 5}), 0.0);
+              return 0;
+          }
+        hints:
+          - "Build the result the same way as `add`: `Vec2 r = {v.x * k, v.y * k};`."
+        tests: []
+      - task: |
+          Write the typedef for a `Rect` yourself: a struct with two `Vec2` fields, `min` (the bottom-left corner) and `max` (the top-right corner). Then write `int contains(Rect r, Vec2 p)` that returns `1` if the point is inside the rectangle or on its edge.
+        seed: |
+          typedef struct {
+              double x, y;
+          } Vec2;
+
+          // typedef Rect here
+
+          int contains(Rect r, Vec2 p) {
+
+          }
+        solution: |
+          typedef struct {
+              double x, y;
+          } Vec2;
+
+          // typedef Rect here
+          typedef struct {
+              Vec2 min;
+              Vec2 max;
+          } Rect;
+
+          int contains(Rect r, Vec2 p) {
+              return p.x >= r.min.x && p.x <= r.max.x && p.y >= r.min.y && p.y <= r.max.y;
+          }
+        harness: |
+          int main(void) {
+              Rect site = {{0, 0}, {4, 3}};
+              CHECK_INT("(2, 1) is inside", contains(site, (Vec2){2, 1}), 1);
+              CHECK_INT("(4, 3) is on the corner", contains(site, (Vec2){4, 3}), 1);
+              CHECK_INT("(5, 1) is to the right", contains(site, (Vec2){5, 1}), 0);
+              CHECK_INT("(2, -1) is below", contains(site, (Vec2){2, -1}), 0);
+              CHECK_INT("(0, 3) is on the edge", contains(site, (Vec2){0, 3}), 1);
+              return 0;
+          }
+        hints:
+          - "`typedef struct { Vec2 min; Vec2 max; } Rect;`, the same shape as the Vec2 typedef."
+          - "Fields of fields chain with dots, like `r.min.x`. The point is inside when both `x` and `y` are between min and max."
+        tests: []
 
   - title: Unions and tagged unions
     id: c-structs-7
@@ -634,3 +1118,157 @@ steps:
       - "`s` is a pointer, so use `s->kind` and `s->as.circle.radius`, `s->as.rect.width` and so on."
       - "A `switch (s->kind)` with one `case` per kind, each returning its formula, reads well. Add a final `return 0;` after the switch."
       - "make_circle: `struct Shape s = {CIRCLE, {.circle = {r}}};` then `return s;`."
+    more:
+      - task: |
+          Write the other two constructors: `make_rect(w, h)` and `make_triangle(base, height)`. Each returns a shape with the right `kind` and its measurements filled in.
+        seed: |
+          enum ShapeKind { CIRCLE, RECTANGLE, TRIANGLE };
+
+          struct Shape {
+              enum ShapeKind kind;
+              union {
+                  struct { double radius; } circle;
+                  struct { double width, height; } rect;
+                  struct { double base, height; } tri;
+              } as;
+          };
+
+          struct Shape make_rect(double w, double h) {
+
+          }
+
+          struct Shape make_triangle(double base, double height) {
+
+          }
+        solution: |
+          enum ShapeKind { CIRCLE, RECTANGLE, TRIANGLE };
+
+          struct Shape {
+              enum ShapeKind kind;
+              union {
+                  struct { double radius; } circle;
+                  struct { double width, height; } rect;
+                  struct { double base, height; } tri;
+              } as;
+          };
+
+          struct Shape make_rect(double w, double h) {
+              struct Shape s = {RECTANGLE, {.rect = {w, h}}};
+              return s;
+          }
+
+          struct Shape make_triangle(double base, double height) {
+              struct Shape s;
+              s.kind = TRIANGLE;
+              s.as.tri.base = base;
+              s.as.tri.height = height;
+              return s;
+          }
+        harness: |
+          int main(void) {
+              struct Shape r = make_rect(3, 4);
+              CHECK("make_rect sets the kind", r.kind == RECTANGLE);
+              CHECK("make_rect sets width and height", r.as.rect.width == 3 && r.as.rect.height == 4);
+              struct Shape t = make_triangle(6, 5);
+              CHECK("make_triangle sets the kind", t.kind == TRIANGLE);
+              CHECK("make_triangle sets base and height", t.as.tri.base == 6 && t.as.tri.height == 5);
+              return 0;
+          }
+        hints:
+          - "Look at `make_circle` in this step: `{RECTANGLE, {.rect = {w, h}}}` works the same way."
+          - "You can also set fields one by one: `s.kind = TRIANGLE; s.as.tri.base = base;`."
+        tests: []
+      - task: |
+          `area` is already written. Using it, write `double total_area(const struct Shape shapes[], int n)` and `int count_kind(const struct Shape shapes[], int n, enum ShapeKind k)`, which counts the shapes of kind `k`.
+        seed: |
+          #define PI 3.14159265358979
+
+          enum ShapeKind { CIRCLE, RECTANGLE, TRIANGLE };
+
+          struct Shape {
+              enum ShapeKind kind;
+              union {
+                  struct { double radius; } circle;
+                  struct { double width, height; } rect;
+                  struct { double base, height; } tri;
+              } as;
+          };
+
+          double area(const struct Shape *s) {
+              switch (s->kind) {
+              case CIRCLE:
+                  return PI * s->as.circle.radius * s->as.circle.radius;
+              case RECTANGLE:
+                  return s->as.rect.width * s->as.rect.height;
+              case TRIANGLE:
+                  return s->as.tri.base * s->as.tri.height / 2;
+              }
+              return 0;
+          }
+
+          double total_area(const struct Shape shapes[], int n) {
+
+          }
+
+          int count_kind(const struct Shape shapes[], int n, enum ShapeKind k) {
+
+          }
+        solution: |
+          #define PI 3.14159265358979
+
+          enum ShapeKind { CIRCLE, RECTANGLE, TRIANGLE };
+
+          struct Shape {
+              enum ShapeKind kind;
+              union {
+                  struct { double radius; } circle;
+                  struct { double width, height; } rect;
+                  struct { double base, height; } tri;
+              } as;
+          };
+
+          double area(const struct Shape *s) {
+              switch (s->kind) {
+              case CIRCLE:
+                  return PI * s->as.circle.radius * s->as.circle.radius;
+              case RECTANGLE:
+                  return s->as.rect.width * s->as.rect.height;
+              case TRIANGLE:
+                  return s->as.tri.base * s->as.tri.height / 2;
+              }
+              return 0;
+          }
+
+          double total_area(const struct Shape shapes[], int n) {
+              double sum = 0;
+              for (int i = 0; i < n; i++) sum += area(&shapes[i]);
+              return sum;
+          }
+
+          int count_kind(const struct Shape shapes[], int n, enum ShapeKind k) {
+              int count = 0;
+              for (int i = 0; i < n; i++) {
+                  if (shapes[i].kind == k) count++;
+              }
+              return count;
+          }
+        harness: |
+          int main(void) {
+              struct Shape s[] = {
+                  {RECTANGLE, {.rect = {3, 4}}},
+                  {TRIANGLE, {.tri = {6, 5}}},
+                  {RECTANGLE, {.rect = {1, 1}}},
+                  {CIRCLE, {.circle = {1}}},
+              };
+              CHECK_DBL("total area", total_area(s, 4), 12 + 15 + 1 + PI);
+              CHECK_DBL("total of the first two", total_area(s, 2), 27);
+              CHECK_DBL("no shapes", total_area(s, 0), 0);
+              CHECK_INT("two rectangles", count_kind(s, 4, RECTANGLE), 2);
+              CHECK_INT("one circle", count_kind(s, 4, CIRCLE), 1);
+              CHECK_INT("no circles in the first three", count_kind(s, 3, CIRCLE), 0);
+              return 0;
+          }
+        hints:
+          - "`area` takes a pointer, so pass `&shapes[i]`."
+          - For `count_kind`, compare `shapes[i].kind == k`.
+        tests: []
