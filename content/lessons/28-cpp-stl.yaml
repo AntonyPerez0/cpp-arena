@@ -110,6 +110,93 @@ steps:
     hints:
       - "`switch (w) { case Weapon::Rifle: return \"rifle\"; ... }`"
       - "Add a `return` after the switch too, since the compiler can't be sure an enum holds only listed values."
+    more:
+      - task: |
+          Write `Side opposite(Side s)` (T becomes CT and CT becomes T) and `std::string name(Side s)` returning `"T"` or `"CT"`. Use a `switch` in both.
+        seed: |
+          #include <string>
+
+          enum class Side { T, CT };
+
+          Side opposite(Side s) {
+
+          }
+
+          std::string name(Side s) {
+
+          }
+        solution: |
+          #include <string>
+
+          enum class Side { T, CT };
+
+          Side opposite(Side s) {
+              switch (s) {
+                  case Side::T: return Side::CT;
+                  case Side::CT: return Side::T;
+              }
+              return s;
+          }
+
+          std::string name(Side s) {
+              switch (s) {
+                  case Side::T: return "T";
+                  case Side::CT: return "CT";
+              }
+              return "?";
+          }
+        require:
+          - pattern: "switch"
+            message: "Use a `switch` over the enum."
+        harness: |
+          int main() {
+              CHECK("opposite of T is CT", opposite(Side::T) == Side::CT);
+              CHECK("opposite of CT is T", opposite(Side::CT) == Side::T);
+              CHECK("opposite twice is the same side", opposite(opposite(Side::T)) == Side::T);
+              CHECK_EQ("name T", name(Side::T), std::string("T"));
+              CHECK_EQ("name CT", name(Side::CT), std::string("CT"));
+              CHECK_EQ("name of opposite", name(opposite(Side::T)), std::string("CT"));
+          }
+        hints:
+          - "Every value needs its `Side::` prefix: `case Side::T: return Side::CT;`"
+      - task: |
+          Write `Rank rank_for(int elo)`: below 1000 is `Silver`, below 2000 is `Gold`, anything else is `Elite`. Then write `bool promoted(Rank before, Rank after)`, true when `after` is a higher rank. Enumerators of an `enum class` compare in the order they are listed, so `<` and `>` work between two `Rank`s.
+        seed: |
+          enum class Rank { Silver, Gold, Elite };
+
+          Rank rank_for(int elo) {
+
+          }
+
+          bool promoted(Rank before, Rank after) {
+
+          }
+        solution: |
+          enum class Rank { Silver, Gold, Elite };
+
+          Rank rank_for(int elo) {
+              if (elo < 1000) return Rank::Silver;
+              if (elo < 2000) return Rank::Gold;
+              return Rank::Elite;
+          }
+
+          bool promoted(Rank before, Rank after) {
+              return after > before;
+          }
+        harness: |
+          int main() {
+              CHECK("999 is Silver", rank_for(999) == Rank::Silver);
+              CHECK("1000 is Gold", rank_for(1000) == Rank::Gold);
+              CHECK("1999 is Gold", rank_for(1999) == Rank::Gold);
+              CHECK("2000 is Elite", rank_for(2000) == Rank::Elite);
+              CHECK("Silver to Elite is a promotion", promoted(Rank::Silver, Rank::Elite));
+              CHECK("Gold to Gold is not", !promoted(Rank::Gold, Rank::Gold));
+              CHECK("Elite to Gold is not", !promoted(Rank::Elite, Rank::Gold));
+              CHECK("from elo", promoted(rank_for(950), rank_for(1200)));
+          }
+        hints:
+          - "Check the bounds from lowest to highest, returning as soon as one fits."
+          - "Two values of the same `enum class` can be compared directly: `after > before`."
 
   - title: std::array
     id: cpp-stl-2
@@ -200,6 +287,85 @@ steps:
     hints:
       - "Copy the vector, then sort the copy descending with `std::greater<int>()`."
       - "`std::array<int, 3> top{};` starts as all zeros. Fill as many places as you have scores."
+    more:
+      - task: |
+          Write `std::array<int, 26> letter_counts(const std::string& s)` that counts each letter a to z, ignoring case (`A` counts as `a`) and skipping everything that isn't a letter. Index 0 is `a`, index 25 is `z`.
+        seed: |
+          #include <array>
+          #include <string>
+
+          std::array<int, 26> letter_counts(const std::string& s) {
+
+          }
+        solution: |
+          #include <array>
+          #include <cctype>
+          #include <string>
+
+          std::array<int, 26> letter_counts(const std::string& s) {
+              std::array<int, 26> counts{};
+              for (char c : s) {
+                  unsigned char u = (unsigned char)c;
+                  if (std::isalpha(u)) counts[std::tolower(u) - 'a']++;
+              }
+              return counts;
+          }
+        harness: |
+          int main() {
+              auto c = letter_counts("Hello, World!");
+              CHECK_EQ("l", c['l' - 'a'], 3);
+              CHECK_EQ("o", c['o' - 'a'], 2);
+              CHECK_EQ("H counts as h", c['h' - 'a'], 1);
+              CHECK_EQ("W counts as w", c['w' - 'a'], 1);
+              CHECK_EQ("z", c['z' - 'a'], 0);
+              CHECK("empty string is all zeros", letter_counts("") == std::array<int, 26>{});
+              CHECK("digits and spaces are skipped", letter_counts("1 2 3") == std::array<int, 26>{});
+          }
+        hints:
+          - "`std::array<int, 26> counts{};` starts with every element at 0. Without the `{}` the values are garbage."
+          - "`std::tolower(c) - 'a'` turns a letter into its index 0 to 25."
+      - task: |
+          Write `char winner(const std::array<std::array<char, 3>, 3>& b)` for a tic-tac-toe board holding `'X'`, `'O'` or `'.'`. Return the player with three in a row (a row, a column or a diagonal), or `'.'` when nobody has won.
+        seed: |
+          #include <array>
+
+          char winner(const std::array<std::array<char, 3>, 3>& b) {
+
+          }
+        solution: |
+          #include <array>
+
+          static bool line(char a, char b, char c) {
+              return a != '.' && a == b && b == c;
+          }
+
+          char winner(const std::array<std::array<char, 3>, 3>& b) {
+              for (int i = 0; i < 3; i++) {
+                  if (line(b[i][0], b[i][1], b[i][2])) return b[i][0];
+                  if (line(b[0][i], b[1][i], b[2][i])) return b[0][i];
+              }
+              if (line(b[0][0], b[1][1], b[2][2])) return b[0][0];
+              if (line(b[0][2], b[1][1], b[2][0])) return b[0][2];
+              return '.';
+          }
+        harness: |
+          #include <array>
+          using Board = std::array<std::array<char, 3>, 3>;
+          int main() {
+              Board row = {{{'X', 'X', 'X'}, {'O', 'O', '.'}, {'.', '.', '.'}}};
+              CHECK_EQ("row", winner(row), 'X');
+              Board col = {{{'O', 'X', '.'}, {'O', 'X', '.'}, {'O', '.', 'X'}}};
+              CHECK_EQ("column", winner(col), 'O');
+              Board diag = {{{'.', '.', 'X'}, {'O', 'X', 'O'}, {'X', '.', '.'}}};
+              CHECK_EQ("anti-diagonal", winner(diag), 'X');
+              Board none = {{{'X', 'O', 'X'}, {'X', 'O', 'O'}, {'O', 'X', 'X'}}};
+              CHECK_EQ("draw", winner(none), '.');
+              Board empty = {{{'.', '.', '.'}, {'.', '.', '.'}, {'.', '.', '.'}}};
+              CHECK_EQ("three empty cells are not a win", winner(empty), '.');
+          }
+        hints:
+          - "A small helper `line(a, b, c)` that checks three cells saves repeating yourself eight times."
+          - "Three `'.'` in a row is not a win, so check that the first cell isn't empty."
 
   - title: deque, the double-ended queue
     id: cpp-stl-3
@@ -295,6 +461,104 @@ steps:
     hints:
       - "Keep a `std::deque<int> window_` and a running `sum_`."
       - "On add: push_back and add to the sum. If the window is now larger than n, subtract `front()` and `pop_front()`."
+    more:
+      - task: |
+          Write class `UndoHistory` that keeps at most `capacity` actions. `push(action)` adds the newest; when that goes over capacity, the **oldest** is forgotten. `undo()` removes and returns the newest action, or `""` when there is none. `size()` returns how many are kept. Use a `std::deque`.
+        seed: |
+          #include <deque>
+          #include <string>
+
+          class UndoHistory {
+          public:
+              explicit UndoHistory(int capacity);
+              void push(const std::string& action);
+              std::string undo();
+              int size() const;
+
+          private:
+
+          };
+        solution: |
+          #include <deque>
+          #include <string>
+
+          class UndoHistory {
+          public:
+              explicit UndoHistory(int capacity) : capacity_(capacity) {}
+              void push(const std::string& action) {
+                  actions_.push_back(action);
+                  if (static_cast<int>(actions_.size()) > capacity_) actions_.pop_front();
+              }
+              std::string undo() {
+                  if (actions_.empty()) return "";
+                  std::string last = actions_.back();
+                  actions_.pop_back();
+                  return last;
+              }
+              int size() const { return static_cast<int>(actions_.size()); }
+
+          private:
+              int capacity_;
+              std::deque<std::string> actions_;
+          };
+        require:
+          - pattern: "deque"
+            message: "Store the actions in a `std::deque`."
+        harness: |
+          int main() {
+              UndoHistory h(3);
+              CHECK_EQ("undo on empty", h.undo(), std::string(""));
+              h.push("type a");
+              h.push("type b");
+              h.push("bold");
+              h.push("delete");
+              CHECK_EQ("capped at 3", h.size(), 3);
+              CHECK_EQ("newest first", h.undo(), std::string("delete"));
+              CHECK_EQ("then", h.undo(), std::string("bold"));
+              CHECK_EQ("oldest kept", h.undo(), std::string("type b"));
+              CHECK_EQ("type a was forgotten", h.undo(), std::string(""));
+              CHECK_EQ("empty now", h.size(), 0);
+          }
+        hints:
+          - "New actions go on the back. Forgetting the oldest is `pop_front`, undoing the newest is `pop_back`."
+      - task: |
+          Write `std::vector<int> window_max(const std::vector<int>& v, int k)` that returns the largest value of every window of `k` neighbours, left to right. Keep a `std::deque` of **indexes** whose values are in decreasing order: drop indexes from the back while their value is `<=` the new one, and drop the front once it slides out of the window. The front is then always the window's maximum.
+        seed: |
+          #include <deque>
+          #include <vector>
+
+          std::vector<int> window_max(const std::vector<int>& v, int k) {
+
+          }
+        solution: |
+          #include <deque>
+          #include <vector>
+
+          std::vector<int> window_max(const std::vector<int>& v, int k) {
+              std::vector<int> out;
+              std::deque<int> idx;
+              for (int i = 0; i < static_cast<int>(v.size()); i++) {
+                  while (!idx.empty() && v[idx.back()] <= v[i]) idx.pop_back();
+                  idx.push_back(i);
+                  if (idx.front() <= i - k) idx.pop_front();
+                  if (i >= k - 1) out.push_back(v[idx.front()]);
+              }
+              return out;
+          }
+        require:
+          - pattern: "deque"
+            message: "Keep the candidate indexes in a `std::deque`."
+        harness: |
+          int main() {
+              CHECK_EQ("k = 3", window_max({1, 3, -1, -3, 5, 3, 6, 7}, 3), (std::vector<int>{3, 3, 5, 5, 6, 7}));
+              CHECK_EQ("k = 1 is the input", window_max({4, 2, 9}, 1), (std::vector<int>{4, 2, 9}));
+              CHECK_EQ("k = size", window_max({2, 8, 5}, 3), (std::vector<int>{8}));
+              CHECK_EQ("decreasing", window_max({9, 7, 5, 3}, 2), (std::vector<int>{9, 7, 5}));
+              CHECK_EQ("window bigger than input", window_max({1, 2}, 3), (std::vector<int>{}));
+          }
+        hints:
+          - "A window is complete once `i >= k - 1`. Only then record the front's value."
+          - "The front index is outside the window when `idx.front() <= i - k`."
 
   - title: priority_queue and top-k
     id: cpp-stl-4
@@ -391,6 +655,92 @@ steps:
       - "Declare `std::priority_queue<int, std::vector<int>, std::greater<int>> heap;`"
       - "Push every value; when the size exceeds k, `pop()` removes the smallest."
       - "Pop everything into a vector (smallest first), then `std::reverse` it."
+    more:
+      - task: |
+          Each task is a `{priority, name}` pair. Write `std::vector<std::string> run_order(const std::vector<std::pair<int, std::string>>& tasks)` that returns the names in the order they run: **highest priority first**, and equal priorities in **alphabetical** order. Use a `std::priority_queue` with your own comparison, not sorting.
+        seed: |
+          #include <queue>
+          #include <string>
+          #include <utility>
+          #include <vector>
+
+          std::vector<std::string> run_order(const std::vector<std::pair<int, std::string>>& tasks) {
+
+          }
+        solution: |
+          #include <queue>
+          #include <string>
+          #include <utility>
+          #include <vector>
+
+          std::vector<std::string> run_order(const std::vector<std::pair<int, std::string>>& tasks) {
+              using Task = std::pair<int, std::string>;
+              auto runs_later = [](const Task& a, const Task& b) {
+                  if (a.first != b.first) return a.first < b.first;
+                  return a.second > b.second;
+              };
+              std::priority_queue<Task, std::vector<Task>, decltype(runs_later)> queue(runs_later);
+              for (const auto& t : tasks) queue.push(t);
+              std::vector<std::string> out;
+              while (!queue.empty()) {
+                  out.push_back(queue.top().second);
+                  queue.pop();
+              }
+              return out;
+          }
+        require:
+          - pattern: "priority_queue"
+            message: "Use a `std::priority_queue`."
+        forbid:
+          - pattern: "sort"
+            message: "Let the priority queue do the ordering instead of sorting."
+        harness: |
+          int main() {
+              CHECK_EQ("by priority", run_order({{1, "lint"}, {5, "deploy"}, {3, "test"}}), (std::vector<std::string>{"deploy", "test", "lint"}));
+              CHECK_EQ("ties alphabetical", run_order({{2, "zip"}, {2, "build"}, {9, "fix"}, {2, "docs"}}), (std::vector<std::string>{"fix", "build", "docs", "zip"}));
+              CHECK_EQ("no tasks", run_order({}), (std::vector<std::string>{}));
+          }
+        hints:
+          - "The comparison says when `a` comes out **after** `b`: lower priority, or the same priority and a later name."
+          - "Pass a lambda's type with `decltype(cmp)` and the lambda itself to the constructor: `std::priority_queue<Task, std::vector<Task>, decltype(cmp)> q(cmp);`"
+      - task: |
+          Write `int last_stone(const std::vector<int>& stones)`. Each turn, smash the **two heaviest** stones together: if they weigh the same both are destroyed, otherwise the lighter is destroyed and the heavier loses that much weight and goes back. Return the weight of the stone that is left, or 0 if none is. Use a `std::priority_queue`.
+        seed: |
+          #include <queue>
+          #include <vector>
+
+          int last_stone(const std::vector<int>& stones) {
+
+          }
+        solution: |
+          #include <queue>
+          #include <vector>
+
+          int last_stone(const std::vector<int>& stones) {
+              std::priority_queue<int> heap(stones.begin(), stones.end());
+              while (heap.size() > 1) {
+                  int a = heap.top();
+                  heap.pop();
+                  int b = heap.top();
+                  heap.pop();
+                  if (a != b) heap.push(a - b);
+              }
+              return heap.empty() ? 0 : heap.top();
+          }
+        require:
+          - pattern: "priority_queue"
+            message: "Use a `std::priority_queue` so the heaviest stone is always on top."
+        harness: |
+          int main() {
+              CHECK_EQ("{2, 7, 4, 1, 8, 1}", last_stone({2, 7, 4, 1, 8, 1}), 1);
+              CHECK_EQ("two equal stones", last_stone({5, 5}), 0);
+              CHECK_EQ("one stone", last_stone({9}), 9);
+              CHECK_EQ("no stones", last_stone({}), 0);
+              CHECK_EQ("{10, 4, 3}", last_stone({10, 4, 3}), 3);
+          }
+        hints:
+          - "A plain `std::priority_queue<int>` is a max-heap: `top()` is the heaviest."
+          - "Keep going while the heap holds more than one stone."
 
   - title: Iterators
     id: cpp-stl-5
@@ -492,6 +842,73 @@ steps:
     hints:
       - "If `first == last` return last. Otherwise remember `It best = first;`"
       - "Loop over the rest; when `*best < *first`, set `best = first`. Using `<` only (not `>`) keeps the first maximum and needs only operator<."
+    more:
+      - task: |
+          Write `template <typename It, typename T> It find_first_greater(It first, It last, const T& value)` returning an iterator to the first element greater than `value`, or `last` when there is none. Write the loop yourself.
+        seed: |
+          template <typename It, typename T>
+          It find_first_greater(It first, It last, const T& value) {
+
+          }
+        solution: |
+          template <typename It, typename T>
+          It find_first_greater(It first, It last, const T& value) {
+              for (; first != last; ++first) {
+                  if (value < *first) return first;
+              }
+              return last;
+          }
+        forbid:
+          - pattern: "find_if"
+            message: Write the loop yourself on this step.
+        harness: |
+          #include <list>
+          #include <iterator>
+          int main() {
+              std::vector<int> v = {3, 8, 1, 9};
+              auto it = find_first_greater(v.begin(), v.end(), 5);
+              CHECK_EQ("value", *it, 8);
+              CHECK_EQ("position", std::distance(v.begin(), it), 1);
+              CHECK("none greater returns last", find_first_greater(v.begin(), v.end(), 9) == v.end());
+              std::list<std::string> l = {"ak", "m4", "awp"};
+              CHECK_EQ("works on a list of strings", *find_first_greater(l.begin(), l.end(), std::string("al")), std::string("m4"));
+              double raw[] = {0.5, 1.5};
+              CHECK_EQ("works on a C array", *find_first_greater(std::begin(raw), std::end(raw), 1.0), 1.5);
+          }
+        hints:
+          - "Advance `first` itself until it reaches `last`, and return it as soon as `*first` is greater."
+      - task: |
+          Write `template <typename It> int count_runs(It first, It last)` that counts the **runs**: groups of equal neighbours. `{1, 1, 2, 2, 2, 1}` has 3 runs. An empty range has 0. Only use `==`, `!=` and `++` on the iterators, so it works on any container.
+        seed: |
+          template <typename It>
+          int count_runs(It first, It last) {
+
+          }
+        solution: |
+          template <typename It>
+          int count_runs(It first, It last) {
+              if (first == last) return 0;
+              int runs = 1;
+              It prev = first;
+              for (++first; first != last; ++first) {
+                  if (!(*first == *prev)) runs++;
+                  prev = first;
+              }
+              return runs;
+          }
+        harness: |
+          #include <list>
+          int main() {
+              std::vector<int> v = {1, 1, 2, 2, 2, 1};
+              CHECK_EQ("three runs", count_runs(v.begin(), v.end()), 3);
+              std::string s = "aaabccdd";
+              CHECK_EQ("string runs", count_runs(s.begin(), s.end()), 4);
+              std::list<int> one = {7};
+              CHECK_EQ("one element", count_runs(one.begin(), one.end()), 1);
+              CHECK_EQ("empty", count_runs(v.begin(), v.begin()), 0);
+          }
+        hints:
+          - "Remember the previous position in a second iterator, and count a new run whenever the current element differs from it."
 
   - title: Iterator invalidation
     id: cpp-stl-6
@@ -588,6 +1005,82 @@ steps:
     hints:
       - "Use a loop with no increment in its header: `for (auto it = sessions.begin(); it != sessions.end(); )`."
       - "If expired: `it = sessions.erase(it); removed++;` else `++it;`"
+    more:
+      - task: |
+          Write `void remove_odd(std::vector<int>& v)` that erases the odd numbers **in a loop**, continuing from the iterator that `erase` returns.
+        seed: |
+          #include <vector>
+
+          void remove_odd(std::vector<int>& v) {
+
+          }
+        solution: |
+          #include <vector>
+
+          void remove_odd(std::vector<int>& v) {
+              for (auto it = v.begin(); it != v.end();) {
+                  if (*it % 2 != 0) {
+                      it = v.erase(it);
+                  } else {
+                      ++it;
+                  }
+              }
+          }
+        require:
+          - pattern: "=\\s*v\\.erase\\s*\\(\\s*it\\s*\\)"
+            message: "Continue from the iterator erase returns: `it = v.erase(it);`"
+        harness: |
+          int main() {
+              std::vector<int> v = {1, 2, 3, 3, 4, 5};
+              remove_odd(v);
+              CHECK_EQ("evens left", v, (std::vector<int>{2, 4}));
+              std::vector<int> n = {-3, -2, 7};
+              remove_odd(n);
+              CHECK_EQ("negative odds too", n, (std::vector<int>{-2}));
+              std::vector<int> e;
+              remove_odd(e);
+              CHECK_EQ("empty", e, (std::vector<int>{}));
+          }
+        hints:
+          - "Only advance with `++it` when you did **not** erase. `erase` already hands you the next element."
+          - "`-3 % 2` is `-1` in C++, so test `!= 0` rather than `== 1`."
+      - task: |
+          Write `void double_evens(std::vector<int>& v)` that inserts a second copy of every even number right next to it, so `{1, 2, 3, 4}` becomes `{1, 2, 2, 3, 4, 4}`. `insert` can reallocate the vector, which invalidates `it`, so continue from the iterator that `insert` returns.
+        seed: |
+          #include <vector>
+
+          void double_evens(std::vector<int>& v) {
+
+          }
+        solution: |
+          #include <vector>
+
+          void double_evens(std::vector<int>& v) {
+              for (auto it = v.begin(); it != v.end(); ++it) {
+                  if (*it % 2 == 0) {
+                      it = v.insert(it, *it);
+                      ++it;
+                  }
+              }
+          }
+        require:
+          - pattern: "=\\s*v\\.insert\\s*\\("
+            message: "Continue from the iterator insert returns: `it = v.insert(it, *it);`"
+        harness: |
+          int main() {
+              std::vector<int> v = {1, 2, 3, 4};
+              double_evens(v);
+              CHECK_EQ("doubled", v, (std::vector<int>{1, 2, 2, 3, 4, 4}));
+              std::vector<int> all = {2, 2, 2, 2, 2, 2, 2, 2};
+              double_evens(all);
+              CHECK_EQ("many inserts force reallocation", all.size(), 16u);
+              std::vector<int> odd = {1, 3};
+              double_evens(odd);
+              CHECK_EQ("no evens", odd, (std::vector<int>{1, 3}));
+          }
+        hints:
+          - "`insert` returns an iterator to the new copy. Step past it once inside the `if`, and the loop's `++it` steps past the original."
+          - "Without skipping the copy, the loop would find the same even number again and never finish."
 
   - title: "Challenge: callbacks with std::function"
     id: cpp-stl-7
@@ -722,3 +1215,107 @@ steps:
       - "Store a private struct `{int id; std::string event; std::function<void(const std::string&)> fn;}` in a vector."
       - "`on` pushes a new entry with `++last_id_` and returns that id."
       - "`off` finds the id with `std::find_if` and erases it. `emit` loops over entries whose event matches."
+    more:
+      - task: |
+          Build a command registry. `add(name, fn)` stores a `std::function<std::string(const std::vector<std::string>&)>`. `run(line)` splits the line on spaces, calls the command named by the first word with the remaining words, and returns its result. An unknown command returns `unknown command: NAME`, and an empty line returns `""`.
+        seed: |
+          #include <functional>
+          #include <map>
+          #include <sstream>
+          #include <string>
+          #include <vector>
+
+          class Commands {
+          public:
+              void add(const std::string& name, std::function<std::string(const std::vector<std::string>&)> fn);
+              std::string run(const std::string& line) const;
+
+          private:
+
+          };
+        solution: |
+          #include <functional>
+          #include <map>
+          #include <sstream>
+          #include <string>
+          #include <vector>
+
+          class Commands {
+          public:
+              void add(const std::string& name, std::function<std::string(const std::vector<std::string>&)> fn) {
+                  commands_[name] = fn;
+              }
+              std::string run(const std::string& line) const {
+                  std::istringstream in(line);
+                  std::string name;
+                  if (!(in >> name)) return "";
+                  std::vector<std::string> args;
+                  std::string word;
+                  while (in >> word) args.push_back(word);
+                  auto it = commands_.find(name);
+                  if (it == commands_.end()) return "unknown command: " + name;
+                  return it->second(args);
+              }
+
+          private:
+              std::map<std::string, std::function<std::string(const std::vector<std::string>&)>> commands_;
+          };
+        harness: |
+          int main() {
+              Commands c;
+              c.add("echo", [](const std::vector<std::string>& a) {
+                  std::string out;
+                  for (const auto& w : a) out += (out.empty() ? "" : " ") + w;
+                  return out;
+              });
+              c.add("count", [](const std::vector<std::string>& a) { return std::to_string(a.size()); });
+              CHECK_EQ("echo", c.run("echo hello there"), std::string("hello there"));
+              CHECK_EQ("count", c.run("count a b c"), std::string("3"));
+              CHECK_EQ("no arguments", c.run("count"), std::string("0"));
+              CHECK_EQ("extra spaces", c.run("  echo   gg  "), std::string("gg"));
+              CHECK_EQ("unknown", c.run("jump high"), std::string("unknown command: jump"));
+              CHECK_EQ("empty line", c.run(""), std::string(""));
+              c.add("echo", [](const std::vector<std::string>&) { return std::string("replaced"); });
+              CHECK_EQ("adding again replaces", c.run("echo x"), std::string("replaced"));
+          }
+        hints:
+          - "A `std::map<std::string, std::function<...>>` maps each name to its handler."
+          - "`std::istringstream` with `>>` splits on any amount of whitespace."
+      - task: |
+          Write `std::function<int(int)> compose(std::function<int(int)> f, std::function<int(int)> g)` returning a function that runs `f` first and then `g`, so `compose(f, g)(x)` is `g(f(x))`. Then write `std::function<int(int)> repeat_fn(std::function<int(int)> f, int n)` that applies `f` to its input `n` times (0 times returns the input unchanged).
+        seed: |
+          #include <functional>
+
+          std::function<int(int)> compose(std::function<int(int)> f, std::function<int(int)> g) {
+
+          }
+
+          std::function<int(int)> repeat_fn(std::function<int(int)> f, int n) {
+
+          }
+        solution: |
+          #include <functional>
+
+          std::function<int(int)> compose(std::function<int(int)> f, std::function<int(int)> g) {
+              return [f, g](int x) { return g(f(x)); };
+          }
+
+          std::function<int(int)> repeat_fn(std::function<int(int)> f, int n) {
+              return [f, n](int x) {
+                  for (int i = 0; i < n; i++) x = f(x);
+                  return x;
+              };
+          }
+        harness: |
+          int main() {
+              auto add3 = [](int x) { return x + 3; };
+              auto twice = [](int x) { return x * 2; };
+              CHECK_EQ("add 3 then double", compose(add3, twice)(1), 8);
+              CHECK_EQ("double then add 3", compose(twice, add3)(1), 5);
+              CHECK_EQ("double 3 times", repeat_fn(twice, 3)(5), 40);
+              CHECK_EQ("0 times", repeat_fn(twice, 0)(7), 7);
+              CHECK_EQ("compose with a repeat", compose(repeat_fn(add3, 2), twice)(0), 12);
+          }
+        hints:
+          - "Return a lambda. It has to capture `f` and `g` **by copy**, because the parameters are gone once `compose` returns."
+          - "Inside the returned lambda, `x` is a copy you can update in a loop."

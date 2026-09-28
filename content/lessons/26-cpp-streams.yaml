@@ -105,6 +105,91 @@ steps:
       - stdin: "solo\n\nduo 1 1\n"
       - stdin: "a -1 -2 -3\n"
         hidden: true
+    more:
+      - task: |
+          Each line holds a player name followed by some round scores (maybe none). Print the name and the **best** score, or the name and `-` if there are no scores. Parse each line with a `std::istringstream`.
+        seed: |
+          #include <iostream>
+          #include <sstream>
+          #include <string>
+
+          int main() {
+              std::string line;
+              while (std::getline(std::cin, line)) {
+
+              }
+          }
+        solution: |
+          #include <iostream>
+          #include <sstream>
+          #include <string>
+
+          int main() {
+              std::string line;
+              while (std::getline(std::cin, line)) {
+                  std::istringstream in(line);
+                  std::string name;
+                  if (!(in >> name)) continue;
+                  int x, best = 0;
+                  bool any = false;
+                  while (in >> x) {
+                      if (!any || x > best) best = x;
+                      any = true;
+                  }
+                  if (any) std::cout << name << " " << best << "\n";
+                  else std::cout << name << " -\n";
+              }
+          }
+        require:
+          - pattern: "istringstream"
+            message: Parse each line with a `std::istringstream`.
+        hints:
+          - Keep a flag for whether any score was read, since scores can be negative.
+        tests:
+          - stdin: "ropz 3 9 4\nrain\n"
+          - stdin: "a -5 -2\n\nb 7\n"
+          - stdin: "solo 0\n"
+            hidden: true
+      - task: |
+          Each line is a CSV row `name,kills,deaths`. Print `name diff` with the kills minus the deaths. Skip lines that don't have all three fields as numbers. Read the name up to the comma with `std::getline(in, name, ',')`, then the numbers with `>>`, reading each comma into a `char`.
+        seed: |
+          #include <iostream>
+          #include <sstream>
+          #include <string>
+
+          int main() {
+              std::string line;
+              while (std::getline(std::cin, line)) {
+
+              }
+          }
+        solution: |
+          #include <iostream>
+          #include <sstream>
+          #include <string>
+
+          int main() {
+              std::string line;
+              while (std::getline(std::cin, line)) {
+                  std::istringstream in(line);
+                  std::string name;
+                  int kills, deaths;
+                  char comma;
+                  if (std::getline(in, name, ',') && in >> kills >> comma >> deaths && comma == ',') {
+                      std::cout << name << " " << kills - deaths << "\n";
+                  }
+              }
+          }
+        require:
+          - pattern: "getline\\s*\\(\\s*\\w+\\s*,\\s*\\w+\\s*,\\s*''\\s*\\)"
+            message: "Read the name with `std::getline(in, name, ',')`."
+        hints:
+          - Chain the reads in one `if`. If any read fails, the stream is in a failed state and the whole condition is false.
+        tests:
+          - stdin: "ropz,19,12\nrain,10,12\n"
+          - stdin: "bad row\nsolo,3,1\nx,,2\n"
+          - stdin: "a,0,0\n"
+            hidden: true
 
   - title: Formatting tables with iomanip
     id: cpp-streams-2
@@ -194,6 +279,92 @@ steps:
       - stdin: "flawless 17 0\n"
       - stdin: "a 1 3\nbb 100 7\n"
         hidden: true
+    more:
+      - task: |
+          Read `item price` rows (whole dollars) and print a receipt: the item left-aligned in 12 columns, the price right-aligned in 8 columns with 2 decimals, then a `TOTAL` line in the same format.
+
+          ```
+          awp          4750.00
+          flash         200.00
+          TOTAL        4950.00
+          ```
+        seed: |
+          #include <iomanip>
+          #include <iostream>
+          #include <string>
+
+          int main() {
+
+          }
+        solution: |
+          #include <iomanip>
+          #include <iostream>
+          #include <string>
+
+          int main() {
+              std::string item;
+              double price, total = 0;
+              std::cout << std::fixed << std::setprecision(2);
+              while (std::cin >> item >> price) {
+                  std::cout << std::left << std::setw(12) << item << std::right << std::setw(8) << price << "\n";
+                  total += price;
+              }
+              std::cout << std::left << std::setw(12) << "TOTAL" << std::right << std::setw(8) << total << "\n";
+          }
+        require:
+          - pattern: "setw"
+            message: Line the columns up with `std::setw`.
+        forbid:
+          - pattern: "printf"
+            message: Use the stream manipulators from `<iomanip>` instead of printf.
+        hints:
+          - "`std::fixed << std::setprecision(2)` makes every double print with 2 decimals, and it stays in effect."
+          - "`setw` only applies to the next item, while `left` and `right` stay in effect until changed."
+        tests:
+          - stdin: "awp 4750\nflash 200\n"
+          - stdin: "p250 300\n"
+          - stdin: "a 1\nb 22\nc 333\n"
+            hidden: true
+      - task: |
+          Read whole numbers from 0 to 65535 and print each one as a decimal right-aligned in 6 columns, then a space, then as `0x` with 4 **uppercase** hex digits padded with zeros:
+
+          ```
+             255 0x00FF
+           48879 0xBEEF
+          ```
+
+          Careful: the fill character and the base stay in effect until you change them back.
+        seed: |
+          #include <iomanip>
+          #include <iostream>
+
+          int main() {
+
+          }
+        solution: |
+          #include <iomanip>
+          #include <iostream>
+
+          int main() {
+              int x;
+              while (std::cin >> x) {
+                  std::cout << std::dec << std::setfill(' ') << std::setw(6) << x << " 0x"
+                            << std::hex << std::uppercase << std::setfill('0') << std::setw(4) << x << "\n";
+              }
+          }
+        require:
+          - pattern: "setfill"
+            message: Pad the hex digits with zeros using `std::setfill('0')`.
+          - pattern: "std::hex"
+            message: Print in hexadecimal with `std::hex`.
+        hints:
+          - "`std::hex` and `std::uppercase` switch the number format; `std::dec` switches back to decimal."
+          - Set the fill back to a space before printing the decimal, or the second number would be padded with zeros too.
+        tests:
+          - stdin: "255 48879\n"
+          - stdin: "0\n"
+          - stdin: "65535 10 4096\n"
+            hidden: true
 
   - title: Building strings with ostringstream
     id: cpp-streams-3
@@ -284,6 +455,76 @@ steps:
     hints:
       - "`std::ostringstream out;` then write each number, with `sep` before every number except the first."
       - "Return `out.str()`."
+    more:
+      - task: |
+          Write `std::string format_kd(const std::string& name, int kills, int deaths)` that returns the name and the K/D with exactly 2 decimals, like `"ropz 2.08"`, counting 0 deaths as 1. Build it with an `std::ostringstream`.
+        seed: |
+          #include <iomanip>
+          #include <sstream>
+          #include <string>
+
+          std::string format_kd(const std::string& name, int kills, int deaths) {
+
+          }
+        solution: |
+          #include <iomanip>
+          #include <sstream>
+          #include <string>
+
+          std::string format_kd(const std::string& name, int kills, int deaths) {
+              std::ostringstream out;
+              double kd = static_cast<double>(kills) / (deaths == 0 ? 1 : deaths);
+              out << name << " " << std::fixed << std::setprecision(2) << kd;
+              return out.str();
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("ropz 25/12", format_kd("ropz", 25, 12), std::string("ropz 2.08"));
+              CHECK_EQ("no deaths", format_kd("flawless", 17, 0), std::string("flawless 17.00"));
+              CHECK_EQ("below 1", format_kd("rain", 9, 20), std::string("rain 0.45"));
+          }
+        require:
+          - pattern: "ostringstream"
+            message: Build the text with a `std::ostringstream`.
+        hints:
+          - An `ostringstream` accepts the same manipulators as `std::cout`, and `.str()` gives you the result.
+        tests: []
+      - task: |
+          Write `std::string to_table(const std::vector<std::pair<std::string, int>>& rows)` that returns one line per row: the name padded with dots to 10 characters, then the score right-aligned in 4 characters, also padded with dots. `{"ropz", 25}` becomes `"ropz..........25\n"`.
+        seed: |
+          #include <iomanip>
+          #include <sstream>
+          #include <string>
+          #include <utility>
+          #include <vector>
+
+          std::string to_table(const std::vector<std::pair<std::string, int>>& rows) {
+
+          }
+        solution: |
+          #include <iomanip>
+          #include <sstream>
+          #include <string>
+          #include <utility>
+          #include <vector>
+
+          std::string to_table(const std::vector<std::pair<std::string, int>>& rows) {
+              std::ostringstream out;
+              out << std::setfill('.');
+              for (const auto& [name, score] : rows) {
+                  out << std::left << std::setw(10) << name << std::right << std::setw(4) << score << "\n";
+              }
+              return out.str();
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("two rows", to_table({{"ropz", 25}, {"karrigan", 9}}), std::string("ropz..........25\nkarrigan.......9\n"));
+              CHECK_EQ("no rows", to_table({}), std::string(""));
+              CHECK_EQ("big score", to_table({{"a", 1234}}), std::string("a.........1234\n"));
+          }
+        hints:
+          - "`std::setfill('.')` changes the padding character for everything after it, until you change it again."
+        tests: []
 
   - title: Reading files with ifstream
     id: cpp-streams-4
@@ -385,6 +626,83 @@ steps:
     hints:
       - "`std::ifstream in(path); if (!in) return std::nullopt;`"
       - "Loop with `std::getline(in, line)` and push the non-empty lines, then `return lines;`."
+    more:
+      - task: |
+          Write `std::optional<long> sum_file(const std::string& path)` that adds up every whole number in the file (separated by spaces or newlines), or returns `std::nullopt` if the file can't be opened.
+        seed: |
+          #include <fstream>
+          #include <optional>
+          #include <string>
+
+          std::optional<long> sum_file(const std::string& path) {
+
+          }
+        solution: |
+          #include <fstream>
+          #include <optional>
+          #include <string>
+
+          std::optional<long> sum_file(const std::string& path) {
+              std::ifstream in(path);
+              if (!in) return std::nullopt;
+              long total = 0, x;
+              while (in >> x) total += x;
+              return total;
+          }
+        harness: |
+          int main() {
+              auto s = sum_file("scores.txt");
+              CHECK("scores.txt opens", s.has_value());
+              CHECK_EQ("sum", s.value_or(-1), 60L);
+              CHECK_EQ("empty file sums to 0", sum_file("empty.txt").value_or(-1), 0L);
+              CHECK("missing file gives nullopt", !sum_file("missing.txt"));
+          }
+        hints:
+          - "`in >> x` skips spaces and newlines by itself, so a simple loop reads every number."
+        tests:
+          - files:
+              scores.txt: "10 20\n30\n"
+              empty.txt: ""
+      - task: |
+          Write `std::map<std::string, int> load_config(const std::string& path)` that reads `key=value` lines into a map, where the value is a whole number. Skip empty lines, lines starting with `#`, and lines without an `=`. A missing file gives an empty map.
+        seed: |
+          #include <fstream>
+          #include <map>
+          #include <string>
+
+          std::map<std::string, int> load_config(const std::string& path) {
+
+          }
+        solution: |
+          #include <fstream>
+          #include <map>
+          #include <string>
+
+          std::map<std::string, int> load_config(const std::string& path) {
+              std::map<std::string, int> cfg;
+              std::ifstream in(path);
+              std::string line;
+              while (std::getline(in, line)) {
+                  if (line.empty() || line[0] == '#') continue;
+                  auto eq = line.find('=');
+                  if (eq == std::string::npos) continue;
+                  cfg[line.substr(0, eq)] = std::stoi(line.substr(eq + 1));
+              }
+              return cfg;
+          }
+        harness: |
+          #include <map>
+          int main() {
+              auto cfg = load_config("server.cfg");
+              CHECK("keys and values", cfg == (std::map<std::string, int>{{"maxrounds", 24}, {"tickrate", 128}}));
+              CHECK("missing file gives an empty map", load_config("nope.cfg").empty());
+          }
+        hints:
+          - "`line.find('=')` gives the position of the `=`, or `npos` if there isn't one."
+          - "The key is `line.substr(0, eq)` and `std::stoi(line.substr(eq + 1))` turns the value into an int."
+        tests:
+          - files:
+              server.cfg: "# server settings\ntickrate=128\n\nnot a setting\nmaxrounds=24\n"
 
   - title: Writing files with ofstream
     id: cpp-streams-5
@@ -477,6 +795,91 @@ steps:
       - "`std::ofstream out(path); if (!out) return false;`"
       - "Structured bindings make the loop tidy: `for (const auto& [name, score] : scores)`."
       - "Return `static_cast<bool>(out)`, which is false if any write failed."
+    more:
+      - task: |
+          Write `bool append_log(const std::string& path, const std::string& line)` that adds the line plus a newline to the **end** of the file, keeping what's there (open with `std::ios::app`). Return whether it worked.
+        seed: |
+          #include <fstream>
+          #include <string>
+
+          bool append_log(const std::string& path, const std::string& line) {
+
+          }
+        solution: |
+          #include <fstream>
+          #include <string>
+
+          bool append_log(const std::string& path, const std::string& line) {
+              std::ofstream out(path, std::ios::app);
+              if (!out) return false;
+              out << line << "\n";
+              return static_cast<bool>(out);
+          }
+        harness: |
+          #include <fstream>
+          #include <sstream>
+          static std::string slurp(const std::string& path) {
+              std::ifstream in(path);
+              std::ostringstream all;
+              all << in.rdbuf();
+              return all.str();
+          }
+          int main() {
+              CHECK_EQ("append succeeds", append_log("match.log", "round 2"), true);
+              append_log("match.log", "round 3");
+              CHECK_EQ("old lines kept", slurp("match.log"), std::string("round 1\nround 2\nround 3\n"));
+              CHECK_EQ("unwritable path fails", append_log("no/such/dir/x.log", "x"), false);
+          }
+        hints:
+          - "`std::ofstream out(path, std::ios::app);` opens for appending; without the flag the file is emptied first."
+        tests:
+          - files:
+              match.log: "round 1\n"
+      - task: |
+          Write `bool copy_upper(const std::string& from, const std::string& to)` that copies a text file, turning every lowercase letter `a` to `z` into uppercase. Return `false` if either file can't be opened.
+        seed: |
+          #include <fstream>
+          #include <string>
+
+          bool copy_upper(const std::string& from, const std::string& to) {
+
+          }
+        solution: |
+          #include <fstream>
+          #include <string>
+
+          bool copy_upper(const std::string& from, const std::string& to) {
+              std::ifstream in(from);
+              if (!in) return false;
+              std::ofstream out(to);
+              if (!out) return false;
+              char c;
+              while (in.get(c)) {
+                  if (c >= 'a' && c <= 'z') c = c - 'a' + 'A';
+                  out.put(c);
+              }
+              return static_cast<bool>(out);
+          }
+        harness: |
+          #include <fstream>
+          #include <sstream>
+          static std::string slurp(const std::string& path) {
+              std::ifstream in(path);
+              std::ostringstream all;
+              all << in.rdbuf();
+              return all.str();
+          }
+          int main() {
+              CHECK_EQ("copy succeeds", copy_upper("chat.txt", "loud.txt"), true);
+              CHECK_EQ("uppercased copy", slurp("loud.txt"), std::string("GG WP\nNICE SHOT, 1V1!\n"));
+              CHECK_EQ("missing source", copy_upper("missing.txt", "x.txt"), false);
+              CHECK_EQ("bad destination", copy_upper("chat.txt", "no/such/dir/x.txt"), false);
+          }
+        hints:
+          - "`in.get(c)` reads one character at a time, spaces and newlines included; `>>` would skip them."
+        tests:
+          - files:
+              chat.txt: "gg wp\nnice shot, 1v1!\n"
 
   - title: "Challenge: operator>> for your own type"
     id: cpp-streams-6
@@ -614,3 +1017,120 @@ steps:
       - stdin: "\n"
       - stdin: "(-5,5) (5,-5)\n"
         hidden: true
+    more:
+      - task: |
+          Write `operator>>` for `Time` in the format `M:SS` (like `1:55`), setting the failbit on bad input. The provided `main` adds up round times until the input ends or a bad one appears, and prints the total as `M:SS`.
+        seed: |
+          #include <iostream>
+
+          struct Time {
+              int minutes = 0, seconds = 0;
+          };
+
+          // operator>> here
+
+          int main() {
+              Time t;
+              int total = 0;
+              while (std::cin >> t) total += t.minutes * 60 + t.seconds;
+              std::cout << total / 60 << ":" << (total % 60 < 10 ? "0" : "") << total % 60 << "\n";
+          }
+        solution: |
+          #include <iostream>
+
+          struct Time {
+              int minutes = 0, seconds = 0;
+          };
+
+          // operator>> here
+          std::istream& operator>>(std::istream& in, Time& t) {
+              int m, s;
+              char colon;
+              if (in >> m >> colon >> s && colon == ':' && s >= 0 && s < 60) {
+                  t = {m, s};
+              } else {
+                  in.setstate(std::ios::failbit);
+              }
+              return in;
+          }
+
+          int main() {
+              Time t;
+              int total = 0;
+              while (std::cin >> t) total += t.minutes * 60 + t.seconds;
+              std::cout << total / 60 << ":" << (total % 60 < 10 ? "0" : "") << total % 60 << "\n";
+          }
+        hints:
+          - Read the minutes, the colon as a `char`, then the seconds. Only accept it when the separator is `:` and the seconds are 0 to 59.
+          - Return the stream so `while (std::cin >> t)` can test it.
+        tests:
+          - stdin: "1:55 1:30 0:45\n"
+          - stdin: "2:00 1:75 3:00\n"
+          - stdin: "\n"
+            hidden: true
+      - task: |
+          Write `operator>>` for `Item` in the format `name:price` (like `awp:4750`), where the name is everything up to the colon. Skip leading whitespace first with `std::ws`, then read the name with `std::getline(in, name, ':')`. The provided `main` prints the total and the most expensive item.
+        seed: |
+          #include <iostream>
+          #include <string>
+
+          struct Item {
+              std::string name;
+              int price = 0;
+          };
+
+          // operator>> here
+
+          int main() {
+              Item it, best;
+              long total = 0;
+              int n = 0;
+              while (std::cin >> it) {
+                  total += it.price;
+                  if (n == 0 || it.price > best.price) best = it;
+                  n++;
+              }
+              if (n == 0) std::cout << "no items\n";
+              else std::cout << n << " items, total " << total << ", top " << best.name << "\n";
+          }
+        solution: |
+          #include <iostream>
+          #include <string>
+
+          struct Item {
+              std::string name;
+              int price = 0;
+          };
+
+          // operator>> here
+          std::istream& operator>>(std::istream& in, Item& item) {
+              std::string name;
+              int price;
+              if (in >> std::ws && std::getline(in, name, ':') && in >> price) {
+                  item = {name, price};
+              } else {
+                  in.setstate(std::ios::failbit);
+              }
+              return in;
+          }
+
+          int main() {
+              Item it, best;
+              long total = 0;
+              int n = 0;
+              while (std::cin >> it) {
+                  total += it.price;
+                  if (n == 0 || it.price > best.price) best = it;
+                  n++;
+              }
+              if (n == 0) std::cout << "no items\n";
+              else std::cout << n << " items, total " << total << ", top " << best.name << "\n";
+          }
+        hints:
+          - "`in >> std::ws` skips the spaces and newlines between items, so the name doesn't start with one."
+          - If the name read or the price read fails, the stream is already failed; `setstate(failbit)` just makes that explicit.
+        tests:
+          - stdin: "awp:4750 flash:200\nak47:2700\n"
+          - stdin: ""
+          - stdin: "desert eagle:700\n"
+            hidden: true

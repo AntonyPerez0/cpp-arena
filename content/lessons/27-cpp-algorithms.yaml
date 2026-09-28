@@ -72,6 +72,60 @@ steps:
       - "The algorithms are `std::sort` and `std::reverse`, both taking `(begin, end)`."
     tests:
       - expect: "30 22 16 13 9"
+    more:
+      - task: |
+          Sort the kill counts from highest to lowest with `std::greater<int>()`, then remove the repeated values with `std::unique`. `unique` only moves the duplicates to the end and returns where the kept part stops, so `erase` from there to `end()`.
+        fill: |
+          #include <algorithm>
+          #include <functional>
+          #include <iostream>
+          #include <vector>
+
+          int main() {
+              std::vector<int> kills = {12, 30, 12, 7, 30, 30, 18};
+              std::sort(kills.begin(), kills.end(), std::[[greater<int>()]]);
+              kills.[[erase]](std::[[unique]](kills.begin(), kills.end()), kills.[[end()]]);
+              for (int k : kills) std::cout << k << " ";
+              std::cout << "\n";
+          }
+        hints:
+          - "`std::greater<int>()` is a ready-made comparison that means `a > b`."
+          - "`std::unique` only removes duplicates that sit next to each other, which is why you sort first."
+        tests:
+          - expect: "30 18 12 7"
+      - task: |
+          Read a count `n` and then `n` numbers, and print the **median**: sort them, then take the middle one. For an even count, print the average of the two middle numbers.
+        fill: |
+          #include <algorithm>
+          #include <iostream>
+          #include <vector>
+
+          int main() {
+              int n;
+              std::cin >> n;
+              std::vector<double> v(n);
+              for (double& x : v) std::cin >> x;
+              std::[[sort]](v.begin(), v.end());
+              int mid = [[n / 2]];
+              double median;
+              if (n % 2 == 1) {
+                  median = v[mid];
+              } else {
+                  median = (v[mid - 1] + v[mid]) / [[2]];
+              }
+              std::cout << median << "\n";
+          }
+        hints:
+          - "After sorting, the middle of an odd count is at index `n / 2`, so that is `mid`."
+          - "For an even count, the two middle numbers are at `mid - 1` and `mid`, and you average them."
+        tests:
+          - stdin: "5\n9 1 7 3 5\n"
+            expect: "5"
+          - stdin: "4\n10 2 8 4\n"
+            expect: "6"
+          - stdin: "1\n42\n"
+            expect: "42"
+            hidden: true
 
   - title: Lambdas
     id: cpp-algorithms-2
@@ -152,6 +206,56 @@ steps:
       - "a comes first when it's shorter: `return a.size() < b.size();`"
     tests:
       - expect: "nuke dust2 inferno overpass"
+    more:
+      - task: |
+          Each pair is a map and how many times it was played. Sort by the count, **highest first**, by comparing `.second` in the lambda.
+        fill: |
+          #include <algorithm>
+          #include <iostream>
+          #include <string>
+          #include <utility>
+          #include <vector>
+
+          int main() {
+              std::vector<std::pair<std::string, int>> plays = {{"nuke", 12}, {"mirage", 40}, {"ancient", 3}, {"inferno", 25}};
+              std::sort(plays.begin(), plays.end(), [](const auto& a, const auto& b) {
+                  return a.[[second]] [[>]] b.second;
+              });
+              for (const auto& p : plays) std::cout << p.first << " ";
+              std::cout << "\n";
+          }
+        hints:
+          - "`.first` is the name and `.second` is the count."
+          - "`a` should come first when its count is bigger, so use `>`."
+        tests:
+          - expect: "mirage inferno nuke ancient"
+      - task: |
+          Sort the names alphabetically **ignoring case**, so `ana` and `Ana` count as equal. Use `std::stable_sort`, which keeps equal names in their original order, and compare lowercase copies.
+        fill: |
+          #include <algorithm>
+          #include <cctype>
+          #include <iostream>
+          #include <string>
+          #include <vector>
+
+          std::string lower(std::string s) {
+              for (char& c : s) c = (char)std::tolower((unsigned char)c);
+              return s;
+          }
+
+          int main() {
+              std::vector<std::string> names = {"bo", "Ana", "cy", "ana", "Bo"};
+              std::[[stable_sort]](names.begin(), names.end(), [](const std::string& a, const std::string& b) {
+                  return [[lower(a)]] < [[lower(b)]];
+              });
+              for (const auto& n : names) std::cout << n << " ";
+              std::cout << "\n";
+          }
+        hints:
+          - "Compare `lower(a)` with `lower(b)` instead of `a` with `b`."
+          - "`std::sort` may shuffle equal elements; `std::stable_sort` never does."
+        tests:
+          - expect: "Ana ana bo Bo cy"
 
   - title: find_if, count_if, any_of
     id: cpp-algorithms-3
@@ -238,6 +342,75 @@ steps:
     hints:
       - "`std::count_if(kills.begin(), kills.end(), [](const std::string& k) { ... })`"
       - "`k.ends_with(\"_hs\")` works in C++20. Or check the size and use `substr`."
+    more:
+      - task: |
+          Write `std::string first_long_word(const std::vector<std::string>& words, std::size_t min_len)` that returns the first word with at least `min_len` characters, or `""` when there is none. Use `std::find_if`.
+        seed: |
+          #include <algorithm>
+          #include <string>
+          #include <vector>
+
+          std::string first_long_word(const std::vector<std::string>& words, std::size_t min_len) {
+
+          }
+        solution: |
+          #include <algorithm>
+          #include <string>
+          #include <vector>
+
+          std::string first_long_word(const std::vector<std::string>& words, std::size_t min_len) {
+              auto it = std::find_if(words.begin(), words.end(), [min_len](const std::string& w) {
+                  return w.size() >= min_len;
+              });
+              if (it == words.end()) return "";
+              return *it;
+          }
+        require:
+          - pattern: "find_if"
+            message: Use `std::find_if`.
+        harness: |
+          int main() {
+              CHECK_EQ("first with 5+", first_long_word({"ak", "deagle", "famas", "awp"}, 5), std::string("deagle"));
+              CHECK_EQ("exact length counts", first_long_word({"usp", "glock"}, 5), std::string("glock"));
+              CHECK_EQ("none long enough", first_long_word({"ak", "m4"}, 3), std::string(""));
+              CHECK_EQ("empty list", first_long_word({}, 1), std::string(""));
+          }
+        hints:
+          - "The lambda needs `min_len`, so capture it: `[min_len](const std::string& w) { ... }`."
+          - "Compare the result with `words.end()` before you dereference it."
+      - task: |
+          Write `bool valid_scores(const std::vector<int>& s)`: true when **every** score is between 0 and 100 inclusive **and at least one** is 50 or more (a pass). An empty list is not valid. Use `std::all_of` and `std::any_of`.
+        seed: |
+          #include <algorithm>
+          #include <vector>
+
+          bool valid_scores(const std::vector<int>& s) {
+
+          }
+        solution: |
+          #include <algorithm>
+          #include <vector>
+
+          bool valid_scores(const std::vector<int>& s) {
+              bool in_range = std::all_of(s.begin(), s.end(), [](int x) { return x >= 0 && x <= 100; });
+              bool any_pass = std::any_of(s.begin(), s.end(), [](int x) { return x >= 50; });
+              return in_range && any_pass;
+          }
+        require:
+          - pattern: "all_of"
+            message: Use `std::all_of` for the range check.
+          - pattern: "any_of"
+            message: Use `std::any_of` for the pass check.
+        harness: |
+          int main() {
+              CHECK("{40, 75, 100}", valid_scores({40, 75, 100}));
+              CHECK("nobody passed", !valid_scores({10, 20, 49}));
+              CHECK("101 is out of range", !valid_scores({50, 101}));
+              CHECK("-1 is out of range", !valid_scores({-1, 80}));
+              CHECK("empty is not valid", !valid_scores({}));
+          }
+        hints:
+          - "`all_of` on an empty range is `true`, but `any_of` is `false`, so the empty case works out by itself."
 
   - title: accumulate and transform
     id: cpp-algorithms-4
@@ -335,6 +508,76 @@ steps:
     hints:
       - "Sum with `std::accumulate(hits.begin(), hits.end(), 0)`, cast to double, divide by size."
       - "For transform, create `std::vector<int> out(hits.size());` first so there's room to write into."
+    more:
+      - task: |
+          Write `std::string initials(const std::vector<std::string>& names)` that joins the first letter of every non-empty name, so `{"natus", "vincere"}` gives `"nv"`. Use `std::accumulate` with a `std::string` starting value.
+        seed: |
+          #include <numeric>
+          #include <string>
+          #include <vector>
+
+          std::string initials(const std::vector<std::string>& names) {
+
+          }
+        solution: |
+          #include <numeric>
+          #include <string>
+          #include <vector>
+
+          std::string initials(const std::vector<std::string>& names) {
+              return std::accumulate(names.begin(), names.end(), std::string(),
+                                     [](std::string acc, const std::string& n) {
+                                         if (!n.empty()) acc += n[0];
+                                         return acc;
+                                     });
+          }
+        require:
+          - pattern: "accumulate"
+            message: Use `std::accumulate`.
+        harness: |
+          int main() {
+              CHECK_EQ("two names", initials({"natus", "vincere"}), std::string("nv"));
+              CHECK_EQ("skips empty names", initials({"team", "", "liquid"}), std::string("tl"));
+              CHECK_EQ("no names", initials({}), std::string(""));
+          }
+        hints:
+          - "The starting value must be `std::string()`. A plain `\"\"` would make the accumulator a `const char*`."
+          - "The lambda takes the result so far and the next name, and returns the new result."
+      - task: |
+          Write `std::vector<std::string> labels(const std::vector<int>& hp)` that turns each hp value into `"dead"` (0 or less), `"low"` (1 to 30) or `"ok"` (above 30). Use `std::transform`.
+        seed: |
+          #include <algorithm>
+          #include <string>
+          #include <vector>
+
+          std::vector<std::string> labels(const std::vector<int>& hp) {
+
+          }
+        solution: |
+          #include <algorithm>
+          #include <string>
+          #include <vector>
+
+          std::vector<std::string> labels(const std::vector<int>& hp) {
+              std::vector<std::string> out(hp.size());
+              std::transform(hp.begin(), hp.end(), out.begin(), [](int h) -> std::string {
+                  if (h <= 0) return "dead";
+                  if (h <= 30) return "low";
+                  return "ok";
+              });
+              return out;
+          }
+        require:
+          - pattern: "transform"
+            message: Use `std::transform`.
+        harness: |
+          int main() {
+              CHECK_EQ("mixed", labels({100, 0, 30, 31, -5, 1}), std::vector<std::string>{"ok", "dead", "low", "ok", "dead", "low"});
+              CHECK_EQ("empty", labels({}), std::vector<std::string>{});
+          }
+        hints:
+          - "The lambda returns string literals in some branches, so give it an explicit return type: `[](int h) -> std::string { ... }`."
+          - "Size the output first: `std::vector<std::string> out(hp.size());`"
 
   - title: Captures
     id: cpp-algorithms-5
@@ -427,6 +670,71 @@ steps:
       }
     hints:
       - "`std::copy_if(v.begin(), v.end(), std::back_inserter(out), [threshold](int x) { return x > threshold; });`"
+    more:
+      - task: |
+          Write `int count_in_range(const std::vector<int>& v, int lo, int hi)` that counts the elements from `lo` to `hi` inclusive, using `std::count_if` and a lambda that captures both bounds.
+        seed: |
+          #include <algorithm>
+          #include <vector>
+
+          int count_in_range(const std::vector<int>& v, int lo, int hi) {
+
+          }
+        solution: |
+          #include <algorithm>
+          #include <vector>
+
+          int count_in_range(const std::vector<int>& v, int lo, int hi) {
+              return (int)std::count_if(v.begin(), v.end(), [lo, hi](int x) { return x >= lo && x <= hi; });
+          }
+        require:
+          - pattern: "count_if"
+            message: Use `std::count_if`.
+        harness: |
+          int main() {
+              CHECK_EQ("10 to 20", count_in_range({5, 10, 15, 20, 25}, 10, 20), 3);
+              CHECK_EQ("nothing inside", count_in_range({1, 2, 3}, 5, 9), 0);
+              CHECK_EQ("negative bounds", count_in_range({-5, -1, 0, 4}, -3, 0), 2);
+          }
+        hints:
+          - "Capture both values: `[lo, hi](int x) { ... }`."
+      - task: |
+          Write `std::vector<std::string> with_prefix(const std::vector<std::string>& words, const std::string& prefix)` that keeps the words starting with `prefix`, in order. Use `std::copy_if` with `std::back_inserter`, and capture `prefix` **by reference** so the string isn't copied.
+        seed: |
+          #include <algorithm>
+          #include <iterator>
+          #include <string>
+          #include <vector>
+
+          std::vector<std::string> with_prefix(const std::vector<std::string>& words, const std::string& prefix) {
+
+          }
+        solution: |
+          #include <algorithm>
+          #include <iterator>
+          #include <string>
+          #include <vector>
+
+          std::vector<std::string> with_prefix(const std::vector<std::string>& words, const std::string& prefix) {
+              std::vector<std::string> out;
+              std::copy_if(words.begin(), words.end(), std::back_inserter(out), [&prefix](const std::string& w) {
+                  return w.starts_with(prefix);
+              });
+              return out;
+          }
+        require:
+          - pattern: "copy_if"
+            message: Use `std::copy_if`.
+          - pattern: "\\[\\s*&\\s*prefix\\s*\\]"
+            message: Capture `prefix` by reference with `[&prefix]`.
+        harness: |
+          int main() {
+              CHECK_EQ("de_ maps", with_prefix({"de_dust2", "cs_office", "de_nuke", "ar_baggage"}, "de_"), std::vector<std::string>{"de_dust2", "de_nuke"});
+              CHECK_EQ("no matches", with_prefix({"a", "b"}, "z"), std::vector<std::string>{});
+              CHECK_EQ("empty prefix keeps all", with_prefix({"x", "y"}, ""), std::vector<std::string>{"x", "y"});
+          }
+        hints:
+          - "`w.starts_with(prefix)` checks the beginning of a string (C++20)."
 
   - title: Erase with a condition
     id: cpp-algorithms-6
@@ -517,3 +825,66 @@ steps:
       }
     hints:
       - "`std::erase_if(players, [](const auto& p) { return p.second <= 0; });`"
+    more:
+      - task: |
+          Write `int remove_short(std::vector<std::string>& words, std::size_t min_len)` that removes every word shorter than `min_len` and returns how many were removed. Use `std::erase_if`.
+        seed: |
+          #include <string>
+          #include <vector>
+
+          int remove_short(std::vector<std::string>& words, std::size_t min_len) {
+
+          }
+        solution: |
+          #include <string>
+          #include <vector>
+
+          int remove_short(std::vector<std::string>& words, std::size_t min_len) {
+              return (int)std::erase_if(words, [min_len](const std::string& w) { return w.size() < min_len; });
+          }
+        require:
+          - pattern: "erase_if"
+            message: Use `std::erase_if`.
+        harness: |
+          int main() {
+              std::vector<std::string> w = {"ak", "deagle", "p90", "famas"};
+              CHECK_EQ("removed count", remove_short(w, 4), 2);
+              CHECK_EQ("what is left", w, std::vector<std::string>{"deagle", "famas"});
+              std::vector<std::string> none = {"long", "words"};
+              CHECK_EQ("nothing to remove", remove_short(none, 2), 0);
+              CHECK_EQ("unchanged", none, std::vector<std::string>{"long", "words"});
+          }
+        hints:
+          - "`std::erase_if` already returns how many it removed."
+      - task: |
+          Write `int remove_duplicates(std::vector<int>& v)` that removes every value that already appeared **earlier**, keeping the first copy and the original order, and returns how many were removed. Use `std::erase_if` with a lambda that captures a `std::set<int>` of seen values **by reference**.
+        seed: |
+          #include <set>
+          #include <vector>
+
+          int remove_duplicates(std::vector<int>& v) {
+
+          }
+        solution: |
+          #include <set>
+          #include <vector>
+
+          int remove_duplicates(std::vector<int>& v) {
+              std::set<int> seen;
+              return (int)std::erase_if(v, [&seen](int x) { return !seen.insert(x).second; });
+          }
+        require:
+          - pattern: "erase_if"
+            message: Use `std::erase_if`.
+        harness: |
+          int main() {
+              std::vector<int> v = {3, 1, 3, 2, 1, 3};
+              CHECK_EQ("removed", remove_duplicates(v), 3);
+              CHECK_EQ("first copies in order", v, std::vector<int>{3, 1, 2});
+              std::vector<int> u = {5, 6};
+              CHECK_EQ("no duplicates", remove_duplicates(u), 0);
+              CHECK_EQ("unchanged", u, std::vector<int>{5, 6});
+          }
+        hints:
+          - "`seen.insert(x)` returns a pair whose `.second` is `false` when `x` was already in the set."
+          - "The set has to be captured by reference (`[&seen]`) so the lambda can add to it."
