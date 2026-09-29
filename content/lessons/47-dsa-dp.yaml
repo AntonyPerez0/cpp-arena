@@ -96,6 +96,74 @@ steps:
       - "The last move was 1, 2 or 3 steps, so `ways(n) = ways(n - 1) + ways(n - 2) + ways(n - 3)`, with `ways(0) = 1` and 0 ways for negative n."
       - "Use a helper that takes a `std::vector<long long>& memo` of size `n + 1`, filled with -1."
       - "At the top of the helper, if `memo[n] != -1`, return it. Otherwise compute, store in `memo[n]`, and return."
+    more:
+      - task: |
+          Letters are encoded as numbers: `A` is 1, `B` is 2, ..., `Z` is 26. Write `long long decodings(const std::string& s)`: how many ways a string of digits can be read back as letters. `"226"` is 3 (`2 2 6`, `22 6`, `2 26`), and a `0` can only be read as part of `10` or `20`. Build it up from the end of the string: the ways from position `i` depend on the ways from `i + 1` and `i + 2`.
+        seed: |
+          #include <string>
+          #include <vector>
+
+          long long decodings(const std::string& s) {
+
+          }
+        solution: |
+          #include <string>
+          #include <vector>
+
+          long long decodings(const std::string& s) {
+              std::size_t n = s.size();
+              std::vector<long long> ways(n + 2, 0);
+              ways[n] = 1;
+              for (std::size_t i = n; i-- > 0;) {
+                  if (s[i] == '0') continue;
+                  ways[i] = ways[i + 1];
+                  if (i + 1 < n && (s[i] == '1' || (s[i] == '2' && s[i + 1] <= '6'))) ways[i] += ways[i + 2];
+              }
+              return ways[0];
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("226", decodings("226"), 3LL);
+              CHECK_EQ("12", decodings("12"), 2LL);
+              CHECK_EQ("10", decodings("10"), 1LL);
+              CHECK_EQ("a leading 0 can't be read", decodings("06"), 0LL);
+              CHECK_EQ("30 can't be read", decodings("30"), 0LL);
+              CHECK_EQ("empty", decodings(""), 1LL);
+              CHECK_EQ("80 ones", decodings(std::string(80, '1')), 37889062373143906LL);
+          }
+        hints:
+          - "`ways[n] = 1`: there's one way to read nothing. A digit `0` at position `i` gives 0 ways from there."
+          - "Two digits can be read together when they make 10 to 26."
+      - task: |
+          Starting from `n`, each move either subtracts 1, halves the number (if it's even) or divides it by 3 (if it's a multiple of 3). Write `int steps_to_one(int n)`, the fewest moves to reach 1, for `n` up to 1,000,000. Greedy division doesn't always win (10 takes 3 moves: 10, 9, 3, 1), so fill a table from 1 upward.
+        seed: |
+          #include <vector>
+
+          int steps_to_one(int n) {
+
+          }
+        solution: |
+          #include <algorithm>
+          #include <vector>
+
+          int steps_to_one(int n) {
+              std::vector<int> best(n + 1, 0);
+              for (int i = 2; i <= n; i++) {
+                  best[i] = best[i - 1] + 1;
+                  if (i % 2 == 0) best[i] = std::min(best[i], best[i / 2] + 1);
+                  if (i % 3 == 0) best[i] = std::min(best[i], best[i / 3] + 1);
+              }
+              return best[n];
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("1", steps_to_one(1), 0);
+              CHECK_EQ("10 goes through 9", steps_to_one(10), 3);
+              CHECK_EQ("6", steps_to_one(6), 2);
+              CHECK_EQ("a million", steps_to_one(1000000), 19);
+          }
+        hints:
+          - "`best[i]` is 1 more than the best of the numbers one move away: `i - 1`, and `i / 2` or `i / 3` when they divide."
 
   - title: Bottom-up tables and coin change
     id: dsa-dp-2
@@ -194,6 +262,64 @@ steps:
       - "Make `std::vector<int> best(amount + 1, IMPOSSIBLE)` with `best[0] = 0`. `amount + 1` works as IMPOSSIBLE, since no answer can use more coins than that."
       - "For each `a` from 1 to `amount`, for each coin `c <= a`: `best[a] = min(best[a], best[a - c] + 1)`. Impossible stays impossible, because `IMPOSSIBLE + 1` never beats it."
       - "Return -1 if `best[amount]` is still IMPOSSIBLE."
+    more:
+      - task: |
+          Write `long long count_ways(const std::vector<int>& coins, int amount)`: how many different **combinations** of coins (any number of each) add up to `amount`, where order doesn't matter (`1 + 2` and `2 + 1` are the same). Loop over the coins on the outside and the amounts on the inside, so each combination is counted once.
+        seed: |
+          #include <vector>
+
+          long long count_ways(const std::vector<int>& coins, int amount) {
+
+          }
+        solution: |
+          #include <vector>
+
+          long long count_ways(const std::vector<int>& coins, int amount) {
+              std::vector<long long> ways(amount + 1, 0);
+              ways[0] = 1;
+              for (int c : coins)
+                  for (int a = c; a <= amount; a++) ways[a] += ways[a - c];
+              return ways[amount];
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("1 2 5 -> 5", count_ways({1, 2, 5}, 5), 4LL);
+              CHECK_EQ("impossible", count_ways({2}, 3), 0LL);
+              CHECK_EQ("amount 0", count_ways({7}, 0), 1LL);
+              CHECK_EQ("US coins to $10", count_ways({1, 5, 10, 25, 50, 100}, 1000), 2103596LL);
+          }
+        hints:
+          - "With the amount loop inside, all combinations that use a coin are built only after the ones that don't, so no order gets counted twice."
+      - task: |
+          A ribbon of length `n` must be cut into pieces whose lengths all come from `lengths` (any number of each), using up the whole ribbon. Write `int max_pieces(int n, const std::vector<int>& lengths)`: the most pieces possible, or -1 if the ribbon can't be cut exactly.
+        seed: |
+          #include <vector>
+
+          int max_pieces(int n, const std::vector<int>& lengths) {
+
+          }
+        solution: |
+          #include <algorithm>
+          #include <vector>
+
+          int max_pieces(int n, const std::vector<int>& lengths) {
+              std::vector<int> best(n + 1, -1);
+              best[0] = 0;
+              for (int i = 1; i <= n; i++)
+                  for (int len : lengths)
+                      if (len <= i && best[i - len] != -1) best[i] = std::max(best[i], best[i - len] + 1);
+              return best[n];
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("5 from 5, 3, 2", max_pieces(5, {5, 3, 2}), 2);
+              CHECK_EQ("7 from 5, 5, 2", max_pieces(7, {5, 5, 2}), 2);
+              CHECK_EQ("impossible", max_pieces(7, {4, 6}), -1);
+              CHECK_EQ("length 0", max_pieces(0, {3}), 0);
+              CHECK_EQ("4000 from 7, 11, 13", max_pieces(4000, {7, 11, 13}), 570);
+          }
+        hints:
+          - "Use -1 in the table for lengths that can't be cut exactly, and skip them when building on them."
 
   - title: Paths through a grid
     id: dsa-dp-3
@@ -308,6 +434,88 @@ steps:
       - "count_paths: a table of `long long` the size of the grid, all 0. Walls stay 0. The start is 1 (unless it's a wall). Every other open cell is `(above, or 0 on the top row) + (left, or 0 in the first column)`."
       - "min_path_sum: `best[0][0] = cost[0][0]`. The top row can only come from the left, the left column only from above, and every other cell adds its cost to the smaller of the two."
       - "Fill both tables row by row, left to right, and return the bottom-right entry."
+    more:
+      - task: |
+          Write `int largest_square(const std::vector<std::string>& g)`: the side of the biggest square made only of `#` cells. Let `s[r][c]` be the side of the largest such square whose **bottom-right** corner is `(r, c)`: for a `#` cell it's 1 plus the smallest of the values above, to the left and diagonally up-left.
+        seed: |
+          #include <string>
+          #include <vector>
+
+          int largest_square(const std::vector<std::string>& g) {
+
+          }
+        solution: |
+          #include <algorithm>
+          #include <string>
+          #include <vector>
+
+          int largest_square(const std::vector<std::string>& g) {
+              int rows = (int)g.size(), best = 0;
+              if (rows == 0) return 0;
+              int cols = (int)g[0].size();
+              std::vector<std::vector<int>> s(rows + 1, std::vector<int>(cols + 1, 0));
+              for (int r = 1; r <= rows; r++)
+                  for (int c = 1; c <= cols; c++)
+                      if (g[r - 1][c - 1] == '#') {
+                          s[r][c] = 1 + std::min({s[r - 1][c], s[r][c - 1], s[r - 1][c - 1]});
+                          best = std::max(best, s[r][c]);
+                      }
+              return best;
+          }
+        harness: |
+          int main() {
+              std::vector<std::string> g = {
+                  "#.#..",
+                  "#.###",
+                  "#####",
+                  "#..#.",
+              };
+              CHECK_EQ("a 2 x 2 square", largest_square(g), 2);
+              CHECK_EQ("none", largest_square({"...", "..."}), 0);
+              std::vector<std::string> big(600, std::string(600, '#'));
+              big[300][300] = '.';
+              CHECK_EQ("600 x 600 with one hole", largest_square(big), 300);
+          }
+        hints:
+          - "An extra row and column of zeros avoids special cases on the first row and column."
+          - "`std::min({a, b, c})` takes the smallest of three values."
+      - task: |
+          Write `int min_falling_path(const std::vector<std::vector<int>>& g)`: start on **any** cell of the top row and move down one row at a time, to the cell directly below or diagonally below-left or below-right. Return the smallest possible total of the cells visited. Keep just one row of best totals.
+        seed: |
+          #include <vector>
+
+          int min_falling_path(const std::vector<std::vector<int>>& g) {
+
+          }
+        solution: |
+          #include <algorithm>
+          #include <vector>
+
+          int min_falling_path(const std::vector<std::vector<int>>& g) {
+              std::vector<int> best = g[0];
+              int cols = (int)best.size();
+              for (std::size_t r = 1; r < g.size(); r++) {
+                  std::vector<int> next(cols);
+                  for (int c = 0; c < cols; c++) {
+                      int m = best[c];
+                      if (c > 0) m = std::min(m, best[c - 1]);
+                      if (c + 1 < cols) m = std::min(m, best[c + 1]);
+                      next[c] = g[r][c] + m;
+                  }
+                  best = std::move(next);
+              }
+              return *std::min_element(best.begin(), best.end());
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("3 x 3", min_falling_path({{2, 1, 3}, {6, 5, 4}, {7, 8, 9}}), 13);
+              CHECK_EQ("negatives", min_falling_path({{-19, 57}, {-40, -5}}), -59);
+              CHECK_EQ("one row", min_falling_path({{5, 2, 9}}), 2);
+              std::vector<std::vector<int>> big(500, std::vector<int>(500, 1));
+              CHECK_EQ("500 x 500 of ones", min_falling_path(big), 500);
+          }
+        hints:
+          - "Each cell's best total is its own value plus the best of the up to three cells above that can reach it."
 
   - title: Longest common subsequence
     id: dsa-dp-4
@@ -437,6 +645,82 @@ steps:
       - "Build `L` with `n + 1` rows and `m + 1` columns of zeros. For `i, j` from 1: equal characters give `L[i - 1][j - 1] + 1`, otherwise `max(L[i - 1][j], L[i][j - 1])`."
       - "Walk back from `i = n, j = m` while both are above 0. On a match, push `a[i - 1]` and decrease both; otherwise decrease `i` if `L[i - 1][j] >= L[i][j - 1]`, else `j`."
       - "The characters are collected last first: `std::reverse(out.begin(), out.end())` before returning."
+    more:
+      - task: |
+          Write `int lcs_length(const std::string& a, const std::string& b)` using only **two rows** of the table, the previous one and the current one, so two 5,000-character strings need about 10,000 numbers instead of 25 million.
+        seed: |
+          #include <string>
+          #include <vector>
+
+          int lcs_length(const std::string& a, const std::string& b) {
+
+          }
+        solution: |
+          #include <algorithm>
+          #include <string>
+          #include <vector>
+
+          int lcs_length(const std::string& a, const std::string& b) {
+              std::vector<int> prev(b.size() + 1, 0), cur(b.size() + 1, 0);
+              for (std::size_t i = 1; i <= a.size(); i++) {
+                  for (std::size_t j = 1; j <= b.size(); j++)
+                      cur[j] = a[i - 1] == b[j - 1] ? prev[j - 1] + 1 : std::max(prev[j], cur[j - 1]);
+                  std::swap(prev, cur);
+              }
+              return prev[b.size()];
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("ABCBDAB / BDCABA", lcs_length("ABCBDAB", "BDCABA"), 4);
+              CHECK_EQ("nothing shared", lcs_length("abc", "xyz"), 0);
+              CHECK_EQ("empty", lcs_length("", "abc"), 0);
+              std::string x, y;
+              for (int i = 0; i < 5000; i++) {
+                  x += (char)('a' + (i * 7) % 26);
+                  y += (char)('a' + (i * 11) % 26);
+              }
+              CHECK("two 5,000-character strings", lcs_length(x, y) > 0 && lcs_length(x, x) == 5000);
+          }
+        hints:
+          - "Row `i` only needs row `i - 1`. After filling the current row, swap the two vectors."
+      - task: |
+          Write `int longest_palindrome_subseq(const std::string& s)`: the length of the longest **subsequence** (not necessarily contiguous) that reads the same forwards and backwards. Use an interval table: `L[i][j]` for the substring from `i` to `j`, filled from short intervals to long ones.
+        seed: |
+          #include <string>
+          #include <vector>
+
+          int longest_palindrome_subseq(const std::string& s) {
+
+          }
+        solution: |
+          #include <algorithm>
+          #include <string>
+          #include <vector>
+
+          int longest_palindrome_subseq(const std::string& s) {
+              int n = (int)s.size();
+              if (n == 0) return 0;
+              std::vector<std::vector<int>> L(n, std::vector<int>(n, 0));
+              for (int i = n - 1; i >= 0; i--) {
+                  L[i][i] = 1;
+                  for (int j = i + 1; j < n; j++)
+                      L[i][j] = s[i] == s[j] ? L[i + 1][j - 1] + 2 : std::max(L[i + 1][j], L[i][j - 1]);
+              }
+              return L[0][n - 1];
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("bbbab", longest_palindrome_subseq("bbbab"), 4);
+              CHECK_EQ("cbbd", longest_palindrome_subseq("cbbd"), 2);
+              CHECK_EQ("one letter", longest_palindrome_subseq("x"), 1);
+              CHECK_EQ("empty", longest_palindrome_subseq(""), 0);
+              std::string big;
+              for (int i = 0; i < 2000; i++) big += (char)('a' + i % 3);
+              CHECK("2,000 characters", longest_palindrome_subseq(big) >= 1333);
+          }
+        hints:
+          - "When the two ends match, they wrap the best palindrome inside them: `L[i+1][j-1] + 2`. Otherwise drop one end or the other."
+          - "Filling `i` from the end backwards means `L[i+1][...]` is ready when you need it."
 
   - title: The 0/1 knapsack
     id: dsa-dp-5
@@ -540,6 +824,75 @@ steps:
       - "If the total is odd, it can't split evenly. Otherwise the question is: can some of the numbers add up to exactly `total / 2`?"
       - "`std::vector<bool> can(half + 1, false); can[0] = true;` means \"sum 0 is reachable with no numbers\"."
       - "For each `x`, loop `w` from `half` down to `x`: if `can[w - x]`, set `can[w] = true`. Return `can[half]`."
+    more:
+      - task: |
+          The classic 0/1 **knapsack**: each item has a weight and a value and can be taken at most once. Write `int knapsack(const std::vector<int>& weight, const std::vector<int>& value, int capacity)`, the largest total value that fits. Use a one-dimensional table indexed by capacity, and loop the capacity **downwards** so each item is used at most once.
+        seed: |
+          #include <vector>
+
+          int knapsack(const std::vector<int>& weight, const std::vector<int>& value, int capacity) {
+
+          }
+        solution: |
+          #include <algorithm>
+          #include <vector>
+
+          int knapsack(const std::vector<int>& weight, const std::vector<int>& value, int capacity) {
+              std::vector<int> best(capacity + 1, 0);
+              for (std::size_t i = 0; i < weight.size(); i++)
+                  for (int c = capacity; c >= weight[i]; c--) best[c] = std::max(best[c], best[c - weight[i]] + value[i]);
+              return best[capacity];
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("classic", knapsack({1, 3, 4, 5}, {1, 4, 5, 7}, 7), 9);
+              CHECK_EQ("each item once", knapsack({2}, {10}, 6), 10);
+              CHECK_EQ("nothing fits", knapsack({5, 6}, {10, 20}, 4), 0);
+              std::vector<int> w, v;
+              for (int i = 1; i <= 200; i++) {
+                  w.push_back(i);
+                  v.push_back(i * i % 97 + 1);
+              }
+              CHECK("200 items, capacity 5000", knapsack(w, v, 5000) > 0);
+          }
+        hints:
+          - "Going down from `capacity` means `best[c - weight[i]]` still holds a value from before item `i` was considered."
+      - task: |
+          Split the numbers into two groups so the sums are as **close** as possible. Write `int min_difference(const std::vector<int>& nums)`, the smallest possible difference between the two sums. Find every reachable subset sum with a table of booleans, then take the reachable sum closest to half the total.
+        seed: |
+          #include <vector>
+
+          int min_difference(const std::vector<int>& nums) {
+
+          }
+        solution: |
+          #include <numeric>
+          #include <vector>
+
+          int min_difference(const std::vector<int>& nums) {
+              int total = std::accumulate(nums.begin(), nums.end(), 0);
+              std::vector<char> can(total / 2 + 1, 0);
+              can[0] = 1;
+              for (int x : nums)
+                  for (int s = total / 2; s >= x; s--)
+                      if (can[s - x]) can[s] = 1;
+              for (int s = total / 2; s >= 0; s--)
+                  if (can[s]) return total - 2 * s;
+              return total;
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("1 6 11 5", min_difference({1, 6, 11, 5}), 1);
+              CHECK_EQ("even split", min_difference({3, 1, 4, 2, 2}), 0);
+              CHECK_EQ("one number", min_difference({7}), 7);
+              CHECK_EQ("empty", min_difference({}), 0);
+              std::vector<int> big;
+              for (int i = 1; i <= 100; i++) big.push_back(i * 7 % 100 + 1);
+              CHECK("100 numbers", min_difference(big) <= 1);
+          }
+        hints:
+          - "Only sums up to half the total matter: the other group gets the rest."
+          - "If the best reachable sum below half is `s`, the difference is `total - 2 * s`."
 
   - title: Edit distance
     id: dsa-dp-6
@@ -640,3 +993,74 @@ steps:
       - "Make a `(n + 1) × (m + 1)` table. Fill column 0 with `i` and row 0 with `j`."
       - "For each `i, j` from 1: if `a[i - 1] == b[j - 1]`, copy `D[i - 1][j - 1]`; otherwise take 1 plus the smallest of `D[i - 1][j - 1]`, `D[i - 1][j]` and `D[i][j - 1]` (`std::min({x, y, z})` takes three)."
       - "suggest: start with the first word and its distance; replace it only when a later word is strictly closer, so ties keep the earlier word."
+    more:
+      - task: |
+          Write `int min_insertions(const std::string& s)`: the fewest characters to insert anywhere in `s` to make it a palindrome. With `I[i][j]` for the substring from `i` to `j`: matching ends cost nothing extra; otherwise insert a copy of one end and solve the rest.
+        seed: |
+          #include <string>
+          #include <vector>
+
+          int min_insertions(const std::string& s) {
+
+          }
+        solution: |
+          #include <algorithm>
+          #include <string>
+          #include <vector>
+
+          int min_insertions(const std::string& s) {
+              int n = (int)s.size();
+              if (n == 0) return 0;
+              std::vector<std::vector<int>> I(n, std::vector<int>(n, 0));
+              for (int i = n - 1; i >= 0; i--)
+                  for (int j = i + 1; j < n; j++)
+                      I[i][j] = s[i] == s[j] ? I[i + 1][j - 1] : 1 + std::min(I[i + 1][j], I[i][j - 1]);
+              return I[0][n - 1];
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("already a palindrome", min_insertions("racecar"), 0);
+              CHECK_EQ("mbadm -> mbdadbm", min_insertions("mbadm"), 2);
+              CHECK_EQ("leetcode", min_insertions("leetcode"), 5);
+              CHECK_EQ("empty", min_insertions(""), 0);
+              CHECK_EQ("1,500 of the same letter", min_insertions(std::string(1500, 'a')), 0);
+          }
+        hints:
+          - "For `i + 1 > j - 1` (two adjacent matching letters) the inner value is 0, which the zero-filled table already gives you."
+      - task: |
+          The longest **increasing** subsequence (strictly increasing, not necessarily contiguous) has a clever O(n log n) solution. Keep `tails`, where `tails[k]` is the smallest possible last value of an increasing subsequence of length `k + 1`. For each value, replace the first tail that is `>=` it (found with `std::lower_bound`), or append it if there is none. The answer is `tails.size()`. Write `int lis_length(const std::vector<int>& v)`.
+        seed: |
+          #include <algorithm>
+          #include <vector>
+
+          int lis_length(const std::vector<int>& v) {
+
+          }
+        solution: |
+          #include <algorithm>
+          #include <vector>
+
+          int lis_length(const std::vector<int>& v) {
+              std::vector<int> tails;
+              for (int x : v) {
+                  auto it = std::lower_bound(tails.begin(), tails.end(), x);
+                  if (it == tails.end()) tails.push_back(x);
+                  else *it = x;
+              }
+              return (int)tails.size();
+          }
+        require:
+          - pattern: "lower_bound"
+            message: "Find the tail to replace with `std::lower_bound`."
+        harness: |
+          int main() {
+              CHECK_EQ("10 9 2 5 3 7 101 18", lis_length({10, 9, 2, 5, 3, 7, 101, 18}), 4);
+              CHECK_EQ("equal values don't increase", lis_length({7, 7, 7}), 1);
+              CHECK_EQ("empty", lis_length({}), 0);
+              std::vector<int> big(200000);
+              for (int i = 0; i < 200000; i++) big[i] = (i % 2 == 0) ? i : -i;
+              CHECK_EQ("200,000 values", lis_length(big), 100000);
+          }
+        hints:
+          - "`tails` stays sorted, which is what makes the binary search possible."
+          - "Replacing a tail with a smaller value never shortens anything; it just leaves more room to grow later."

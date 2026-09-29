@@ -107,6 +107,92 @@ steps:
     hints:
       - "`Graph adj(n);` then for each edge `adj[a].push_back(b);` and, if undirected, the reverse."
       - "max_degree is the largest `adj[v].size()`."
+    more:
+      - task: |
+          Write `Graph transpose(const Graph& g)`: the same directed graph with every edge reversed, so `u -> v` becomes `v -> u`. Visiting the vertices `u` in increasing order keeps each new neighbour list sorted.
+        seed: |
+          #include <vector>
+
+          using Graph = std::vector<std::vector<int>>;
+
+          Graph transpose(const Graph& g) {
+
+          }
+        solution: |
+          #include <vector>
+
+          using Graph = std::vector<std::vector<int>>;
+
+          Graph transpose(const Graph& g) {
+              Graph t(g.size());
+              for (std::size_t u = 0; u < g.size(); u++)
+                  for (int v : g[u]) t[v].push_back((int)u);
+              return t;
+          }
+        harness: |
+          int main() {
+              Graph g = {{1, 2}, {2}, {0}, {}};
+              CHECK_EQ("reversed", transpose(g), (Graph{{2}, {0}, {0, 1}, {}}));
+              CHECK_EQ("twice gives back the edges", transpose(transpose(g)), g);
+              CHECK_EQ("empty", transpose({}), Graph{});
+          }
+        hints:
+          - "Make a new list per vertex, then for each edge `u -> v` add `u` to `t[v]`."
+      - task: |
+          A graph is **bipartite** when its vertices can be coloured with two colours so that every edge joins different colours. Write `bool is_bipartite(const Graph& g)` for an undirected graph with breadth-first search, colouring each neighbour the opposite colour and failing on a clash. The graph may have several separate parts.
+        seed: |
+          #include <queue>
+          #include <vector>
+
+          using Graph = std::vector<std::vector<int>>;
+
+          bool is_bipartite(const Graph& g) {
+
+          }
+        solution: |
+          #include <queue>
+          #include <vector>
+
+          using Graph = std::vector<std::vector<int>>;
+
+          bool is_bipartite(const Graph& g) {
+              std::vector<int> color(g.size(), -1);
+              for (std::size_t s = 0; s < g.size(); s++) {
+                  if (color[s] != -1) continue;
+                  color[s] = 0;
+                  std::queue<int> q;
+                  q.push((int)s);
+                  while (!q.empty()) {
+                      int u = q.front();
+                      q.pop();
+                      for (int v : g[u]) {
+                          if (color[v] == -1) {
+                              color[v] = 1 - color[u];
+                              q.push(v);
+                          } else if (color[v] == color[u]) {
+                              return false;
+                          }
+                      }
+                  }
+              }
+              return true;
+          }
+        harness: |
+          int main() {
+              CHECK("a square is bipartite", is_bipartite({{1, 3}, {0, 2}, {1, 3}, {0, 2}}));
+              CHECK("a triangle isn't", !is_bipartite({{1, 2}, {0, 2}, {0, 1}}));
+              CHECK("an odd cycle in the second part", !is_bipartite({{1}, {0}, {3, 4}, {2, 4}, {2, 3}}));
+              CHECK("no edges", is_bipartite({{}, {}, {}}));
+              int n = 200000;
+              Graph path(n);
+              for (int i = 0; i + 1 < n; i++) {
+                  path[i].push_back(i + 1);
+                  path[i + 1].push_back(i);
+              }
+              CHECK("a 200,000-vertex path", is_bipartite(path));
+          }
+        hints:
+          - "Start a new search from every vertex that's still uncoloured, so every part of the graph gets checked."
 
   - title: Shortest path with BFS
     id: dsa-graphs-2
@@ -239,6 +325,121 @@ steps:
       - "Keep `dist` as a grid of -1 (unvisited). Find S, set its distance to 0 and push it."
       - "Pop the front; if it's E return its distance. Otherwise push each in-bounds, non-wall, unvisited neighbor with distance + 1."
       - "If the queue empties first, return -1."
+    more:
+      - task: |
+          Write `int count_reachable(const std::vector<std::string>& grid, int r, int c, int k)`: how many open cells (`.`, including the start) can be reached from `(r, c)` in **at most** `k` moves up, down, left or right, never through `#`. The start is always open.
+        seed: |
+          #include <queue>
+          #include <string>
+          #include <utility>
+          #include <vector>
+
+          int count_reachable(const std::vector<std::string>& grid, int r, int c, int k) {
+
+          }
+        solution: |
+          #include <queue>
+          #include <string>
+          #include <utility>
+          #include <vector>
+
+          int count_reachable(const std::vector<std::string>& grid, int r, int c, int k) {
+              int rows = (int)grid.size(), cols = (int)grid[0].size();
+              std::vector<std::vector<int>> dist(rows, std::vector<int>(cols, -1));
+              std::queue<std::pair<int, int>> q;
+              dist[r][c] = 0;
+              q.push({r, c});
+              int count = 0;
+              const int dr[] = {1, -1, 0, 0}, dc[] = {0, 0, 1, -1};
+              while (!q.empty()) {
+                  auto [cr, cc] = q.front();
+                  q.pop();
+                  count++;
+                  if (dist[cr][cc] == k) continue;
+                  for (int d = 0; d < 4; d++) {
+                      int nr = cr + dr[d], nc = cc + dc[d];
+                      if (nr < 0 || nc < 0 || nr >= rows || nc >= cols) continue;
+                      if (grid[nr][nc] == '#' || dist[nr][nc] != -1) continue;
+                      dist[nr][nc] = dist[cr][cc] + 1;
+                      q.push({nr, nc});
+                  }
+              }
+              return count;
+          }
+        harness: |
+          int main() {
+              std::vector<std::string> g = {
+                  "...",
+                  ".#.",
+                  "...",
+              };
+              CHECK_EQ("0 moves", count_reachable(g, 0, 0, 0), 1);
+              CHECK_EQ("1 move", count_reachable(g, 0, 0, 1), 3);
+              CHECK_EQ("2 moves", count_reachable(g, 0, 0, 2), 5);
+              CHECK_EQ("everything open", count_reachable(g, 0, 0, 10), 8);
+              std::vector<std::string> big(400, std::string(400, '.'));
+              CHECK_EQ("a diamond in a big grid", count_reachable(big, 200, 200, 100), 20201);
+          }
+        hints:
+          - "Breadth-first search reaches cells in order of distance; count each cell as you pop it, and don't expand cells already `k` moves away."
+      - task: |
+          **Multi-source** BFS starts from many cells at once. Write `std::vector<std::vector<int>> nearest_exit(const std::vector<std::string>& grid)`: for every cell, the number of moves to the nearest `E`, or -1 for walls (`#`) and cells that can't reach any exit. Put every `E` in the queue at distance 0 before starting.
+        seed: |
+          #include <queue>
+          #include <string>
+          #include <utility>
+          #include <vector>
+
+          std::vector<std::vector<int>> nearest_exit(const std::vector<std::string>& grid) {
+
+          }
+        solution: |
+          #include <queue>
+          #include <string>
+          #include <utility>
+          #include <vector>
+
+          std::vector<std::vector<int>> nearest_exit(const std::vector<std::string>& grid) {
+              int rows = (int)grid.size(), cols = rows ? (int)grid[0].size() : 0;
+              std::vector<std::vector<int>> dist(rows, std::vector<int>(cols, -1));
+              std::queue<std::pair<int, int>> q;
+              for (int r = 0; r < rows; r++)
+                  for (int c = 0; c < cols; c++)
+                      if (grid[r][c] == 'E') {
+                          dist[r][c] = 0;
+                          q.push({r, c});
+                      }
+              const int dr[] = {1, -1, 0, 0}, dc[] = {0, 0, 1, -1};
+              while (!q.empty()) {
+                  auto [r, c] = q.front();
+                  q.pop();
+                  for (int d = 0; d < 4; d++) {
+                      int nr = r + dr[d], nc = c + dc[d];
+                      if (nr < 0 || nc < 0 || nr >= rows || nc >= cols) continue;
+                      if (grid[nr][nc] == '#' || dist[nr][nc] != -1) continue;
+                      dist[nr][nc] = dist[r][c] + 1;
+                      q.push({nr, nc});
+                  }
+              }
+              return dist;
+          }
+        harness: |
+          int main() {
+              using D = std::vector<std::vector<int>>;
+              std::vector<std::string> g = {
+                  "E..#.",
+                  "..#..",
+                  "...E#",
+              };
+              CHECK_EQ("distances", nearest_exit(g), (D{{0, 1, 2, -1, 3}, {1, 2, -1, 1, 2}, {2, 2, 1, 0, -1}}));
+              std::vector<std::string> big(500, std::string(500, '.'));
+              big[0][0] = 'E';
+              big[499][499] = 'E';
+              auto d = nearest_exit(big);
+              CHECK("500 x 500", d[0][499] == 499 && d[250][250] == 498 && d[499][0] == 499);
+          }
+        hints:
+          - "It's ordinary BFS, except the queue starts with every exit instead of one start cell."
 
   - title: Depth-first flood fill
     id: dsa-graphs-3
@@ -363,6 +564,128 @@ steps:
       - "Scan every cell. When you find a `#`, count a new island and flood it."
       - "Flood with a vector used as a stack: mark cells as visited (turn them into '.') when you push them, so none is pushed twice."
       - "Taking the grid by value lets you modify your own copy."
+    more:
+      - task: |
+          Write `int largest_island(std::vector<std::string> grid)`, the number of cells in the biggest group of `#` cells connected up, down, left or right (0 if there are none). Use an explicit stack or queue, not recursion: one island in the test has 250,000 cells.
+        seed: |
+          #include <string>
+          #include <utility>
+          #include <vector>
+
+          int largest_island(std::vector<std::string> grid) {
+
+          }
+        solution: |
+          #include <algorithm>
+          #include <string>
+          #include <utility>
+          #include <vector>
+
+          int largest_island(std::vector<std::string> grid) {
+              int rows = (int)grid.size(), best = 0;
+              const int dr[] = {1, -1, 0, 0}, dc[] = {0, 0, 1, -1};
+              for (int r = 0; r < rows; r++)
+                  for (int c = 0; c < (int)grid[r].size(); c++) {
+                      if (grid[r][c] != '#') continue;
+                      int size = 0;
+                      std::vector<std::pair<int, int>> stack = {{r, c}};
+                      grid[r][c] = '.';
+                      while (!stack.empty()) {
+                          auto [cr, cc] = stack.back();
+                          stack.pop_back();
+                          size++;
+                          for (int d = 0; d < 4; d++) {
+                              int nr = cr + dr[d], nc = cc + dc[d];
+                              if (nr < 0 || nr >= rows || nc < 0 || nc >= (int)grid[nr].size()) continue;
+                              if (grid[nr][nc] != '#') continue;
+                              grid[nr][nc] = '.';
+                              stack.push_back({nr, nc});
+                          }
+                      }
+                      best = std::max(best, size);
+                  }
+              return best;
+          }
+        harness: |
+          int main() {
+              std::vector<std::string> g = {
+                  "##..#",
+                  "#...#",
+                  "..###",
+                  "#....",
+              };
+              CHECK_EQ("the right-hand island has 5", largest_island(g), 5);
+              CHECK_EQ("none", largest_island({"...", "..."}), 0);
+              std::vector<std::string> big(500, std::string(500, '#'));
+              CHECK_EQ("250,000 cells", largest_island(big), 250000);
+          }
+        hints:
+          - "Mark a cell as visited when you push it (turn it into `.`), so no cell is pushed twice."
+      - task: |
+          A lake is open water (`.`) that can't reach the edge of the map. Write `int enclosed_cells(const std::vector<std::string>& grid)`: flood fill from every `.` on the border, then count the `.` cells that were never reached. Moves go up, down, left and right; `#` is land.
+        seed: |
+          #include <string>
+          #include <utility>
+          #include <vector>
+
+          int enclosed_cells(const std::vector<std::string>& grid) {
+
+          }
+        solution: |
+          #include <string>
+          #include <utility>
+          #include <vector>
+
+          int enclosed_cells(const std::vector<std::string>& grid) {
+              int rows = (int)grid.size();
+              if (rows == 0) return 0;
+              int cols = (int)grid[0].size();
+              std::vector<std::vector<char>> seen(rows, std::vector<char>(cols, 0));
+              std::vector<std::pair<int, int>> stack;
+              auto visit = [&](int r, int c) {
+                  if (r < 0 || c < 0 || r >= rows || c >= cols) return;
+                  if (grid[r][c] != '.' || seen[r][c]) return;
+                  seen[r][c] = 1;
+                  stack.push_back({r, c});
+              };
+              for (int r = 0; r < rows; r++) {
+                  visit(r, 0);
+                  visit(r, cols - 1);
+              }
+              for (int c = 0; c < cols; c++) {
+                  visit(0, c);
+                  visit(rows - 1, c);
+              }
+              while (!stack.empty()) {
+                  auto [r, c] = stack.back();
+                  stack.pop_back();
+                  visit(r + 1, c);
+                  visit(r - 1, c);
+                  visit(r, c + 1);
+                  visit(r, c - 1);
+              }
+              int count = 0;
+              for (int r = 0; r < rows; r++)
+                  for (int c = 0; c < cols; c++)
+                      if (grid[r][c] == '.' && !seen[r][c]) count++;
+              return count;
+          }
+        harness: |
+          int main() {
+              std::vector<std::string> g = {
+                  "#####",
+                  "#..##",
+                  "##.#.",
+                  "#####",
+              };
+              CHECK_EQ("three lake cells; the right edge cell is open sea", enclosed_cells(g), 3);
+              CHECK_EQ("everything touches the edge", enclosed_cells({"...", "..."}), 0);
+              std::vector<std::string> ring(400, std::string(400, '.'));
+              for (int i = 0; i < 400; i++) ring[0][i] = ring[399][i] = ring[i][0] = ring[i][399] = '#';
+              CHECK_EQ("a 398 x 398 lake", enclosed_cells(ring), 398 * 398);
+          }
+        hints:
+          - "Everything the border flood reaches is sea; whatever `.` is left over is lake."
 
   - title: Topological sort
     id: dsa-graphs-4
@@ -475,6 +798,104 @@ steps:
       - "Build an adjacency list and an in-degree count from the dependency pairs."
       - "Seed a `std::priority_queue<int, std::vector<int>, std::greater<int>>` with all in-degree-0 vertices."
       - "Pop, append, decrement dependents, push any that hit 0. Return {} if the order is shorter than n."
+    more:
+      - task: |
+          Write `bool has_cycle(int n, const std::vector<std::pair<int, int>>& edges)` for a **directed** graph using Kahn's algorithm: repeatedly remove vertices with no incoming edges. If some vertices can never be removed, they're on a cycle.
+        seed: |
+          #include <queue>
+          #include <utility>
+          #include <vector>
+
+          bool has_cycle(int n, const std::vector<std::pair<int, int>>& edges) {
+
+          }
+        solution: |
+          #include <queue>
+          #include <utility>
+          #include <vector>
+
+          bool has_cycle(int n, const std::vector<std::pair<int, int>>& edges) {
+              std::vector<std::vector<int>> out(n);
+              std::vector<int> indeg(n, 0);
+              for (auto [a, b] : edges) {
+                  out[a].push_back(b);
+                  indeg[b]++;
+              }
+              std::queue<int> q;
+              for (int v = 0; v < n; v++)
+                  if (indeg[v] == 0) q.push(v);
+              int removed = 0;
+              while (!q.empty()) {
+                  int u = q.front();
+                  q.pop();
+                  removed++;
+                  for (int v : out[u])
+                      if (--indeg[v] == 0) q.push(v);
+              }
+              return removed < n;
+          }
+        harness: |
+          int main() {
+              CHECK("a line has no cycle", !has_cycle(3, {{0, 1}, {1, 2}}));
+              CHECK("a loop back", has_cycle(3, {{0, 1}, {1, 2}, {2, 0}}));
+              CHECK("a self-loop", has_cycle(2, {{1, 1}}));
+              CHECK("a diamond isn't a cycle", !has_cycle(4, {{0, 1}, {0, 2}, {1, 3}, {2, 3}}));
+              CHECK("no edges", !has_cycle(5, {}));
+              std::vector<std::pair<int, int>> chain;
+              for (int i = 0; i + 1 < 200000; i++) chain.push_back({i, i + 1});
+              CHECK("a 200,000-vertex chain", !has_cycle(200000, chain));
+              chain.push_back({199999, 100000});
+              CHECK("with one edge back", has_cycle(200000, chain));
+          }
+        hints:
+          - "Count the vertices you remove; if it's fewer than `n`, the rest are stuck on a cycle."
+      - task: |
+          Courses have prerequisites (`{a, b}` means `a` must be taken before `b`), and any number of courses can be taken in one term. Write `int min_terms(int n, const std::vector<std::pair<int, int>>& deps)`: the fewest terms needed to take all `n` courses, or -1 if there's a cycle. Run Kahn's algorithm **one level at a time**: everything with no remaining prerequisites is one term.
+        seed: |
+          #include <utility>
+          #include <vector>
+
+          int min_terms(int n, const std::vector<std::pair<int, int>>& deps) {
+
+          }
+        solution: |
+          #include <utility>
+          #include <vector>
+
+          int min_terms(int n, const std::vector<std::pair<int, int>>& deps) {
+              std::vector<std::vector<int>> out(n);
+              std::vector<int> indeg(n, 0);
+              for (auto [a, b] : deps) {
+                  out[a].push_back(b);
+                  indeg[b]++;
+              }
+              std::vector<int> level;
+              for (int v = 0; v < n; v++)
+                  if (indeg[v] == 0) level.push_back(v);
+              int terms = 0, taken = 0;
+              while (!level.empty()) {
+                  terms++;
+                  taken += (int)level.size();
+                  std::vector<int> next;
+                  for (int u : level)
+                      for (int v : out[u])
+                          if (--indeg[v] == 0) next.push_back(v);
+                  level = std::move(next);
+              }
+              return taken == n ? terms : -1;
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("two independent chains", min_terms(4, {{0, 1}, {2, 3}}), 2);
+              CHECK_EQ("a diamond takes three", min_terms(4, {{0, 1}, {0, 2}, {1, 3}, {2, 3}}), 3);
+              CHECK_EQ("no prerequisites", min_terms(5, {}), 1);
+              CHECK_EQ("a cycle", min_terms(3, {{0, 1}, {1, 2}, {2, 1}}), -1);
+              std::vector<std::pair<int, int>> chain;
+              for (int i = 0; i + 1 < 100000; i++) chain.push_back({i, i + 1});
+              CHECK_EQ("a chain of 100,000", min_terms(100000, chain), 100000);
+          }
+        hints:
+          - "Keep the current level in a vector; the next level is every course whose last prerequisite was in this one."
 
   - title: Dijkstra's shortest paths
     id: dsa-graphs-5
@@ -620,6 +1041,135 @@ steps:
       - "Build an adjacency list of (neighbor, cost) pairs."
       - "Use a min-heap of (distance, vertex): `std::priority_queue<Item, std::vector<Item>, std::greater<Item>>`."
       - "Skip popped entries whose distance is larger than the best known one; relax each edge and push improvements."
+    more:
+      - task: |
+          Every cell of a grid has an entry cost. Write `long long cheapest_path(const std::vector<std::vector<int>>& cost)`: the smallest total cost of a path from the top-left to the bottom-right cell moving up, down, left or right, counting the cost of every cell on the path including both ends. Use Dijkstra with a min-heap of `{cost so far, cell}`.
+        seed: |
+          #include <functional>
+          #include <queue>
+          #include <tuple>
+          #include <vector>
+
+          long long cheapest_path(const std::vector<std::vector<int>>& cost) {
+
+          }
+        solution: |
+          #include <functional>
+          #include <queue>
+          #include <tuple>
+          #include <vector>
+
+          long long cheapest_path(const std::vector<std::vector<int>>& cost) {
+              int rows = (int)cost.size(), cols = (int)cost[0].size();
+              const long long INF = -1;
+              std::vector<std::vector<long long>> best(rows, std::vector<long long>(cols, INF));
+              using Item = std::tuple<long long, int, int>;
+              std::priority_queue<Item, std::vector<Item>, std::greater<Item>> pq;
+              best[0][0] = cost[0][0];
+              pq.push({cost[0][0], 0, 0});
+              const int dr[] = {1, -1, 0, 0}, dc[] = {0, 0, 1, -1};
+              while (!pq.empty()) {
+                  auto [d, r, c] = pq.top();
+                  pq.pop();
+                  if (d != best[r][c]) continue;
+                  if (r == rows - 1 && c == cols - 1) return d;
+                  for (int k = 0; k < 4; k++) {
+                      int nr = r + dr[k], nc = c + dc[k];
+                      if (nr < 0 || nc < 0 || nr >= rows || nc >= cols) continue;
+                      long long nd = d + cost[nr][nc];
+                      if (best[nr][nc] == INF || nd < best[nr][nc]) {
+                          best[nr][nc] = nd;
+                          pq.push({nd, nr, nc});
+                      }
+                  }
+              }
+              return best[rows - 1][cols - 1];
+          }
+        require:
+          - pattern: "priority_queue"
+            message: "Use a `std::priority_queue` min-heap."
+        harness: |
+          int main() {
+              CHECK_EQ("3 x 3", cheapest_path({{1, 3, 1}, {1, 5, 1}, {4, 2, 1}}), 7LL);
+              CHECK_EQ("down and along the bottom avoids the 9s", cheapest_path({{1, 9, 1, 1}, {1, 9, 1, 9}, {1, 1, 1, 1}}), 6LL);
+              CHECK_EQ("one cell", cheapest_path({{5}}), 5LL);
+              std::vector<std::vector<int>> big(300, std::vector<int>(300, 1));
+              CHECK_EQ("300 x 300 of ones", cheapest_path(big), 599LL);
+          }
+        hints:
+          - "The start's cost counts, so begin with `cost[0][0]`, and add the neighbour's cost when you step into it."
+          - "Skip heap entries that are older than the best known cost for their cell."
+      - task: |
+          Write `std::vector<int> route(int n, const std::vector<Edge>& edges, int src, int dst)`: the vertices of a shortest path from `src` to `dst` in a directed graph (starting with `src` and ending with `dst`), or an empty vector if `dst` can't be reached. Run Dijkstra and remember each vertex's **previous** vertex, then walk back from `dst`.
+        seed: |
+          #include <algorithm>
+          #include <functional>
+          #include <queue>
+          #include <utility>
+          #include <vector>
+
+          struct Edge {
+              int from, to;
+              long long cost;
+          };
+
+          std::vector<int> route(int n, const std::vector<Edge>& edges, int src, int dst) {
+
+          }
+        solution: |
+          #include <algorithm>
+          #include <functional>
+          #include <queue>
+          #include <utility>
+          #include <vector>
+
+          struct Edge {
+              int from, to;
+              long long cost;
+          };
+
+          std::vector<int> route(int n, const std::vector<Edge>& edges, int src, int dst) {
+              std::vector<std::vector<std::pair<int, long long>>> adj(n);
+              for (const auto& e : edges) adj[e.from].push_back({e.to, e.cost});
+              std::vector<long long> dist(n, -1);
+              std::vector<int> prev(n, -1);
+              using Item = std::pair<long long, int>;
+              std::priority_queue<Item, std::vector<Item>, std::greater<Item>> pq;
+              dist[src] = 0;
+              pq.push({0, src});
+              while (!pq.empty()) {
+                  auto [d, u] = pq.top();
+                  pq.pop();
+                  if (d != dist[u]) continue;
+                  for (auto [v, w] : adj[u]) {
+                      if (dist[v] == -1 || d + w < dist[v]) {
+                          dist[v] = d + w;
+                          prev[v] = u;
+                          pq.push({dist[v], v});
+                      }
+                  }
+              }
+              if (dist[dst] == -1) return {};
+              std::vector<int> path;
+              for (int v = dst; v != -1; v = prev[v]) path.push_back(v);
+              std::reverse(path.begin(), path.end());
+              return path;
+          }
+        harness: |
+          int main() {
+              std::vector<Edge> e = {{0, 1, 4}, {0, 2, 1}, {2, 1, 2}, {1, 3, 1}, {2, 3, 5}};
+              CHECK_EQ("0 -> 2 -> 1 -> 3", route(4, e, 0, 3), (std::vector<int>{0, 2, 1, 3}));
+              CHECK_EQ("to itself", route(4, e, 2, 2), (std::vector<int>{2}));
+              CHECK_EQ("unreachable", route(5, e, 0, 4), (std::vector<int>{}));
+              CHECK_EQ("edges only go one way", route(4, e, 3, 0), (std::vector<int>{}));
+              int n = 100000;
+              std::vector<Edge> chain;
+              for (int i = 0; i + 1 < n; i++) chain.push_back({i, i + 1, 1});
+              CHECK_EQ("a 100,000-vertex chain", route(n, chain, 0, n - 1).size(), (std::size_t)n);
+          }
+        hints:
+          - "Whenever you improve `dist[v]` through `u`, set `prev[v] = u`."
+          - "Follow `prev` from `dst` back to `src` (whose `prev` is -1), then reverse."
 
   - title: "Challenge: union-find"
     id: dsa-graphs-6
@@ -781,3 +1331,114 @@ steps:
       - "Store `parent_` (initialized to 0..n-1 with std::iota), `size_` (all 1) and a group counter."
       - "find: walk up to the root, then walk again pointing every node on the path straight at the root."
       - "unite: find both roots; if equal return false. Attach the smaller root under the larger, add sizes, decrement groups."
+    more:
+      - task: |
+          Write `int count_components(int n, const std::vector<std::pair<int, int>>& edges)` for an undirected graph using union-find: start with `n` groups and take one away for every edge that joins two different groups. Write a small `find` with path compression.
+        seed: |
+          #include <numeric>
+          #include <utility>
+          #include <vector>
+
+          int count_components(int n, const std::vector<std::pair<int, int>>& edges) {
+
+          }
+        solution: |
+          #include <numeric>
+          #include <utility>
+          #include <vector>
+
+          static int find(std::vector<int>& parent, int x) {
+              while (parent[x] != x) {
+                  parent[x] = parent[parent[x]];
+                  x = parent[x];
+              }
+              return x;
+          }
+
+          int count_components(int n, const std::vector<std::pair<int, int>>& edges) {
+              std::vector<int> parent(n);
+              std::iota(parent.begin(), parent.end(), 0);
+              int groups = n;
+              for (auto [a, b] : edges) {
+                  int ra = find(parent, a), rb = find(parent, b);
+                  if (ra != rb) {
+                      parent[ra] = rb;
+                      groups--;
+                  }
+              }
+              return groups;
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("two groups and a loner", count_components(5, {{0, 1}, {1, 2}, {3, 4}}), 2);
+              CHECK_EQ("no edges", count_components(4, {}), 4);
+              CHECK_EQ("a repeated edge changes nothing", count_components(3, {{0, 1}, {1, 0}}), 2);
+              std::vector<std::pair<int, int>> e;
+              for (int i = 0; i + 2 < 300000; i += 2) e.push_back({i, i + 2});
+              CHECK_EQ("even and odd chains", count_components(300000, e), 150001);
+          }
+        hints:
+          - "Path halving (`parent[x] = parent[parent[x]]` while walking up) keeps the trees flat without recursion."
+      - task: |
+          **Kruskal's algorithm** finds a minimum spanning tree: sort the edges by weight, then take each edge whose ends are in different union-find groups. Write `long long mst_weight(int n, std::vector<WEdge> edges)`, the total weight of the tree, or -1 if the graph isn't connected.
+        seed: |
+          #include <algorithm>
+          #include <numeric>
+          #include <vector>
+
+          struct WEdge {
+              int a, b;
+              long long w;
+          };
+
+          long long mst_weight(int n, std::vector<WEdge> edges) {
+
+          }
+        solution: |
+          #include <algorithm>
+          #include <numeric>
+          #include <vector>
+
+          struct WEdge {
+              int a, b;
+              long long w;
+          };
+
+          static int find(std::vector<int>& parent, int x) {
+              while (parent[x] != x) {
+                  parent[x] = parent[parent[x]];
+                  x = parent[x];
+              }
+              return x;
+          }
+
+          long long mst_weight(int n, std::vector<WEdge> edges) {
+              std::sort(edges.begin(), edges.end(), [](const WEdge& x, const WEdge& y) { return x.w < y.w; });
+              std::vector<int> parent(n);
+              std::iota(parent.begin(), parent.end(), 0);
+              long long total = 0;
+              int used = 0;
+              for (const auto& e : edges) {
+                  int ra = find(parent, e.a), rb = find(parent, e.b);
+                  if (ra == rb) continue;
+                  parent[ra] = rb;
+                  total += e.w;
+                  used++;
+              }
+              return used == n - 1 ? total : -1;
+          }
+        harness: |
+          int main() {
+              std::vector<WEdge> e = {{0, 1, 4}, {0, 2, 1}, {1, 2, 2}, {1, 3, 5}, {2, 3, 8}};
+              CHECK_EQ("1 + 2 + 5", mst_weight(4, e), 8LL);
+              CHECK_EQ("disconnected", mst_weight(3, {{0, 1, 1}}), -1LL);
+              CHECK_EQ("one vertex", mst_weight(1, {}), 0LL);
+              std::vector<WEdge> big;
+              for (int i = 0; i + 1 < 100000; i++) {
+                  big.push_back({i, i + 1, 10});
+                  big.push_back({0, i + 1, 1000});
+              }
+              CHECK_EQ("100,000 vertices", mst_weight(100000, big), 999990LL);
+          }
+        hints:
+          - "A tree on `n` vertices has exactly `n - 1` edges; if you took fewer, the graph wasn't connected."

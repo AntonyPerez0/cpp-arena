@@ -125,6 +125,91 @@ steps:
       - "Write a helper `build(v, i, cur, out)`. When `i == v.size()`, push a copy of `cur` into `out`. Otherwise take `v[i]` (push_back, recurse with `i + 1`, pop_back), then skip it (recurse with `i + 1`)."
       - "count_with_sum doesn't need the subsets themselves: recurse on `(i, remaining)`, where taking `v[i]` means `remaining - v[i]`."
       - "At the end (`i == v.size()`), return 1 if `remaining == 0`, else 0. Add the take and skip counts."
+    more:
+      - task: |
+          Write `std::vector<std::vector<int>> combinations(int n, int k)`: every way to choose `k` different numbers from `1..n`, each combination increasing, and the list in lexicographic order. At each level try the next numbers in increasing order, and stop early when there aren't enough numbers left.
+        seed: |
+          #include <vector>
+
+          std::vector<std::vector<int>> combinations(int n, int k) {
+
+          }
+        solution: |
+          #include <vector>
+
+          static void go(int start, int n, int k, std::vector<int>& cur, std::vector<std::vector<int>>& out) {
+              if ((int)cur.size() == k) {
+                  out.push_back(cur);
+                  return;
+              }
+              for (int x = start; x <= n - (k - (int)cur.size()) + 1; x++) {
+                  cur.push_back(x);
+                  go(x + 1, n, k, cur, out);
+                  cur.pop_back();
+              }
+          }
+
+          std::vector<std::vector<int>> combinations(int n, int k) {
+              std::vector<std::vector<int>> out;
+              std::vector<int> cur;
+              go(1, n, k, cur, out);
+              return out;
+          }
+        harness: |
+          int main() {
+              using V = std::vector<std::vector<int>>;
+              CHECK_EQ("4 choose 2", combinations(4, 2), (V{{1, 2}, {1, 3}, {1, 4}, {2, 3}, {2, 4}, {3, 4}}));
+              CHECK_EQ("choose all", combinations(3, 3), (V{{1, 2, 3}}));
+              CHECK_EQ("choose none", combinations(3, 0), (V{{}}));
+              CHECK_EQ("20 choose 10", combinations(20, 10).size(), 184756u);
+          }
+        hints:
+          - "The next number can be at most `n - (numbers still needed) + 1`, or there won't be enough left to finish."
+      - task: |
+          Write `bool can_split(const std::vector<int>& v)`: can the numbers be split into two groups with **equal** sums? Every number goes into one group or the other. Backtrack over the choices for up to 24 positive numbers, and prune: give up on a branch as soon as a group's sum passes half the total.
+        seed: |
+          #include <vector>
+
+          bool can_split(const std::vector<int>& v) {
+
+          }
+        solution: |
+          #include <algorithm>
+          #include <functional>
+          #include <numeric>
+          #include <vector>
+
+          static bool fill(const std::vector<int>& v, std::size_t i, long long a, long long half) {
+              if (a == half) return true;
+              if (i == v.size() || a > half) return false;
+              return fill(v, i + 1, a + v[i], half) || fill(v, i + 1, a, half);
+          }
+
+          bool can_split(const std::vector<int>& v) {
+              long long total = std::accumulate(v.begin(), v.end(), 0LL);
+              if (total % 2 != 0) return false;
+              std::vector<int> sorted = v;
+              std::sort(sorted.begin(), sorted.end(), std::greater<int>());
+              return fill(sorted, 0, 0, total / 2);
+          }
+        harness: |
+          int main() {
+              CHECK("1 5 11 5", can_split({1, 5, 11, 5}));
+              CHECK("1 2 3 5 can't", !can_split({1, 2, 3, 5}));
+              CHECK("odd total", !can_split({2, 3}));
+              CHECK("empty splits into two empty groups", can_split({}));
+              std::vector<int> big;
+              for (int i = 1; i <= 23; i++) big.push_back(i * 1000 + 1);
+              CHECK("23 numbers with an odd total", !can_split(big));
+              big.push_back(1);
+              CHECK("plus a 1 to make it even", can_split(big));
+              std::vector<int> powers;
+              for (int i = 1; i <= 20; i++) powers.push_back(1 << i);
+              CHECK("powers of two: even total, but the biggest outweighs the rest", !can_split(powers));
+          }
+        hints:
+          - "Only one group needs tracking: if it reaches exactly half, the rest must be the other half."
+          - "An odd total can never split, which is a free check before searching."
 
   - title: Permutations
     id: dsa-backtracking-2
@@ -234,6 +319,101 @@ steps:
       - "Count the letters first: `std::map<char, int> left; for (char c : s) left[c]++;` A map keeps the letters sorted."
       - "Recurse with the counts and the string built so far. When its length equals `s.size()`, save it."
       - "Loop `for (auto& [letter, count] : left)`: skip letters with count 0; otherwise `count--`, push the letter, recurse, pop it, `count++`."
+    more:
+      - task: |
+          Write `std::vector<std::string> letter_cases(const std::string& s)`: every way to write `s` with each **letter** in lower or upper case (digits and other characters stay as they are). At each letter, try the lowercase choice first, then the uppercase one.
+        seed: |
+          #include <cctype>
+          #include <string>
+          #include <vector>
+
+          std::vector<std::string> letter_cases(const std::string& s) {
+
+          }
+        solution: |
+          #include <cctype>
+          #include <string>
+          #include <vector>
+
+          static void go(std::string& cur, std::size_t i, std::vector<std::string>& out) {
+              if (i == cur.size()) {
+                  out.push_back(cur);
+                  return;
+              }
+              unsigned char c = (unsigned char)cur[i];
+              if (!std::isalpha(c)) {
+                  go(cur, i + 1, out);
+                  return;
+              }
+              cur[i] = (char)std::tolower(c);
+              go(cur, i + 1, out);
+              cur[i] = (char)std::toupper(c);
+              go(cur, i + 1, out);
+          }
+
+          std::vector<std::string> letter_cases(const std::string& s) {
+              std::vector<std::string> out;
+              std::string cur = s;
+              go(cur, 0, out);
+              return out;
+          }
+        harness: |
+          int main() {
+              using V = std::vector<std::string>;
+              CHECK_EQ("a1b", letter_cases("a1b"), (V{"a1b", "a1B", "A1b", "A1B"}));
+              CHECK_EQ("digits only", letter_cases("42"), (V{"42"}));
+              CHECK_EQ("empty", letter_cases(""), (V{""}));
+              CHECK_EQ("upper input gives the same set", letter_cases("Q"), (V{"q", "Q"}));
+              CHECK_EQ("16 letters", letter_cases("abcdefghijklmnop").size(), 65536u);
+          }
+        hints:
+          - "Recurse on the position; non-letters just move on, letters branch twice."
+      - task: |
+          Write `std::vector<std::string> parens(int n)`: every string of `n` pairs of **balanced** parentheses, in lexicographic order (`(` comes before `)`). Prune while building: add `(` while fewer than `n` are open, and `)` only while there are more `(` than `)`.
+        seed: |
+          #include <string>
+          #include <vector>
+
+          std::vector<std::string> parens(int n) {
+
+          }
+        solution: |
+          #include <string>
+          #include <vector>
+
+          static void go(std::string& cur, int open, int close, int n, std::vector<std::string>& out) {
+              if ((int)cur.size() == 2 * n) {
+                  out.push_back(cur);
+                  return;
+              }
+              if (open < n) {
+                  cur.push_back('(');
+                  go(cur, open + 1, close, n, out);
+                  cur.pop_back();
+              }
+              if (close < open) {
+                  cur.push_back(')');
+                  go(cur, open, close + 1, n, out);
+                  cur.pop_back();
+              }
+          }
+
+          std::vector<std::string> parens(int n) {
+              std::vector<std::string> out;
+              std::string cur;
+              go(cur, 0, 0, n, out);
+              return out;
+          }
+        harness: |
+          int main() {
+              using V = std::vector<std::string>;
+              CHECK_EQ("n = 3", parens(3), (V{"((()))", "(()())", "(())()", "()(())", "()()()"}));
+              CHECK_EQ("n = 1", parens(1), (V{"()"}));
+              CHECK_EQ("n = 0", parens(0), (V{""}));
+              CHECK_EQ("n = 12 (a Catalan number)", parens(12).size(), 208012u);
+          }
+        hints:
+          - "Trying `(` before `)` at every step produces the strings in lexicographic order for free."
 
   - title: Pruning
     id: dsa-backtracking-3
@@ -341,6 +521,92 @@ steps:
       - "Sort the candidates, then recurse with `(start, remaining, cur)`. When `remaining == 0`, save a copy of `cur`."
       - "Loop `i` from `start`. If `candidates[i] > remaining`, `break`: the rest are bigger."
       - "Otherwise push `candidates[i]`, recurse with start `i` (so it can be reused) and `remaining - candidates[i]`, then pop."
+    more:
+      - task: |
+          Now candidates may repeat, and each can be used **at most once**. Write `std::vector<std::vector<int>> combination_sum_once(std::vector<int> candidates, int target)` with no duplicate combinations. Sort first; at each level, skip a candidate equal to the one just tried at that level. Return the combinations in lexicographic order.
+        seed: |
+          #include <algorithm>
+          #include <vector>
+
+          std::vector<std::vector<int>> combination_sum_once(std::vector<int> candidates, int target) {
+
+          }
+        solution: |
+          #include <algorithm>
+          #include <vector>
+
+          static void go(const std::vector<int>& c, std::size_t start, int left, std::vector<int>& cur, std::vector<std::vector<int>>& out) {
+              if (left == 0) {
+                  out.push_back(cur);
+                  return;
+              }
+              for (std::size_t i = start; i < c.size(); i++) {
+                  if (i > start && c[i] == c[i - 1]) continue;
+                  if (c[i] > left) break;
+                  cur.push_back(c[i]);
+                  go(c, i + 1, left - c[i], cur, out);
+                  cur.pop_back();
+              }
+          }
+
+          std::vector<std::vector<int>> combination_sum_once(std::vector<int> candidates, int target) {
+              std::sort(candidates.begin(), candidates.end());
+              std::vector<std::vector<int>> out;
+              std::vector<int> cur;
+              go(candidates, 0, target, cur, out);
+              return out;
+          }
+        harness: |
+          int main() {
+              using V = std::vector<std::vector<int>>;
+              CHECK_EQ("10 1 2 7 6 1 5 -> 8", combination_sum_once({10, 1, 2, 7, 6, 1, 5}, 8), (V{{1, 1, 6}, {1, 2, 5}, {1, 7}, {2, 6}}));
+              CHECK_EQ("2 5 2 1 2 -> 5", combination_sum_once({2, 5, 2, 1, 2}, 5), (V{{1, 2, 2}, {5}}));
+              CHECK_EQ("impossible", combination_sum_once({3, 3}, 5), V{});
+              std::vector<int> ones(30, 1);
+              CHECK_EQ("30 ones -> 15: just one combination", combination_sum_once(ones, 15).size(), 1u);
+          }
+        hints:
+          - "`if (i > start && c[i] == c[i - 1]) continue;` skips repeats at the same level, but still lets a repeat be used deeper in the same combination."
+          - "Recurse with `i + 1`, because each candidate is used at most once."
+      - task: |
+          Write `std::vector<std::vector<int>> k_sum(int k, int n)`: every set of `k` **different** numbers from 1 to 9 that adds up to `n`, each set increasing and the list in lexicographic order. Prune when the next number is already bigger than what's left.
+        seed: |
+          #include <vector>
+
+          std::vector<std::vector<int>> k_sum(int k, int n) {
+
+          }
+        solution: |
+          #include <vector>
+
+          static void go(int start, int k, int left, std::vector<int>& cur, std::vector<std::vector<int>>& out) {
+              if ((int)cur.size() == k) {
+                  if (left == 0) out.push_back(cur);
+                  return;
+              }
+              for (int x = start; x <= 9 && x <= left; x++) {
+                  cur.push_back(x);
+                  go(x + 1, k, left - x, cur, out);
+                  cur.pop_back();
+              }
+          }
+
+          std::vector<std::vector<int>> k_sum(int k, int n) {
+              std::vector<std::vector<int>> out;
+              std::vector<int> cur;
+              go(1, k, n, cur, out);
+              return out;
+          }
+        harness: |
+          int main() {
+              using V = std::vector<std::vector<int>>;
+              CHECK_EQ("3 numbers making 7", k_sum(3, 7), (V{{1, 2, 4}}));
+              CHECK_EQ("3 numbers making 9", k_sum(3, 9), (V{{1, 2, 6}, {1, 3, 5}, {2, 3, 4}}));
+              CHECK_EQ("impossible", k_sum(4, 1), V{});
+              CHECK_EQ("all nine", k_sum(9, 45), (V{{1, 2, 3, 4, 5, 6, 7, 8, 9}}));
+          }
+        hints:
+          - "The loop condition `x <= left` is the pruning: a bigger number could only overshoot."
 
   - title: N-Queens
     id: dsa-backtracking-4
@@ -459,6 +725,85 @@ steps:
       - "Recurse on the row `r`, with flag vectors `col(n)`, `diag(2 * n - 1)` and `anti(2 * n - 1)`. When `r == n`, you've found one solution: return 1."
       - "For each column `c`, skip it if `col[c] || diag[r + c] || anti[r - c + n - 1]`."
       - "Otherwise set the three flags, add the count from row `r + 1`, then clear the flags."
+    more:
+      - task: |
+          Write `std::vector<std::string> first_board(int n)`: the **first** N-Queens solution found by placing one queen per row and trying the columns from left to right, as `n` strings of `.` and `Q`. Stop as soon as one is found; return an empty vector if there's none.
+        seed: |
+          #include <string>
+          #include <vector>
+
+          std::vector<std::string> first_board(int n) {
+
+          }
+        solution: |
+          #include <string>
+          #include <vector>
+
+          static bool place(int row, int n, std::vector<int>& col_of, std::vector<char>& cols, std::vector<char>& d1, std::vector<char>& d2) {
+              if (row == n) return true;
+              for (int c = 0; c < n; c++) {
+                  if (cols[c] || d1[row + c] || d2[row - c + n - 1]) continue;
+                  cols[c] = d1[row + c] = d2[row - c + n - 1] = 1;
+                  col_of[row] = c;
+                  if (place(row + 1, n, col_of, cols, d1, d2)) return true;
+                  cols[c] = d1[row + c] = d2[row - c + n - 1] = 0;
+              }
+              return false;
+          }
+
+          std::vector<std::string> first_board(int n) {
+              std::vector<int> col_of(n);
+              std::vector<char> cols(n, 0), d1(2 * n, 0), d2(2 * n, 0);
+              if (!place(0, n, col_of, cols, d1, d2)) return {};
+              std::vector<std::string> board(n, std::string(n, '.'));
+              for (int r = 0; r < n; r++) board[r][col_of[r]] = 'Q';
+              return board;
+          }
+        harness: |
+          int main() {
+              using V = std::vector<std::string>;
+              CHECK_EQ("n = 4", first_board(4), (V{".Q..", "...Q", "Q...", "..Q."}));
+              CHECK_EQ("n = 1", first_board(1), (V{"Q"}));
+              CHECK("n = 3 has no solution", first_board(3).empty());
+              auto b = first_board(20);
+              CHECK("n = 20 found quickly", b.size() == 20 && b[0][0] == 'Q');
+          }
+        hints:
+          - "Make the recursive function return `true` once the last row is placed, and return straight away all the way up."
+      - task: |
+          Count N-Queens solutions much faster with **bitmasks**: keep the attacked columns and both diagonal directions as bits of three ints. Moving to the next row shifts the diagonal masks left and right by one. Write `long count_fast(int n)` for `n` up to 12, whose 14,200 solutions must be counted within the time limit.
+        seed: |
+          long count_fast(int n) {
+
+          }
+        solution: |
+          static long go(int n, int cols, int d1, int d2) {
+              int full = (1 << n) - 1;
+              if (cols == full) return 1;
+              long count = 0;
+              int free = full & ~(cols | d1 | d2);
+              while (free) {
+                  int bit = free & -free;
+                  free -= bit;
+                  count += go(n, cols | bit, ((d1 | bit) << 1) & full, (d2 | bit) >> 1);
+              }
+              return count;
+          }
+
+          long count_fast(int n) {
+              return go(n, 0, 0, 0);
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("n = 4", count_fast(4), 2L);
+              CHECK_EQ("n = 6", count_fast(6), 4L);
+              CHECK_EQ("n = 8", count_fast(8), 92L);
+              CHECK_EQ("n = 1", count_fast(1), 1L);
+              CHECK_EQ("n = 12", count_fast(12), 14200L);
+          }
+        hints:
+          - "The free squares in a row are `~(cols | d1 | d2)`, limited to the low `n` bits."
+          - "`free & -free` isolates the lowest set bit, one candidate square."
 
   - title: Paths through a grid
     id: dsa-backtracking-5
@@ -567,6 +912,98 @@ steps:
       - "Write `match(g, word, k, r, c)`: can `word[k..]` be traced starting at cell (r, c)? If `k == word.size()`, the whole word matched: true."
       - "Return false if (r, c) is off the grid or `g[r][c] != word[k]`. A cell marked `'*'` never equals a letter, so marking handles reuse."
       - "Mark `g[r][c] = '*'`, try the four neighbors with `k + 1`, restore the letter, and return whether any neighbor worked. Call it from every starting cell."
+    more:
+      - task: |
+          Write `int count_paths(std::vector<std::string> grid)`: how many different **simple** paths (never visiting a cell twice) lead from the top-left cell to the bottom-right cell, moving up, down, left or right through `.` cells. Mark a cell before exploring from it and unmark it afterwards.
+        seed: |
+          #include <string>
+          #include <vector>
+
+          int count_paths(std::vector<std::string> grid) {
+
+          }
+        solution: |
+          #include <string>
+          #include <vector>
+
+          static int go(std::vector<std::string>& g, int r, int c) {
+              int rows = (int)g.size(), cols = (int)g[0].size();
+              if (r < 0 || c < 0 || r >= rows || c >= cols || g[r][c] != '.') return 0;
+              if (r == rows - 1 && c == cols - 1) return 1;
+              g[r][c] = '*';
+              int n = go(g, r + 1, c) + go(g, r - 1, c) + go(g, r, c + 1) + go(g, r, c - 1);
+              g[r][c] = '.';
+              return n;
+          }
+
+          int count_paths(std::vector<std::string> grid) {
+              return go(grid, 0, 0);
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("2 x 2", count_paths({"..", ".."}), 2);
+              CHECK_EQ("3 x 3", count_paths({"...", "...", "..."}), 12);
+              CHECK_EQ("a wall in the middle", count_paths({"...", ".#.", "..."}), 2);
+              CHECK_EQ("blocked", count_paths({".#", "#."}), 0);
+              CHECK_EQ("5 x 5", count_paths({".....", ".....", ".....", ".....", "....."}), 8512);
+          }
+        hints:
+          - "Return 1 when you reach the bottom-right cell, and add up the counts from the four directions otherwise."
+      - task: |
+          Write `std::vector<std::string> found_words(const std::vector<std::string>& grid, const std::vector<std::string>& words)`: the words that can be traced through horizontally or vertically adjacent cells, each cell used at most once per word, returned in **alphabetical** order without duplicates.
+        seed: |
+          #include <algorithm>
+          #include <string>
+          #include <vector>
+
+          std::vector<std::string> found_words(const std::vector<std::string>& grid, const std::vector<std::string>& words) {
+
+          }
+        solution: |
+          #include <algorithm>
+          #include <string>
+          #include <vector>
+
+          static bool trace(std::vector<std::string>& g, const std::string& w, std::size_t i, int r, int c) {
+              if (r < 0 || c < 0 || r >= (int)g.size() || c >= (int)g[r].size() || g[r][c] != w[i]) return false;
+              if (i + 1 == w.size()) return true;
+              char saved = g[r][c];
+              g[r][c] = '#';
+              bool ok = trace(g, w, i + 1, r + 1, c) || trace(g, w, i + 1, r - 1, c) || trace(g, w, i + 1, r, c + 1) || trace(g, w, i + 1, r, c - 1);
+              g[r][c] = saved;
+              return ok;
+          }
+
+          static bool exists(std::vector<std::string> g, const std::string& w) {
+              if (w.empty()) return false;
+              for (int r = 0; r < (int)g.size(); r++)
+                  for (int c = 0; c < (int)g[r].size(); c++)
+                      if (trace(g, w, 0, r, c)) return true;
+              return false;
+          }
+
+          std::vector<std::string> found_words(const std::vector<std::string>& grid, const std::vector<std::string>& words) {
+              std::vector<std::string> out;
+              for (const auto& w : words)
+                  if (exists(grid, w)) out.push_back(w);
+              std::sort(out.begin(), out.end());
+              out.erase(std::unique(out.begin(), out.end()), out.end());
+              return out;
+          }
+        harness: |
+          int main() {
+              std::vector<std::string> g = {
+                  "OATH",
+                  "ETAE",
+                  "IHKR",
+                  "IFLV",
+              };
+              CHECK_EQ("board words", found_words(g, {"OATH", "PEA", "EAT", "RAIN", "OATH"}), (std::vector<std::string>{"EAT", "OATH"}));
+              CHECK_EQ("a cell can't be reused", found_words({"AB"}, {"ABA", "AB"}), (std::vector<std::string>{"AB"}));
+              CHECK_EQ("nothing", found_words({"X"}, {"Y"}), (std::vector<std::string>{}));
+          }
+        hints:
+          - "Reuse the idea from the lesson: a search from each starting cell that marks cells while it's inside them."
 
   - title: A Sudoku solver
     id: dsa-backtracking-6
@@ -708,3 +1145,106 @@ steps:
       - "Loop over the cells to find the first `'.'`. If there's none, the grid is solved: return true."
       - "For that cell, try `d` from `'1'` to `'9'`. If it can be placed, write it and call `solve(grid)`; if that returns true, return true. Otherwise write `'.'` back."
       - "If no digit worked for that cell, return false right there (don't move on to other cells). can_place checks `g[r][i]`, `g[i][c]` and `g[r / 3 * 3 + i / 3][c / 3 * 3 + i % 3]`."
+    more:
+      - task: |
+          Before solving, check a puzzle for obvious mistakes. Write `bool valid_partial(const std::vector<std::string>& g)` for a 9 x 9 Sudoku with `.` for empty cells: true when no row, column or 3 x 3 box contains the same digit twice.
+        seed: |
+          #include <string>
+          #include <vector>
+
+          bool valid_partial(const std::vector<std::string>& g) {
+
+          }
+        solution: |
+          #include <string>
+          #include <vector>
+
+          bool valid_partial(const std::vector<std::string>& g) {
+              bool row[9][10] = {}, col[9][10] = {}, box[9][10] = {};
+              for (int r = 0; r < 9; r++)
+                  for (int c = 0; c < 9; c++) {
+                      if (g[r][c] == '.') continue;
+                      int d = g[r][c] - '0', b = r / 3 * 3 + c / 3;
+                      if (row[r][d] || col[c][d] || box[b][d]) return false;
+                      row[r][d] = col[c][d] = box[b][d] = true;
+                  }
+              return true;
+          }
+        harness: |
+          int main() {
+              std::vector<std::string> g = {
+                  "53..7....", "6..195...", ".98....6.", "8...6...3", "4..8.3..1",
+                  "7...2...6", ".6....28.", "...419..5", "....8..79",
+              };
+              CHECK("the classic puzzle", valid_partial(g));
+              auto row = g;
+              row[0][2] = '5';
+              CHECK("two 5s in a row", !valid_partial(row));
+              auto col = g;
+              col[8][0] = '5';
+              CHECK("two 5s in a column", !valid_partial(col));
+              auto box = g;
+              box[1][1] = '9';
+              CHECK("two 9s in a box", !valid_partial(box));
+              CHECK("empty grid", valid_partial(std::vector<std::string>(9, std::string(9, '.'))));
+          }
+        hints:
+          - "Cell `(r, c)` is in box `r / 3 * 3 + c / 3`."
+          - "Three tables of seen digits, one per row, column and box, catch every repeat in one pass."
+      - task: |
+          A proper Sudoku has exactly **one** solution. Write `int count_solutions(std::vector<std::string> g, int limit)`, which counts the solutions but stops as soon as it has found `limit` of them (an empty grid has billions). Backtrack like the solver, but instead of returning at the first solution, add it to the count and keep searching.
+        seed: |
+          #include <string>
+          #include <vector>
+
+          int count_solutions(std::vector<std::string> g, int limit) {
+
+          }
+        solution: |
+          #include <string>
+          #include <vector>
+
+          static bool ok(const std::vector<std::string>& g, int r, int c, char d) {
+              for (int i = 0; i < 9; i++) {
+                  if (g[r][i] == d || g[i][c] == d) return false;
+                  if (g[r / 3 * 3 + i / 3][c / 3 * 3 + i % 3] == d) return false;
+              }
+              return true;
+          }
+
+          static void go(std::vector<std::string>& g, int pos, int limit, int& count) {
+              while (pos < 81 && g[pos / 9][pos % 9] != '.') pos++;
+              if (pos == 81) {
+                  count++;
+                  return;
+              }
+              int r = pos / 9, c = pos % 9;
+              for (char d = '1'; d <= '9' && count < limit; d++) {
+                  if (!ok(g, r, c, d)) continue;
+                  g[r][c] = d;
+                  go(g, pos + 1, limit, count);
+                  g[r][c] = '.';
+              }
+          }
+
+          int count_solutions(std::vector<std::string> g, int limit) {
+              int count = 0;
+              go(g, 0, limit, count);
+              return count;
+          }
+        harness: |
+          int main() {
+              std::vector<std::string> g = {
+                  "53..7....", "6..195...", ".98....6.", "8...6...3", "4..8.3..1",
+                  "7...2...6", ".6....28.", "...419..5", "....8..79",
+              };
+              CHECK_EQ("the classic puzzle has one", count_solutions(g, 2), 1);
+              CHECK_EQ("an empty grid stops at the limit", count_solutions(std::vector<std::string>(9, std::string(9, '.')), 5), 5);
+              std::vector<std::string> bad = {
+                  "12345678.", "........9", ".........", ".........", ".........",
+                  ".........", ".........", ".........", ".........",
+              };
+              CHECK_EQ("no solution", count_solutions(bad, 2), 0);
+          }
+        hints:
+          - "Check `count < limit` in the loop, so the search unwinds as soon as the limit is reached."

@@ -140,6 +140,154 @@ steps:
       - "Write a helper: `std::size_t bucket_of(int key) const { return std::hash<int>{}(key) % buckets_.size(); }`"
       - "insert: search that bucket's list with `std::find`; if absent, push_back and grow size_."
       - "contains: same search, return whether it was found."
+    more:
+      - task: |
+          Add `bool erase(int key)` to the chained `IntSet`: find the key in its bucket's list, remove it, and return whether it was there. `insert` and `contains` are written for you.
+        seed: |
+          #include <algorithm>
+          #include <functional>
+          #include <list>
+          #include <vector>
+
+          class IntSet {
+          public:
+              bool insert(int key) {
+                  auto& b = buckets_[bucket_of(key)];
+                  if (std::find(b.begin(), b.end(), key) != b.end()) return false;
+                  b.push_back(key);
+                  size_++;
+                  return true;
+              }
+              bool contains(int key) const {
+                  const auto& b = buckets_[bucket_of(key)];
+                  return std::find(b.begin(), b.end(), key) != b.end();
+              }
+              bool erase(int key) {
+
+              }
+              std::size_t size() const { return size_; }
+
+          private:
+              std::size_t bucket_of(int key) const { return std::hash<int>{}(key) % buckets_.size(); }
+              std::vector<std::list<int>> buckets_ = std::vector<std::list<int>>(16);
+              std::size_t size_ = 0;
+          };
+        solution: |
+          #include <algorithm>
+          #include <functional>
+          #include <list>
+          #include <vector>
+
+          class IntSet {
+          public:
+              bool insert(int key) {
+                  auto& b = buckets_[bucket_of(key)];
+                  if (std::find(b.begin(), b.end(), key) != b.end()) return false;
+                  b.push_back(key);
+                  size_++;
+                  return true;
+              }
+              bool contains(int key) const {
+                  const auto& b = buckets_[bucket_of(key)];
+                  return std::find(b.begin(), b.end(), key) != b.end();
+              }
+              bool erase(int key) {
+                  auto& b = buckets_[bucket_of(key)];
+                  auto it = std::find(b.begin(), b.end(), key);
+                  if (it == b.end()) return false;
+                  b.erase(it);
+                  size_--;
+                  return true;
+              }
+              std::size_t size() const { return size_; }
+
+          private:
+              std::size_t bucket_of(int key) const { return std::hash<int>{}(key) % buckets_.size(); }
+              std::vector<std::list<int>> buckets_ = std::vector<std::list<int>>(16);
+              std::size_t size_ = 0;
+          };
+        forbid:
+          - pattern: "unordered_set|unordered_map|std::set|std::map"
+            message: Work with your own buckets on this step.
+        harness: |
+          int main() {
+              IntSet s;
+              for (int i = 0; i < 100; i++) s.insert(i);
+              CHECK("erase 42", s.erase(42));
+              CHECK("gone", !s.contains(42));
+              CHECK("erase again fails", !s.erase(42));
+              CHECK_EQ("size 99", s.size(), 99u);
+              CHECK("neighbours in the same bucket survive", s.contains(58) && s.contains(26));
+              CHECK("erase something never added", !s.erase(-5));
+              CHECK("can insert it again", s.insert(42) && s.size() == 100);
+          }
+        hints:
+          - "`std::find` in the bucket's list, then `list::erase(it)`. Don't forget the size."
+      - task: |
+          **Open addressing** keeps keys in the table itself instead of in lists. Write `ProbeSet` with 64 slots: to insert or look up a key, start at `hash % 64` and step to the next slot (wrapping around) until you find the key or an empty slot. `insert` returns false for a key that's already there; assume the table never gets full.
+        seed: |
+          #include <functional>
+          #include <vector>
+
+          class ProbeSet {
+          public:
+              bool insert(int key);
+              bool contains(int key) const;
+              std::size_t size() const { return size_; }
+
+          private:
+              std::vector<int> keys_ = std::vector<int>(64);
+              std::vector<char> used_ = std::vector<char>(64, 0);
+              std::size_t size_ = 0;
+          };
+        solution: |
+          #include <functional>
+          #include <vector>
+
+          class ProbeSet {
+          public:
+              bool insert(int key) {
+                  std::size_t i = slot_for(key);
+                  if (used_[i]) return false;
+                  used_[i] = 1;
+                  keys_[i] = key;
+                  size_++;
+                  return true;
+              }
+              bool contains(int key) const { return used_[slot_for(key)] != 0; }
+              std::size_t size() const { return size_; }
+
+          private:
+              // The slot holding key, or the empty slot where it would go.
+              std::size_t slot_for(int key) const {
+                  std::size_t i = std::hash<int>{}(key) % keys_.size();
+                  while (used_[i] && keys_[i] != key) i = (i + 1) % keys_.size();
+                  return i;
+              }
+              std::vector<int> keys_ = std::vector<int>(64);
+              std::vector<char> used_ = std::vector<char>(64, 0);
+              std::size_t size_ = 0;
+          };
+        forbid:
+          - pattern: "unordered_set|unordered_map|std::set|std::map|std::list"
+            message: Keep the keys in the probing table itself.
+        harness: |
+          int main() {
+              ProbeSet s;
+              CHECK("insert 5", s.insert(5));
+              CHECK("duplicate", !s.insert(5));
+              CHECK("69 collides with 5 (69 % 64 == 5) and still fits", s.insert(69));
+              CHECK("both found", s.contains(5) && s.contains(69));
+              CHECK("133 also collides but was never added", !s.contains(133));
+              for (int i = 100; i < 140; i++) s.insert(i);
+              CHECK_EQ("size", s.size(), 42u);
+              bool all = true;
+              for (int i = 100; i < 140; i++) all = all && s.contains(i);
+              CHECK("all 40 found", all);
+              CHECK("63 wraps to the start of the table", s.insert(63) && s.insert(127 + 64) && s.contains(191));
+          }
+        hints:
+          - "A private helper that returns the slot holding the key, or the first empty slot on its path, serves both `insert` and `contains`."
 
   - title: Load factor and rehashing
     id: dsa-hash-2
@@ -279,6 +427,174 @@ steps:
       - "After a successful insert, check `size_ * 4 > buckets_.size() * 3` (0.75 without floating point)."
       - "rehash: swap the buckets into a local `old`, give buckets_ twice as many empty lists, then re-insert every key from old."
       - "Swapping first means bucket_of() already uses the new bucket count while re-inserting."
+    more:
+      - task: |
+          The rehashing `IntSet` is given. Add two statistics: `double load_factor() const` (size divided by bucket count) and `std::size_t longest_chain() const`, the size of the fullest bucket. After many inserts, growing the table should keep the longest chain short.
+        seed: |
+          #include <algorithm>
+          #include <functional>
+          #include <list>
+          #include <vector>
+
+          class IntSet {
+          public:
+              bool insert(int key) {
+                  auto& b = buckets_[bucket_of(key)];
+                  if (std::find(b.begin(), b.end(), key) != b.end()) return false;
+                  b.push_back(key);
+                  size_++;
+                  if (size_ > buckets_.size() * 3 / 4) rehash(buckets_.size() * 2);
+                  return true;
+              }
+              std::size_t size() const { return size_; }
+              std::size_t bucket_count() const { return buckets_.size(); }
+              double load_factor() const {
+
+              }
+              std::size_t longest_chain() const {
+
+              }
+
+          private:
+              void rehash(std::size_t n) {
+                  std::vector<std::list<int>> old(n);
+                  old.swap(buckets_);
+                  for (auto& b : old)
+                      for (int k : b) buckets_[bucket_of(k)].push_back(k);
+              }
+              std::size_t bucket_of(int key) const { return std::hash<int>{}(key) % buckets_.size(); }
+              std::vector<std::list<int>> buckets_ = std::vector<std::list<int>>(16);
+              std::size_t size_ = 0;
+          };
+        solution: |
+          #include <algorithm>
+          #include <functional>
+          #include <list>
+          #include <vector>
+
+          class IntSet {
+          public:
+              bool insert(int key) {
+                  auto& b = buckets_[bucket_of(key)];
+                  if (std::find(b.begin(), b.end(), key) != b.end()) return false;
+                  b.push_back(key);
+                  size_++;
+                  if (size_ > buckets_.size() * 3 / 4) rehash(buckets_.size() * 2);
+                  return true;
+              }
+              std::size_t size() const { return size_; }
+              std::size_t bucket_count() const { return buckets_.size(); }
+              double load_factor() const {
+                  return (double)size_ / buckets_.size();
+              }
+              std::size_t longest_chain() const {
+                  std::size_t best = 0;
+                  for (const auto& b : buckets_) best = std::max(best, b.size());
+                  return best;
+              }
+
+          private:
+              void rehash(std::size_t n) {
+                  std::vector<std::list<int>> old(n);
+                  old.swap(buckets_);
+                  for (auto& b : old)
+                      for (int k : b) buckets_[bucket_of(k)].push_back(k);
+              }
+              std::size_t bucket_of(int key) const { return std::hash<int>{}(key) % buckets_.size(); }
+              std::vector<std::list<int>> buckets_ = std::vector<std::list<int>>(16);
+              std::size_t size_ = 0;
+          };
+        harness: |
+          int main() {
+              IntSet s;
+              CHECK("empty load factor", s.load_factor() == 0);
+              CHECK_EQ("empty chain", s.longest_chain(), 0u);
+              for (int i = 0; i < 8; i++) s.insert(i);
+              CHECK("8 of 16", s.load_factor() == 0.5);
+              for (int i = 0; i < 100000; i++) s.insert(i);
+              CHECK("growth keeps the load at most 0.75", s.load_factor() <= 0.75);
+              CHECK("and the chains short", s.longest_chain() <= 8);
+          }
+        hints:
+          - "Cast before dividing: `(double)size_ / buckets_.size()`."
+      - task: |
+          Make the open-addressing set grow. `GrowingProbeSet` starts with 8 slots; whenever an insert would make the table more than **half** full, first rebuild it with twice as many slots, re-inserting every key (their slots change, because the modulus changes). The test inserts 200,000 keys.
+        seed: |
+          #include <functional>
+          #include <vector>
+
+          class GrowingProbeSet {
+          public:
+              bool insert(int key);
+              bool contains(int key) const;
+              std::size_t size() const { return size_; }
+              std::size_t capacity() const { return keys_.size(); }
+
+          private:
+              std::vector<int> keys_ = std::vector<int>(8);
+              std::vector<char> used_ = std::vector<char>(8, 0);
+              std::size_t size_ = 0;
+          };
+        solution: |
+          #include <functional>
+          #include <vector>
+
+          class GrowingProbeSet {
+          public:
+              bool insert(int key) {
+                  if (contains(key)) return false;
+                  if ((size_ + 1) * 2 > keys_.size()) grow();
+                  place(key);
+                  size_++;
+                  return true;
+              }
+              bool contains(int key) const { return used_[slot_for(key)] != 0; }
+              std::size_t size() const { return size_; }
+              std::size_t capacity() const { return keys_.size(); }
+
+          private:
+              std::size_t slot_for(int key) const {
+                  std::size_t i = std::hash<int>{}(key) % keys_.size();
+                  while (used_[i] && keys_[i] != key) i = (i + 1) % keys_.size();
+                  return i;
+              }
+              void place(int key) {
+                  std::size_t i = slot_for(key);
+                  used_[i] = 1;
+                  keys_[i] = key;
+              }
+              void grow() {
+                  std::vector<int> old_keys = std::move(keys_);
+                  std::vector<char> old_used = std::move(used_);
+                  keys_.assign(old_keys.size() * 2, 0);
+                  used_.assign(old_keys.size() * 2, 0);
+                  for (std::size_t i = 0; i < old_keys.size(); i++)
+                      if (old_used[i]) place(old_keys[i]);
+              }
+              std::vector<int> keys_ = std::vector<int>(8);
+              std::vector<char> used_ = std::vector<char>(8, 0);
+              std::size_t size_ = 0;
+          };
+        forbid:
+          - pattern: "unordered_set|unordered_map|std::set|std::map|std::list"
+            message: Keep the keys in the probing table itself.
+        harness: |
+          int main() {
+              GrowingProbeSet s;
+              for (int i = 0; i < 4; i++) s.insert(i);
+              CHECK_EQ("4 keys fit in 8 slots", s.capacity(), 8u);
+              s.insert(4);
+              CHECK_EQ("the 5th doubles it", s.capacity(), 16u);
+              CHECK("duplicate", !s.insert(4));
+              for (int i = 0; i < 200000; i++) s.insert(i * 7);
+              CHECK("at most half full", s.size() * 2 <= s.capacity());
+              bool all = true;
+              for (int i = 0; i < 200000; i++) all = all && s.contains(i * 7);
+              CHECK("200,000 keys found after many rebuilds", all && s.contains(3) && !s.contains(-1));
+          }
+        hints:
+          - "Move the old arrays out, allocate bigger empty ones, then put each old key back with the usual probing."
+          - "Check for duplicates before growing, so a repeated key doesn't trigger a rebuild."
 
   - title: A string-keyed map with erase
     id: dsa-hash-3
@@ -440,6 +756,165 @@ steps:
       - "Each bucket is a list of `std::pair<std::string, int>`. Find the bucket with `std::hash<std::string>{}(key) % buckets_.size()`."
       - "put: if the key is in the bucket, overwrite `.second`; otherwise `emplace_back(key, value)`."
       - "get returns `&kv.second` for a match. erase walks with an iterator and calls `b.erase(it)`."
+    more:
+      - task: |
+          Add two functions to `StrMap`. `int& at_or_insert(const std::string& key)` returns a reference to the key's value, first inserting it with value 0 if it's missing (like `std::unordered_map::operator[]`). `std::vector<std::string> keys() const` returns all keys, sorted.
+        seed: |
+          #include <algorithm>
+          #include <functional>
+          #include <list>
+          #include <string>
+          #include <utility>
+          #include <vector>
+
+          class StrMap {
+          public:
+              void put(const std::string& key, int value) {
+                  auto& b = bucket(key);
+                  for (auto& [k, v] : b)
+                      if (k == key) {
+                          v = value;
+                          return;
+                      }
+                  b.push_back({key, value});
+                  size_++;
+              }
+              int& at_or_insert(const std::string& key) {
+
+              }
+              std::vector<std::string> keys() const {
+
+              }
+              std::size_t size() const { return size_; }
+
+          private:
+              using Bucket = std::list<std::pair<std::string, int>>;
+              Bucket& bucket(const std::string& key) { return buckets_[std::hash<std::string>{}(key) % buckets_.size()]; }
+              std::vector<Bucket> buckets_ = std::vector<Bucket>(64);
+              std::size_t size_ = 0;
+          };
+        solution: |
+          #include <algorithm>
+          #include <functional>
+          #include <list>
+          #include <string>
+          #include <utility>
+          #include <vector>
+
+          class StrMap {
+          public:
+              void put(const std::string& key, int value) {
+                  auto& b = bucket(key);
+                  for (auto& [k, v] : b)
+                      if (k == key) {
+                          v = value;
+                          return;
+                      }
+                  b.push_back({key, value});
+                  size_++;
+              }
+              int& at_or_insert(const std::string& key) {
+                  auto& b = bucket(key);
+                  for (auto& [k, v] : b)
+                      if (k == key) return v;
+                  b.push_back({key, 0});
+                  size_++;
+                  return b.back().second;
+              }
+              std::vector<std::string> keys() const {
+                  std::vector<std::string> out;
+                  for (const auto& b : buckets_)
+                      for (const auto& [k, v] : b) out.push_back(k);
+                  std::sort(out.begin(), out.end());
+                  return out;
+              }
+              std::size_t size() const { return size_; }
+
+          private:
+              using Bucket = std::list<std::pair<std::string, int>>;
+              Bucket& bucket(const std::string& key) { return buckets_[std::hash<std::string>{}(key) % buckets_.size()]; }
+              std::vector<Bucket> buckets_ = std::vector<Bucket>(64);
+              std::size_t size_ = 0;
+          };
+        forbid:
+          - pattern: "unordered_map|std::map"
+            message: Work with your own buckets on this step.
+        harness: |
+          int main() {
+              StrMap m;
+              m.at_or_insert("kills") += 3;
+              m.at_or_insert("kills") += 2;
+              m.at_or_insert("deaths");
+              CHECK_EQ("incremented in place", m.at_or_insert("kills"), 5);
+              CHECK_EQ("inserted with 0", m.at_or_insert("deaths"), 0);
+              CHECK_EQ("two keys", m.size(), 2u);
+              m.put("assists", 1);
+              CHECK_EQ("keys sorted", m.keys(), (std::vector<std::string>{"assists", "deaths", "kills"}));
+              std::string text = "the cat and the hat and the bat";
+              StrMap words;
+              std::string w;
+              for (char c : text + " ") {
+                  if (c == ' ') {
+                      words.at_or_insert(w)++;
+                      w.clear();
+                  } else {
+                      w += c;
+                  }
+              }
+              CHECK_EQ("word count", words.at_or_insert("the"), 3);
+          }
+        hints:
+          - "Return a reference to the value inside the list node; `std::list` never moves its nodes, so the reference stays valid."
+      - task: |
+          Now use the standard `std::unordered_map`. Write `std::vector<std::pair<std::string, int>> top_words(const std::string& text, int k)`: split the text into words (runs of lowercase letters `a` to `z`; everything else separates words), count them, and return the `k` most frequent, highest count first and alphabetical on ties.
+        seed: |
+          #include <algorithm>
+          #include <string>
+          #include <unordered_map>
+          #include <utility>
+          #include <vector>
+
+          std::vector<std::pair<std::string, int>> top_words(const std::string& text, int k) {
+
+          }
+        solution: |
+          #include <algorithm>
+          #include <string>
+          #include <unordered_map>
+          #include <utility>
+          #include <vector>
+
+          std::vector<std::pair<std::string, int>> top_words(const std::string& text, int k) {
+              std::unordered_map<std::string, int> count;
+              std::string w;
+              for (char c : text + " ") {
+                  if (c >= 'a' && c <= 'z') {
+                      w += c;
+                  } else if (!w.empty()) {
+                      count[w]++;
+                      w.clear();
+                  }
+              }
+              std::vector<std::pair<std::string, int>> out(count.begin(), count.end());
+              std::sort(out.begin(), out.end(), [](const auto& a, const auto& b) {
+                  return a.second != b.second ? a.second > b.second : a.first < b.first;
+              });
+              if ((int)out.size() > k) out.resize(k);
+              return out;
+          }
+        harness: |
+          int main() {
+              using V = std::vector<std::pair<std::string, int>>;
+              auto t = top_words("rush b, rush b! no stop. rush", 2);
+              CHECK("top 2", t == V{{"rush", 3}, {"b", 2}});
+              auto ties = top_words("c a b a b c", 3);
+              CHECK("ties alphabetical", ties == V{{"a", 2}, {"b", 2}, {"c", 2}});
+              CHECK("k bigger than the word count", top_words("gg", 5) == V{{"gg", 1}});
+              CHECK("no words", top_words("123 !!", 3).empty());
+          }
+        hints:
+          - "Adding a space to the end of the text makes the last word end like the others."
+          - "Copy the map into a vector of pairs, sort it with a comparator, then keep the first `k`."
 
   - title: Hashing your own keys
     id: dsa-hash-4
@@ -556,6 +1031,102 @@ steps:
       - "PointHash combines the two int hashes with the formula shown above."
       - "`std::unordered_set<Point, PointHash> seen{{0, 0}};` starts with the origin."
       - "After each move, `if (!seen.insert(p).second) count++;`"
+    more:
+      - task: |
+          Write `KillHash` for `Kill { std::string player; int round; }` by **combining** the hashes of both fields (for example `h1 * 31 + h2`, or `h1 ^ (h2 << 1)`), and `int distinct_kills(const std::vector<Kill>& kills)` that counts different kills with an `std::unordered_set<Kill, KillHash>`.
+        seed: |
+          #include <functional>
+          #include <string>
+          #include <unordered_set>
+          #include <vector>
+
+          struct Kill {
+              std::string player;
+              int round;
+              bool operator==(const Kill&) const = default;
+          };
+
+          // KillHash here
+
+          int distinct_kills(const std::vector<Kill>& kills) {
+
+          }
+        solution: |
+          #include <functional>
+          #include <string>
+          #include <unordered_set>
+          #include <vector>
+
+          struct Kill {
+              std::string player;
+              int round;
+              bool operator==(const Kill&) const = default;
+          };
+
+          // KillHash here
+          struct KillHash {
+              std::size_t operator()(const Kill& k) const {
+                  std::size_t h1 = std::hash<std::string>{}(k.player);
+                  std::size_t h2 = std::hash<int>{}(k.round);
+                  return h1 * 31 + h2;
+              }
+          };
+
+          int distinct_kills(const std::vector<Kill>& kills) {
+              return (int)std::unordered_set<Kill, KillHash>(kills.begin(), kills.end()).size();
+          }
+        harness: |
+          int main() {
+              KillHash h;
+              CHECK("equal kills hash the same", h({"ropz", 3}) == h({"ropz", 3}));
+              CHECK("the round matters", h({"ropz", 3}) != h({"ropz", 4}));
+              CHECK("the player matters", h({"ropz", 3}) != h({"rain", 3}));
+              CHECK_EQ("distinct", distinct_kills({{"ropz", 1}, {"ropz", 1}, {"ropz", 2}, {"rain", 1}}), 3);
+              std::vector<Kill> many;
+              for (int i = 0; i < 100000; i++) many.push_back({"p" + std::to_string(i % 100), i % 1000});
+              CHECK_EQ("100,000 kills", distinct_kills(many), 1000);
+          }
+        hints:
+          - "A hash functor is a struct with `std::size_t operator()(const Kill& k) const`."
+          - "Just adding the two hashes would make `{\"a\", 2}` and a player whose hash is 1 bigger collide more; multiplying one by a prime first spreads them out."
+      - task: |
+          Write `std::vector<std::vector<std::string>> group_anagrams(const std::vector<std::string>& words)`. Words are anagrams when they have the same letters, so use the **sorted letters** as the key of an `std::unordered_map`. Return the groups in order of each group's first word, with the words in each group in their original order.
+        seed: |
+          #include <algorithm>
+          #include <string>
+          #include <unordered_map>
+          #include <vector>
+
+          std::vector<std::vector<std::string>> group_anagrams(const std::vector<std::string>& words) {
+
+          }
+        solution: |
+          #include <algorithm>
+          #include <string>
+          #include <unordered_map>
+          #include <vector>
+
+          std::vector<std::vector<std::string>> group_anagrams(const std::vector<std::string>& words) {
+              std::unordered_map<std::string, std::size_t> group_of;
+              std::vector<std::vector<std::string>> groups;
+              for (const auto& w : words) {
+                  std::string key = w;
+                  std::sort(key.begin(), key.end());
+                  auto [it, inserted] = group_of.try_emplace(key, groups.size());
+                  if (inserted) groups.emplace_back();
+                  groups[it->second].push_back(w);
+              }
+              return groups;
+          }
+        harness: |
+          int main() {
+              using G = std::vector<std::vector<std::string>>;
+              CHECK("anagrams", group_anagrams({"eat", "tea", "tan", "ate", "nat", "bat"}) == G{{"eat", "tea", "ate"}, {"tan", "nat"}, {"bat"}});
+              CHECK("repeated words stay", group_anagrams({"ab", "ba", "ab"}) == G{{"ab", "ba", "ab"}});
+              CHECK("empty", group_anagrams({}).empty());
+          }
+        hints:
+          - "Map each key to the **index** of its group in the result vector, so the groups keep first-appearance order."
 
   - title: "Challenge: an LRU cache"
     id: dsa-hash-5
@@ -689,3 +1260,159 @@ steps:
       - "get: find the key in where_; if found, `items_.splice(items_.begin(), items_, it->second)` and return the value."
       - "put on an existing key: update the value and splice it to the front."
       - "put on a new key: `emplace_front`, record `where_[key] = items_.begin()`, and if over capacity erase `items_.back()` from both structures."
+    more:
+      - task: |
+          Write `RecentSearches`, which keeps the last `k` **different** searches, most recent first. `add(query)` puts the query at the front (moving it there if it's already in the list) and drops the oldest when there are more than `k`. Both operations must be O(1): a `std::list` for the order and an `std::unordered_map` from query to its list iterator.
+        seed: |
+          #include <list>
+          #include <string>
+          #include <unordered_map>
+          #include <vector>
+
+          class RecentSearches {
+          public:
+              explicit RecentSearches(std::size_t k) : k_(k) {}
+              void add(const std::string& query);
+              std::vector<std::string> items() const;
+
+          private:
+              std::size_t k_;
+          };
+        solution: |
+          #include <list>
+          #include <string>
+          #include <unordered_map>
+          #include <vector>
+
+          class RecentSearches {
+          public:
+              explicit RecentSearches(std::size_t k) : k_(k) {}
+              void add(const std::string& query) {
+                  auto it = where_.find(query);
+                  if (it != where_.end()) {
+                      order_.splice(order_.begin(), order_, it->second);
+                      return;
+                  }
+                  order_.push_front(query);
+                  where_[query] = order_.begin();
+                  if (order_.size() > k_) {
+                      where_.erase(order_.back());
+                      order_.pop_back();
+                  }
+              }
+              std::vector<std::string> items() const { return std::vector<std::string>(order_.begin(), order_.end()); }
+
+          private:
+              std::size_t k_;
+              std::list<std::string> order_;
+              std::unordered_map<std::string, std::list<std::string>::iterator> where_;
+          };
+        harness: |
+          int main() {
+              RecentSearches r(3);
+              r.add("ak47");
+              r.add("awp");
+              r.add("ak47");
+              CHECK_EQ("moved to the front", r.items(), (std::vector<std::string>{"ak47", "awp"}));
+              r.add("m4");
+              r.add("deagle");
+              CHECK_EQ("oldest dropped", r.items(), (std::vector<std::string>{"deagle", "m4", "ak47"}));
+              r.add("awp");
+              CHECK_EQ("a dropped search can come back", r.items(), (std::vector<std::string>{"awp", "deagle", "m4"}));
+              RecentSearches big(500);
+              for (int i = 0; i < 300000; i++) big.add("q" + std::to_string(i % 2000));
+              CHECK_EQ("300,000 adds", big.items().size(), 500u);
+          }
+        hints:
+          - "`list.splice(list.begin(), list, it)` moves an existing node to the front in O(1) without invalidating its iterator."
+      - task: |
+          Give the LRU cache **expiry**. `put(key, value, now)` stores the value with its time, making it most recent. `get(key, now)` returns `std::nullopt` and removes the entry if it was stored at least `ttl` time units ago; otherwise it returns the value and makes it most recent. Over capacity, `put` evicts the least recently used entry. All O(1).
+        seed: |
+          #include <list>
+          #include <optional>
+          #include <unordered_map>
+
+          class TtlCache {
+          public:
+              TtlCache(std::size_t capacity, long ttl) : capacity_(capacity), ttl_(ttl) {}
+              std::optional<int> get(int key, long now);
+              void put(int key, int value, long now);
+              std::size_t size() const { return items_.size(); }
+
+          private:
+              struct Entry {
+                  int key;
+                  int value;
+                  long stored;
+              };
+              std::size_t capacity_;
+              long ttl_;
+              std::list<Entry> items_;
+              std::unordered_map<int, std::list<Entry>::iterator> where_;
+          };
+        solution: |
+          #include <list>
+          #include <optional>
+          #include <unordered_map>
+
+          class TtlCache {
+          public:
+              TtlCache(std::size_t capacity, long ttl) : capacity_(capacity), ttl_(ttl) {}
+              std::optional<int> get(int key, long now) {
+                  auto it = where_.find(key);
+                  if (it == where_.end()) return std::nullopt;
+                  if (now - it->second->stored >= ttl_) {
+                      items_.erase(it->second);
+                      where_.erase(it);
+                      return std::nullopt;
+                  }
+                  items_.splice(items_.begin(), items_, it->second);
+                  return it->second->value;
+              }
+              void put(int key, int value, long now) {
+                  auto it = where_.find(key);
+                  if (it != where_.end()) {
+                      it->second->value = value;
+                      it->second->stored = now;
+                      items_.splice(items_.begin(), items_, it->second);
+                      return;
+                  }
+                  items_.push_front({key, value, now});
+                  where_[key] = items_.begin();
+                  if (items_.size() > capacity_) {
+                      where_.erase(items_.back().key);
+                      items_.pop_back();
+                  }
+              }
+              std::size_t size() const { return items_.size(); }
+
+          private:
+              struct Entry {
+                  int key;
+                  int value;
+                  long stored;
+              };
+              std::size_t capacity_;
+              long ttl_;
+              std::list<Entry> items_;
+              std::unordered_map<int, std::list<Entry>::iterator> where_;
+          };
+        harness: |
+          int main() {
+              TtlCache c(2, 10);
+              c.put(1, 100, 0);
+              CHECK_EQ("fresh", c.get(1, 9).value_or(-1), 100);
+              CHECK("expired at 10", !c.get(1, 10));
+              CHECK_EQ("expired entries are removed", c.size(), 0u);
+              c.put(1, 100, 20);
+              c.put(2, 200, 21);
+              c.get(1, 22);
+              c.put(3, 300, 23);
+              CHECK("2 was least recently used", !c.get(2, 24));
+              CHECK_EQ("1 stays", c.get(1, 24).value_or(-1), 100);
+              c.put(1, 111, 25);
+              CHECK_EQ("updating refreshes the time", c.get(1, 34).value_or(-1), 111);
+          }
+        hints:
+          - "Store the time with each entry. `get` checks it before treating the entry as a hit."
+          - "Updating an existing key sets both the new value and the new time."
