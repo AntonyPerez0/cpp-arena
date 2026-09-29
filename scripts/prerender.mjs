@@ -19,7 +19,7 @@ const SITE = `${siteUrl.protocol}//${siteUrl.host.toLowerCase()}${siteUrl.pathna
 const BASE = process.env.BASE_PATH ?? "/";
 const NAME = "C/C++ Arena";
 // The logo, as in src/components/Brand.tsx, so the page looks the same before the app starts.
-const BRAND_MARK = `<svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="bm" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fcd34d"/><stop offset="0.55" stop-color="#f59e0b"/><stop offset="1" stop-color="#ea580c"/></linearGradient></defs><rect width="32" height="32" rx="8" fill="url(#bm)"/><rect x="0.5" y="0.5" width="31" height="31" rx="7.5" fill="none" stroke="#fff" stroke-opacity="0.25"/><path d="M17.6 10.1a7.2 7.2 0 1 0 0 11.8" fill="none" stroke="#1c1003" stroke-width="3.4" stroke-linecap="round"/><path d="M23.4 12.6v6.8M20 16h6.8" stroke="#1c1003" stroke-width="3" stroke-linecap="round"/></svg>`;
+const BRAND_MARK = `<svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="bm" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5C6BC0"/><stop offset="0.55" stop-color="#3F75B8"/><stop offset="1" stop-color="#00599C"/></linearGradient></defs><rect width="32" height="32" rx="8" fill="url(#bm)"/><rect x="0.5" y="0.5" width="31" height="31" rx="7.5" fill="none" stroke="#fff" stroke-opacity="0.25"/><path d="M17.6 10.1a7.2 7.2 0 1 0 0 11.8" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round"/><path d="M23.4 12.6v6.8M20 16h6.8" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>`;
 const content = loadContent();
 const template = fs.readFileSync(path.join(DIST, "index.html"), "utf8");
 const today = new Date().toISOString().slice(0, 10);
