@@ -27,8 +27,8 @@ export async function drawCard(card: Card): Promise<Blob> {
   ctx.fillStyle = "#09090b";
   ctx.fillRect(0, 0, 1200, 630);
   const glow = ctx.createRadialGradient(1000, 150, 0, 1000, 150, 620);
-  glow.addColorStop(0, "rgba(245, 158, 11, 0.22)");
-  glow.addColorStop(1, "rgba(245, 158, 11, 0)");
+  glow.addColorStop(0, "rgba(101, 154, 210, 0.22)");
+  glow.addColorStop(1, "rgba(101, 154, 210, 0)");
   ctx.fillStyle = glow;
   ctx.fillRect(0, 0, 1200, 630);
 
@@ -37,14 +37,14 @@ export async function drawCard(card: Card): Promise<Blob> {
   ctx.translate(80, 72);
   ctx.scale(2, 2);
   const tile = ctx.createLinearGradient(0, 0, 32, 32);
-  tile.addColorStop(0, "#fcd34d");
-  tile.addColorStop(0.55, "#f59e0b");
-  tile.addColorStop(1, "#ea580c");
+  tile.addColorStop(0, "#5C6BC0");
+  tile.addColorStop(0.55, "#3F75B8");
+  tile.addColorStop(1, "#00599C");
   ctx.fillStyle = tile;
   ctx.beginPath();
   ctx.roundRect(0, 0, 32, 32, 8);
   ctx.fill();
-  ctx.strokeStyle = "#1c1003";
+  ctx.strokeStyle = "#fff";
   ctx.lineCap = "round";
   ctx.lineWidth = 3.4;
   ctx.stroke(new Path2D("M17.6 10.1a7.2 7.2 0 1 0 0 11.8"));
@@ -55,7 +55,7 @@ export async function drawCard(card: Card): Promise<Blob> {
   ctx.font = `700 40px ${font}`;
   ctx.fillText("C/C++ Arena", 166, 118);
 
-  ctx.fillStyle = "#fbbf24";
+  ctx.fillStyle = "#8AB4E8";
   ctx.font = `700 28px ${font}`;
   ctx.fillText(card.kicker.toUpperCase(), 80, 240);
   ctx.fillStyle = "#fafafa";
