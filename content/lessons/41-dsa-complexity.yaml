@@ -115,6 +115,70 @@ steps:
     hints:
       - "Keep a `std::unordered_set<int> seen;`."
       - "`seen.insert(x).second` is false when x was already there. That's your duplicate."
+    more:
+      - task: |
+          Write `int first_repeat(const std::vector<int>& v)`, the first value that appears for the **second** time as you read left to right, or -1 if every value is different. It must be O(n): the hidden test has 200,000 values.
+        seed: |
+          #include <unordered_set>
+          #include <vector>
+
+          int first_repeat(const std::vector<int>& v) {
+
+          }
+        solution: |
+          #include <unordered_set>
+          #include <vector>
+
+          int first_repeat(const std::vector<int>& v) {
+              std::unordered_set<int> seen;
+              for (int x : v) {
+                  if (!seen.insert(x).second) return x;
+              }
+              return -1;
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("3 comes back first", first_repeat({5, 3, 7, 3, 5}), 3);
+              CHECK_EQ("no repeat", first_repeat({1, 2, 3}), -1);
+              CHECK_EQ("empty", first_repeat({}), -1);
+              std::vector<int> big(200000);
+              for (int i = 0; i < 200000; i++) big[i] = i * 3;
+              big.push_back(3 * 150000);
+              CHECK_EQ("200,000 values", first_repeat(big), 450000);
+          }
+        hints:
+          - "Remember what you've seen in a `std::unordered_set`; `insert(x).second` is false when `x` was already there."
+      - task: |
+          Write `int count_pairs_diff(const std::vector<int>& v, int k)`: how many **different pairs of values** `(x, x + k)` both appear in `v`, for `k >= 1`. Repeated values count once. It must be O(n) on average.
+        seed: |
+          #include <unordered_set>
+          #include <vector>
+
+          int count_pairs_diff(const std::vector<int>& v, int k) {
+
+          }
+        solution: |
+          #include <unordered_set>
+          #include <vector>
+
+          int count_pairs_diff(const std::vector<int>& v, int k) {
+              std::unordered_set<int> values(v.begin(), v.end());
+              int n = 0;
+              for (int x : values)
+                  if (values.count(x + k)) n++;
+              return n;
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("1-3, 3-5", count_pairs_diff({1, 5, 3, 4, 2}, 2), 3);
+              CHECK_EQ("repeats count once", count_pairs_diff({1, 1, 2, 2}, 1), 1);
+              CHECK_EQ("none", count_pairs_diff({10, 20}, 3), 0);
+              std::vector<int> big(200000);
+              for (int i = 0; i < 200000; i++) big[i] = i * 2;
+              CHECK_EQ("200,000 values", count_pairs_diff(big, 4), 199998);
+          }
+        hints:
+          - "Put the values in a set, then for each distinct `x` check whether `x + k` is in it."
 
   - title: Binary search
     id: dsa-complexity-2
@@ -223,6 +287,77 @@ steps:
       - "Track an inclusive range `lo..hi`, starting at 0 and size - 1."
       - "`int mid = lo + (hi - lo) / 2;` then move lo to `mid + 1` or hi to `mid - 1`."
       - "The loop runs while `lo <= hi`; if it ends, the target isn't there."
+    more:
+      - task: |
+          Write `int first_at_least(const std::vector<int>& v, int target)` for a sorted `v`: the index of the first element `>= target`, or `v.size()` if there's none. This is `std::lower_bound`, written by hand: keep a half-open range `[lo, hi)` and halve it.
+        seed: |
+          #include <vector>
+
+          int first_at_least(const std::vector<int>& v, int target) {
+
+          }
+        solution: |
+          #include <vector>
+
+          int first_at_least(const std::vector<int>& v, int target) {
+              int lo = 0, hi = (int)v.size();
+              while (lo < hi) {
+                  int mid = lo + (hi - lo) / 2;
+                  if (v[mid] < target) lo = mid + 1;
+                  else hi = mid;
+              }
+              return lo;
+          }
+        forbid:
+          - pattern: "lower_bound|upper_bound|binary_search|std::find|equal_range|partition_point"
+            message: Write the halving loop yourself on this step.
+        harness: |
+          int main() {
+              std::vector<int> v = {2, 4, 4, 4, 9};
+              CHECK_EQ("first of the 4s", first_at_least(v, 4), 1);
+              CHECK_EQ("between values", first_at_least(v, 5), 4);
+              CHECK_EQ("below everything", first_at_least(v, 0), 0);
+              CHECK_EQ("above everything", first_at_least(v, 10), 5);
+              CHECK_EQ("empty", first_at_least({}, 3), 0);
+              std::vector<int> big(1000000);
+              for (int i = 0; i < 1000000; i++) big[i] = i / 3;
+              long long total = 0;
+              for (int q = 0; q < 200000; q++) total += first_at_least(big, q);
+              CHECK_EQ("200,000 searches", total, 3LL * 199999 * 200000 / 2);
+          }
+        hints:
+          - "If `v[mid] < target`, the answer is to the right of `mid`; otherwise `mid` itself might be the answer, so keep it: `hi = mid`."
+      - task: |
+          Binary search also works on **answers**. Write `long long isqrt(long long n)`, the largest `x` with `x * x <= n`, for `0 <= n <= 10^18`, by binary searching on `x`. Don't use `sqrt` (floating point is not exact at this size), and watch out for overflow in `x * x`.
+        seed: |
+          long long isqrt(long long n) {
+
+          }
+        solution: |
+          long long isqrt(long long n) {
+              long long lo = 0, hi = 1000000001;
+              while (hi - lo > 1) {
+                  long long mid = lo + (hi - lo) / 2;
+                  if (mid <= n / mid) lo = mid;
+                  else hi = mid;
+              }
+              return lo;
+          }
+        forbid:
+          - pattern: "\\bsqrt\\s*\\(|\\bpow\\s*\\("
+            message: Binary search on the answer instead of using floating point.
+        harness: |
+          int main() {
+              CHECK_EQ("0", isqrt(0), 0LL);
+              CHECK_EQ("1", isqrt(1), 1LL);
+              CHECK_EQ("15", isqrt(15), 3LL);
+              CHECK_EQ("16", isqrt(16), 4LL);
+              CHECK_EQ("10^18", isqrt(1000000000000000000LL), 1000000000LL);
+              CHECK_EQ("10^18 - 1", isqrt(999999999999999999LL), 999999999LL);
+          }
+        hints:
+          - "The answer is between 0 and 10^9. Keep `lo` as a value that works and `hi` as one that's too big."
+          - "`mid * mid <= n` can overflow; `mid <= n / mid` asks the same thing safely (for `mid >= 1`)."
 
   - title: lower_bound and upper_bound
     id: dsa-complexity-3
@@ -321,6 +456,73 @@ steps:
     hints:
       - "`auto first = std::lower_bound(sorted.begin(), sorted.end(), lo);`"
       - "`auto last = std::upper_bound(sorted.begin(), sorted.end(), hi);` and return `last - first`."
+    more:
+      - task: |
+          Write `long count_equal(const std::vector<int>& sorted, int x)` in O(log n) with `std::equal_range`, which returns the pair `{lower_bound, upper_bound}`.
+        seed: |
+          #include <algorithm>
+          #include <vector>
+
+          long count_equal(const std::vector<int>& sorted, int x) {
+
+          }
+        solution: |
+          #include <algorithm>
+          #include <vector>
+
+          long count_equal(const std::vector<int>& sorted, int x) {
+              auto [lo, hi] = std::equal_range(sorted.begin(), sorted.end(), x);
+              return hi - lo;
+          }
+        require:
+          - pattern: "equal_range"
+            message: "Use `std::equal_range`."
+        harness: |
+          int main() {
+              std::vector<int> v = {1, 3, 3, 3, 5};
+              CHECK_EQ("three 3s", count_equal(v, 3), 3L);
+              CHECK_EQ("no 4", count_equal(v, 4), 0L);
+              CHECK_EQ("one 5", count_equal(v, 5), 1L);
+              std::vector<int> big(1000000);
+              for (int i = 0; i < 1000000; i++) big[i] = i / 5;
+              long total = 0;
+              for (int q = 0; q < 200000; q++) total += count_equal(big, q);
+              CHECK_EQ("200,000 queries", total, 1000000L);
+          }
+        hints:
+          - "`auto [lo, hi] = std::equal_range(...)`, and the count is `hi - lo`."
+      - task: |
+          Write `std::vector<int> ranks(const std::vector<int>& sorted_scores, const std::vector<int>& queries)`. A score's rank is 1 plus the number of scores **strictly greater** than it, so equal scores share a rank. `sorted_scores` is in increasing order; use `std::upper_bound` for each query.
+        seed: |
+          #include <algorithm>
+          #include <vector>
+
+          std::vector<int> ranks(const std::vector<int>& sorted_scores, const std::vector<int>& queries) {
+
+          }
+        solution: |
+          #include <algorithm>
+          #include <vector>
+
+          std::vector<int> ranks(const std::vector<int>& sorted_scores, const std::vector<int>& queries) {
+              std::vector<int> out;
+              for (int q : queries) {
+                  auto it = std::upper_bound(sorted_scores.begin(), sorted_scores.end(), q);
+                  out.push_back(1 + (int)(sorted_scores.end() - it));
+              }
+              return out;
+          }
+        require:
+          - pattern: "upper_bound"
+            message: "Use `std::upper_bound`."
+        harness: |
+          int main() {
+              std::vector<int> s = {10, 20, 20, 40};
+              CHECK_EQ("ranks", ranks(s, {40, 20, 10, 50, 5}), (std::vector<int>{1, 2, 4, 1, 5}));
+              CHECK_EQ("no scores", ranks({}, {7}), (std::vector<int>{1}));
+          }
+        hints:
+          - "`upper_bound` points at the first score greater than the query, so everything from there to the end is strictly greater."
 
   - title: Two pointers
     id: dsa-complexity-4
@@ -406,6 +608,78 @@ steps:
     hints:
       - "Start `i = 0` and `j = size - 1`, and loop while `i < j`."
       - "Add as long to avoid overflow; move i up when the sum is too small, j down when too big."
+    more:
+      - task: |
+          Write `int dedupe_sorted(std::vector<int>& v)` that removes repeated values from a **sorted** vector in place with two pointers (a read index and a write index), shrinks it, and returns the new length. Don't use `std::unique`.
+        seed: |
+          #include <vector>
+
+          int dedupe_sorted(std::vector<int>& v) {
+
+          }
+        solution: |
+          #include <vector>
+
+          int dedupe_sorted(std::vector<int>& v) {
+              if (v.empty()) return 0;
+              std::size_t w = 1;
+              for (std::size_t r = 1; r < v.size(); r++) {
+                  if (v[r] != v[w - 1]) v[w++] = v[r];
+              }
+              v.resize(w);
+              return (int)w;
+          }
+        forbid:
+          - pattern: "unique|std::set|unordered_set"
+            message: Use a read pointer and a write pointer.
+        harness: |
+          int main() {
+              std::vector<int> v = {1, 1, 2, 3, 3, 3, 7};
+              CHECK_EQ("length", dedupe_sorted(v), 4);
+              CHECK_EQ("values", v, (std::vector<int>{1, 2, 3, 7}));
+              std::vector<int> same = {5, 5, 5};
+              dedupe_sorted(same);
+              CHECK_EQ("all the same", same, (std::vector<int>{5}));
+              std::vector<int> e;
+              CHECK_EQ("empty", dedupe_sorted(e), 0);
+          }
+        hints:
+          - "Keep the last written value at `v[w - 1]`; copy `v[r]` down only when it differs."
+      - task: |
+          Write `std::vector<int> merge_sorted(const std::vector<int>& a, const std::vector<int>& b)` that merges two sorted vectors into one sorted vector in O(n + m), with one index into each. Don't sort, and don't call `std::merge`.
+        seed: |
+          #include <vector>
+
+          std::vector<int> merge_sorted(const std::vector<int>& a, const std::vector<int>& b) {
+
+          }
+        solution: |
+          #include <vector>
+
+          std::vector<int> merge_sorted(const std::vector<int>& a, const std::vector<int>& b) {
+              std::vector<int> out;
+              out.reserve(a.size() + b.size());
+              std::size_t i = 0, j = 0;
+              while (i < a.size() && j < b.size()) out.push_back(a[i] <= b[j] ? a[i++] : b[j++]);
+              while (i < a.size()) out.push_back(a[i++]);
+              while (j < b.size()) out.push_back(b[j++]);
+              return out;
+          }
+        forbid:
+          - pattern: "\\bsort\\s*\\(|std::merge"
+            message: Merge with two indexes instead of sorting.
+        harness: |
+          int main() {
+              CHECK_EQ("interleaved", merge_sorted({1, 4, 9}, {2, 3, 10, 11}), (std::vector<int>{1, 2, 3, 4, 9, 10, 11}));
+              CHECK_EQ("duplicates kept", merge_sorted({2, 2}, {2}), (std::vector<int>{2, 2, 2}));
+              CHECK_EQ("one empty", merge_sorted({}, {5, 6}), (std::vector<int>{5, 6}));
+              std::vector<int> a(300000), b(300000);
+              for (int i = 0; i < 300000; i++) a[i] = 2 * i, b[i] = 2 * i + 1;
+              auto m = merge_sorted(a, b);
+              CHECK("600,000 merged in order", m.size() == 600000 && m[0] == 0 && m[599999] == 599999);
+          }
+        hints:
+          - "Take the smaller of `a[i]` and `b[j]` each time; when one runs out, copy the rest of the other."
 
   - title: Prefix sums
     id: dsa-complexity-5
@@ -497,6 +771,92 @@ steps:
     hints:
       - "Store `std::vector<long long> pre_` with one more slot than the input, starting at 0."
       - "`pre_[i + 1] = pre_[i] + v[i];` then `sum(l, r)` is `pre_[r + 1] - pre_[l]`."
+    more:
+      - task: |
+          Write `int count_subarrays(const std::vector<int>& v, int k)`: how many contiguous subarrays sum to exactly `k`. Values may be negative, so a sliding window won't work. Use prefix sums: a subarray ending at `i` sums to `k` when some earlier prefix equals `prefix - k`. Count earlier prefixes in a hash map.
+        seed: |
+          #include <unordered_map>
+          #include <vector>
+
+          int count_subarrays(const std::vector<int>& v, int k) {
+
+          }
+        solution: |
+          #include <unordered_map>
+          #include <vector>
+
+          int count_subarrays(const std::vector<int>& v, int k) {
+              std::unordered_map<long long, int> seen;
+              seen[0] = 1;
+              long long prefix = 0;
+              int count = 0;
+              for (int x : v) {
+                  prefix += x;
+                  auto it = seen.find(prefix - k);
+                  if (it != seen.end()) count += it->second;
+                  seen[prefix]++;
+              }
+              return count;
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("1 1 1, k = 2", count_subarrays({1, 1, 1}, 2), 2);
+              CHECK_EQ("negatives", count_subarrays({3, -1, 1, 2}, 3), 3);
+              CHECK_EQ("zeros", count_subarrays({0, 0}, 0), 3);
+              CHECK_EQ("none", count_subarrays({5}, 3), 0);
+              std::vector<int> big(200000, 1);
+              CHECK_EQ("200,000 ones, k = 199999", count_subarrays(big, 199999), 2);
+          }
+        hints:
+          - "Start the map with `{0: 1}`, the empty prefix, so subarrays starting at index 0 count too."
+          - "Look up `prefix - k` **before** adding the current prefix to the map."
+      - task: |
+          Prefix sums work in two dimensions too. Write class `Grid2D` with a constructor taking a `std::vector<std::vector<int>>` and `long long sum(int r1, int c1, int r2, int c2) const`, the sum of the rectangle with those inclusive corners, in O(1) per query. Store `P[r][c]`, the sum of everything above and to the left, with an extra row and column of zeros.
+        seed: |
+          #include <vector>
+
+          class Grid2D {
+          public:
+              explicit Grid2D(const std::vector<std::vector<int>>& g);
+              long long sum(int r1, int c1, int r2, int c2) const;
+
+          private:
+
+          };
+        solution: |
+          #include <vector>
+
+          class Grid2D {
+          public:
+              explicit Grid2D(const std::vector<std::vector<int>>& g) {
+                  int rows = (int)g.size(), cols = rows ? (int)g[0].size() : 0;
+                  p_.assign(rows + 1, std::vector<long long>(cols + 1, 0));
+                  for (int r = 0; r < rows; r++)
+                      for (int c = 0; c < cols; c++) p_[r + 1][c + 1] = g[r][c] + p_[r][c + 1] + p_[r + 1][c] - p_[r][c];
+              }
+              long long sum(int r1, int c1, int r2, int c2) const {
+                  return p_[r2 + 1][c2 + 1] - p_[r1][c2 + 1] - p_[r2 + 1][c1] + p_[r1][c1];
+              }
+
+          private:
+              std::vector<std::vector<long long>> p_;
+          };
+        harness: |
+          int main() {
+              Grid2D g({{1, 2, 3}, {4, 5, 6}, {7, 8, 9}});
+              CHECK_EQ("whole grid", g.sum(0, 0, 2, 2), 45LL);
+              CHECK_EQ("bottom-right 2 x 2", g.sum(1, 1, 2, 2), 28LL);
+              CHECK_EQ("one cell", g.sum(1, 0, 1, 0), 4LL);
+              CHECK_EQ("middle row", g.sum(1, 0, 1, 2), 15LL);
+              std::vector<std::vector<int>> big(500, std::vector<int>(500, 2));
+              Grid2D b(big);
+              long long total = 0;
+              for (int q = 0; q < 200000; q++) total += b.sum(q % 250, q % 250, 499, 499);
+              CHECK("200,000 queries", total > 0 && b.sum(0, 0, 499, 499) == 500000);
+          }
+        hints:
+          - "Building: `P[r+1][c+1] = g[r][c] + P[r][c+1] + P[r+1][c] - P[r][c]` (the overlap was added twice)."
+          - "A query adds the big corner, subtracts the strip above and the strip to the left, and adds back their overlap."
 
   - title: "Challenge: sliding window"
     id: dsa-complexity-6
@@ -591,3 +951,75 @@ steps:
       - "Keep `std::array<int, 256> last` filled with -1: the last index where each byte was seen."
       - "For each right: if `last[c] >= left`, move `left = last[c] + 1`. Then record `last[c] = right`."
       - "The window length is `right - left + 1`; keep the maximum."
+    more:
+      - task: |
+          Write `long long max_window_sum(const std::vector<int>& v, int k)`, the largest sum of `k` consecutive elements, with a **fixed-size** sliding window: add the element entering, subtract the one leaving. Assume `1 <= k <= v.size()`.
+        seed: |
+          #include <vector>
+
+          long long max_window_sum(const std::vector<int>& v, int k) {
+
+          }
+        solution: |
+          #include <algorithm>
+          #include <vector>
+
+          long long max_window_sum(const std::vector<int>& v, int k) {
+              long long cur = 0;
+              for (int i = 0; i < k; i++) cur += v[i];
+              long long best = cur;
+              for (std::size_t i = k; i < v.size(); i++) {
+                  cur += v[i] - v[i - k];
+                  best = std::max(best, cur);
+              }
+              return best;
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("k = 2", max_window_sum({1, 3, -2, 8, 1, -5}, 2), 9LL);
+              CHECK_EQ("all negative", max_window_sum({-4, -1, -9}, 1), -1LL);
+              CHECK_EQ("whole array", max_window_sum({2, 2, 2}, 3), 6LL);
+              std::vector<int> big(400000);
+              for (int i = 0; i < 400000; i++) big[i] = (i * 37) % 1000 - 500;
+              CHECK("400,000 values with k = 1000", max_window_sum(big, 1000) > -500000);
+          }
+        hints:
+          - "Sum the first `k` once. Each step after that is one addition and one subtraction."
+      - task: |
+          Write `int shortest_at_least(const std::vector<int>& v, long long target)`: the length of the shortest contiguous subarray whose sum is **at least** `target`, or 0 if none is. All values are positive, so a **variable** window works: grow the right end, and while the sum is big enough, record the length and shrink from the left.
+        seed: |
+          #include <vector>
+
+          int shortest_at_least(const std::vector<int>& v, long long target) {
+
+          }
+        solution: |
+          #include <algorithm>
+          #include <vector>
+
+          int shortest_at_least(const std::vector<int>& v, long long target) {
+              int best = 0;
+              long long sum = 0;
+              std::size_t left = 0;
+              for (std::size_t right = 0; right < v.size(); right++) {
+                  sum += v[right];
+                  while (sum >= target) {
+                      int len = (int)(right - left + 1);
+                      if (best == 0 || len < best) best = len;
+                      sum -= v[left++];
+                  }
+              }
+              return best;
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("4 + 3", shortest_at_least({2, 3, 1, 2, 4, 3}, 7), 2);
+              CHECK_EQ("one big value", shortest_at_least({1, 4, 4}, 4), 1);
+              CHECK_EQ("impossible", shortest_at_least({1, 1, 1}, 11), 0);
+              CHECK_EQ("needs everything", shortest_at_least({1, 2, 3}, 6), 3);
+              std::vector<int> big(400000, 1);
+              big[200000] = 1000;
+              CHECK_EQ("400,000 values", shortest_at_least(big, 1005), 6);
+          }
+        hints:
+          - "Each element enters the window once and leaves it at most once, so the whole thing is O(n)."

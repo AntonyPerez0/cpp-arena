@@ -111,6 +111,93 @@ steps:
       - "Loop i from 1; save `key = v[i]` and slide j down while `v[j - 1] > key`."
       - "Using `j > 0` with `v[j - 1]` avoids a negative size_t index."
       - "Count one shift each time you copy `v[j] = v[j - 1]`."
+    more:
+      - task: |
+          Write `int selection_sort(std::vector<int>& v)`: for each position, find the smallest remaining element and swap it into place. Return how many swaps it made, counting only swaps where the smallest element wasn't already in place.
+        seed: |
+          #include <utility>
+          #include <vector>
+
+          int selection_sort(std::vector<int>& v) {
+
+          }
+        solution: |
+          #include <utility>
+          #include <vector>
+
+          int selection_sort(std::vector<int>& v) {
+              int swaps = 0;
+              for (std::size_t i = 0; i < v.size(); i++) {
+                  std::size_t m = i;
+                  for (std::size_t j = i + 1; j < v.size(); j++)
+                      if (v[j] < v[m]) m = j;
+                  if (m != i) {
+                      std::swap(v[i], v[m]);
+                      swaps++;
+                  }
+              }
+              return swaps;
+          }
+        forbid:
+          - pattern: "std::sort|stable_sort|std::ranges::sort|min_element"
+            message: Implement the algorithm yourself on this step.
+        harness: |
+          int main() {
+              std::vector<int> a = {3, 1, 2};
+              CHECK_EQ("swaps", selection_sort(a), 2);
+              CHECK_EQ("sorted", a, (std::vector<int>{1, 2, 3}));
+              std::vector<int> s = {1, 2, 3, 4};
+              CHECK_EQ("already sorted: no swaps", selection_sort(s), 0);
+              std::vector<int> r = {4, 3, 2, 1};
+              CHECK_EQ("reversed: 2 swaps", selection_sort(r), 2);
+              CHECK_EQ("reversed sorted", r, (std::vector<int>{1, 2, 3, 4}));
+          }
+        hints:
+          - "Selection sort does at most n - 1 swaps, far fewer than insertion sort's shifts, but it always does about n²/2 comparisons."
+      - task: |
+          Write `void sort_words(std::vector<std::string>& w)` with **insertion sort**, ordering by length first and alphabetically among words of the same length. Put the comparison in a small helper `bool before(const std::string& a, const std::string& b)`.
+        seed: |
+          #include <string>
+          #include <vector>
+
+          void sort_words(std::vector<std::string>& w) {
+
+          }
+        solution: |
+          #include <string>
+          #include <utility>
+          #include <vector>
+
+          static bool before(const std::string& a, const std::string& b) {
+              if (a.size() != b.size()) return a.size() < b.size();
+              return a < b;
+          }
+
+          void sort_words(std::vector<std::string>& w) {
+              for (std::size_t i = 1; i < w.size(); i++) {
+                  std::string key = std::move(w[i]);
+                  std::size_t j = i;
+                  while (j > 0 && before(key, w[j - 1])) {
+                      w[j] = std::move(w[j - 1]);
+                      j--;
+                  }
+                  w[j] = std::move(key);
+              }
+          }
+        forbid:
+          - pattern: "std::sort|stable_sort|std::ranges::sort"
+            message: Implement insertion sort yourself on this step.
+        harness: |
+          int main() {
+              std::vector<std::string> w = {"nuke", "ak", "awp", "dust2", "m4", "p90"};
+              sort_words(w);
+              CHECK_EQ("by length, then alphabetical", w, (std::vector<std::string>{"ak", "m4", "awp", "p90", "nuke", "dust2"}));
+              std::vector<std::string> e;
+              sort_words(e);
+              CHECK("empty", e.empty());
+          }
+        hints:
+          - "Take the key out, shift larger neighbours one place right while `before(key, w[j - 1])`, then drop the key in the gap."
 
   - title: Merge sort
     id: dsa-sorting-2
@@ -226,6 +313,104 @@ steps:
       - "Write a recursive helper that sorts the half-open range `[lo, hi)` using one shared temporary buffer."
       - "Base case: fewer than 2 elements. Otherwise sort `[lo, mid)` and `[mid, hi)`, then merge into tmp and copy back."
       - "When merging, take from the right half only if it's strictly smaller; that keeps the sort stable."
+    more:
+      - task: |
+          An **inversion** is a pair `i < j` with `v[i] > v[j]`. Write `long long count_inversions(std::vector<int> v)` in O(n log n) by merge sorting and counting while you merge: when an element from the **right** half is taken before the remaining left elements, it forms an inversion with each of them.
+        seed: |
+          #include <vector>
+
+          long long count_inversions(std::vector<int> v) {
+
+          }
+        solution: |
+          #include <vector>
+
+          static long long sort_count(std::vector<int>& v, std::vector<int>& tmp, int lo, int hi) {
+              if (hi - lo < 2) return 0;
+              int mid = lo + (hi - lo) / 2;
+              long long n = sort_count(v, tmp, lo, mid) + sort_count(v, tmp, mid, hi);
+              int i = lo, j = mid, k = lo;
+              while (i < mid && j < hi) {
+                  if (v[j] < v[i]) {
+                      n += mid - i;
+                      tmp[k++] = v[j++];
+                  } else {
+                      tmp[k++] = v[i++];
+                  }
+              }
+              while (i < mid) tmp[k++] = v[i++];
+              while (j < hi) tmp[k++] = v[j++];
+              for (int t = lo; t < hi; t++) v[t] = tmp[t];
+              return n;
+          }
+
+          long long count_inversions(std::vector<int> v) {
+              std::vector<int> tmp(v.size());
+              return sort_count(v, tmp, 0, (int)v.size());
+          }
+        forbid:
+          - pattern: "std::sort|stable_sort|std::ranges::sort|std::merge|inplace_merge"
+            message: Count while you merge, in your own merge sort.
+        harness: |
+          int main() {
+              CHECK_EQ("2 4 1 3 5", count_inversions({2, 4, 1, 3, 5}), 3LL);
+              CHECK_EQ("sorted", count_inversions({1, 2, 3}), 0LL);
+              CHECK_EQ("reversed", count_inversions({3, 2, 1}), 3LL);
+              CHECK_EQ("equal values aren't inversions", count_inversions({2, 2, 2}), 0LL);
+              std::vector<int> big(200000);
+              for (int i = 0; i < 200000; i++) big[i] = 200000 - i;
+              CHECK_EQ("200,000 reversed", count_inversions(big), 200000LL * 199999 / 2);
+          }
+        hints:
+          - "When `v[j] < v[i]`, every element from `i` to the end of the left half is bigger than `v[j]`: that's `mid - i` inversions at once."
+      - task: |
+          Write `std::vector<int> merge_all(const std::vector<std::vector<int>>& lists)` that merges any number of sorted lists into one sorted list by **divide and conquer**: merge the left half of the lists, merge the right half, then merge those two results. Write the two-list merge yourself.
+        seed: |
+          #include <vector>
+
+          std::vector<int> merge_all(const std::vector<std::vector<int>>& lists) {
+
+          }
+        solution: |
+          #include <vector>
+
+          static std::vector<int> merge2(const std::vector<int>& a, const std::vector<int>& b) {
+              std::vector<int> out;
+              out.reserve(a.size() + b.size());
+              std::size_t i = 0, j = 0;
+              while (i < a.size() && j < b.size()) out.push_back(a[i] <= b[j] ? a[i++] : b[j++]);
+              while (i < a.size()) out.push_back(a[i++]);
+              while (j < b.size()) out.push_back(b[j++]);
+              return out;
+          }
+
+          static std::vector<int> merge_range(const std::vector<std::vector<int>>& lists, std::size_t lo, std::size_t hi) {
+              if (lo >= hi) return {};
+              if (hi - lo == 1) return lists[lo];
+              std::size_t mid = lo + (hi - lo) / 2;
+              return merge2(merge_range(lists, lo, mid), merge_range(lists, mid, hi));
+          }
+
+          std::vector<int> merge_all(const std::vector<std::vector<int>>& lists) {
+              return merge_range(lists, 0, lists.size());
+          }
+        forbid:
+          - pattern: "std::sort|stable_sort|std::ranges::sort|std::merge|inplace_merge"
+            message: Merge the lists yourself.
+        harness: |
+          int main() {
+              CHECK_EQ("three lists", merge_all({{1, 4, 7}, {2, 5}, {0, 3, 6, 9}}), (std::vector<int>{0, 1, 2, 3, 4, 5, 6, 7, 9}));
+              CHECK_EQ("with empties", merge_all({{}, {5}, {}}), (std::vector<int>{5}));
+              CHECK_EQ("no lists", merge_all({}), (std::vector<int>{}));
+              std::vector<std::vector<int>> many(1000);
+              for (int l = 0; l < 1000; l++)
+                  for (int i = 0; i < 100; i++) many[l].push_back(i * 1000 + l);
+              auto m = merge_all(many);
+              CHECK("1000 lists of 100", m.size() == 100000 && m[0] == 0 && m[99999] == 99999);
+          }
+        hints:
+          - "A helper that merges `lists[lo..hi)` calls itself on each half, then merges the two results with your two-list merge."
+          - "Pairing lists up like this costs O(N log k) for N values in k lists; merging them one after another would be much slower."
 
   - title: Quicksort and partitioning
     id: dsa-sorting-3
@@ -359,6 +544,101 @@ steps:
       - "partition: `int pivot = v[hi]; int i = lo;` then for each j < hi, swap smaller elements to position i."
       - "Finally swap the pivot into place: `std::swap(v[i], v[hi]); return i;`"
       - "quick_sort: stop when `lo >= hi`, else partition and recurse on both sides of p."
+    more:
+      - task: |
+          Write `void sort_colors(std::vector<int>& v)` for values that are only 0, 1 or 2, in **one pass** with three pointers (the Dutch national flag): everything before `lo` is 0, everything after `hi` is 2, and `mid` scans the unknown part in between.
+        seed: |
+          #include <utility>
+          #include <vector>
+
+          void sort_colors(std::vector<int>& v) {
+
+          }
+        solution: |
+          #include <utility>
+          #include <vector>
+
+          void sort_colors(std::vector<int>& v) {
+              int lo = 0, mid = 0, hi = (int)v.size() - 1;
+              while (mid <= hi) {
+                  if (v[mid] == 0) std::swap(v[lo++], v[mid++]);
+                  else if (v[mid] == 2) std::swap(v[mid], v[hi--]);
+                  else mid++;
+              }
+          }
+        forbid:
+          - pattern: "std::sort|stable_sort|std::ranges::sort|std::partition|count"
+            message: Do it in one pass with three pointers.
+        harness: |
+          int main() {
+              std::vector<int> v = {2, 0, 2, 1, 1, 0};
+              sort_colors(v);
+              CHECK_EQ("sorted", v, (std::vector<int>{0, 0, 1, 1, 2, 2}));
+              std::vector<int> one = {1};
+              sort_colors(one);
+              CHECK_EQ("one", one, (std::vector<int>{1}));
+              std::vector<int> e;
+              sort_colors(e);
+              CHECK("empty", e.empty());
+              std::vector<int> big(300000);
+              for (int i = 0; i < 300000; i++) big[i] = (i * 7) % 3;
+              sort_colors(big);
+              CHECK("300,000 values", big[0] == 0 && big[99999] == 0 && big[100000] == 1 && big[299999] == 2);
+          }
+        hints:
+          - "After swapping a 2 to the end, don't move `mid`: the value that came back hasn't been looked at yet."
+      - task: |
+          Plain two-way partitioning is O(n²) when almost every value is the same. Write `void quick_sort3(std::vector<int>& v, int lo, int hi)` (inclusive range) with **three-way** partitioning: take the middle element as the pivot and split the range into less than, equal to and greater than it, then recurse only on the outer two parts. The test sorts 200,000 values that are all 0, 1 or 2.
+        seed: |
+          #include <utility>
+          #include <vector>
+
+          void quick_sort3(std::vector<int>& v, int lo, int hi) {
+
+          }
+        solution: |
+          #include <utility>
+          #include <vector>
+
+          void quick_sort3(std::vector<int>& v, int lo, int hi) {
+              if (lo >= hi) return;
+              int pivot = v[lo + (hi - lo) / 2];
+              int lt = lo, i = lo, gt = hi;
+              while (i <= gt) {
+                  if (v[i] < pivot) std::swap(v[lt++], v[i++]);
+                  else if (v[i] > pivot) std::swap(v[i], v[gt--]);
+                  else i++;
+              }
+              quick_sort3(v, lo, lt - 1);
+              quick_sort3(v, gt + 1, hi);
+          }
+        forbid:
+          - pattern: "std::sort|stable_sort|std::ranges::sort|std::partition|nth_element"
+            message: Implement the partition yourself on this step.
+        harness: |
+          #include <algorithm>
+          int main() {
+              std::vector<int> a = {5, 1, 5, 3, 5, 2, 5};
+              quick_sort3(a, 0, 6);
+              CHECK_EQ("small", a, (std::vector<int>{1, 2, 3, 5, 5, 5, 5}));
+              std::vector<int> dup(200000);
+              for (int i = 0; i < 200000; i++) dup[i] = (i * 13) % 3;
+              quick_sort3(dup, 0, 199999);
+              CHECK("200,000 values from 0 to 2", std::is_sorted(dup.begin(), dup.end()));
+              std::vector<int> big(100000);
+              unsigned x = 7;
+              for (auto& y : big) {
+                  x = x * 1664525u + 1013904223u;
+                  y = (int)(x >> 4);
+              }
+              std::vector<int> expect = big;
+              std::sort(expect.begin(), expect.end());
+              quick_sort3(big, 0, 99999);
+              CHECK("100,000 random values", big == expect);
+          }
+        hints:
+          - "It's the Dutch flag again, with `pivot` in the role of 1."
+          - "Everything between `lt` and `gt` equals the pivot and is already in its final place."
 
   - title: Counting sort
     id: dsa-sorting-4
@@ -444,6 +724,84 @@ steps:
     hints:
       - "`std::vector<int> count(max_value + 1, 0);` and `count[x]++` for every x."
       - "Then walk value from 0 to max_value, writing it `count[value]` times."
+    more:
+      - task: |
+          Write `std::string sort_letters(const std::string& s)` that returns the lowercase letters `a` to `z` of `s` in alphabetical order (other characters are dropped), by **counting** each letter in an array of 26 counts. No comparison sort.
+        seed: |
+          #include <string>
+
+          std::string sort_letters(const std::string& s) {
+
+          }
+        solution: |
+          #include <string>
+
+          std::string sort_letters(const std::string& s) {
+              int count[26] = {};
+              for (char c : s)
+                  if (c >= 'a' && c <= 'z') count[c - 'a']++;
+              std::string out;
+              for (int i = 0; i < 26; i++) out.append(count[i], (char)('a' + i));
+              return out;
+          }
+        forbid:
+          - pattern: "std::sort|stable_sort|std::ranges::sort|std::map|std::set"
+            message: Count, don't compare, on this step.
+        harness: |
+          int main() {
+              CHECK_EQ("banana", sort_letters("banana"), std::string("aaabnn"));
+              CHECK_EQ("drops other characters", sort_letters("de_dust2!"), std::string("ddestu"));
+              CHECK_EQ("empty", sort_letters(""), std::string(""));
+              std::string big(500000, 'z');
+              big[123] = 'a';
+              CHECK("500,000 letters", sort_letters(big).front() == 'a' && sort_letters(big).size() == 500000);
+          }
+        hints:
+          - "`out.append(count[i], letter)` adds that letter `count[i]` times."
+      - task: |
+          **Radix sort** sorts large numbers with counting: write `void radix_sort(std::vector<unsigned>& v)` that sorts by the lowest byte first, then the next byte, and so on for all 4 bytes, each pass a **stable** counting sort over 256 buckets into a temporary vector. The test sorts a million values.
+        seed: |
+          #include <vector>
+
+          void radix_sort(std::vector<unsigned>& v) {
+
+          }
+        solution: |
+          #include <vector>
+
+          void radix_sort(std::vector<unsigned>& v) {
+              std::vector<unsigned> tmp(v.size());
+              for (int shift = 0; shift < 32; shift += 8) {
+                  std::size_t count[257] = {};
+                  for (unsigned x : v) count[((x >> shift) & 255) + 1]++;
+                  for (int b = 0; b < 256; b++) count[b + 1] += count[b];
+                  for (unsigned x : v) tmp[count[(x >> shift) & 255]++] = x;
+                  v.swap(tmp);
+              }
+          }
+        forbid:
+          - pattern: "std::sort|stable_sort|std::ranges::sort"
+            message: Sort with counting passes, not comparisons.
+        harness: |
+          #include <algorithm>
+          int main() {
+              std::vector<unsigned> a = {170, 45, 75, 90, 802, 24, 2, 66, 4000000000u};
+              radix_sort(a);
+              CHECK("small", a == (std::vector<unsigned>{2, 24, 45, 66, 75, 90, 170, 802, 4000000000u}));
+              std::vector<unsigned> big(1000000);
+              unsigned x = 1;
+              for (auto& y : big) {
+                  x = x * 1664525u + 1013904223u;
+                  y = x;
+              }
+              std::vector<unsigned> expect = big;
+              std::sort(expect.begin(), expect.end());
+              radix_sort(big);
+              CHECK("a million values", big == expect);
+          }
+        hints:
+          - "Each pass: count how many values have each byte, turn the counts into starting positions, then place every value in order."
+          - "The passes only work because each one is stable: values with the same byte keep the order the previous pass gave them."
 
   - title: Stability and custom comparators
     id: dsa-sorting-5
@@ -538,6 +896,96 @@ steps:
     hints:
       - "Use `std::stable_sort` with a lambda comparator."
       - "Highest first: `return a.score > b.score;`"
+    more:
+      - task: |
+          Write `void order(std::vector<Player>& v)` sorting by team (alphabetical), then score (highest first), then name (alphabetical). Compare with `std::tie`, which builds tuples that compare field by field; flip `a` and `b` for the score so it sorts descending.
+        seed: |
+          #include <algorithm>
+          #include <string>
+          #include <tuple>
+          #include <vector>
+
+          struct Player {
+              std::string team;
+              int score;
+              std::string name;
+          };
+
+          void order(std::vector<Player>& v) {
+
+          }
+        solution: |
+          #include <algorithm>
+          #include <string>
+          #include <tuple>
+          #include <vector>
+
+          struct Player {
+              std::string team;
+              int score;
+              std::string name;
+          };
+
+          void order(std::vector<Player>& v) {
+              std::sort(v.begin(), v.end(), [](const Player& a, const Player& b) {
+                  return std::tie(a.team, b.score, a.name) < std::tie(b.team, a.score, b.name);
+              });
+          }
+        require:
+          - pattern: "std::tie"
+            message: "Compare with `std::tie`."
+        forbid:
+          - pattern: "<=|>="
+            message: "A comparator must be strict: use `<`, never `<=` or `>=`."
+        harness: |
+          int main() {
+              std::vector<Player> v = {{"navi", 20, "b1t"}, {"faze", 25, "ropz"}, {"navi", 25, "jL"}, {"faze", 25, "broky"}, {"navi", 20, "aleksib"}};
+              order(v);
+              std::string got;
+              for (const auto& p : v) got += p.name + " ";
+              CHECK_EQ("team, score down, name", got, std::string("broky ropz jL aleksib b1t "));
+          }
+        hints:
+          - "`std::tie(a.team, b.score, a.name) < std::tie(b.team, a.score, b.name)`: swapping which side the scores come from reverses that one field."
+      - task: |
+          Write `std::vector<int> sort_indices(const std::vector<int>& v)`, the indexes of `v` in the order that would sort it (an "argsort"), with **equal values keeping their index order**. Fill a vector with `0..n-1`, then `std::stable_sort` it with a comparator that compares `v[a] < v[b]`.
+        seed: |
+          #include <algorithm>
+          #include <numeric>
+          #include <vector>
+
+          std::vector<int> sort_indices(const std::vector<int>& v) {
+
+          }
+        solution: |
+          #include <algorithm>
+          #include <numeric>
+          #include <vector>
+
+          std::vector<int> sort_indices(const std::vector<int>& v) {
+              std::vector<int> idx(v.size());
+              std::iota(idx.begin(), idx.end(), 0);
+              std::stable_sort(idx.begin(), idx.end(), [&v](int a, int b) { return v[a] < v[b]; });
+              return idx;
+          }
+        require:
+          - pattern: "stable_sort"
+            message: "Use `std::stable_sort` so equal values keep their index order."
+        forbid:
+          - pattern: "<=|>="
+            message: "A comparator must be strict: use `<`."
+        harness: |
+          int main() {
+              CHECK_EQ("argsort", sort_indices({30, 10, 20, 10}), (std::vector<int>{1, 3, 2, 0}));
+              CHECK_EQ("all equal keep order", sort_indices({5, 5, 5}), (std::vector<int>{0, 1, 2}));
+              CHECK_EQ("empty", sort_indices({}), (std::vector<int>{}));
+              std::vector<int> many(60000);
+              for (int i = 0; i < 60000; i++) many[i] = i % 3;
+              auto idx = sort_indices(many);
+              CHECK("60,000 values stay stable", idx[0] == 0 && idx[1] == 3 && idx[19999] == 59997 && idx[20000] == 1);
+          }
+        hints:
+          - "The lambda captures `v` by reference and compares the values the two indexes point to."
 
   - title: "Challenge: quickselect"
     id: dsa-sorting-6
@@ -644,3 +1092,82 @@ steps:
       - "Loop with a range `[lo, hi]`. Swap the middle element to hi and partition like Lomuto."
       - "After partitioning, the pivot is at its final index i. If k == i you're done; otherwise narrow the range to the side containing k."
       - "When lo == hi, that single element is the answer."
+    more:
+      - task: |
+          The standard library has quickselect built in: `std::nth_element` puts the element that belongs at position `n` there, with smaller ones before it and larger ones after, in O(n) on average. Write `double median(std::vector<int> v)` with it: the middle value for an odd count, the average of the two middle values for an even count. `v` is never empty.
+        seed: |
+          #include <algorithm>
+          #include <vector>
+
+          double median(std::vector<int> v) {
+
+          }
+        solution: |
+          #include <algorithm>
+          #include <vector>
+
+          double median(std::vector<int> v) {
+              std::size_t n = v.size();
+              std::nth_element(v.begin(), v.begin() + n / 2, v.end());
+              double upper = v[n / 2];
+              if (n % 2 == 1) return upper;
+              double lower = *std::max_element(v.begin(), v.begin() + n / 2);
+              return (lower + upper) / 2;
+          }
+        require:
+          - pattern: "nth_element"
+            message: "Use `std::nth_element`."
+        forbid:
+          - pattern: "std::sort|stable_sort|partial_sort"
+            message: "Don't sort the whole vector; `nth_element` is enough."
+        harness: |
+          int main() {
+              CHECK("odd", median({7, 1, 3}) == 3);
+              CHECK("even", median({4, 1, 3, 2}) == 2.5);
+              CHECK("one", median({9}) == 9);
+              std::vector<int> big(300001);
+              for (int i = 0; i < 300001; i++) big[i] = (int)((7919LL * i) % 300001);
+              CHECK("300,001 values", median(big) == 150000);
+          }
+        hints:
+          - "After `nth_element` at `n / 2`, everything before that position is no larger, so the lower middle value is the largest of them."
+      - task: |
+          Write `std::vector<int> k_closest(std::vector<int> v, int x, int k)`: the `k` values nearest to `x` (on a tie in distance, the smaller value counts as nearer), returned in increasing order. Use `std::nth_element` with a custom comparator to find them, then sort just those `k`. Assume `k <= v.size()`.
+        seed: |
+          #include <algorithm>
+          #include <cstdlib>
+          #include <vector>
+
+          std::vector<int> k_closest(std::vector<int> v, int x, int k) {
+
+          }
+        solution: |
+          #include <algorithm>
+          #include <cstdlib>
+          #include <vector>
+
+          std::vector<int> k_closest(std::vector<int> v, int x, int k) {
+              auto nearer = [x](int a, int b) {
+                  int da = std::abs(a - x), db = std::abs(b - x);
+                  return da != db ? da < db : a < b;
+              };
+              if (k > 0) std::nth_element(v.begin(), v.begin() + (k - 1), v.end(), nearer);
+              std::vector<int> out(v.begin(), v.begin() + k);
+              std::sort(out.begin(), out.end());
+              return out;
+          }
+        require:
+          - pattern: "nth_element"
+            message: "Find the k nearest with `std::nth_element`."
+        harness: |
+          int main() {
+              CHECK_EQ("near 5", k_closest({1, 2, 3, 4, 5, 9, 10}, 5, 3), (std::vector<int>{3, 4, 5}));
+              CHECK_EQ("tie goes to the smaller", k_closest({1, 3, 5}, 2, 1), (std::vector<int>{1}));
+              CHECK_EQ("k = 0", k_closest({1, 2}, 0, 0), (std::vector<int>{}));
+              std::vector<int> big(300000);
+              for (int i = 0; i < 300000; i++) big[i] = (int)((7919LL * i) % 300000);
+              CHECK_EQ("300,000 values", k_closest(big, 1000, 5), (std::vector<int>{998, 999, 1000, 1001, 1002}));
+          }
+        hints:
+          - "The comparator says which of two values is nearer to `x`, breaking ties by the smaller value."
+          - "`nth_element` at position `k - 1` puts the `k` nearest values in the first `k` positions, in no particular order."
