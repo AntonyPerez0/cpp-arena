@@ -84,6 +84,76 @@ steps:
     hints:
       - "Three placeholders: `{:<10}`, `{:>4}` and `{:>6.2f}`."
       - "`return std::format(\"{:<10}{:>4}{:>6.2f}\", name, kills, kd);`"
+    more:
+      - task: |
+          Write `std::string hex_color(int r, int g, int b)` returning a color like `#ff8000` (two lowercase hex digits per channel), and `std::string padded_id(int id)` returning `ID-000042` (six digits, zero-padded). Use `std::format`.
+        seed: |
+          #include <format>
+          #include <string>
+
+          std::string hex_color(int r, int g, int b) {
+
+          }
+
+          std::string padded_id(int id) {
+
+          }
+        solution: |
+          #include <format>
+          #include <string>
+
+          std::string hex_color(int r, int g, int b) {
+              return std::format("#{:02x}{:02x}{:02x}", r, g, b);
+          }
+
+          std::string padded_id(int id) {
+              return std::format("ID-{:06}", id);
+          }
+        require:
+          - pattern: "std::format\\s*\\("
+            message: "Use `std::format`."
+        harness: |
+          int main() {
+              CHECK_EQ("orange", hex_color(255, 128, 0), std::string("#ff8000"));
+              CHECK_EQ("small values get a leading 0", hex_color(1, 2, 3), std::string("#010203"));
+              CHECK_EQ("id 42", padded_id(42), std::string("ID-000042"));
+              CHECK_EQ("id 123456", padded_id(123456), std::string("ID-123456"));
+          }
+        hints:
+          - "`{:02x}` prints in hex, at least 2 wide, padded with zeros."
+          - "`{:06}` pads a number with zeros to 6 digits."
+      - task: |
+          Write `std::string leaderboard(const std::vector<std::pair<std::string, int>>& rows)`: one line per row, the name **padded with dots** to 16 characters and the score right-aligned in 4, each line ending in `\n`. `{"ropz", 25}` becomes `ropz............  25`.
+        seed: |
+          #include <format>
+          #include <string>
+          #include <utility>
+          #include <vector>
+
+          std::string leaderboard(const std::vector<std::pair<std::string, int>>& rows) {
+
+          }
+        solution: |
+          #include <format>
+          #include <string>
+          #include <utility>
+          #include <vector>
+
+          std::string leaderboard(const std::vector<std::pair<std::string, int>>& rows) {
+              std::string out;
+              for (const auto& [name, score] : rows) out += std::format("{:.<16}{:>4}\n", name, score);
+              return out;
+          }
+        require:
+          - pattern: "std::format\\s*\\("
+            message: "Use `std::format`."
+        harness: |
+          int main() {
+              CHECK_EQ("two rows", leaderboard({{"ropz", 25}, {"broky", 130}}), std::string("ropz............  25\nbroky........... 130\n"));
+              CHECK_EQ("empty", leaderboard({}), std::string(""));
+          }
+        hints:
+          - "A fill character goes before the alignment: `{:.<16}` pads with dots on the right, to 16 wide."
 
   - title: Formatting your own types
     id: cpp-lib-2
@@ -172,6 +242,74 @@ steps:
       - "`template <> struct std::formatter<Money> : std::formatter<std::string> { ... };`"
       - "Inside `format`, build the text with `std::format(\"${}.{:02}\", m.cents / 100, m.cents % 100)`."
       - "Pass it on: `return std::formatter<std::string>::format(text, ctx);`"
+    more:
+      - task: |
+          Write a `std::formatter` for `Point` that prints it as `(x, y)`.
+        seed: |
+          #include <format>
+
+          struct Point {
+              int x, y;
+          };
+
+          // std::formatter<Point> here
+        solution: |
+          #include <format>
+
+          struct Point {
+              int x, y;
+          };
+
+          // std::formatter<Point> here
+          template <>
+          struct std::formatter<Point> {
+              constexpr auto parse(std::format_parse_context& ctx) { return ctx.begin(); }
+              auto format(const Point& p, std::format_context& ctx) const {
+                  return std::format_to(ctx.out(), "({}, {})", p.x, p.y);
+              }
+          };
+        harness: |
+          int main() {
+              CHECK_EQ("point", std::format("{}", Point{3, -4}), std::string("(3, -4)"));
+              CHECK_EQ("in a sentence", std::format("spawn at {}", Point{0, 0}), std::string("spawn at (0, 0)"));
+              CHECK_EQ("two points", std::format("{} -> {}", Point{1, 2}, Point{3, 4}), std::string("(1, 2) -> (3, 4)"));
+          }
+        hints:
+          - "`parse` can just `return ctx.begin();` when the type takes no format options."
+          - "`format` writes with `std::format_to(ctx.out(), \"({}, {})\", p.x, p.y)` and returns what that returns."
+      - task: |
+          Write a formatter for `enum class Side { T, CT }` that prints `T` or `CT` **and** still honours width and alignment, so `std::format("[{:>3}]", Side::T)` is `[  T]`. Derive from `std::formatter<std::string_view>` and pass the name to its `format`.
+        seed: |
+          #include <format>
+          #include <string_view>
+
+          enum class Side { T, CT };
+
+          // std::formatter<Side> here
+        solution: |
+          #include <format>
+          #include <string_view>
+
+          enum class Side { T, CT };
+
+          // std::formatter<Side> here
+          template <>
+          struct std::formatter<Side> : std::formatter<std::string_view> {
+              auto format(Side s, std::format_context& ctx) const {
+                  std::string_view name = s == Side::T ? "T" : "CT";
+                  return std::formatter<std::string_view>::format(name, ctx);
+              }
+          };
+        harness: |
+          int main() {
+              CHECK_EQ("T", std::format("{}", Side::T), std::string("T"));
+              CHECK_EQ("CT", std::format("{}", Side::CT), std::string("CT"));
+              CHECK_EQ("right-aligned", std::format("[{:>3}]", Side::T), std::string("[  T]"));
+              CHECK_EQ("centered with a fill", std::format("[{:*^6}]", Side::CT), std::string("[**CT**]"));
+          }
+        hints:
+          - "Inheriting from `std::formatter<std::string_view>` gives you its `parse`, which reads the width and alignment."
+          - "In `format`, call `std::formatter<std::string_view>::format(name, ctx)`."
 
   - title: chrono durations
     id: cpp-lib-3
@@ -259,6 +397,90 @@ steps:
       - "`auto m = std::chrono::duration_cast<std::chrono::minutes>(t);`"
       - "The leftover seconds: `duration_cast<std::chrono::seconds>(t - m)`."
       - "`std::format(\"{}:{:02}\", m.count(), s.count())`."
+    more:
+      - task: |
+          Write `std::chrono::seconds total_time(const std::vector<std::chrono::milliseconds>& rounds)`, the sum of the rounds truncated to whole seconds, and `int rounds_under(const std::vector<std::chrono::milliseconds>& rounds, std::chrono::seconds limit)`, how many rounds took strictly less than `limit`. Durations of different units compare directly.
+        seed: |
+          #include <chrono>
+          #include <vector>
+
+          std::chrono::seconds total_time(const std::vector<std::chrono::milliseconds>& rounds) {
+
+          }
+
+          int rounds_under(const std::vector<std::chrono::milliseconds>& rounds, std::chrono::seconds limit) {
+
+          }
+        solution: |
+          #include <chrono>
+          #include <vector>
+
+          std::chrono::seconds total_time(const std::vector<std::chrono::milliseconds>& rounds) {
+              std::chrono::milliseconds sum{0};
+              for (auto r : rounds) sum += r;
+              return std::chrono::duration_cast<std::chrono::seconds>(sum);
+          }
+
+          int rounds_under(const std::vector<std::chrono::milliseconds>& rounds, std::chrono::seconds limit) {
+              int n = 0;
+              for (auto r : rounds)
+                  if (r < limit) n++;
+              return n;
+          }
+        require:
+          - pattern: "duration_cast"
+            message: "Convert with `std::chrono::duration_cast`."
+        harness: |
+          int main() {
+              using namespace std::chrono_literals;
+              std::vector<std::chrono::milliseconds> r = {95s, 1min + 55s, 40500ms};
+              CHECK_EQ("total", total_time(r).count(), 250LL);
+              CHECK_EQ("under 100s", rounds_under(r, 100s), 2);
+              CHECK_EQ("under 40s", rounds_under(r, 40s), 0);
+              CHECK_EQ("truncates", total_time({1999ms}).count(), 1LL);
+              CHECK_EQ("empty", total_time({}).count(), 0LL);
+          }
+        hints:
+          - "Add everything as milliseconds first, then `duration_cast<std::chrono::seconds>` once at the end."
+          - "`r < limit` works even though one is milliseconds and the other seconds."
+      - task: |
+          Write `std::string human(std::chrono::seconds s)` that shows a duration like `1h 02m 03s`. Leave out leading units that are zero: `5m 00s` for 300 seconds and `7s` for 7. Units after the first shown one are two digits.
+        seed: |
+          #include <chrono>
+          #include <format>
+          #include <string>
+
+          std::string human(std::chrono::seconds s) {
+
+          }
+        solution: |
+          #include <chrono>
+          #include <format>
+          #include <string>
+
+          std::string human(std::chrono::seconds s) {
+              auto h = std::chrono::duration_cast<std::chrono::hours>(s);
+              s -= h;
+              auto m = std::chrono::duration_cast<std::chrono::minutes>(s);
+              s -= m;
+              if (h.count() > 0) return std::format("{}h {:02}m {:02}s", h.count(), m.count(), s.count());
+              if (m.count() > 0) return std::format("{}m {:02}s", m.count(), s.count());
+              return std::format("{}s", s.count());
+          }
+        require:
+          - pattern: "duration_cast"
+            message: "Split the units with `std::chrono::duration_cast`."
+        harness: |
+          int main() {
+              using namespace std::chrono_literals;
+              CHECK_EQ("1h 02m 03s", human(1h + 2min + 3s), std::string("1h 02m 03s"));
+              CHECK_EQ("5m 00s", human(300s), std::string("5m 00s"));
+              CHECK_EQ("7s", human(7s), std::string("7s"));
+              CHECK_EQ("0s", human(0s), std::string("0s"));
+              CHECK_EQ("2h 00m 00s", human(2h), std::string("2h 00m 00s"));
+          }
+        hints:
+          - "Take the whole hours out with `duration_cast<std::chrono::hours>`, subtract them, then do the same for minutes."
 
   - title: Measuring time
     id: cpp-lib-4
@@ -343,6 +565,107 @@ steps:
     hints:
       - "Take `std::chrono::steady_clock::now()` before and after calling `f()`."
       - "Subtracting two time points gives a duration; `duration_cast` it to microseconds."
+    more:
+      - task: |
+          Write `template <typename F> double average_ms(F&& f, int runs)` that calls `f()` `runs` times and returns the average time per call in milliseconds, as a `double`. Use `std::chrono::steady_clock` and `std::chrono::duration<double, std::milli>`. With `runs <= 0`, call nothing and return 0.
+        seed: |
+          #include <chrono>
+
+          template <typename F>
+          double average_ms(F&& f, int runs) {
+
+          }
+        solution: |
+          #include <chrono>
+
+          template <typename F>
+          double average_ms(F&& f, int runs) {
+              if (runs <= 0) return 0;
+              auto start = std::chrono::steady_clock::now();
+              for (int i = 0; i < runs; i++) f();
+              std::chrono::duration<double, std::milli> total = std::chrono::steady_clock::now() - start;
+              return total.count() / runs;
+          }
+        require:
+          - pattern: "steady_clock"
+            message: "Measure with `std::chrono::steady_clock`."
+        harness: |
+          int main() {
+              int calls = 0;
+              double t = average_ms([&] { calls++; }, 5);
+              CHECK_EQ("called 5 times", calls, 5);
+              CHECK("never negative", t >= 0);
+              calls = 0;
+              CHECK("0 runs gives 0", average_ms([&] { calls++; }, 0) == 0);
+              CHECK_EQ("and calls nothing", calls, 0);
+          }
+        hints:
+          - "Time the whole loop once, then divide by `runs`."
+          - "Subtracting two `time_point`s gives a duration, which converts to `duration<double, std::milli>` without a cast."
+      - task: |
+          Write class `Stopwatch` that adds up running time across several start and stop pairs, like a chess clock. `start()` starts it (no effect if it's already running), `stop()` adds the time since the start to the total (no effect if it's stopped), `running()` says whether it's running, and `elapsed()` returns the total so far as `std::chrono::nanoseconds`, including the current run if it's running.
+        seed: |
+          #include <chrono>
+
+          class Stopwatch {
+          public:
+
+          private:
+
+          };
+        solution: |
+          #include <chrono>
+
+          class Stopwatch {
+          public:
+              void start() {
+                  if (running_) return;
+                  running_ = true;
+                  since_ = std::chrono::steady_clock::now();
+              }
+              void stop() {
+                  if (!running_) return;
+                  total_ += std::chrono::steady_clock::now() - since_;
+                  running_ = false;
+              }
+              bool running() const { return running_; }
+              std::chrono::nanoseconds elapsed() const {
+                  if (!running_) return total_;
+                  return total_ + std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - since_);
+              }
+
+          private:
+              bool running_ = false;
+              std::chrono::steady_clock::time_point since_;
+              std::chrono::nanoseconds total_{0};
+          };
+        require:
+          - pattern: "steady_clock"
+            message: "Measure with `std::chrono::steady_clock`."
+        harness: |
+          int main() {
+              Stopwatch w;
+              CHECK("starts stopped", !w.running());
+              CHECK("starts at zero", w.elapsed().count() == 0);
+              w.stop();
+              CHECK("stop while stopped does nothing", w.elapsed().count() == 0);
+              volatile long sink = 0;
+              w.start();
+              CHECK("running", w.running());
+              for (long i = 0; i < 2000000; i++) sink = sink + i;
+              w.stop();
+              auto first = w.elapsed();
+              CHECK("time was counted", first.count() > 0);
+              CHECK("stopped time doesn't grow", w.elapsed() == first);
+              w.start();
+              for (long i = 0; i < 2000000; i++) sink = sink + i;
+              CHECK("running time is included", w.elapsed() > first);
+              w.stop();
+              CHECK("adds up", w.elapsed() > first);
+          }
+        hints:
+          - "Keep a `time_point` for when the current run started and a running total as a duration."
+          - "`elapsed()` adds the current run to the total without changing anything."
 
   - title: Strict number parsing with from_chars
     id: cpp-lib-5
@@ -435,6 +758,110 @@ steps:
     hints:
       - "`auto [ptr, ec] = std::from_chars(s.data(), s.data() + s.size(), v);`"
       - "Succeed only if `ec == std::errc()` **and** ptr reached the end of s."
+    more:
+      - task: |
+          Write `std::optional<std::vector<int>> parse_list(std::string_view s)` for comma-separated integers like `"3,-4,10"`. Parse each part with `std::from_chars`, which must use up the **whole** part. Any bad or empty part makes the whole list fail.
+        seed: |
+          #include <charconv>
+          #include <optional>
+          #include <string_view>
+          #include <vector>
+
+          std::optional<std::vector<int>> parse_list(std::string_view s) {
+
+          }
+        solution: |
+          #include <charconv>
+          #include <optional>
+          #include <string_view>
+          #include <system_error>
+          #include <vector>
+
+          std::optional<std::vector<int>> parse_list(std::string_view s) {
+              std::vector<int> out;
+              while (true) {
+                  auto comma = s.find(',');
+                  std::string_view part = s.substr(0, comma);
+                  int value = 0;
+                  auto [end, ec] = std::from_chars(part.data(), part.data() + part.size(), value);
+                  if (part.empty() || ec != std::errc{} || end != part.data() + part.size()) return std::nullopt;
+                  out.push_back(value);
+                  if (comma == std::string_view::npos) return out;
+                  s.remove_prefix(comma + 1);
+              }
+          }
+        require:
+          - pattern: "from_chars"
+            message: "Parse with `std::from_chars`."
+        harness: |
+          int main() {
+              CHECK_EQ("three numbers", parse_list("3,-4,10").value_or(std::vector<int>{}), (std::vector<int>{3, -4, 10}));
+              CHECK_EQ("one", parse_list("7").value_or(std::vector<int>{}), (std::vector<int>{7}));
+              CHECK("junk in a part", !parse_list("1,2x,3"));
+              CHECK("empty part", !parse_list("1,,3"));
+              CHECK("trailing comma", !parse_list("1,"));
+              CHECK("empty string", !parse_list(""));
+              CHECK("out of range", !parse_list("1,99999999999"));
+          }
+        hints:
+          - "`from_chars` returns `{ptr, ec}`: success needs `ec == std::errc{}` and `ptr` at the end of the part."
+      - task: |
+          Write `std::optional<unsigned> parse_hex(std::string_view s)` that accepts hex digits with an optional `0x` prefix (`"ff"`, `"0x1F"`), using `std::from_chars` with base 16, and `std::string to_hex(unsigned v)` that writes lowercase hex with `std::to_chars`.
+        seed: |
+          #include <charconv>
+          #include <optional>
+          #include <string>
+          #include <string_view>
+
+          std::optional<unsigned> parse_hex(std::string_view s) {
+
+          }
+
+          std::string to_hex(unsigned v) {
+
+          }
+        solution: |
+          #include <charconv>
+          #include <optional>
+          #include <string>
+          #include <string_view>
+          #include <system_error>
+
+          std::optional<unsigned> parse_hex(std::string_view s) {
+              if (s.starts_with("0x") || s.starts_with("0X")) s.remove_prefix(2);
+              if (s.empty()) return std::nullopt;
+              unsigned v = 0;
+              auto [end, ec] = std::from_chars(s.data(), s.data() + s.size(), v, 16);
+              if (ec != std::errc{} || end != s.data() + s.size()) return std::nullopt;
+              return v;
+          }
+
+          std::string to_hex(unsigned v) {
+              char buf[16];
+              auto [end, ec] = std::to_chars(buf, buf + sizeof buf, v, 16);
+              (void)ec;
+              return std::string(buf, end);
+          }
+        require:
+          - pattern: "from_chars"
+            message: "Parse with `std::from_chars`."
+          - pattern: "to_chars"
+            message: "Write the text with `std::to_chars`."
+        harness: |
+          int main() {
+              CHECK_EQ("ff", parse_hex("ff").value_or(0), 255u);
+              CHECK_EQ("0x1F", parse_hex("0x1F").value_or(0), 31u);
+              CHECK("just 0x", !parse_hex("0x"));
+              CHECK("not hex", !parse_hex("0xzz"));
+              CHECK("minus sign", !parse_hex("-1"));
+              CHECK("too big", !parse_hex("1ffffffff"));
+              CHECK_EQ("to_hex 255", to_hex(255), std::string("ff"));
+              CHECK_EQ("to_hex 0", to_hex(0), std::string("0"));
+              CHECK_EQ("round trip", to_hex(parse_hex("0xdeadbeef").value_or(0)), std::string("deadbeef"));
+          }
+        hints:
+          - "The last argument of `from_chars` and `to_chars` is the base."
+          - "`to_chars` writes into a buffer and returns a pointer just past what it wrote."
 
   - title: Random numbers with <random>
     id: cpp-lib-7
@@ -540,6 +967,81 @@ steps:
       - "roll: `std::uniform_int_distribution<int> dist(1, sides); return dist(gen);`"
       - "deal: fill a vector with 0 to n - 1 (`std::iota` from `<numeric>` does it), make `std::mt19937 gen(seed);`, then `std::shuffle(v.begin(), v.end(), gen)`."
       - "Creating the engine inside `deal` from the seed is what makes the same seed give the same deal."
+    more:
+      - task: |
+          Write `std::vector<int> pick(int n, int k, unsigned seed)` that picks `k` **different** numbers from `0` to `n - 1` with `std::sample` and a `std::mt19937` seeded with `seed`. `std::sample` keeps the numbers in increasing order. The same seed must give the same pick.
+        seed: |
+          #include <algorithm>
+          #include <iterator>
+          #include <numeric>
+          #include <random>
+          #include <vector>
+
+          std::vector<int> pick(int n, int k, unsigned seed) {
+
+          }
+        solution: |
+          #include <algorithm>
+          #include <iterator>
+          #include <numeric>
+          #include <random>
+          #include <vector>
+
+          std::vector<int> pick(int n, int k, unsigned seed) {
+              std::vector<int> all(n);
+              std::iota(all.begin(), all.end(), 0);
+              std::vector<int> out;
+              std::mt19937 gen(seed);
+              std::sample(all.begin(), all.end(), std::back_inserter(out), k, gen);
+              return out;
+          }
+        require:
+          - pattern: "std::sample"
+            message: "Pick with `std::sample`."
+        harness: |
+          #include <set>
+          int main() {
+              auto p = pick(100, 10, 5);
+              CHECK_EQ("ten numbers", p.size(), 10u);
+              CHECK("all different", std::set<int>(p.begin(), p.end()).size() == 10);
+              CHECK("in range", std::all_of(p.begin(), p.end(), [](int x) { return x >= 0 && x < 100; }));
+              CHECK("sorted", std::is_sorted(p.begin(), p.end()));
+              CHECK("same seed, same pick", pick(100, 10, 5) == p);
+              CHECK("k larger than n takes everything", pick(3, 10, 1) == (std::vector<int>{0, 1, 2}));
+          }
+        hints:
+          - "Fill a vector with `0..n-1` using `std::iota`, then `std::sample(all.begin(), all.end(), std::back_inserter(out), k, gen)`."
+      - task: |
+          Write `int weighted_pick(std::mt19937& gen, const std::vector<int>& weights)` that returns an index chosen with probability proportional to its weight, using `std::discrete_distribution`. An index with weight 0 must never be picked.
+        seed: |
+          #include <random>
+          #include <vector>
+
+          int weighted_pick(std::mt19937& gen, const std::vector<int>& weights) {
+
+          }
+        solution: |
+          #include <random>
+          #include <vector>
+
+          int weighted_pick(std::mt19937& gen, const std::vector<int>& weights) {
+              std::discrete_distribution<int> dist(weights.begin(), weights.end());
+              return dist(gen);
+          }
+        require:
+          - pattern: "discrete_distribution"
+            message: "Use `std::discrete_distribution`."
+        harness: |
+          int main() {
+              std::mt19937 gen(11);
+              std::vector<int> counts(3);
+              for (int i = 0; i < 4000; i++) counts[weighted_pick(gen, {1, 0, 3})]++;
+              CHECK_EQ("weight 0 is never picked", counts[1], 0);
+              CHECK("weight 3 is picked about three times as often as weight 1", counts[2] > 2 * counts[0] && counts[2] < 4 * counts[0]);
+              CHECK("single choice", weighted_pick(gen, {5}) == 0);
+          }
+        hints:
+          - "`std::discrete_distribution<int> dist(weights.begin(), weights.end());` then `return dist(gen);`"
 
   - title: "Challenge: a log formatter"
     id: cpp-lib-6
@@ -652,3 +1154,80 @@ steps:
       - "Peel off units with duration_cast: hours, then minutes from what's left, then seconds; the remainder is milliseconds."
       - "A switch turns the enum into its name."
       - "`std::format(\"[{:02}:{:02}:{:02}.{:03}] {:<5} {}\", ...)`"
+    more:
+      - task: |
+          Write `std::string progress_bar(double fraction, int width)` that draws `[#####     ]  50%`: `width` characters between the brackets, the first `floor(fraction * width)` of them `#` and the rest spaces, then a space and the whole percentage right-aligned in 3 characters followed by `%`. Clamp `fraction` to 0 to 1 first. Use `std::format` with a dynamic width.
+        seed: |
+          #include <format>
+          #include <string>
+
+          std::string progress_bar(double fraction, int width) {
+
+          }
+        solution: |
+          #include <format>
+          #include <string>
+
+          std::string progress_bar(double fraction, int width) {
+              if (fraction < 0) fraction = 0;
+              if (fraction > 1) fraction = 1;
+              int filled = (int)(fraction * width);
+              int percent = (int)(fraction * 100);
+              return std::format("[{}{:{}}] {:>3}%", std::string(filled, '#'), "", width - filled, percent);
+          }
+        require:
+          - pattern: "std::format\\s*\\("
+            message: "Use `std::format`."
+        harness: |
+          int main() {
+              CHECK_EQ("half", progress_bar(0.5, 10), std::string("[#####     ]  50%"));
+              CHECK_EQ("empty", progress_bar(0, 4), std::string("[    ]   0%"));
+              CHECK_EQ("full", progress_bar(1, 4), std::string("[####] 100%"));
+              CHECK_EQ("clamped high", progress_bar(1.7, 3), std::string("[###] 100%"));
+              CHECK_EQ("clamped low", progress_bar(-2, 3), std::string("[   ]   0%"));
+              CHECK_EQ("a third", progress_bar(0.34, 6), std::string("[##    ]  34%"));
+          }
+        hints:
+          - "`{:{}}` takes its width from the next argument: `std::format(\"{:{}}\", \"\", 5)` is five spaces."
+      - task: |
+          Write `std::string report(const std::vector<std::pair<std::string, std::chrono::milliseconds>>& tasks)`: one line per task, the name left-aligned in 10 characters and the time in seconds with 3 decimals right-aligned in 7, then `s`, and finally a `total` line in the same layout. Every line ends in `\n`.
+        seed: |
+          #include <chrono>
+          #include <format>
+          #include <string>
+          #include <utility>
+          #include <vector>
+
+          std::string report(const std::vector<std::pair<std::string, std::chrono::milliseconds>>& tasks) {
+
+          }
+        solution: |
+          #include <chrono>
+          #include <format>
+          #include <string>
+          #include <utility>
+          #include <vector>
+
+          std::string report(const std::vector<std::pair<std::string, std::chrono::milliseconds>>& tasks) {
+              std::string out;
+              std::chrono::milliseconds total{0};
+              auto line = [&](const std::string& name, std::chrono::milliseconds t) {
+                  out += std::format("{:<10}{:>7.3f}s\n", name, std::chrono::duration<double>(t).count());
+              };
+              for (const auto& [name, t] : tasks) {
+                  line(name, t);
+                  total += t;
+              }
+              line("total", total);
+              return out;
+          }
+        harness: |
+          int main() {
+              using namespace std::chrono_literals;
+              CHECK_EQ("two tasks", report({{"compile", 1250ms}, {"test", 30s}}),
+                       std::string("compile     1.250s\ntest       30.000s\ntotal      31.250s\n"));
+              CHECK_EQ("no tasks", report({}), std::string("total       0.000s\n"));
+          }
+        hints:
+          - "`std::chrono::duration<double>(t).count()` is the time in seconds as a `double`."
+          - "`{:>7.3f}` right-aligns in 7 characters with 3 decimals."

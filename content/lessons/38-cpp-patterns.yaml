@@ -127,6 +127,128 @@ steps:
       - "`return [pct](long cents) { return cents - cents * pct / 100; };`"
       - "flat_off: return 0 when the amount is bigger than the total."
       - "total(): sum the prices, then `return discount(sum);`"
+    more:
+      - task: |
+          Small strategies can be **combined** into bigger ones. `Rule` is a `std::function<bool(int)>`. Write the factories `at_least(n)` and `at_most(n)`, and the combinators `both(a, b)` (true when both rules pass) and `negate(r)`.
+        seed: |
+          #include <functional>
+
+          using Rule = std::function<bool(int)>;
+
+          Rule at_least(int n) {
+
+          }
+
+          Rule at_most(int n) {
+
+          }
+
+          Rule both(Rule a, Rule b) {
+
+          }
+
+          Rule negate(Rule r) {
+
+          }
+        solution: |
+          #include <functional>
+          #include <utility>
+
+          using Rule = std::function<bool(int)>;
+
+          Rule at_least(int n) {
+              return [n](int x) { return x >= n; };
+          }
+
+          Rule at_most(int n) {
+              return [n](int x) { return x <= n; };
+          }
+
+          Rule both(Rule a, Rule b) {
+              return [a = std::move(a), b = std::move(b)](int x) { return a(x) && b(x); };
+          }
+
+          Rule negate(Rule r) {
+              return [r = std::move(r)](int x) { return !r(x); };
+          }
+        harness: |
+          int main() {
+              Rule teen = both(at_least(13), at_most(19));
+              CHECK("15 is a teen", teen(15));
+              CHECK("12 is not", !teen(12));
+              CHECK("20 is not", !teen(20));
+              Rule not_teen = negate(teen);
+              CHECK("negate", not_teen(20) && !not_teen(13));
+              Rule band = both(both(at_least(0), at_most(100)), negate(at_least(50)));
+              CHECK("nested: 0 to 49", band(0) && band(49) && !band(50) && !band(-1));
+          }
+        hints:
+          - "Each factory returns a lambda that captures what it needs by value, so it keeps working after the factory returns."
+          - "`both` captures the two rules: `[a, b](int x) { return a(x) && b(x); }`."
+      - task: |
+          Write class `Pipeline`, a list of text transformations run in order. `add(step)` takes a `std::function<std::string(std::string)>` and returns `*this` so calls can be chained. `run(input)` passes the input through every step. Also write the factory `prefix(p)`, a step that puts `p` in front.
+        seed: |
+          #include <functional>
+          #include <string>
+          #include <vector>
+
+          using Step = std::function<std::string(std::string)>;
+
+          Step prefix(std::string p) {
+
+          }
+
+          class Pipeline {
+          public:
+
+          private:
+              std::vector<Step> steps_;
+          };
+        solution: |
+          #include <functional>
+          #include <string>
+          #include <utility>
+          #include <vector>
+
+          using Step = std::function<std::string(std::string)>;
+
+          Step prefix(std::string p) {
+              return [p = std::move(p)](std::string s) { return p + s; };
+          }
+
+          class Pipeline {
+          public:
+              Pipeline& add(Step step) {
+                  steps_.push_back(std::move(step));
+                  return *this;
+              }
+              std::string run(std::string input) const {
+                  for (const auto& step : steps_) input = step(std::move(input));
+                  return input;
+              }
+
+          private:
+              std::vector<Step> steps_;
+          };
+        harness: |
+          #include <algorithm>
+          int main() {
+              auto upper = [](std::string s) {
+                  for (char& c : s) c = (char)std::toupper((unsigned char)c);
+                  return s;
+              };
+              auto exclaim = [](std::string s) { return s + "!"; };
+              Pipeline p;
+              p.add(upper).add(exclaim).add(prefix("> "));
+              CHECK_EQ("three steps in order", p.run("gg"), std::string("> GG!"));
+              Pipeline empty;
+              CHECK_EQ("no steps", empty.run("same"), std::string("same"));
+              Pipeline order;
+              order.add(prefix("a")).add(prefix("b"));
+              CHECK_EQ("order matters", order.run("x"), std::string("bax"));
+          }
+        hints:
+          - "`add` ends with `return *this;` and returns `Pipeline&`, which is what makes `p.add(...).add(...)` work."
 
   - title: A factory registry
     id: cpp-patterns-2
@@ -272,6 +394,153 @@ steps:
       - "`creators_.emplace(name, std::move(make)).second` is false when the key already existed."
       - "create: `find` the name; if missing return nullptr, otherwise call the creator: `it->second()`."
       - "std::map is already sorted by key, so names() just collects the keys."
+    more:
+      - task: |
+          Creators can take arguments too. Write `UnitFactory`, where each creator is a `std::function<std::unique_ptr<Unit>(int level)>`: `add(name, creator)` (false if taken), `create(name, level)` (`nullptr` if unknown), and `remove(name)` (false if it wasn't there).
+        seed: |
+          #include <functional>
+          #include <map>
+          #include <memory>
+          #include <string>
+
+          struct Unit {
+              virtual ~Unit() = default;
+              virtual int hp() const = 0;
+          };
+
+          class UnitFactory {
+          public:
+              using Creator = std::function<std::unique_ptr<Unit>(int level)>;
+
+          private:
+              std::map<std::string, Creator> creators_;
+          };
+        solution: |
+          #include <functional>
+          #include <map>
+          #include <memory>
+          #include <string>
+
+          struct Unit {
+              virtual ~Unit() = default;
+              virtual int hp() const = 0;
+          };
+
+          class UnitFactory {
+          public:
+              using Creator = std::function<std::unique_ptr<Unit>(int level)>;
+              bool add(const std::string& name, Creator make) { return creators_.emplace(name, std::move(make)).second; }
+              std::unique_ptr<Unit> create(const std::string& name, int level) const {
+                  auto it = creators_.find(name);
+                  return it == creators_.end() ? nullptr : it->second(level);
+              }
+              bool remove(const std::string& name) { return creators_.erase(name) > 0; }
+
+          private:
+              std::map<std::string, Creator> creators_;
+          };
+        harness: |
+          struct Grunt : Unit {
+              int level;
+              explicit Grunt(int l) : level(l) {}
+              int hp() const override { return 50 + 10 * level; }
+          };
+          int main() {
+              UnitFactory f;
+              CHECK("add grunt", f.add("grunt", [](int l) { return std::make_unique<Grunt>(l); }));
+              CHECK("name taken", !f.add("grunt", [](int l) { return std::make_unique<Grunt>(l + 1); }));
+              auto g = f.create("grunt", 3);
+              CHECK("level passed on", g && g->hp() == 80);
+              CHECK("unknown", f.create("dragon", 1) == nullptr);
+              CHECK("remove", f.remove("grunt"));
+              CHECK("remove again", !f.remove("grunt"));
+              CHECK("gone", f.create("grunt", 1) == nullptr);
+          }
+        hints:
+          - "`creators_.emplace(name, make).second` is false when the name is already there."
+          - "`map::erase(key)` returns how many entries it removed."
+      - task: |
+          Registering every class by hand repeats the same lambda. Write `template <typename T> bool register_type(Factory& f, const std::string& name)` that registers a creator making a `T`, and `std::vector<std::unique_ptr<Weapon>> create_all(const Factory& f, const std::vector<std::string>& names)` that creates each named weapon, skipping unknown names.
+        seed: |
+          #include <functional>
+          #include <map>
+          #include <memory>
+          #include <string>
+          #include <vector>
+
+          struct Weapon {
+              virtual ~Weapon() = default;
+              virtual int damage() const = 0;
+          };
+
+          class Factory {
+          public:
+              using Creator = std::function<std::unique_ptr<Weapon>()>;
+              bool add(const std::string& name, Creator make) { return creators_.emplace(name, std::move(make)).second; }
+              std::unique_ptr<Weapon> create(const std::string& name) const {
+                  auto it = creators_.find(name);
+                  return it == creators_.end() ? nullptr : it->second();
+              }
+
+          private:
+              std::map<std::string, Creator> creators_;
+          };
+
+          // register_type and create_all here
+        solution: |
+          #include <functional>
+          #include <map>
+          #include <memory>
+          #include <string>
+          #include <vector>
+
+          struct Weapon {
+              virtual ~Weapon() = default;
+              virtual int damage() const = 0;
+          };
+
+          class Factory {
+          public:
+              using Creator = std::function<std::unique_ptr<Weapon>()>;
+              bool add(const std::string& name, Creator make) { return creators_.emplace(name, std::move(make)).second; }
+              std::unique_ptr<Weapon> create(const std::string& name) const {
+                  auto it = creators_.find(name);
+                  return it == creators_.end() ? nullptr : it->second();
+              }
+
+          private:
+              std::map<std::string, Creator> creators_;
+          };
+
+          // register_type and create_all here
+          template <typename T>
+          bool register_type(Factory& f, const std::string& name) {
+              return f.add(name, [] { return std::make_unique<T>(); });
+          }
+
+          std::vector<std::unique_ptr<Weapon>> create_all(const Factory& f, const std::vector<std::string>& names) {
+              std::vector<std::unique_ptr<Weapon>> out;
+              for (const auto& n : names) {
+                  if (auto w = f.create(n)) out.push_back(std::move(w));
+              }
+              return out;
+          }
+        harness: |
+          struct Ak : Weapon { int damage() const override { return 36; } };
+          struct Awp : Weapon { int damage() const override { return 115; } };
+          int main() {
+              Factory f;
+              CHECK("register Ak", register_type<Ak>(f, "ak47"));
+              CHECK("register Awp", register_type<Awp>(f, "awp"));
+              CHECK("name taken", !register_type<Ak>(f, "awp"));
+              auto ws = create_all(f, {"awp", "negev", "ak47", "awp"});
+              CHECK_EQ("unknown skipped", ws.size(), 3u);
+              int total = 0;
+              for (const auto& w : ws) total += w->damage();
+              CHECK_EQ("total damage", total, 115 + 36 + 115);
+          }
+        hints:
+          - "The lambda needs no captures: `[] { return std::make_unique<T>(); }`, where `T` comes from the template."
 
   - title: Observers with weak_ptr
     id: cpp-patterns-3
@@ -413,6 +682,197 @@ steps:
     hints:
       - "subscribe: `listeners_.push_back(l);` converts the shared_ptr to a weak_ptr."
       - "publish: loop with an iterator; `if (auto l = it->lock())` notify and advance, else `it = listeners_.erase(it);`"
+    more:
+      - task: |
+          Unsubscribing by hand is easy to forget, so hand out an RAII `Subscription`. `Signal::connect(fn)` stores the callback under a new id and returns a `Subscription`; destroying the subscription removes the callback. `emit(v)` calls every connected callback, and `size()` counts them. `Subscription` is move-only.
+        seed: |
+          #include <functional>
+          #include <map>
+          #include <utility>
+
+          class Signal;
+
+          class Subscription {
+          public:
+              Subscription(Signal* s, int id) : signal_(s), id_(id) {}
+              // destructor and move operations here
+
+          private:
+              Signal* signal_;
+              int id_;
+          };
+
+          class Signal {
+          public:
+              Subscription connect(std::function<void(int)> fn);
+              void emit(int v) const;
+              int size() const;
+              void disconnect(int id);
+
+          private:
+              std::map<int, std::function<void(int)>> slots_;
+              int next_id_ = 0;
+          };
+        solution: |
+          #include <functional>
+          #include <map>
+          #include <utility>
+
+          class Signal;
+
+          class Subscription {
+          public:
+              Subscription(Signal* s, int id) : signal_(s), id_(id) {}
+              // destructor and move operations here
+              ~Subscription();
+              Subscription(Subscription&& o) noexcept : signal_(std::exchange(o.signal_, nullptr)), id_(o.id_) {}
+              Subscription& operator=(Subscription&& o) noexcept;
+              Subscription(const Subscription&) = delete;
+              Subscription& operator=(const Subscription&) = delete;
+
+          private:
+              Signal* signal_;
+              int id_;
+          };
+
+          class Signal {
+          public:
+              Subscription connect(std::function<void(int)> fn) {
+                  int id = next_id_++;
+                  slots_[id] = std::move(fn);
+                  return Subscription(this, id);
+              }
+              void emit(int v) const {
+                  for (const auto& [id, fn] : slots_) fn(v);
+              }
+              int size() const { return (int)slots_.size(); }
+              void disconnect(int id) { slots_.erase(id); }
+
+          private:
+              std::map<int, std::function<void(int)>> slots_;
+              int next_id_ = 0;
+          };
+
+          Subscription::~Subscription() {
+              if (signal_) signal_->disconnect(id_);
+          }
+
+          Subscription& Subscription::operator=(Subscription&& o) noexcept {
+              if (this != &o) {
+                  if (signal_) signal_->disconnect(id_);
+                  signal_ = std::exchange(o.signal_, nullptr);
+                  id_ = o.id_;
+              }
+              return *this;
+          }
+        harness: |
+          #include <type_traits>
+          int main() {
+              Signal s;
+              int a = 0, b = 0;
+              auto sub_a = s.connect([&](int v) { a += v; });
+              {
+                  auto sub_b = s.connect([&](int v) { b += v; });
+                  s.emit(5);
+                  CHECK_EQ("two connected", s.size(), 2);
+              }
+              CHECK_EQ("b unsubscribed at the end of its scope", s.size(), 1);
+              s.emit(1);
+              CHECK("a got both, b only the first", a == 6 && b == 5);
+              Subscription moved = std::move(sub_a);
+              CHECK_EQ("moving doesn't disconnect", s.size(), 1);
+              moved = s.connect([&](int v) { b += 100 * v; });
+              CHECK_EQ("assigning over it disconnects the old one", s.size(), 1);
+              s.emit(1);
+              CHECK("only the new callback ran", a == 6 && b == 105);
+              CHECK("not copyable", !std::is_copy_constructible_v<Subscription>);
+          }
+        hints:
+          - "The move constructor takes the signal pointer and leaves `nullptr` behind, so the moved-from destructor does nothing."
+          - "`~Subscription` needs `Signal` to be complete, so define it after the `Signal` class."
+      - task: |
+          Listeners can now subscribe to **one team** or to all of them (an empty team string). `publish(team, score)` notifies the living listeners interested in that team, in subscription order, removes expired ones, and returns how many it notified. The scoreboard must not keep listeners alive.
+        seed: |
+          #include <memory>
+          #include <string>
+          #include <vector>
+
+          struct Listener {
+              virtual ~Listener() = default;
+              virtual void on_score(const std::string& team, int score) = 0;
+          };
+
+          class Scoreboard {
+          public:
+              void subscribe(const std::shared_ptr<Listener>& l, const std::string& team = "");
+              int publish(const std::string& team, int score);
+              std::size_t listener_count() const;
+
+          private:
+
+          };
+        solution: |
+          #include <memory>
+          #include <string>
+          #include <vector>
+
+          struct Listener {
+              virtual ~Listener() = default;
+              virtual void on_score(const std::string& team, int score) = 0;
+          };
+
+          class Scoreboard {
+          public:
+              void subscribe(const std::shared_ptr<Listener>& l, const std::string& team = "") { subs_.push_back({l, team}); }
+              int publish(const std::string& team, int score) {
+                  int n = 0;
+                  std::vector<Sub> alive;
+                  for (auto& s : subs_) {
+                      auto l = s.listener.lock();
+                      if (!l) continue;
+                      if (s.team.empty() || s.team == team) {
+                          l->on_score(team, score);
+                          n++;
+                      }
+                      alive.push_back(s);
+                  }
+                  subs_ = std::move(alive);
+                  return n;
+              }
+              std::size_t listener_count() const { return subs_.size(); }
+
+          private:
+              struct Sub {
+                  std::weak_ptr<Listener> listener;
+                  std::string team;
+              };
+              std::vector<Sub> subs_;
+          };
+        harness: |
+          struct Log : Listener {
+              std::string text;
+              void on_score(const std::string& team, int score) override { text += team + ":" + std::to_string(score) + " "; }
+          };
+          int main() {
+              Scoreboard sb;
+              auto all = std::make_shared<Log>();
+              auto navi_fan = std::make_shared<Log>();
+              auto faze_fan = std::make_shared<Log>();
+              sb.subscribe(all);
+              sb.subscribe(navi_fan, "navi");
+              sb.subscribe(faze_fan, "faze");
+              CHECK_EQ("navi scores", sb.publish("navi", 1), 2);
+              CHECK_EQ("faze scores", sb.publish("faze", 1), 2);
+              CHECK("listeners aren't kept alive", all.use_count() == 1);
+              CHECK_EQ("all saw both", all->text, std::string("navi:1 faze:1 "));
+              CHECK_EQ("navi fan saw navi only", navi_fan->text, std::string("navi:1 "));
+              faze_fan.reset();
+              CHECK_EQ("expired listener skipped", sb.publish("faze", 2), 1);
+              CHECK_EQ("and removed", sb.listener_count(), 2u);
+          }
+        hints:
+          - "Store a small struct with a `std::weak_ptr<Listener>` and the team."
+          - "Build a new vector of the entries that are still alive while you publish, then swap it in."
 
   - title: Pimpl
     id: cpp-patterns-4
@@ -545,6 +1005,156 @@ steps:
       - "`struct Roster::Impl { std::vector<std::string> names; };`"
       - "`Roster::Roster() : impl_(std::make_unique<Impl>()) {}`, and `Roster::~Roster() = default;` after Impl is defined."
       - "`Roster::Roster(Roster&&) noexcept = default;` also needs Impl complete, so it goes here too."
+    more:
+      - task: |
+          Pimpl classes need their copy operations written by hand, because `unique_ptr` can't be copied. Write the "source file" part of `Settings`: `Impl` holding a `std::map<std::string, std::string>`, the constructor and destructor, a **deep-copying** copy constructor and copy assignment, `set` and `get` (`""` for a missing key).
+        seed: |
+          #include <map>
+          #include <memory>
+          #include <string>
+
+          // ---- settings.h ----
+          class Settings {
+          public:
+              Settings();
+              ~Settings();
+              Settings(const Settings& other);
+              Settings& operator=(const Settings& other);
+              void set(const std::string& key, const std::string& value);
+              std::string get(const std::string& key) const;
+
+          private:
+              struct Impl;
+              std::unique_ptr<Impl> impl_;
+          };
+
+          // ---- settings.cpp ----
+        solution: |
+          #include <map>
+          #include <memory>
+          #include <string>
+
+          // ---- settings.h ----
+          class Settings {
+          public:
+              Settings();
+              ~Settings();
+              Settings(const Settings& other);
+              Settings& operator=(const Settings& other);
+              void set(const std::string& key, const std::string& value);
+              std::string get(const std::string& key) const;
+
+          private:
+              struct Impl;
+              std::unique_ptr<Impl> impl_;
+          };
+
+          // ---- settings.cpp ----
+          struct Settings::Impl {
+              std::map<std::string, std::string> values;
+          };
+
+          Settings::Settings() : impl_(std::make_unique<Impl>()) {}
+          Settings::~Settings() = default;
+          Settings::Settings(const Settings& other) : impl_(std::make_unique<Impl>(*other.impl_)) {}
+          Settings& Settings::operator=(const Settings& other) {
+              if (this != &other) *impl_ = *other.impl_;
+              return *this;
+          }
+          void Settings::set(const std::string& key, const std::string& value) { impl_->values[key] = value; }
+          std::string Settings::get(const std::string& key) const {
+              auto it = impl_->values.find(key);
+              return it == impl_->values.end() ? "" : it->second;
+          }
+        harness: |
+          int main() {
+              Settings a;
+              a.set("sens", "2.0");
+              Settings b = a;
+              b.set("sens", "1.5");
+              CHECK_EQ("copy is independent", a.get("sens"), std::string("2.0"));
+              CHECK_EQ("copy changed", b.get("sens"), std::string("1.5"));
+              Settings c;
+              c = a;
+              a.set("fov", "90");
+              CHECK_EQ("assigned copy is independent", c.get("fov"), std::string(""));
+              CHECK_EQ("assigned value", c.get("sens"), std::string("2.0"));
+              Settings& same = c;
+              c = same;
+              CHECK_EQ("self-assignment is safe", c.get("sens"), std::string("2.0"));
+              CHECK_EQ("public size is one pointer", sizeof(Settings), sizeof(void*));
+          }
+        hints:
+          - "Deep copy: `impl_(std::make_unique<Impl>(*other.impl_))` copies the `Impl`, not the pointer."
+          - "Copy assignment can copy the `Impl` itself: `*impl_ = *other.impl_;`"
+      - task: |
+          Another way to hide an implementation is an **interface plus a factory**. `Store` declares pure virtual `put` and `get` and a static `create()`. In the "source file" part, write a hidden class `MemoryStore` that keeps the data in a `std::map`, and `Store::create()` returning one. Callers never see `MemoryStore`.
+        seed: |
+          #include <map>
+          #include <memory>
+          #include <optional>
+          #include <string>
+
+          // ---- store.h ----
+          class Store {
+          public:
+              virtual ~Store() = default;
+              virtual void put(const std::string& key, const std::string& value) = 0;
+              virtual std::optional<std::string> get(const std::string& key) const = 0;
+              static std::unique_ptr<Store> create();
+          };
+
+          // ---- store.cpp ----
+        solution: |
+          #include <map>
+          #include <memory>
+          #include <optional>
+          #include <string>
+
+          // ---- store.h ----
+          class Store {
+          public:
+              virtual ~Store() = default;
+              virtual void put(const std::string& key, const std::string& value) = 0;
+              virtual std::optional<std::string> get(const std::string& key) const = 0;
+              static std::unique_ptr<Store> create();
+          };
+
+          // ---- store.cpp ----
+          namespace {
+          class MemoryStore : public Store {
+          public:
+              void put(const std::string& key, const std::string& value) override { data_[key] = value; }
+              std::optional<std::string> get(const std::string& key) const override {
+                  auto it = data_.find(key);
+                  if (it == data_.end()) return std::nullopt;
+                  return it->second;
+              }
+
+          private:
+              std::map<std::string, std::string> data_;
+          };
+          }  // namespace
+
+          std::unique_ptr<Store> Store::create() {
+              return std::make_unique<MemoryStore>();
+          }
+        harness: |
+          #include <type_traits>
+          int main() {
+              CHECK("Store is abstract", std::is_abstract_v<Store>);
+              auto s = Store::create();
+              CHECK("created", s != nullptr);
+              s->put("map", "nuke");
+              s->put("map", "inferno");
+              CHECK_EQ("latest value", s->get("map").value_or("?"), std::string("inferno"));
+              CHECK("missing key", !s->get("mode"));
+              auto t = Store::create();
+              CHECK("separate stores", !t->get("map"));
+          }
+        hints:
+          - "An unnamed `namespace { ... }` keeps `MemoryStore` private to its source file."
+          - "`create()` returns `std::make_unique<MemoryStore>()`, which converts to `std::unique_ptr<Store>`."
 
   - title: RAII wrappers for C libraries
     id: cpp-patterns-5
@@ -686,6 +1296,106 @@ steps:
       - "`struct FileCloser { void operator()(std::FILE* f) const { if (f) std::fclose(f); } };`"
       - "`using File = std::unique_ptr<std::FILE, FileCloser>;` and open_file returns `File(std::fopen(path.c_str(), mode))`."
       - "In first_line, `fgets` into a buffer, build a std::string and drop a trailing '\\n'."
+    more:
+      - task: |
+          Wrap `malloc`'d memory the same way. Write `FreeDeleter` (calls `std::free`), `using Buffer = std::unique_ptr<char, FreeDeleter>`, and `Buffer copy_text(const char* s)` that allocates `strlen(s) + 1` bytes with `std::malloc` and copies the string in (like `strdup`). Return an empty `Buffer` if `malloc` fails.
+        seed: |
+          #include <cstdlib>
+          #include <cstring>
+          #include <memory>
+
+          // FreeDeleter, Buffer and copy_text here
+        solution: |
+          #include <cstdlib>
+          #include <cstring>
+          #include <memory>
+
+          // FreeDeleter, Buffer and copy_text here
+          struct FreeDeleter {
+              void operator()(char* p) const { std::free(p); }
+          };
+
+          using Buffer = std::unique_ptr<char, FreeDeleter>;
+
+          Buffer copy_text(const char* s) {
+              std::size_t n = std::strlen(s) + 1;
+              Buffer b(static_cast<char*>(std::malloc(n)));
+              if (b) std::memcpy(b.get(), s, n);
+              return b;
+          }
+        harness: |
+          int main() {
+              Buffer b = copy_text("de_dust2");
+              CHECK_EQ("copied", std::string(b.get()), std::string("de_dust2"));
+              const char* original = "nuke";
+              Buffer c = copy_text(original);
+              CHECK("a separate copy", c.get() != original);
+              CHECK_EQ("empty string", std::string(copy_text("").get()), std::string(""));
+              CHECK_EQ("no size overhead", sizeof(Buffer), sizeof(char*));
+              for (int i = 0; i < 10000; i++) Buffer t = copy_text("freed every time");
+              CHECK("many buffers freed without leaking", true);
+          }
+        hints:
+          - "The deleter is a struct with `void operator()(char* p) const { std::free(p); }`, so it takes no space inside the `unique_ptr`."
+          - "Copy `strlen(s) + 1` bytes so the terminating `'\\0'` comes along."
+      - task: |
+          Write a general cleanup guard: `template <typename F> class ScopeExit` that runs its function when it's destroyed, unless `dismiss()` was called. It must be move-only: moving hands the job over, so the function runs **once**.
+        seed: |
+          #include <utility>
+
+          template <typename F>
+          class ScopeExit {
+          public:
+              explicit ScopeExit(F f) : f_(std::move(f)) {}
+
+          private:
+              F f_;
+          };
+        solution: |
+          #include <utility>
+
+          template <typename F>
+          class ScopeExit {
+          public:
+              explicit ScopeExit(F f) : f_(std::move(f)) {}
+              ~ScopeExit() {
+                  if (active_) f_();
+              }
+              ScopeExit(ScopeExit&& o) noexcept : f_(std::move(o.f_)), active_(std::exchange(o.active_, false)) {}
+              ScopeExit(const ScopeExit&) = delete;
+              ScopeExit& operator=(const ScopeExit&) = delete;
+              ScopeExit& operator=(ScopeExit&&) = delete;
+              void dismiss() { active_ = false; }
+
+          private:
+              F f_;
+              bool active_ = true;
+          };
+        harness: |
+          #include <type_traits>
+          template <typename F>
+          ScopeExit<F> make_guard(F f) { return ScopeExit<F>(std::move(f)); }
+          int main() {
+              int runs = 0;
+              {
+                  ScopeExit g([&] { runs++; });
+              }
+              CHECK_EQ("runs at the end of the scope", runs, 1);
+              {
+                  ScopeExit g([&] { runs++; });
+                  g.dismiss();
+              }
+              CHECK_EQ("dismissed guard doesn't run", runs, 1);
+              {
+                  auto g = make_guard([&] { runs += 10; });
+                  auto moved = std::move(g);
+              }
+              CHECK_EQ("moved guard runs once", runs, 11);
+              CHECK("not copyable", !std::is_copy_constructible_v<ScopeExit<void (*)()>>);
+          }
+        hints:
+          - "Keep a `bool active_ = true;`. The destructor runs the function only while it's true."
+          - "The move constructor sets the source's flag to false with `std::exchange(o.active_, false)`."
 
   - title: Type erasure
     id: cpp-patterns-7
@@ -828,6 +1538,105 @@ steps:
       - "Follow the lesson's `Shape` exactly, renaming `area` to `run` and `double` to `int`."
       - "Private parts: a `Concept` base with `run()` and `clone()`, a `Model<T>` template holding a `T value`, and a `std::unique_ptr<Concept> self_`."
       - "The copy constructor is `self_(other.self_->clone())`; the moves can be `= default`."
+    more:
+      - task: |
+          Write `Printable`, a **move-only** type-erased wrapper for anything with `std::string text() const`. Without copying there's no need for `clone`: an interface with `text()`, a templated model holding the object, and a `std::unique_ptr` to the interface. Give it a templated constructor and `std::string text() const`.
+        seed: |
+          #include <memory>
+          #include <string>
+          #include <utility>
+
+          class Printable {
+          public:
+
+          private:
+
+          };
+        solution: |
+          #include <memory>
+          #include <string>
+          #include <utility>
+
+          class Printable {
+          public:
+              template <typename T>
+              Printable(T obj) : self_(std::make_unique<Model<T>>(std::move(obj))) {}
+              std::string text() const { return self_->text(); }
+
+          private:
+              struct Concept {
+                  virtual ~Concept() = default;
+                  virtual std::string text() const = 0;
+              };
+              template <typename T>
+              struct Model : Concept {
+                  T obj;
+                  explicit Model(T o) : obj(std::move(o)) {}
+                  std::string text() const override { return obj.text(); }
+              };
+              std::unique_ptr<Concept> self_;
+          };
+        harness: |
+          #include <type_traits>
+          struct Kill { std::string who; std::string text() const { return who + " got a kill"; } };
+          struct Score { int t, ct; std::string text() const { return std::to_string(t) + "-" + std::to_string(ct); } };
+          int main() {
+              std::vector<Printable> feed;
+              feed.push_back(Kill{"ropz"});
+              feed.push_back(Score{7, 5});
+              std::string all;
+              for (const auto& p : feed) all += p.text() + "; ";
+              CHECK_EQ("unrelated types in one vector", all, std::string("ropz got a kill; 7-5; "));
+              Printable moved = std::move(feed[0]);
+              CHECK_EQ("moves", moved.text(), std::string("ropz got a kill"));
+              CHECK("move-only", !std::is_copy_constructible_v<Printable>);
+          }
+        hints:
+          - "The inner `Concept` has a virtual `text()`; `Model<T>` holds a `T` and forwards `text()` to it."
+          - "A `std::unique_ptr` member already makes the wrapper move-only, with no extra code."
+      - task: |
+          `std::function` is itself type erasure, and it copies whatever it holds. Write `AnyShape`, which erases anything with `double area() const` and `std::string name() const` by storing two `std::function`s that capture a **copy** of the object. Copying an `AnyShape` then just works, with no `clone`.
+        seed: |
+          #include <functional>
+          #include <string>
+
+          class AnyShape {
+          public:
+
+          private:
+              std::function<double()> area_;
+              std::function<std::string()> name_;
+          };
+        solution: |
+          #include <functional>
+          #include <string>
+
+          class AnyShape {
+          public:
+              template <typename T>
+              AnyShape(T shape) : area_([shape] { return shape.area(); }), name_([shape] { return shape.name(); }) {}
+              double area() const { return area_(); }
+              std::string name() const { return name_(); }
+
+          private:
+              std::function<double()> area_;
+              std::function<std::string()> name_;
+          };
+        harness: |
+          struct Square { double s; double area() const { return s * s; } std::string name() const { return "square"; } };
+          struct Rect { double w, h; double area() const { return w * h; } std::string name() const { return "rect"; } };
+          int main() {
+              std::vector<AnyShape> shapes = {Square{2}, Rect{2, 3}};
+              double total = 0;
+              for (const auto& s : shapes) total += s.area();
+              CHECK("total area", total == 10);
+              CHECK_EQ("names", shapes[0].name() + "," + shapes[1].name(), std::string("square,rect"));
+              AnyShape copy = shapes[1];
+              shapes[1] = Square{1};
+              CHECK("the copy kept its own shape", copy.area() == 6 && copy.name() == "rect");
+          }
+        hints:
+          - "In a templated constructor, `[shape] { return shape.area(); }` captures a copy of the shape inside the lambda."
   - title: "Challenge: a table-driven state machine"
     id: cpp-patterns-6
     text: |
@@ -1001,3 +1810,114 @@ steps:
       - "Define `struct Transition { State from; Event on; State to; };` and a `constexpr Transition kTable[]` with the six rows."
       - "next: loop over the table and return `t.to` on a match; otherwise `std::nullopt`."
       - "handle: ask next(); if it's empty return false, otherwise update the state and count."
+    more:
+      - task: |
+          Write a turnstile as a **table**: a `std::map` from `{State, Event}` pairs to the next state. A coin unlocks a locked turnstile, a push locks an unlocked one, and a coin while unlocked keeps it unlocked. A push while locked isn't in the table, so `handle` returns false. `coins()` counts accepted coins.
+        seed: |
+          #include <map>
+          #include <utility>
+
+          enum class State { Locked, Unlocked };
+          enum class Event { Coin, Push };
+
+          class Turnstile {
+          public:
+              bool handle(Event e);
+              State state() const { return state_; }
+              int coins() const { return coins_; }
+
+          private:
+              State state_ = State::Locked;
+              int coins_ = 0;
+          };
+        solution: |
+          #include <map>
+          #include <utility>
+
+          enum class State { Locked, Unlocked };
+          enum class Event { Coin, Push };
+
+          class Turnstile {
+          public:
+              bool handle(Event e) {
+                  static const std::map<std::pair<State, Event>, State> table = {
+                      {{State::Locked, Event::Coin}, State::Unlocked},
+                      {{State::Unlocked, Event::Push}, State::Locked},
+                      {{State::Unlocked, Event::Coin}, State::Unlocked},
+                  };
+                  auto it = table.find({state_, e});
+                  if (it == table.end()) return false;
+                  if (e == Event::Coin) coins_++;
+                  state_ = it->second;
+                  return true;
+              }
+              State state() const { return state_; }
+              int coins() const { return coins_; }
+
+          private:
+              State state_ = State::Locked;
+              int coins_ = 0;
+          };
+        require:
+          - pattern: "std::map"
+            message: "Keep the transitions in a `std::map` table."
+        harness: |
+          int main() {
+              Turnstile t;
+              CHECK("push while locked is refused", !t.handle(Event::Push));
+              CHECK("coin", t.handle(Event::Coin));
+              CHECK("unlocked", t.state() == State::Unlocked);
+              CHECK("extra coin accepted", t.handle(Event::Coin));
+              CHECK("push", t.handle(Event::Push));
+              CHECK("locked again", t.state() == State::Locked);
+              CHECK_EQ("two coins", t.coins(), 2);
+          }
+        hints:
+          - "`std::pair` of two enums can be a map key, because pairs compare with `<`."
+          - "A `static const` table inside `handle` is built once."
+      - task: |
+          Recognise numbers like `-12.5` with an explicit state machine: an optional sign, one or more digits, then optionally a `.` followed by one or more digits. Write `bool is_number(std::string_view s)` with an `enum class` of states and a loop that moves between them one character at a time. Only some states accept at the end.
+        seed: |
+          #include <string_view>
+
+          bool is_number(std::string_view s) {
+
+          }
+        solution: |
+          #include <string_view>
+
+          bool is_number(std::string_view s) {
+              enum class St { Start, Sign, Int, Dot, Frac, Fail };
+              St st = St::Start;
+              for (char c : s) {
+                  bool digit = c >= '0' && c <= '9';
+                  switch (st) {
+                      case St::Start: st = (c == '-' || c == '+') ? St::Sign : digit ? St::Int : St::Fail; break;
+                      case St::Sign: st = digit ? St::Int : St::Fail; break;
+                      case St::Int: st = digit ? St::Int : c == '.' ? St::Dot : St::Fail; break;
+                      case St::Dot: st = digit ? St::Frac : St::Fail; break;
+                      case St::Frac: st = digit ? St::Frac : St::Fail; break;
+                      case St::Fail: return false;
+                  }
+              }
+              return st == St::Int || st == St::Frac;
+          }
+        require:
+          - pattern: "enum\\s+class"
+            message: "Name the states with an `enum class`."
+        harness: |
+          int main() {
+              CHECK("-12.5", is_number("-12.5"));
+              CHECK("42", is_number("42"));
+              CHECK("+7", is_number("+7"));
+              CHECK("0.25", is_number("0.25"));
+              CHECK("12. has no fraction digits", !is_number("12."));
+              CHECK(".5 has no integer digits", !is_number(".5"));
+              CHECK("just a sign", !is_number("-"));
+              CHECK("two dots", !is_number("1.2.3"));
+              CHECK("letters", !is_number("1e5"));
+              CHECK("empty", !is_number(""));
+          }
+        hints:
+          - "States such as Start, Sign, Int, Dot, Frac and Fail. Each character moves you to a new state."
+          - "At the end, accept only if you stopped in Int or Frac."

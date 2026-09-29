@@ -132,6 +132,132 @@ steps:
       - "`base = n / parts` and `extra = n % parts`. Range `i` holds `base + 1` items if `i < extra`, otherwise `base`."
       - "Keep a running `lo`. Each range is `{lo, lo + len}`, then `lo += len`."
       - "sum_range is a plain loop from `lo` up to (not including) `hi`, adding into a `long long`."
+    more:
+      - task: |
+          Starting a thread costs time, so tiny chunks aren't worth it. `split` is written for you. Write `plan(n, min_chunk, max_threads)`: use as many parts as possible, but no more than `max_threads` and none smaller than `min_chunk` items (so at most `n / min_chunk` parts), and always at least 1 part. Return `split(n, parts)`.
+        seed: |
+          #include <cstddef>
+          #include <utility>
+          #include <vector>
+
+          using Range = std::pair<std::size_t, std::size_t>;   // [first, second)
+
+          std::vector<Range> split(std::size_t n, std::size_t parts) {
+              std::vector<Range> out;
+              std::size_t base = n / parts, extra = n % parts, lo = 0;
+              for (std::size_t i = 0; i < parts; i++) {
+                  std::size_t len = base + (i < extra ? 1 : 0);
+                  out.push_back({lo, lo + len});
+                  lo += len;
+              }
+              return out;
+          }
+
+          std::vector<Range> plan(std::size_t n, std::size_t min_chunk, std::size_t max_threads) {
+
+          }
+        solution: |
+          #include <algorithm>
+          #include <cstddef>
+          #include <utility>
+          #include <vector>
+
+          using Range = std::pair<std::size_t, std::size_t>;   // [first, second)
+
+          std::vector<Range> split(std::size_t n, std::size_t parts) {
+              std::vector<Range> out;
+              std::size_t base = n / parts, extra = n % parts, lo = 0;
+              for (std::size_t i = 0; i < parts; i++) {
+                  std::size_t len = base + (i < extra ? 1 : 0);
+                  out.push_back({lo, lo + len});
+                  lo += len;
+              }
+              return out;
+          }
+
+          std::vector<Range> plan(std::size_t n, std::size_t min_chunk, std::size_t max_threads) {
+              std::size_t parts = std::min(max_threads, n / min_chunk);
+              return split(n, std::max<std::size_t>(parts, 1));
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("plenty of work: all 4 threads", plan(1000, 100, 4).size(), 4u);
+              CHECK_EQ("chunks would be too small: 3 parts", plan(350, 100, 8).size(), 3u);
+              CHECK_EQ("less than one chunk: 1 part", plan(50, 100, 8).size(), 1u);
+              CHECK_EQ("nothing to do still gives 1 part", plan(0, 10, 4).size(), 1u);
+              auto p = plan(350, 100, 8);
+              CHECK("no part below 100 items", p[0].second - p[0].first >= 100 && p[2].second - p[2].first >= 100);
+              CHECK("covers everything", p.back().second == 350);
+          }
+        hints:
+          - "The number of parts is the smallest of `max_threads` and `n / min_chunk`, but never less than 1."
+      - task: |
+          Threads each produce a **partial result**, and the results are combined at the end. Write `std::pair<int, int> minmax_parts(const std::vector<int>& v, std::size_t parts)`: split `v` with `split` (given), find the minimum and maximum of each part separately, **skip empty parts**, then combine them. `v` is never empty.
+        seed: |
+          #include <cstddef>
+          #include <utility>
+          #include <vector>
+
+          using Range = std::pair<std::size_t, std::size_t>;   // [first, second)
+
+          std::vector<Range> split(std::size_t n, std::size_t parts) {
+              std::vector<Range> out;
+              std::size_t base = n / parts, extra = n % parts, lo = 0;
+              for (std::size_t i = 0; i < parts; i++) {
+                  std::size_t len = base + (i < extra ? 1 : 0);
+                  out.push_back({lo, lo + len});
+                  lo += len;
+              }
+              return out;
+          }
+
+          std::pair<int, int> minmax_parts(const std::vector<int>& v, std::size_t parts) {
+
+          }
+        solution: |
+          #include <algorithm>
+          #include <cstddef>
+          #include <utility>
+          #include <vector>
+
+          using Range = std::pair<std::size_t, std::size_t>;   // [first, second)
+
+          std::vector<Range> split(std::size_t n, std::size_t parts) {
+              std::vector<Range> out;
+              std::size_t base = n / parts, extra = n % parts, lo = 0;
+              for (std::size_t i = 0; i < parts; i++) {
+                  std::size_t len = base + (i < extra ? 1 : 0);
+                  out.push_back({lo, lo + len});
+                  lo += len;
+              }
+              return out;
+          }
+
+          std::pair<int, int> minmax_parts(const std::vector<int>& v, std::size_t parts) {
+              std::vector<std::pair<int, int>> partial;
+              for (auto [lo, hi] : split(v.size(), parts)) {
+                  if (lo == hi) continue;
+                  auto [mn, mx] = std::minmax_element(v.begin() + lo, v.begin() + hi);
+                  partial.push_back({*mn, *mx});
+              }
+              std::pair<int, int> result = partial[0];
+              for (auto [mn, mx] : partial) {
+                  result.first = std::min(result.first, mn);
+                  result.second = std::max(result.second, mx);
+              }
+              return result;
+          }
+        harness: |
+          int main() {
+              std::vector<int> v = {5, -3, 9, 0, 12, 7, -8};
+              CHECK("3 parts", minmax_parts(v, 3) == std::pair{-8, 12});
+              CHECK("1 part", minmax_parts(v, 1) == std::pair{-8, 12});
+              CHECK("more parts than items: empty parts skipped", minmax_parts({4, 2}, 5) == std::pair{2, 4});
+              CHECK("one item", minmax_parts({7}, 3) == std::pair{7, 7});
+          }
+        hints:
+          - "An empty part has no minimum, so it must not contribute a made-up value like 0."
+          - "Start the combined result from the first non-empty part's result."
 
   - title: Data races
     id: cpp-concurrency-2
@@ -271,6 +397,109 @@ steps:
       - "Keep a `reg` and a `stage` for each thread. On each character, pick that thread and do its next step: stage 0 loads `counter` into `reg`, stage 1 adds 1 to `reg`, stage 2 stores `reg` into `counter`. Then advance the stage, wrapping from 2 back to 0."
       - "`Thread& t = (who == 'A') ? a : b;` picks the right thread by reference, so the changes stick."
       - "For lost_updates, count how many steps were stores (a thread at stage 2), then subtract the final counter."
+    more:
+      - task: |
+          Now three threads `'A'`, `'B'` and `'C'` each repeat `counter++` as load, add, store, taking turns as the schedule says. Write `simulate3(schedule)` returning the final counter. An increment that never reaches its store has no effect.
+        seed: |
+          #include <string>
+
+          int simulate3(const std::string& schedule) {
+
+          }
+        solution: |
+          #include <map>
+          #include <string>
+
+          int simulate3(const std::string& schedule) {
+              int counter = 0;
+              std::map<char, int> stage, reg;
+              for (char who : schedule) {
+                  int& st = stage[who];
+                  if (st == 0) reg[who] = counter;
+                  else if (st == 1) reg[who]++;
+                  else counter = reg[who];
+                  st = (st + 1) % 3;
+              }
+              return counter;
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("one after another", simulate3("AAABBBCCC"), 3);
+              CHECK_EQ("all three load 0 first", simulate3("ABCABCABC"), 1);
+              CHECK_EQ("C starts after A's store", simulate3("ABABABCCC"), 2);
+              CHECK_EQ("unfinished", simulate3("AABBCC"), 0);
+              CHECK_EQ("empty", simulate3(""), 0);
+          }
+        hints:
+          - "Keep, for each thread, which of its three steps comes next and the value it loaded."
+          - "A `std::map<char, int>` for each lets any thread name work."
+      - task: |
+          `simulate` is written for you. Write `int losing_schedules(int k)`: when `A` and `B` each do `k` increments (3k steps each), how many of all the possible interleavings end with a counter **below** `2k`? Generate every schedule with `k * 3` A's and `k * 3` B's (recursion works well) and run each one.
+        seed: |
+          #include <string>
+
+          int simulate(const std::string& schedule) {
+              int counter = 0, stage_a = 0, stage_b = 0, reg_a = 0, reg_b = 0;
+              for (char who : schedule) {
+                  int& st = who == 'A' ? stage_a : stage_b;
+                  int& reg = who == 'A' ? reg_a : reg_b;
+                  if (st == 0) reg = counter;
+                  else if (st == 1) reg++;
+                  else counter = reg;
+                  st = (st + 1) % 3;
+              }
+              return counter;
+          }
+
+          int losing_schedules(int k) {
+
+          }
+        solution: |
+          #include <string>
+
+          int simulate(const std::string& schedule) {
+              int counter = 0, stage_a = 0, stage_b = 0, reg_a = 0, reg_b = 0;
+              for (char who : schedule) {
+                  int& st = who == 'A' ? stage_a : stage_b;
+                  int& reg = who == 'A' ? reg_a : reg_b;
+                  if (st == 0) reg = counter;
+                  else if (st == 1) reg++;
+                  else counter = reg;
+                  st = (st + 1) % 3;
+              }
+              return counter;
+          }
+
+          static int count(std::string& s, int a_left, int b_left, int k) {
+              if (a_left == 0 && b_left == 0) return simulate(s) < 2 * k ? 1 : 0;
+              int n = 0;
+              if (a_left > 0) {
+                  s.push_back('A');
+                  n += count(s, a_left - 1, b_left, k);
+                  s.pop_back();
+              }
+              if (b_left > 0) {
+                  s.push_back('B');
+                  n += count(s, a_left, b_left - 1, k);
+                  s.pop_back();
+              }
+              return n;
+          }
+
+          int losing_schedules(int k) {
+              std::string s;
+              return count(s, 3 * k, 3 * k, k);
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("one increment each: 18 of the 20 schedules lose an update", losing_schedules(1), 18);
+              CHECK_EQ("two each: 918 of 924", losing_schedules(2), 918);
+              CHECK_EQ("three each: 48600 of 48620", losing_schedules(3), 48600);
+              CHECK_EQ("no increments, nothing to lose", losing_schedules(0), 0);
+          }
+        hints:
+          - "Build the schedule one letter at a time: add an `A` if any are left and recurse, then take it off and try a `B`."
+          - "Only 2 schedules are safe for k = 1: all of A before all of B, or the reverse. That's why races are so hard to avoid by luck."
 
   - title: Mutexes and lock_guard
     id: cpp-concurrency-3
@@ -445,6 +674,95 @@ steps:
       - "Track who holds the lock in a `char holder` (0 means free). Each thread has a stage from 0 to 4: lock, load, add, store, unlock."
       - "At the lock stage, if `holder != 0` the step fails: `continue` without advancing that thread's stage. Otherwise set `holder = who`."
       - "The unlock stage sets `holder = 0`. Advance with `t.stage = (t.stage + 1) % 5;`."
+    more:
+      - task: |
+          Measure contention. Threads `'A'` and `'B'` repeat lock, load, add, store, unlock, as in the lesson. Write `blocked_turns(schedule)`: how many turns were wasted by a thread trying its lock step while the **other** thread held the lock.
+        seed: |
+          #include <string>
+
+          int blocked_turns(const std::string& schedule) {
+
+          }
+        solution: |
+          #include <string>
+
+          int blocked_turns(const std::string& schedule) {
+              int stage_a = 0, stage_b = 0, blocked = 0;
+              char holder = 0;
+              for (char who : schedule) {
+                  int& st = who == 'A' ? stage_a : stage_b;
+                  if (st == 0) {
+                      if (holder) {
+                          blocked++;
+                          continue;
+                      }
+                      holder = who;
+                  } else if (st == 4) {
+                      holder = 0;
+                  }
+                  st = (st + 1) % 5;
+              }
+              return blocked;
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("no contention", blocked_turns("AAAAABBBBB"), 0);
+              CHECK_EQ("B waits through A's whole critical section", blocked_turns("ABABABABABBBBB"), 4);
+              CHECK_EQ("A waits once", blocked_turns("BABBBBAAAAA"), 1);
+              CHECK_EQ("B keeps trying", blocked_turns("ABBB"), 3);
+              CHECK_EQ("empty", blocked_turns(""), 0);
+          }
+        hints:
+          - "Track each thread's stage (0 = lock ... 4 = unlock) and who holds the lock."
+          - "A blocked lock attempt counts, and the thread stays at stage 0."
+      - task: |
+          Write your own `template <typename M> class LockGuard`, like `std::lock_guard`: lock the mutex in the constructor, unlock it in the destructor, and forbid copying. The test uses a fake mutex that counts calls, and checks that the lock is released even when an **exception** leaves the scope.
+        seed: |
+          template <typename M>
+          class LockGuard {
+          public:
+
+          };
+        solution: |
+          template <typename M>
+          class LockGuard {
+          public:
+              explicit LockGuard(M& m) : m_(m) { m_.lock(); }
+              ~LockGuard() { m_.unlock(); }
+              LockGuard(const LockGuard&) = delete;
+              LockGuard& operator=(const LockGuard&) = delete;
+
+          private:
+              M& m_;
+          };
+        harness: |
+          #include <stdexcept>
+          #include <type_traits>
+          struct FakeMutex {
+              bool locked = false;
+              int locks = 0;
+              void lock() { locked = true; locks++; }
+              void unlock() { locked = false; }
+          };
+          int main() {
+              FakeMutex m;
+              {
+                  LockGuard<FakeMutex> g(m);
+                  CHECK("locked inside the scope", m.locked);
+              }
+              CHECK("unlocked after it", !m.locked);
+              try {
+                  LockGuard<FakeMutex> g(m);
+                  throw std::runtime_error("boom");
+              } catch (const std::runtime_error&) {
+              }
+              CHECK("unlocked after an exception", !m.locked);
+              CHECK_EQ("locked twice in total", m.locks, 2);
+              CHECK("not copyable", !std::is_copy_constructible_v<LockGuard<FakeMutex>>);
+          }
+        hints:
+          - "Hold a reference to the mutex: `M& m_;`"
+          - "Destructors run while an exception unwinds the stack, which is what makes RAII locks safe."
 
   - title: Atomics
     id: cpp-concurrency-4
@@ -591,6 +909,86 @@ steps:
       - "take_ticket: `return next.fetch_add(1);` returns the value from before the add."
       - "claim: `taken.exchange(true)` returns the old value. The first caller gets `false` back, so return `!taken.exchange(true)`."
       - "update_max: `int cur = best.load(); while (value > cur && !best.compare_exchange_weak(cur, value)) {}`"
+    more:
+      - task: |
+          Write `int add_capped(std::atomic<int>& x, int delta, int cap)` that adds `delta` to `x` but never lets it go above `cap`, and returns the new value. Use a `compare_exchange` loop, so a change by another thread between the read and the write is never lost.
+        seed: |
+          #include <atomic>
+
+          int add_capped(std::atomic<int>& x, int delta, int cap) {
+
+          }
+        solution: |
+          #include <algorithm>
+          #include <atomic>
+
+          int add_capped(std::atomic<int>& x, int delta, int cap) {
+              int cur = x.load();
+              int next;
+              do {
+                  next = std::min(cur + delta, cap);
+              } while (!x.compare_exchange_weak(cur, next));
+              return next;
+          }
+        require:
+          - pattern: "compare_exchange"
+            message: "Use a `compare_exchange` loop."
+        harness: |
+          int main() {
+              std::atomic<int> hp{90};
+              CHECK_EQ("capped at 100", add_capped(hp, 25, 100), 100);
+              CHECK_EQ("stored", hp.load(), 100);
+              std::atomic<int> ammo{10};
+              CHECK_EQ("below the cap", add_capped(ammo, 5, 30), 15);
+              CHECK_EQ("negative delta", add_capped(ammo, -20, 30), -5);
+          }
+        hints:
+          - "`compare_exchange_weak(cur, next)` fails if `x` changed, and then reloads `cur` for you, so the loop recomputes `next`."
+      - task: |
+          A **semaphore** hands out a limited number of permits. Write `bool try_acquire(std::atomic<int>& permits)` that takes one permit if any are left (returns false otherwise) with a `compare_exchange` loop, so the count can never go below 0, and `void release(std::atomic<int>& permits)` that gives one back with `fetch_add`.
+        seed: |
+          #include <atomic>
+
+          bool try_acquire(std::atomic<int>& permits) {
+
+          }
+
+          void release(std::atomic<int>& permits) {
+
+          }
+        solution: |
+          #include <atomic>
+
+          bool try_acquire(std::atomic<int>& permits) {
+              int cur = permits.load();
+              while (cur > 0) {
+                  if (permits.compare_exchange_weak(cur, cur - 1)) return true;
+              }
+              return false;
+          }
+
+          void release(std::atomic<int>& permits) {
+              permits.fetch_add(1);
+          }
+        require:
+          - pattern: "compare_exchange"
+            message: "Take a permit with a `compare_exchange` loop."
+          - pattern: "fetch_add"
+            message: "Give it back with `fetch_add`."
+        harness: |
+          int main() {
+              std::atomic<int> p{2};
+              CHECK("first", try_acquire(p));
+              CHECK("second", try_acquire(p));
+              CHECK("none left", !try_acquire(p));
+              CHECK_EQ("never below 0", p.load(), 0);
+              release(p);
+              CHECK("one back", try_acquire(p));
+              CHECK_EQ("used again", p.load(), 0);
+          }
+        hints:
+          - "Loop while `cur > 0`; when `compare_exchange_weak(cur, cur - 1)` succeeds you have a permit."
+          - "Checking `permits > 0` and then calling `--permits` would be two separate steps, and two threads could both take the last permit."
 
   - title: Deadlock and lock ordering
     id: cpp-concurrency-5
@@ -713,6 +1111,101 @@ steps:
       - "For each thread, collect every ordered pair `(t[i], t[j])` with `i < j`: all the ways it holds one lock while taking a later one. A `std::set<std::pair<char, char>>` per thread works well."
       - "If `t[i] == t[j]` for some `i < j`, that thread takes the same lock twice: return true right away."
       - "Then for every pair of different threads, check whether one has `(x, y)` and the other has `(y, x)`."
+    more:
+      - task: |
+          The usual cure for lock-order deadlocks is a **global order**: always take locks in alphabetical order. Write `std::string ordered(const std::string& locks)` that returns the locks a thread needs, sorted with duplicates removed, and `bool follows_order(const std::string& locks)`, true when each lock comes strictly after the one before.
+        seed: |
+          #include <string>
+
+          std::string ordered(const std::string& locks) {
+
+          }
+
+          bool follows_order(const std::string& locks) {
+
+          }
+        solution: |
+          #include <algorithm>
+          #include <string>
+
+          std::string ordered(const std::string& locks) {
+              std::string s = locks;
+              std::sort(s.begin(), s.end());
+              s.erase(std::unique(s.begin(), s.end()), s.end());
+              return s;
+          }
+
+          bool follows_order(const std::string& locks) {
+              for (std::size_t i = 1; i < locks.size(); i++)
+                  if (!(locks[i - 1] < locks[i])) return false;
+              return true;
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("sorted", ordered("CAB"), std::string("ABC"));
+              CHECK_EQ("duplicates removed", ordered("BAB"), std::string("AB"));
+              CHECK("ABC follows the order", follows_order("ABC"));
+              CHECK("BA doesn't", !follows_order("BA"));
+              CHECK("AA locks A twice", !follows_order("AA"));
+              CHECK("empty is fine", follows_order(""));
+              CHECK("ordered output always follows it", follows_order(ordered("ZXYXZ")));
+          }
+        hints:
+          - "`std::sort` and then `erase(std::unique(...), end())` give sorted, distinct locks."
+      - task: |
+          Pairwise checks miss longer cycles: `{"AB", "BC", "CA"}` has no two threads with a pair in opposite orders, yet the three threads can deadlock in a circle. Write `bool has_cycle(const std::vector<std::string>& threads)`: build a graph with an edge `x -> y` whenever some thread takes `y` while holding `x` (for every earlier `x` in its string), then look for a cycle with depth-first search. A self-edge (locking the same mutex twice) is a cycle too.
+        seed: |
+          #include <map>
+          #include <set>
+          #include <string>
+          #include <vector>
+
+          bool has_cycle(const std::vector<std::string>& threads) {
+
+          }
+        solution: |
+          #include <map>
+          #include <set>
+          #include <string>
+          #include <vector>
+
+          static bool visit(char u, const std::map<char, std::set<char>>& g, std::map<char, int>& color) {
+              color[u] = 1;
+              auto it = g.find(u);
+              if (it != g.end()) {
+                  for (char v : it->second) {
+                      if (color[v] == 1) return true;
+                      if (color[v] == 0 && visit(v, g, color)) return true;
+                  }
+              }
+              color[u] = 2;
+              return false;
+          }
+
+          bool has_cycle(const std::vector<std::string>& threads) {
+              std::map<char, std::set<char>> g;
+              for (const auto& t : threads)
+                  for (std::size_t j = 0; j < t.size(); j++)
+                      for (std::size_t i = 0; i < j; i++) g[t[i]].insert(t[j]);
+              std::map<char, int> color;
+              for (const auto& [u, _] : g)
+                  if (color[u] == 0 && visit(u, g, color)) return true;
+              return false;
+          }
+        harness: |
+          int main() {
+              CHECK("three-way circle", has_cycle({"AB", "BC", "CA"}));
+              CHECK("two-way inversion", has_cycle({"AB", "BA"}));
+              CHECK("a chain is fine", !has_cycle({"AB", "BC", "CD"}));
+              CHECK("same global order", !has_cycle({"ABC", "AC", "BD"}));
+              CHECK("locking twice", has_cycle({"ABA"}));
+              CHECK("single locks", !has_cycle({"A", "B"}));
+              CHECK("nothing", !has_cycle({}));
+              CHECK("four-way circle", has_cycle({"AB", "BC", "CD", "DA"}));
+          }
+        hints:
+          - "Colour nodes: 0 unvisited, 1 on the current path, 2 finished. Reaching a node that's still on the path means a cycle."
+          - "`\"ABC\"` gives edges A->B, A->C and B->C: every lock held when a later one is taken."
 
   - title: Condition variables and producer/consumer
     id: cpp-concurrency-6
@@ -888,6 +1381,141 @@ steps:
       - "push: if `full()`, return false. Otherwise write at `(head_ + count_) % buf_.size()` and increase `count_`."
       - "pop: if `empty()`, return `std::nullopt`. Otherwise read `buf_[head_]`, move `head_` forward with `% buf_.size()`, and decrease `count_`."
       - "The `%` is what wraps the indexes around the end of the array."
+    more:
+      - task: |
+          Simulate a producer and a consumer sharing a buffer of `capacity` slots. Each `'P'` in the schedule produces the next number (1, 2, 3, ...) or, if the buffer is full, waits (counted in `producer_waits` and the number is not used up). Each `'C'` consumes the oldest number into `consumed`, or waits if the buffer is empty. Write `Result run(const std::string& schedule, std::size_t capacity)`.
+        seed: |
+          #include <cstddef>
+          #include <deque>
+          #include <string>
+          #include <vector>
+
+          struct Result {
+              std::vector<int> consumed;
+              int producer_waits = 0;
+              int consumer_waits = 0;
+          };
+
+          Result run(const std::string& schedule, std::size_t capacity) {
+
+          }
+        solution: |
+          #include <cstddef>
+          #include <deque>
+          #include <string>
+          #include <vector>
+
+          struct Result {
+              std::vector<int> consumed;
+              int producer_waits = 0;
+              int consumer_waits = 0;
+          };
+
+          Result run(const std::string& schedule, std::size_t capacity) {
+              Result r;
+              std::deque<int> buf;
+              int next = 1;
+              for (char c : schedule) {
+                  if (c == 'P') {
+                      if (buf.size() == capacity) r.producer_waits++;
+                      else buf.push_back(next++);
+                  } else if (c == 'C') {
+                      if (buf.empty()) {
+                          r.consumer_waits++;
+                      } else {
+                          r.consumed.push_back(buf.front());
+                          buf.pop_front();
+                      }
+                  }
+              }
+              return r;
+          }
+        harness: |
+          int main() {
+              auto a = run("PPCC", 2);
+              CHECK_EQ("in order", a.consumed, (std::vector<int>{1, 2}));
+              CHECK("no waiting", a.producer_waits == 0 && a.consumer_waits == 0);
+              auto b = run("PPPCPC", 2);
+              CHECK_EQ("the third P waited, so 3 comes later", b.consumed, (std::vector<int>{1, 2}));
+              CHECK_EQ("producer waited once", b.producer_waits, 1);
+              auto c = run("CCPC", 1);
+              CHECK_EQ("consumer waited twice", c.consumer_waits, 2);
+              CHECK_EQ("then got 1", c.consumed, (std::vector<int>{1}));
+          }
+        hints:
+          - "A producer that finds the buffer full doesn't use up its number: the next successful `'P'` still produces it."
+      - task: |
+          Add bulk operations to the ring buffer. `std::size_t push_many(const int* src, std::size_t n)` stores as many of the `n` values as fit, in order, and returns how many. `std::size_t pop_many(int* out, std::size_t max)` moves up to `max` of the oldest values into `out`, in order, and returns how many. Keep using the fixed array with `head_` and `count_`.
+        seed: |
+          #include <cstddef>
+          #include <vector>
+
+          class RingBuffer {
+          public:
+              explicit RingBuffer(std::size_t capacity) : buf_(capacity) {}
+              std::size_t push_many(const int* src, std::size_t n) {
+
+              }
+              std::size_t pop_many(int* out, std::size_t max) {
+
+              }
+              std::size_t size() const { return count_; }
+
+          private:
+              std::vector<int> buf_;
+              std::size_t head_ = 0;
+              std::size_t count_ = 0;
+          };
+        solution: |
+          #include <cstddef>
+          #include <vector>
+
+          class RingBuffer {
+          public:
+              explicit RingBuffer(std::size_t capacity) : buf_(capacity) {}
+              std::size_t push_many(const int* src, std::size_t n) {
+                  std::size_t k = 0;
+                  while (k < n && count_ < buf_.size()) {
+                      buf_[(head_ + count_) % buf_.size()] = src[k++];
+                      count_++;
+                  }
+                  return k;
+              }
+              std::size_t pop_many(int* out, std::size_t max) {
+                  std::size_t k = 0;
+                  while (k < max && count_ > 0) {
+                      out[k++] = buf_[head_];
+                      head_ = (head_ + 1) % buf_.size();
+                      count_--;
+                  }
+                  return k;
+              }
+              std::size_t size() const { return count_; }
+
+          private:
+              std::vector<int> buf_;
+              std::size_t head_ = 0;
+              std::size_t count_ = 0;
+          };
+        forbid:
+          - pattern: "std::queue|std::deque|std::list|erase\\(|insert\\("
+            message: Keep the fixed array with head and count.
+        harness: |
+          int main() {
+              RingBuffer r(4);
+              int in[] = {1, 2, 3, 4, 5, 6};
+              CHECK_EQ("only 4 fit", r.push_many(in, 6), 4u);
+              int out[10] = {};
+              CHECK_EQ("take 3", r.pop_many(out, 3), 3u);
+              CHECK("oldest first", out[0] == 1 && out[1] == 2 && out[2] == 3);
+              CHECK_EQ("room for 3 more, wrapping around", r.push_many(in + 4, 2), 2u);
+              CHECK_EQ("take everything", r.pop_many(out, 10), 3u);
+              CHECK("wrapped order", out[0] == 4 && out[1] == 5 && out[2] == 6);
+              CHECK_EQ("empty", r.pop_many(out, 1), 0u);
+              CHECK_EQ("size 0", r.size(), 0u);
+          }
+        hints:
+          - "The free slot after the newest is `(head_ + count_) % capacity`; the oldest is at `head_`."
   - title: Memory ordering
     id: cpp-concurrency-7
     text: |
@@ -1016,6 +1644,129 @@ steps:
       - "`flag_.test_and_set(std::memory_order_acquire)` sets the flag and returns what it was before. If it was clear (`false`), you now own the lock."
       - "lock: `while (!try_lock()) {}` keeps trying until it wins."
       - "unlock: `flag_.clear(std::memory_order_release);`"
+    more:
+      - task: |
+          The classic **publish** pattern: one thread writes ordinary data, then sets a flag with a **release** store; another thread reads the flag with an **acquire** load, and only then the data. Write `Mailbox::publish(v)` and `std::optional<int> Mailbox::try_read() const`, which returns the value once it has been published.
+        seed: |
+          #include <atomic>
+          #include <optional>
+
+          class Mailbox {
+          public:
+              void publish(int v) {
+
+              }
+              std::optional<int> try_read() const {
+
+              }
+
+          private:
+              int data_ = 0;
+              std::atomic<bool> ready_{false};
+          };
+        solution: |
+          #include <atomic>
+          #include <optional>
+
+          class Mailbox {
+          public:
+              void publish(int v) {
+                  data_ = v;
+                  ready_.store(true, std::memory_order_release);
+              }
+              std::optional<int> try_read() const {
+                  if (!ready_.load(std::memory_order_acquire)) return std::nullopt;
+                  return data_;
+              }
+
+          private:
+              int data_ = 0;
+              std::atomic<bool> ready_{false};
+          };
+        require:
+          - pattern: "memory_order_release"
+            message: "Set the flag with `memory_order_release`, after writing the data."
+          - pattern: "memory_order_acquire"
+            message: "Read the flag with `memory_order_acquire`, before reading the data."
+        harness: |
+          int main() {
+              Mailbox m;
+              CHECK("nothing yet", !m.try_read());
+              m.publish(42);
+              CHECK_EQ("published value", m.try_read().value_or(-1), 42);
+          }
+        hints:
+          - "Order matters: write `data_` first, then the release store. Read the flag with acquire first, then `data_`."
+      - task: |
+          A **ticket lock** is a fair spinlock: threads are served in arrival order, like a deli counter. `lock()` takes a ticket with `fetch_add` on `next_` and spins until `serving_` reaches it (acquire). `unlock()` adds one to `serving_` (release). `try_lock()` only succeeds when nobody holds or waits for the lock: a `compare_exchange` on `next_` from the current `serving_` value.
+        seed: |
+          #include <atomic>
+
+          class TicketLock {
+          public:
+              void lock() {
+
+              }
+              bool try_lock() {
+
+              }
+              void unlock() {
+
+              }
+
+          private:
+              std::atomic<unsigned> next_{0};
+              std::atomic<unsigned> serving_{0};
+          };
+        solution: |
+          #include <atomic>
+
+          class TicketLock {
+          public:
+              void lock() {
+                  unsigned my = next_.fetch_add(1, std::memory_order_relaxed);
+                  while (serving_.load(std::memory_order_acquire) != my) {
+                  }
+              }
+              bool try_lock() {
+                  unsigned s = serving_.load(std::memory_order_acquire);
+                  unsigned expected = s;
+                  return next_.compare_exchange_strong(expected, s + 1, std::memory_order_acquire);
+              }
+              void unlock() {
+                  serving_.fetch_add(1, std::memory_order_release);
+              }
+
+          private:
+              std::atomic<unsigned> next_{0};
+              std::atomic<unsigned> serving_{0};
+          };
+        require:
+          - pattern: "fetch_add"
+            message: "Hand out tickets with `fetch_add`."
+          - pattern: "memory_order_release"
+            message: "Release the lock with `memory_order_release`."
+        harness: |
+          int main() {
+              TicketLock t;
+              CHECK("free lock can be taken", t.try_lock());
+              CHECK("held lock can't", !t.try_lock());
+              t.unlock();
+              t.lock();
+              CHECK("lock() takes it", !t.try_lock());
+              t.unlock();
+              int total = 0;
+              for (int i = 0; i < 1000; i++) {
+                  t.lock();
+                  total++;
+                  t.unlock();
+              }
+              CHECK_EQ("a thousand rounds", total, 1000);
+              CHECK("ends unlocked", t.try_lock());
+          }
+        hints:
+          - "The lock is free exactly when `next_ == serving_`: no ticket is out that hasn't been served."
+          - "`try_lock` takes the next ticket only if it equals `serving_`, in one atomic step."
   - title: Lock-free stacks and the ABA problem
     id: cpp-concurrency-8
     text: |
@@ -1211,3 +1962,134 @@ steps:
       - "push: `std::uint64_t seen = head_.load(std::memory_order_relaxed);` then loop: store `index_of(seen)` into `next_[i]`, and try `head_.compare_exchange_weak(seen, pack(i, tag_of(seen) + 1), std::memory_order_release, std::memory_order_relaxed)`. On failure `seen` already holds the new head."
       - "pop_with: if `index_of(seen) == EMPTY`, set `out = -1` and return true. Otherwise read `below = next_[top].load(...)` and try `head_.compare_exchange_strong(seen, pack(below, tag_of(seen) + 1), ...)` once."
       - "pop: `int out = -1; while (!pop_with(head_.load(std::memory_order_acquire), out)) {} return out;`. Without the tag, the stale CAS in the test would succeed and put slot 1 on top, although it was already popped."
+    more:
+      - task: |
+          A lock-free **free list** hands out slots from a fixed pool. The constructor puts every slot `0..n-1` on the list (slot 0 on top). `acquire()` pops a slot (or returns -1 when none are free) and `release(i)` pushes it back, each with a `compare_exchange` loop on a tagged head, as in the lesson: index in the low 32 bits, a tag that goes up by one on every change in the high 32 bits.
+        seed: |
+          #include <atomic>
+          #include <cstdint>
+          #include <vector>
+
+          class SlotPool {
+          public:
+              explicit SlotPool(int n);
+              int acquire();
+              void release(int i);
+
+          private:
+              static constexpr std::uint32_t EMPTY = 0xffffffffu;
+              static std::uint64_t pack(std::uint32_t index, std::uint32_t tag) { return (std::uint64_t(tag) << 32) | index; }
+              static std::uint32_t index_of(std::uint64_t h) { return static_cast<std::uint32_t>(h); }
+              static std::uint32_t tag_of(std::uint64_t h) { return static_cast<std::uint32_t>(h >> 32); }
+              std::vector<std::atomic<std::uint32_t>> next_;
+              std::atomic<std::uint64_t> head_{pack(EMPTY, 0)};
+          };
+        solution: |
+          #include <atomic>
+          #include <cstdint>
+          #include <vector>
+
+          class SlotPool {
+          public:
+              explicit SlotPool(int n) : next_(n) {
+                  for (int i = n - 1; i >= 0; i--) release(i);
+              }
+              int acquire() {
+                  std::uint64_t h = head_.load();
+                  while (true) {
+                      std::uint32_t top = index_of(h);
+                      if (top == EMPTY) return -1;
+                      std::uint64_t want = pack(next_[top].load(), tag_of(h) + 1);
+                      if (head_.compare_exchange_weak(h, want)) return (int)top;
+                  }
+              }
+              void release(int i) {
+                  std::uint64_t h = head_.load();
+                  while (true) {
+                      next_[i].store(index_of(h));
+                      if (head_.compare_exchange_weak(h, pack((std::uint32_t)i, tag_of(h) + 1))) return;
+                  }
+              }
+
+          private:
+              static constexpr std::uint32_t EMPTY = 0xffffffffu;
+              static std::uint64_t pack(std::uint32_t index, std::uint32_t tag) { return (std::uint64_t(tag) << 32) | index; }
+              static std::uint32_t index_of(std::uint64_t h) { return static_cast<std::uint32_t>(h); }
+              static std::uint32_t tag_of(std::uint64_t h) { return static_cast<std::uint32_t>(h >> 32); }
+              std::vector<std::atomic<std::uint32_t>> next_;
+              std::atomic<std::uint64_t> head_{pack(EMPTY, 0)};
+          };
+        require:
+          - pattern: "compare_exchange_(weak|strong)"
+            message: "Change the head with a `compare_exchange` loop."
+        harness: |
+          #include <set>
+          int main() {
+              SlotPool p(3);
+              CHECK_EQ("slot 0 first", p.acquire(), 0);
+              CHECK_EQ("then 1", p.acquire(), 1);
+              CHECK_EQ("then 2", p.acquire(), 2);
+              CHECK_EQ("exhausted", p.acquire(), -1);
+              p.release(1);
+              CHECK_EQ("released slot comes back", p.acquire(), 1);
+              p.release(2);
+              p.release(0);
+              std::set<int> got = {p.acquire(), p.acquire()};
+              CHECK("both come back", got == std::set<int>{0, 2});
+              CHECK_EQ("exhausted again", p.acquire(), -1);
+          }
+        hints:
+          - "Pushing slots `n-1` down to `0` in the constructor leaves slot 0 on top."
+          - "In `acquire`, read the slot under the top from `next_[top]` and swap the head to it with the tag plus one."
+      - task: |
+          Write the tag helpers on their own. `bool cas_move(std::atomic<std::uint64_t>& head, std::uint64_t expected, std::uint32_t new_index)` tries to replace `expected` with `new_index` and the expected tag plus one, returning whether it worked. `std::uint32_t changes_between(std::uint64_t before, std::uint64_t after)` is how many changes happened between two snapshots, counting the tag **wrapping around** past `0xffffffff`.
+        seed: |
+          #include <atomic>
+          #include <cstdint>
+
+          inline std::uint64_t pack(std::uint32_t index, std::uint32_t tag) { return (std::uint64_t(tag) << 32) | index; }
+          inline std::uint32_t index_of(std::uint64_t h) { return static_cast<std::uint32_t>(h); }
+          inline std::uint32_t tag_of(std::uint64_t h) { return static_cast<std::uint32_t>(h >> 32); }
+
+          bool cas_move(std::atomic<std::uint64_t>& head, std::uint64_t expected, std::uint32_t new_index) {
+
+          }
+
+          std::uint32_t changes_between(std::uint64_t before, std::uint64_t after) {
+
+          }
+        solution: |
+          #include <atomic>
+          #include <cstdint>
+
+          inline std::uint64_t pack(std::uint32_t index, std::uint32_t tag) { return (std::uint64_t(tag) << 32) | index; }
+          inline std::uint32_t index_of(std::uint64_t h) { return static_cast<std::uint32_t>(h); }
+          inline std::uint32_t tag_of(std::uint64_t h) { return static_cast<std::uint32_t>(h >> 32); }
+
+          bool cas_move(std::atomic<std::uint64_t>& head, std::uint64_t expected, std::uint32_t new_index) {
+              return head.compare_exchange_strong(expected, pack(new_index, tag_of(expected) + 1));
+          }
+
+          std::uint32_t changes_between(std::uint64_t before, std::uint64_t after) {
+              return tag_of(after) - tag_of(before);
+          }
+        require:
+          - pattern: "compare_exchange_(weak|strong)"
+            message: "Swap the head with `compare_exchange_strong`."
+        harness: |
+          int main() {
+              std::atomic<std::uint64_t> head{pack(5, 7)};
+              std::uint64_t seen = head.load();
+              CHECK("move succeeds", cas_move(head, seen, 3));
+              CHECK("new index and tag", index_of(head.load()) == 3 && tag_of(head.load()) == 8);
+              CHECK("a stale snapshot fails", !cas_move(head, seen, 9));
+              CHECK_EQ("one change", changes_between(seen, head.load()), 1u);
+              std::atomic<std::uint64_t> old{pack(1, 0xffffffffu)};
+              std::uint64_t before = old.load();
+              CHECK("move at the largest tag", cas_move(old, before, 2));
+              CHECK_EQ("tag wrapped to 0", tag_of(old.load()), 0u);
+              CHECK_EQ("still counts as one change", changes_between(before, old.load()), 1u);
+          }
+        hints:
+          - "Unsigned arithmetic wraps: `0u - 0xffffffffu` is `1`, which is exactly what the change count needs."
+          - "`compare_exchange_strong` takes `expected` by reference, so pass a local copy."
