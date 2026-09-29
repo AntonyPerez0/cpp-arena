@@ -111,6 +111,78 @@ steps:
       - "Bug 1: page is 1-based, so page 1 must start at index 0: `(page - 1) * per_page`."
       - "Bug 2: the last page can be partial, and pages past the end are empty. Clamp `end` to `items.size()`."
       - "Bug 3: invalid arguments. Reject `page < 1 || per_page < 1` up front. And `page * per_page` can overflow an int: compute it in `long long`."
+    more:
+      - task: |
+          This pull request adds a hand-written binary search. It hangs on some inputs, misses the last element and can overflow on huge arrays. Fix the three bugs so `find(v, x)` returns the index of `x` in the sorted vector, or -1.
+        seed: |
+          #include <vector>
+
+          int find(const std::vector<int>& v, int x) {
+              int lo = 0, hi = (int)v.size();
+              while (lo < hi - 1) {
+                  int mid = (lo + hi) / 2;
+                  if (v[mid] == x) return mid;
+                  if (v[mid] < x) lo = mid;
+                  else hi = mid;
+              }
+              return -1;
+          }
+        solution: |
+          #include <vector>
+
+          int find(const std::vector<int>& v, int x) {
+              int lo = 0, hi = (int)v.size();
+              while (lo < hi) {
+                  int mid = lo + (hi - lo) / 2;
+                  if (v[mid] == x) return mid;
+                  if (v[mid] < x) lo = mid + 1;
+                  else hi = mid;
+              }
+              return -1;
+          }
+        harness: |
+          int main() {
+              std::vector<int> v = {1, 3, 5, 7, 9};
+              CHECK_EQ("middle", find(v, 5), 2);
+              CHECK_EQ("first", find(v, 1), 0);
+              CHECK_EQ("last", find(v, 9), 4);
+              CHECK_EQ("missing", find(v, 4), -1);
+              CHECK_EQ("above everything", find(v, 100), -1);
+              CHECK_EQ("one element", find({7}, 7), 0);
+              CHECK_EQ("empty", find({}, 7), -1);
+          }
+        hints:
+          - "With `lo = mid`, a range of two elements can stay the same forever. Everything at `mid` or below is ruled out, so move past it."
+          - "`(lo + hi) / 2` can overflow when both are near the int limit; `lo + (hi - lo) / 2` can't."
+      - task: |
+          This pull request adds `truncate(s, max)` for showing long player names. The specification: strings of at most `max` characters are returned unchanged; longer ones are cut so that, **with** `...` added, the result is exactly `max` characters; when `max` is less than 3 there's no room for dots, so just cut to `max`. Fix the two bugs.
+        seed: |
+          #include <string>
+
+          std::string truncate(const std::string& s, std::size_t max) {
+              if (s.size() < max) return s;
+              return s.substr(0, max - 3) + "...";
+          }
+        solution: |
+          #include <string>
+
+          std::string truncate(const std::string& s, std::size_t max) {
+              if (s.size() <= max) return s;
+              if (max < 3) return s.substr(0, max);
+              return s.substr(0, max - 3) + "...";
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("short name", truncate("ropz", 10), std::string("ropz"));
+              CHECK_EQ("exactly max", truncate("broky", 5), std::string("broky"));
+              CHECK_EQ("cut with dots", truncate("karrigan", 6), std::string("kar..."));
+              CHECK_EQ("max 2 has no room for dots", truncate("frozen", 2), std::string("fr"));
+              CHECK_EQ("max 0", truncate("rain", 0), std::string(""));
+              CHECK_EQ("max 3", truncate("twistzz", 3), std::string("..."));
+          }
+        hints:
+          - "A string of exactly `max` characters already fits."
+          - "`max - 3` on a `std::size_t` wraps around to a huge number when `max < 3`."
 
   - title: "Review: dangling references"
     id: cpp-review-2
@@ -221,6 +293,119 @@ steps:
     hints:
       - "`greeting` returns a view of the local `text`, which is destroyed at the closing brace. Return `std::string` instead."
       - "`Tag` stores a view of the temporary string built in `make_tag`. Make the member a `std::string`; the accessor can still return a view of it."
+    more:
+      - task: |
+          This pull request has two lifetime bugs. `longest` returns a reference that can outlive what it refers to, and `make_counter` returns a lambda that captures a local variable by reference. Fix them: `longest` should return a `std::string` by value, and the counter should keep its **own** count (capture by value and mark the lambda `mutable`).
+        seed: |
+          #include <functional>
+          #include <string>
+          #include <vector>
+
+          // The longest name, or "none" for an empty list.
+          const std::string& longest(const std::vector<std::string>& v) {
+              if (v.empty()) return "none";
+              const std::string* best = &v[0];
+              for (const auto& s : v)
+                  if (s.size() > best->size()) best = &s;
+              return *best;
+          }
+
+          // Each call returns the next number: 1, 2, 3, ...
+          std::function<int()> make_counter() {
+              int count = 0;
+              return [&count] { return ++count; };
+          }
+        solution: |
+          #include <functional>
+          #include <string>
+          #include <vector>
+
+          // The longest name, or "none" for an empty list.
+          std::string longest(const std::vector<std::string>& v) {
+              if (v.empty()) return "none";
+              const std::string* best = &v[0];
+              for (const auto& s : v)
+                  if (s.size() > best->size()) best = &s;
+              return *best;
+          }
+
+          // Each call returns the next number: 1, 2, 3, ...
+          std::function<int()> make_counter() {
+              int count = 0;
+              return [count]() mutable { return ++count; };
+          }
+        harness: |
+          #include <type_traits>
+          int main() {
+              static_assert(std::is_same_v<decltype(longest({})), std::string>, "longest must return an owning std::string");
+              CHECK_EQ("longest", longest({"ropz", "karrigan", "rain"}), std::string("karrigan"));
+              CHECK_EQ("empty list", longest({}), std::string("none"));
+              auto a = make_counter();
+              auto b = make_counter();
+              CHECK_EQ("first call", a(), 1);
+              CHECK_EQ("second call", a(), 2);
+              CHECK_EQ("counters are independent", b(), 1);
+              CHECK_EQ("third call", a(), 3);
+          }
+        hints:
+          - "Returning `\"none\"` as a `const std::string&` creates a temporary string that dies when the function returns."
+          - "`[count]() mutable { return ++count; }` gives the lambda its own copy it's allowed to change."
+      - task: |
+          This pull request hands out pointers to players stored in a `std::vector`. When the vector grows, it moves its elements to new memory and every pointer handed out before dangles. Fix `Registry` so a `Player*` returned by `add` stays valid while more players are added: store them in a container whose elements never move, such as `std::deque` (when you only add at the ends).
+        seed: |
+          #include <string>
+          #include <vector>
+
+          struct Player {
+              std::string name;
+              int score = 0;
+          };
+
+          class Registry {
+          public:
+              Player* add(const std::string& name) {
+                  players_.push_back({name, 0});
+                  return &players_.back();
+              }
+              int size() const { return (int)players_.size(); }
+
+          private:
+              std::vector<Player> players_;
+          };
+        solution: |
+          #include <deque>
+          #include <string>
+
+          struct Player {
+              std::string name;
+              int score = 0;
+          };
+
+          class Registry {
+          public:
+              Player* add(const std::string& name) {
+                  players_.push_back({name, 0});
+                  return &players_.back();
+              }
+              int size() const { return (int)players_.size(); }
+
+          private:
+              std::deque<Player> players_;
+          };
+        forbid:
+          - pattern: "std::vector\\s*<\\s*Player\\s*>"
+            message: "A `std::vector<Player>` moves its players when it grows, which leaves earlier pointers dangling."
+        harness: |
+          int main() {
+              Registry r;
+              Player* first = r.add("karrigan");
+              for (int i = 0; i < 5000; i++) r.add("player" + std::to_string(i));
+              first->score = 42;
+              CHECK_EQ("the first pointer still works", first->name, std::string("karrigan"));
+              CHECK_EQ("size", r.size(), 5001);
+          }
+        hints:
+          - "`std::deque::push_back` never moves the existing elements, so pointers to them stay valid (iterators don't, but pointers and references do)."
 
   - title: "Review: leaks on the error path"
     id: cpp-review-3
@@ -372,6 +557,148 @@ steps:
       - "Leak 1: when strtol fails, `return -1` skips freeing `values`."
       - "Leak 2: when n == 0, the early return skips freeing both buffers."
       - "One tidy fix: keep a `result` variable, `goto cleanup;` on errors, and free both pointers (xfree(nullptr) is safe) at a single `cleanup:` label."
+    more:
+      - task: |
+          This pull request counts the valid tags in a list. Each tag is copied into a buffer from `xmalloc` so it can be lowercased, but two paths forget to free that buffer. Fix both leaks so `live_allocations` ends where it started.
+        seed: |
+          #include <cctype>
+          #include <cstdlib>
+          #include <cstring>
+
+          static int live_allocations = 0;
+          void* xmalloc(std::size_t n) { void* p = std::malloc(n > 0 ? n : 1); if (p) live_allocations++; return p; }
+          void xfree(void* p) { if (p) live_allocations--; std::free(p); }
+
+          /* A valid tag is non-empty and, lowercased, made only of letters.
+             A tag reading "end" (in any case) stops the count early.
+             Returns how many of the n tags are valid, or -1 if a tag is NULL. */
+          int count_valid(const char** tags, int n) {
+              int valid = 0;
+              for (int i = 0; i < n; i++) {
+                  if (!tags[i]) return -1;
+                  std::size_t len = std::strlen(tags[i]);
+                  char* copy = static_cast<char*>(xmalloc(len + 1));
+                  std::memcpy(copy, tags[i], len + 1);
+                  if (len == 0) continue;
+                  bool ok = true;
+                  for (std::size_t j = 0; j < len; j++) {
+                      copy[j] = (char)std::tolower((unsigned char)copy[j]);
+                      if (copy[j] < 'a' || copy[j] > 'z') ok = false;
+                  }
+                  if (std::strcmp(copy, "end") == 0) return valid;
+                  if (ok) valid++;
+                  xfree(copy);
+              }
+              return valid;
+          }
+        solution: |
+          #include <cctype>
+          #include <cstdlib>
+          #include <cstring>
+
+          static int live_allocations = 0;
+          void* xmalloc(std::size_t n) { void* p = std::malloc(n > 0 ? n : 1); if (p) live_allocations++; return p; }
+          void xfree(void* p) { if (p) live_allocations--; std::free(p); }
+
+          /* A valid tag is non-empty and, lowercased, made only of letters.
+             A tag reading "end" (in any case) stops the count early.
+             Returns how many of the n tags are valid, or -1 if a tag is NULL. */
+          int count_valid(const char** tags, int n) {
+              int valid = 0;
+              for (int i = 0; i < n; i++) {
+                  if (!tags[i]) return -1;
+                  std::size_t len = std::strlen(tags[i]);
+                  if (len == 0) continue;
+                  char* copy = static_cast<char*>(xmalloc(len + 1));
+                  std::memcpy(copy, tags[i], len + 1);
+                  bool ok = true;
+                  for (std::size_t j = 0; j < len; j++) {
+                      copy[j] = (char)std::tolower((unsigned char)copy[j]);
+                      if (copy[j] < 'a' || copy[j] > 'z') ok = false;
+                  }
+                  bool stop = std::strcmp(copy, "end") == 0;
+                  if (!stop && ok) valid++;
+                  xfree(copy);
+                  if (stop) return valid;
+              }
+              return valid;
+          }
+        harness: |
+          int main() {
+              const char* a[] = {"Rush", "b1", "MID"};
+              CHECK_EQ("two valid", count_valid(a, 3), 2);
+              CHECK_EQ("no leak", live_allocations, 0);
+              const char* b[] = {"", "eco", ""};
+              CHECK_EQ("empty tags don't count", count_valid(b, 3), 1);
+              CHECK_EQ("no leak with empty tags", live_allocations, 0);
+              const char* d[] = {"eco", "END", "force"};
+              CHECK_EQ("stops at end", count_valid(d, 3), 1);
+              CHECK_EQ("no leak when stopping early", live_allocations, 0);
+              const char* c[] = {"ok", nullptr, "later"};
+              CHECK_EQ("a NULL tag", count_valid(c, 3), -1);
+              CHECK_EQ("no leak on the error path", live_allocations, 0);
+          }
+        hints:
+          - "An empty tag is copied and then skipped with `continue`, jumping over the `xfree`."
+          - "The early `return` for an \"end\" tag leaves its copy behind too. (The `return -1` is fine: nothing is allocated for that tag yet.)"
+      - task: |
+          This pull request loads scores with `new` and `delete`, but `std::stoi` **throws** on bad input, and the exception skips the `delete`. Fix `total` so nothing leaks even when an exception passes through it. Replace the raw `new` and `delete` with a `std::unique_ptr` (the exception should still reach the caller).
+        seed: |
+          #include <memory>
+          #include <string>
+          #include <vector>
+
+          struct Loader {
+              static inline int live = 0;
+              Loader() { live++; }
+              ~Loader() { live--; }
+              int parse(const std::string& s) const { return std::stoi(s); }
+          };
+
+          int total(const std::vector<std::string>& items) {
+              Loader* loader = new Loader();
+              int sum = 0;
+              for (const auto& s : items) sum += loader->parse(s);
+              delete loader;
+              return sum;
+          }
+        solution: |
+          #include <memory>
+          #include <string>
+          #include <vector>
+
+          struct Loader {
+              static inline int live = 0;
+              Loader() { live++; }
+              ~Loader() { live--; }
+              int parse(const std::string& s) const { return std::stoi(s); }
+          };
+
+          int total(const std::vector<std::string>& items) {
+              auto loader = std::make_unique<Loader>();
+              int sum = 0;
+              for (const auto& s : items) sum += loader->parse(s);
+              return sum;
+          }
+        forbid:
+          - pattern: "\\bnew\\b|\\bdelete\\b"
+            message: "Let a `std::unique_ptr` own the loader instead of `new` and `delete`."
+        harness: |
+          #include <stdexcept>
+          int main() {
+              CHECK_EQ("sum", total({"3", "4", "5"}), 12);
+              CHECK_EQ("no leak on success", Loader::live, 0);
+              bool threw = false;
+              try {
+                  total({"1", "oops", "2"});
+              } catch (const std::invalid_argument&) {
+                  threw = true;
+              }
+              CHECK("the exception still reaches the caller", threw);
+              CHECK_EQ("no leak when stoi throws", Loader::live, 0);
+          }
+        hints:
+          - "`auto loader = std::make_unique<Loader>();` is destroyed when the function exits for any reason, including an exception."
 
   - title: "Review: modifying while iterating"
     id: cpp-review-4
@@ -495,6 +822,84 @@ steps:
       - "Bug 1: after `erase(begin() + i)`, the next player moves into slot i and `i++` skips them. `std::erase_if` (C++20) removes all matches correctly and returns how many."
       - "Bug 2: the second loop push_backs into `roster` while range-for iterates it. Just loop `removed` times instead."
       - "Bug 3: `captain` is a reference into the vector, and push_back may reallocate. Copy the string instead."
+    more:
+      - task: |
+          This pull request removes expired sessions from a map while looping over it with a range-for, which invalidates the loop's iterator as soon as an entry is erased. It also returns the wrong count. Fix `expire` so it removes every session with `expires <= now` and returns how many it removed.
+        seed: |
+          #include <map>
+          #include <string>
+
+          int expire(std::map<std::string, int>& sessions, int now) {
+              int removed = 0;
+              for (const auto& [name, expires] : sessions) {
+                  if (expires <= now) sessions.erase(name);
+              }
+              return removed;
+          }
+        solution: |
+          #include <map>
+          #include <string>
+
+          int expire(std::map<std::string, int>& sessions, int now) {
+              return (int)std::erase_if(sessions, [now](const auto& entry) { return entry.second <= now; });
+          }
+        forbid:
+          - pattern: "for\\s*\\(\\s*const\\s+auto\\s*&\\s*\\[[^\\]]*\\]\\s*:\\s*sessions\\s*\\)"
+            message: "Erasing inside a range-for over the same map invalidates the loop's iterator."
+        harness: |
+          #include <map>
+          int main() {
+              std::map<std::string, int> s = {{"a", 5}, {"b", 20}, {"c", 10}, {"d", 3}};
+              CHECK_EQ("removed", expire(s, 10), 3);
+              CHECK_EQ("one left", s.size(), 1u);
+              CHECK("b survives", s.count("b") == 1);
+              CHECK_EQ("nothing to remove", expire(s, 0), 0);
+              std::map<std::string, int> all = {{"x", 1}, {"y", 1}};
+              CHECK_EQ("everything expires", expire(all, 1), 2);
+              CHECK("empty", all.empty());
+          }
+        hints:
+          - "`std::erase_if(map, predicate)` removes the matching entries and returns how many there were."
+          - "Or loop with iterators and continue from what `erase` returns: `it = sessions.erase(it);`"
+      - task: |
+          This pull request squeezes runs of spaces in chat messages: every run of spaces becomes a **single** space, and spaces at the start and end are removed. Erasing inside the index loop skips characters, so runs of three spaces survive, and the trimming misses a case. Fix `squeeze`.
+        seed: |
+          #include <string>
+
+          std::string squeeze(std::string s) {
+              for (std::size_t i = 1; i < s.size(); i++) {
+                  if (s[i] == ' ' && s[i - 1] == ' ') {
+                      s.erase(i, 1);
+                      i++;
+                  }
+              }
+              if (!s.empty() && s[0] == ' ') s.erase(0, 1);
+              return s;
+          }
+        solution: |
+          #include <string>
+
+          std::string squeeze(std::string s) {
+              std::string out;
+              for (char c : s) {
+                  if (c == ' ' && (out.empty() || out.back() == ' ')) continue;
+                  out += c;
+              }
+              if (!out.empty() && out.back() == ' ') out.pop_back();
+              return out;
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("two spaces", squeeze("gg  wp"), std::string("gg wp"));
+              CHECK_EQ("three spaces", squeeze("rush   b"), std::string("rush b"));
+              CHECK_EQ("five spaces", squeeze("a     b"), std::string("a b"));
+              CHECK_EQ("leading and trailing", squeeze("   nice shot  "), std::string("nice shot"));
+              CHECK_EQ("only spaces", squeeze("    "), std::string(""));
+              CHECK_EQ("nothing to do", squeeze("ez"), std::string("ez"));
+          }
+        hints:
+          - "Building a new string is simpler than erasing: skip a space when the output is empty or already ends in a space."
+          - "Afterwards, at most one space can be left at the end."
 
   - title: "Review: integer math"
     id: cpp-review-5
@@ -609,6 +1014,93 @@ steps:
       - "win_rate: guard `games <= 0`, and do the multiplication in `long long`: 1.5 billion × 100 doesn't fit in an int."
       - "average: an empty vector divides by zero, and an `int` sum overflows for big scores. Use a long long sum and check empty first."
       - "last_n_total: `scores.size() - n` is unsigned, so it wraps to a huge number when n is bigger than the size. Clamp the start index."
+    more:
+      - task: |
+          This pull request adds three small math helpers, each with an integer bug. The specification: `midpoint(a, b)` is the average rounded toward `a`'s side like `a + (b - a) / 2`, for any two ints without overflow; `is_odd(x)` works for negative numbers; `change_percent(before, after)` is `(after - before) * 100 / before` computed without overflow, and 0 when `before` is 0.
+        seed: |
+          int midpoint(int a, int b) {
+              return (a + b) / 2;
+          }
+
+          bool is_odd(int x) {
+              return x % 2 == 1;
+          }
+
+          long long change_percent(int before, int after) {
+              return (after - before) * 100 / before;
+          }
+        solution: |
+          int midpoint(int a, int b) {
+              return (int)(a + ((long long)b - a) / 2);
+          }
+
+          bool is_odd(int x) {
+              return x % 2 != 0;
+          }
+
+          long long change_percent(int before, int after) {
+              if (before == 0) return 0;
+              return ((long long)after - before) * 100 / before;
+          }
+        harness: |
+          int main() {
+              CHECK_EQ("midpoint", midpoint(2, 8), 5);
+              CHECK_EQ("midpoint of big numbers", midpoint(2000000000, 2100000000), 2050000000);
+              CHECK_EQ("midpoint across zero", midpoint(-2000000000, 2000000000), 0);
+              CHECK("-3 is odd", is_odd(-3));
+              CHECK("-4 is even", !is_odd(-4));
+              CHECK("7 is odd", is_odd(7));
+              CHECK_EQ("growth", change_percent(200, 250), 25LL);
+              CHECK_EQ("from zero", change_percent(0, 10), 0LL);
+              CHECK_EQ("big numbers", change_percent(1000000000, 2000000000), 100LL);
+          }
+        hints:
+          - "In C++, `-3 % 2` is `-1`, not `1`."
+          - "Do the subtraction and multiplication in `long long`, so nothing overflows before the division."
+      - task: |
+          This pull request has two bugs with **unsigned** sizes. `sum_backwards` never stops, because a `std::size_t` counter is always `>= 0`. `fits` can say yes to an enormous request, because `used + needed` wraps around past the largest `std::size_t`. Fix both.
+        seed: |
+          #include <cstddef>
+          #include <vector>
+
+          long long sum_backwards(const std::vector<int>& v) {
+              long long total = 0;
+              for (std::size_t i = v.size() - 1; i >= 0; i--) total += v[i];
+              return total;
+          }
+
+          // Can `needed` more bytes be stored when `used` of `capacity` are taken?
+          bool fits(std::size_t used, std::size_t needed, std::size_t capacity) {
+              return used + needed <= capacity;
+          }
+        solution: |
+          #include <cstddef>
+          #include <vector>
+
+          long long sum_backwards(const std::vector<int>& v) {
+              long long total = 0;
+              for (std::size_t i = v.size(); i-- > 0;) total += v[i];
+              return total;
+          }
+
+          // Can `needed` more bytes be stored when `used` of `capacity` are taken?
+          bool fits(std::size_t used, std::size_t needed, std::size_t capacity) {
+              return used <= capacity && needed <= capacity - used;
+          }
+        harness: |
+          #include <cstdint>
+          int main() {
+              CHECK_EQ("sum", sum_backwards({1, 2, 3}), 6LL);
+              CHECK_EQ("empty", sum_backwards({}), 0LL);
+              CHECK("fits", fits(10, 5, 20));
+              CHECK("exactly full", fits(10, 10, 20));
+              CHECK("too much", !fits(10, 11, 20));
+              CHECK("a huge request doesn't wrap around", !fits(10, SIZE_MAX - 5, 20));
+              CHECK("already over capacity", !fits(30, 0, 20));
+          }
+        hints:
+          - "`for (std::size_t i = v.size(); i-- > 0;)` tests before decrementing, so it stops after index 0."
+          - "Compare `needed` with the room that's left, `capacity - used`, which can't overflow once you know `used <= capacity`."
 
   - title: "Review: class design"
     id: cpp-review-6
@@ -742,3 +1234,117 @@ steps:
       - "Make the base destructor `virtual`, so deleting a Sniper through a Weapon pointer runs ~Sniper."
       - "`int damage()` in Sniper lacks `const`, so it doesn't override. Add `const override` (and `override` on name())."
       - "`std::vector<Weapon>` slices every Sniper into a plain Weapon. Take `std::vector<std::unique_ptr<Weapon>>` and call `w->name()`."
+    more:
+      - task: |
+          This pull request adds `Buffer`, which owns a heap array through a raw pointer but has only a destructor. Copying one makes two objects that both delete the same array. Fix it by following the **rule of three**: add a copy constructor and a copy assignment operator that copy the data into new memory.
+        seed: |
+          #include <algorithm>
+          #include <cstddef>
+
+          class Buffer {
+          public:
+              static inline int live = 0;
+              explicit Buffer(std::size_t n) : data_(new int[n]()), size_(n) { live++; }
+              ~Buffer() {
+                  delete[] data_;
+                  live--;
+              }
+              int& operator[](std::size_t i) { return data_[i]; }
+              std::size_t size() const { return size_; }
+
+          private:
+              int* data_;
+              std::size_t size_;
+          };
+        solution: |
+          #include <algorithm>
+          #include <cstddef>
+
+          class Buffer {
+          public:
+              static inline int live = 0;
+              explicit Buffer(std::size_t n) : data_(new int[n]()), size_(n) { live++; }
+              Buffer(const Buffer& o) : data_(new int[o.size_]), size_(o.size_) {
+                  std::copy(o.data_, o.data_ + size_, data_);
+                  live++;
+              }
+              Buffer& operator=(const Buffer& o) {
+                  if (this != &o) {
+                      int* fresh = new int[o.size_];
+                      std::copy(o.data_, o.data_ + o.size_, fresh);
+                      delete[] data_;
+                      data_ = fresh;
+                      size_ = o.size_;
+                  }
+                  return *this;
+              }
+              ~Buffer() {
+                  delete[] data_;
+                  live--;
+              }
+              int& operator[](std::size_t i) { return data_[i]; }
+              std::size_t size() const { return size_; }
+
+          private:
+              int* data_;
+              std::size_t size_;
+          };
+        harness: |
+          int main() {
+              {
+                  Buffer a(3);
+                  a[0] = 7;
+                  Buffer b = a;
+                  b[0] = 9;
+                  CHECK_EQ("copies are independent", a[0], 7);
+                  Buffer c(1);
+                  c = a;
+                  CHECK("assignment copies the size and data", c.size() == 3 && c[0] == 7);
+                  Buffer& same = c;
+                  c = same;
+                  CHECK_EQ("self-assignment is safe", c[0], 7);
+              }
+              CHECK_EQ("every buffer destroyed once", Buffer::live, 0);
+          }
+        hints:
+          - "The copy constructor allocates its own array and copies the elements across."
+          - "In assignment, allocate and copy first, then delete the old array, so a failed allocation leaves the object unchanged."
+      - task: |
+          This pull request adds a `Meters` type with three design problems. Its constructor allows **implicit** conversion from `double`, so passing a bare number compiles by accident. `value()` isn't `const`, so it can't be called on a `const Meters`. And `operator+` **changes** its left operand. Fix all three: make the constructor `explicit`, make `value()` `const`, and make `+` a function that returns a new object.
+        seed: |
+          class Meters {
+          public:
+              Meters(double v) : v_(v) {}
+              double value() { return v_; }
+              Meters operator+(const Meters& o) {
+                  v_ += o.v_;
+                  return *this;
+              }
+
+          private:
+              double v_;
+          };
+        solution: |
+          class Meters {
+          public:
+              explicit Meters(double v) : v_(v) {}
+              double value() const { return v_; }
+              Meters operator+(const Meters& o) const { return Meters(v_ + o.v_); }
+
+          private:
+              double v_;
+          };
+        harness: |
+          #include <type_traits>
+          double length_of(const Meters& m) { return m.value(); }
+          int main() {
+              CHECK("no implicit conversion from double", !(std::is_convertible_v<double, Meters>));
+              const Meters a(2.5), b(4.0);
+              CHECK("value() works on a const object", length_of(a) == 2.5);
+              Meters c = a + b;
+              CHECK("sum", c.value() == 6.5);
+              CHECK("the left operand is unchanged", a.value() == 2.5);
+          }
+        hints:
+          - "`explicit` stops a `double` from turning into `Meters` without anyone writing `Meters(...)`."
+          - "A `const` member function promises not to change the object, and `a + b` shouldn't change either operand."
