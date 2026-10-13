@@ -2,6 +2,7 @@ import { BrowserRouter, NavLink, Route, Routes, Link, useLocation } from "react-
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Menu, Moon, Sun, X } from "lucide-react";
 import { BrandMark } from "./components/Brand";
+import { ArenaFamily, ArenaMenuLinks, ArenaSwitcher } from "./components/Arenas";
 import CompilerBadge from "./components/CompilerBadge";
 import Home from "./pages/Home";
 import Learn from "./pages/Learn";
@@ -110,6 +111,7 @@ function Footer() {
             <li><Link to="/profile">Your progress</Link></li>
           </FooterCol>
         </div>
+        <ArenaFamily />
         <div className="footer-bottom">
           <p>© {new Date().getFullYear()} C/C++ Arena. Free and open source.</p>
           <p>Your progress stays in your browser unless you choose to sync it.</p>
@@ -164,6 +166,7 @@ function Header() {
           <Link to="/topics">C and C++ topics</Link>
           <Link to="/visualize">Watch code run</Link>
           <Link to="/placement">Placement quiz</Link>
+          <ArenaMenuLinks />
           <div className="nav-theme">
             <span>Theme</span>
             <ThemeToggle />
@@ -172,6 +175,7 @@ function Header() {
       </nav>
       <div className="topbar-right">
         <CompilerBadge compact />
+        <ArenaSwitcher onOpen={() => setOpen(false)} />
         <ThemeToggle />
         <Link to="/learn" className="btn btn-primary btn-sm topbar-cta">
           Start learning
