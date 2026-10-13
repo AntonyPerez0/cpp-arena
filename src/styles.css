@@ -538,6 +538,70 @@ h2.h3 { font-size: 1.1rem; }
 .footer-bottom { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.85rem; }
 .footer-bottom p { margin: 0; }
 
+/* The other Arena sites (src/components/Arenas.tsx): a button in the header, a group in the phone
+   menu and a row in the footer. */
+.arena-switch { position: relative; }
+.arena-switch-btn { height: 2.4rem; display: inline-flex; align-items: center; gap: 0.3rem; padding: 0 0.45rem 0 0.55rem; background: transparent; border: 1px solid var(--line); border-radius: 9px; color: var(--muted); cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s; }
+.arena-switch-btn:hover, .arena-switch-btn[aria-expanded="true"] { background: var(--tint); border-color: var(--line-strong); color: var(--text); }
+.arena-switch-marks { display: inline-flex; }
+.arena-switch-marks .arena-mark { width: 1.3rem; height: 1.3rem; display: block; border-radius: 0.4rem; box-shadow: 0 0 0 2px var(--bg); }
+.arena-switch-marks .arena-mark + .arena-mark { margin-left: -0.35rem; }
+.arena-switch-chevron { width: 0.95rem; height: 0.95rem; transition: transform 0.15s; }
+.arena-switch-btn[aria-expanded="true"] .arena-switch-chevron { transform: rotate(180deg); }
+.arena-pop { position: absolute; top: calc(100% + 0.5rem); right: 0; z-index: 50; width: 19rem; max-width: calc(100vw - 2rem); max-height: calc(100vh - var(--header-h) - 1rem); overflow-y: auto; scroll-padding-block: 0.4rem; padding: 0.4rem; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-lg); }
+.arena-pop[hidden] { display: none; }
+.arena-pop-title { margin: 0.35rem 0.6rem 0.3rem; font-size: 0.75rem; font-weight: 600; color: var(--muted); }
+.arena-list, .arena-cards { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.15rem; }
+.arena-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.55rem 0.6rem; border-radius: var(--radius-sm); color: var(--text); text-decoration: none; }
+a.arena-item:hover { background: var(--tint); text-decoration: none; }
+.arena-item .arena-mark { width: 2rem; height: 2rem; flex: none; display: block; }
+.arena-text { display: grid; min-width: 0; }
+.arena-name { font-weight: 600; font-size: 0.95rem; }
+.arena-sub { color: var(--muted); font-size: 0.82rem; overflow-wrap: anywhere; }
+
+.arena-family { margin-top: 2.5rem; padding-top: 2rem; border-top: 1px solid var(--line); }
+.arena-family + .footer-bottom { margin-top: 2rem; }
+.arena-family h2 { font-size: 0.8rem; font-weight: 600; color: var(--text); letter-spacing: 0; margin: 0 0 0.3rem; }
+.arena-family p { color: var(--muted); font-size: 0.9rem; margin: 0 0 1rem; }
+.arena-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; }
+.arena-cards .arena-item { height: 100%; padding: 0.85rem 1rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); transition: background 0.15s, border-color 0.15s; }
+.arena-cards a.arena-item:hover { background: var(--tint); border-color: var(--line-strong); }
+.arena-cards .arena-here { background: transparent; border-style: dashed; }
+
+.nav-arenas { display: none; }
+
+@media (max-width: 760px) {
+  .arena-cards { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Where the header has no room for the button, it is hidden and the footer still lists the Arenas.
+   These are container queries in rem, not media queries, so they also follow the Text size
+   setting (--scale) and the real header width (minus any scrollbar). */
+.topbar { container: topbar / inline-size; }
+/* Narrow desktops: the full navigation needs the room. With the widest badge ("Starting
+   compiler…") the header needs 71.75rem; 72.1rem is its content width at a 1239px window at the
+   default text size (1239px - 2 x 1.5rem padding, 16.5px rem). */
+@media (min-width: 1024px) {
+  @container topbar (max-width: 72.1rem) {
+    .topbar-right > .arena-switch { display: none; }
+  }
+}
+/* Tablets with the Largest text size: with the widest badge, the menu-button header needs 29.7rem
+   for the button (at the default size it is always wider than that). */
+@container topbar (max-width: 30rem) {
+  .topbar-right > .arena-switch { display: none; }
+}
+
+/* Phones: like the theme switch, the other Arenas move from the header into the menu. */
+@media (max-width: 640px) {
+  .topbar-right > .arena-switch { display: none; }
+  .nav-arenas { display: block; border-top: 1px solid var(--line); margin-top: 0.5rem; padding-top: 0.5rem; }
+  .nav-arenas-title { margin: 0.25rem 0.85rem 0.15rem; font-size: 0.8rem; font-weight: 600; color: var(--muted); }
+  .nav .nav-arenas a { display: flex; align-items: center; gap: 0.65rem; }
+  .nav-arenas .arena-mark { width: 1.5rem; height: 1.5rem; flex: none; }
+  .nav-arenas + .nav-theme { border-top: 1px solid var(--line); margin-top: 0.5rem; }
+}
+
 /* ---------- symbol bar (touch screens only) */
 .symbar { display: none; gap: 0.35rem; overflow-x: auto; padding: 0.45rem 0.1rem; position: sticky; bottom: 0; z-index: 5; background: var(--bg); border-top: 1px solid var(--line); scrollbar-width: none; }
 .symbar::-webkit-scrollbar { display: none; }

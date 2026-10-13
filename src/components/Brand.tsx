@@ -3,7 +3,7 @@ import { useId } from "react";
 /**
  * The C/C++ Arena mark: a tile blending the C logo's indigo into the C++ logo's blue, holding
  * a white "C" and a plus, for C and C++.
- * The same drawing is in public/favicon.svg and scripts/make-icons.mjs.
+ * The same drawing is in public/favicon.svg, scripts/make-icons.mjs and src/components/Arenas.tsx.
  */
 export function BrandMark({ className = "brand-mark" }: { className?: string }) {
   const id = useId();
