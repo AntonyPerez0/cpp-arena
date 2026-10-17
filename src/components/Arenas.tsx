@@ -3,13 +3,14 @@ import { useLocation } from "react-router-dom";
 import { ChevronDown } from "lucide-react";
 
 /**
- * The Arena sites: C/C++ Arena, Java Arena and RustArena, each teaching a language with its real
- * compiler. Every site links to the other two from its header, its phone menu and its footer.
+ * The Arena sites: C/C++ Arena, Java Arena, RustArena and Python Arena, each teaching a language
+ * with its real compiler or interpreter. Every site links to the others from its header, its phone
+ * menu and its footer.
  *
- * This file is the same in all three repositories (cpp-arena, Java-Arena, RustArena) except for
- * HERE, so a change to the list or to a mark goes into all three.
+ * This file is the same in all four repositories (cpp-arena, Java-Arena, RustArena, pythonarena)
+ * except for HERE, so a change to the list or to a mark goes into all four.
  */
-export type ArenaId = "cpp" | "java" | "rust";
+export type ArenaId = "cpp" | "java" | "rust" | "python";
 
 /** Which Arena this site is. */
 const HERE: ArenaId = "cpp";
@@ -20,6 +21,7 @@ export const ARENAS: Arena[] = [
   { id: "cpp", name: "C/C++ Arena", language: "C and C++", url: "https://cpparena.com/" },
   { id: "java", name: "Java Arena", language: "Java", url: "https://javaarena.com/" },
   { id: "rust", name: "RustArena", language: "Rust", url: "https://rustarena.app/" },
+  { id: "python", name: "Python Arena", language: "Python", url: "https://pythonarena.org/" },
 ];
 
 const OTHERS = ARENAS.filter((a) => a.id !== HERE);
@@ -30,7 +32,12 @@ export function ArenaMark({ id, className = "arena-mark" }: { id: ArenaId; class
   const g = useId();
   return (
     <svg className={className} viewBox="0 0 32 32" aria-hidden="true" focusable="false">
-      {id === "java" ? (
+      {id === "python" ? (
+        <>
+          <rect width="32" height="32" rx="8" fill="#3776AB" />
+          <path d="M6.5 10.5 11.5 16l-5 5.5M12.5 10.5l5 5.5-5 5.5M18.5 10.5l5 5.5-5 5.5" fill="none" stroke="#FFD43B" strokeWidth="2.9" strokeLinecap="round" strokeLinejoin="round" />
+        </>
+      ) : id === "java" ? (
         <>
           <rect width="32" height="32" rx="8" fill="#E11D21" />
           <path d="M11.5 8.8H21.5M18.6 8.8V18.4c0 3-1.7 4.8-4.4 4.8-1.9 0-3.2-.9-3.9-2.5" fill="none" stroke="#fff" strokeWidth="3.6" strokeLinecap="round" strokeLinejoin="round" />
@@ -83,7 +90,7 @@ export function ArenaMark({ id, className = "arena-mark" }: { id: ArenaId; class
 
 const newTab = <span className="visually-hidden"> (opens in a new tab)</span>;
 
-/** All three Arenas: this one marked, the other two linked (in a new tab, like the site's other outside links). */
+/** All the Arenas: this one marked, the others linked (in a new tab, like the site's other outside links). */
 function ArenaList({ className, onPick }: { className: string; onPick?: () => void }) {
   return (
     <ul className={className}>
@@ -116,7 +123,7 @@ function ArenaList({ className, onPick }: { className: string; onPick?: () => vo
 }
 
 /**
- * The header's button for the other Arenas: their marks, opening the list of all three. onOpen runs
+ * The header's button for the other Arenas: their marks, opening the list of all of them. onOpen runs
  * when the list opens, so the header can close its menu and the two never cover each other.
  */
 export function ArenaSwitcher({ onOpen }: { onOpen?: () => void }) {
@@ -205,7 +212,7 @@ export function ArenaMenuLinks() {
   );
 }
 
-/** The footer's row of all three Arenas. */
+/** The footer's row of all the Arenas. */
 export function ArenaFamily() {
   return (
     <div className="arena-family">

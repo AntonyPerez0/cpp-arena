@@ -859,9 +859,9 @@ await test("keyboard: skip link, focus moves to the new page, editor can be left
   if (!left) throw new Error("Escape then Tab did not leave the code editor");
 });
 
-await test("Arena sites: the header button, the footer row and the phone menu link the other two Arenas", async () => {
-  const sisters = [["Java Arena", "https://javaarena.com/"], ["RustArena", "https://rustarena.app/"]];
-  /** Exactly the other two Arenas' links, in order, each opening in a new tab and saying so. */
+await test("Arena sites: the header button, the footer row and the phone menu link the other three Arenas", async () => {
+  const sisters = [["Java Arena", "https://javaarena.com/"], ["RustArena", "https://rustarena.app/"], ["Python Arena", "https://pythonarena.org/"]];
+  /** Exactly the other three Arenas' links, in order, each opening in a new tab and saying so. */
   const checkLinks = async (scope, where) => {
     const links = await scope.locator("a").evaluateAll((as) => as.map((a) => ({ text: a.textContent, href: a.getAttribute("href"), target: a.target, rel: a.rel })));
     if (links.length !== sisters.length) throw new Error(`${where} has ${links.length} links`);
@@ -871,10 +871,10 @@ await test("Arena sites: the header button, the footer row and the phone menu li
       if (l.target !== "_blank" || !/\bnoopener\b/.test(l.rel) || !l.text.endsWith(" (opens in a new tab)")) throw new Error(`${where}: ${name} doesn't open in a new tab, or doesn't say so (target ${l.target}, rel ${l.rel})`);
     });
   };
-  /** All three Arenas in order, this one marked and not a link, the other two opening in a new tab. */
+  /** All four Arenas in order, this one marked and not a link, the other three opening in a new tab. */
   const checkList = async (list, where) => {
     const names = await list.locator(".arena-name").allTextContents();
-    if (names.join(", ") !== "C/C++ Arena, Java Arena, RustArena") throw new Error(`${where} lists ${names.join(", ")}`);
+    if (names.join(", ") !== "C/C++ Arena, Java Arena, RustArena, Python Arena") throw new Error(`${where} lists ${names.join(", ")}`);
     const here = list.locator("li").first();
     if (!(await here.getByText("You're here").count()) || (await here.locator("a").count())) throw new Error(`${where} doesn't mark C/C++ Arena as this site`);
     await checkLinks(list, where);
@@ -920,8 +920,8 @@ await test("Arena sites: the header button, the footer row and the phone menu li
     await button.click();
     await panel.waitFor();
     if (await ap.locator("#main-nav.nav-open").count()) throw new Error("opening the Arena panel left the menu open under it");
-    await ap.keyboard.press("Tab");
-    await ap.keyboard.press("Tab");
+    // Tab to the panel's last link.
+    for (let i = 0; i < sisters.length; i++) await ap.keyboard.press("Tab");
     const fit = await panel.evaluate((p) => {
       const box = p.getBoundingClientRect();
       const link = document.activeElement.getBoundingClientRect();
@@ -948,9 +948,9 @@ await test("Arena sites: the header button, the footer row and the phone menu li
   // The footer lists them on every page, at every width.
   const family = ap.locator("footer .arena-family");
   await family.getByRole("heading", { name: "Arena sites" }).waitFor();
-  if ((await family.locator("li").count()) !== 3) throw new Error("the footer's Arena row doesn't have three entries");
+  if ((await family.locator("li").count()) !== 4) throw new Error("the footer's Arena row doesn't have four entries");
   await checkList(family, "the footer");
-  // Phones: no room in the header, so the other two are in the menu, like the theme switch.
+  // Phones: no room in the header, so the other three are in the menu, like the theme switch.
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: "block", colorScheme: "dark" });
   const pg = await ctx.newPage();
   await pg.goto(BASE + "learn");
