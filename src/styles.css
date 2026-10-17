@@ -589,9 +589,9 @@ a.arena-item:hover { background: var(--tint); text-decoration: none; }
     .topbar-right > .arena-switch { display: none; }
   }
 }
-/* Tablets with the Largest text size: with the widest badge, the menu-button header needs 30.65rem
+/* Tablets with the Largest text size: with the widest badge, the menu-button header needs 30.9rem
    for the button (at the default size it is always wider than that). */
-@container topbar (max-width: 30.75rem) {
+@container topbar (max-width: 31rem) {
   .topbar-right > .arena-switch { display: none; }
 }
 
