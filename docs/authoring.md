@@ -1,0 +1,16 @@
+# Writing content
+
+Content lives in YAML under `content/`:
+
+- `content/lessons/NN-id.yaml`: a module with `steps`. A step has a unique, permanent `id` (saved progress is keyed by it, so never renumber ids), `title`, `text` (Markdown), `hints`, and either `fill:` (code with `[[answer]]` blanks) or `seed:` + `solution:`. Add `tests:` with `stdin:` for programs, or `harness:` (a hidden `main` using `CHECK`, `CHECK_INT`, `CHECK_STR`, `CHECK_DBL` in C, or `CHECK` and `CHECK_EQ` in C++) for function steps. A test can also give `files:` (name to contents, placed in the program's working folder), `args:` (command-line arguments) and `exit:` (the expected exit code). Optional `require:`/`forbid:` rules take a regex `pattern` and a `message`. The `text` must end with a `**Your turn:**` paragraph: that part becomes the highlighted task card above the editor, together with the first visible test's input and expected output (or, for function steps, the names of the checks). A step can list extra challenges under `more:`, each with its own `task` plus the same exercise fields; the step counts as done once every challenge passes. Worked examples in `text` are fenced as `c run` or `cpp run` (compiled, run, and compared with the `output` block after them) or `cpp native` for thread code the browser can't build (compiled with `-pthread` and run three times at build time only).
+- `content/drills/<module-id>.yaml`: drills of type `predict`, `fill`, `bug` (mark the line with `// BUG` and give `fix:`), `compiles` and `boss` (an exercise like a lesson step). `pre:` holds code above `main`; `body:` goes inside `main`. The build works out which step teaches each drill (`scripts/drill-steps.mjs`); set `after: <step id>` to choose it yourself.
+- `content/step-urls.yaml`: every step's permanent address (`/learn/<module>/<slug>`) and the old numbered addresses, which forward to the same lessons. `npm run content` adds new steps; commit it.
+- `content/next.yaml`: the "Where to go next" page.
+- `content/projects/NN-id.yaml`: a `seed` and `milestones`, each with the full `solution` at that point. Your code carries forward between milestones.
+- `content/pro.yaml`: the Pro Track project list. Each project's lesson is `pro-track/starter/projects/<dir>/README.md`.
+- `content/drills/interview-*.yaml`: interview prep (topic `interview`). Besides the drill types above, any drill file can use `choice` (a `prompt`, 2 to 4 `choices` and the number of the right `answer`; add `verify: output` to have the build check the right choice against the program's real output). Choices are shuffled when shown.
+- `content/placement.yaml`: the placement quiz, one question per curriculum milestone, in curriculum order.
+- `content/topics/*.yaml`: topic pages with `slug`, `title`, `description`, `modules`, an optional `visual`, a Markdown `body` and an `example` that must compile cleanly and run (`native: true` builds a thread example with `-pthread` instead).
+- `content/visuals/*.yaml`: visualizations with `id`, `title`, `lang`, the `module` and `steps` they belong to, `summary`, `text` and `code` (kept short: at most 400 recorded lines).
+
+Expected outputs are computed from the reference solutions by `npm run content`, so you never type them by hand. `python3 scripts/yaml-quote-fix.py content/*/*.yaml` quotes prose lines that contain colons.
