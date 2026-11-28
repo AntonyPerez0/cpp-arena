@@ -71,9 +71,100 @@ inline void CHECK(const char* name, bool ok) {
 }
 `;
 
+// C function steps that allocate get a guarded heap: the learner's malloc/calloc/realloc/free
+// calls are routed to wrappers that put 16 marker bytes after every block, so writing past the
+// end (malloc(n) instead of malloc(n + 1) for a string) fails a check even though the real
+// allocator rounds sizes up and would never notice. Blocks are checked when freed and at exit.
+// #line 1 keeps the learner's line numbers in compiler messages.
+const C_HEAP_PRELUDE = `#include <stdlib.h>
+void *chk__malloc(size_t n);
+void *chk__calloc(size_t count, size_t size);
+void *chk__realloc(void *p, size_t n);
+void chk__free(void *p);
+#define malloc(n) chk__malloc(n)
+#define calloc(c, s) chk__calloc(c, s)
+#define realloc(p, n) chk__realloc(p, n)
+#define free(p) chk__free(p)
+#line 1
+`;
+
+const C_HEAP_HELPERS = String.raw`
+#define CHK__MAGIC 0x5AFEB10Cu
+#define CHK__TAIL 16
+struct chk__blk { unsigned magic; size_t size; struct chk__blk *prev, *next; };
+#define CHK__HDR ((sizeof(struct chk__blk) + 15) & ~(size_t)15)
+static struct chk__blk *chk__live;
+static int chk__reported;
+static struct chk__blk *chk__hdr(void *p) {
+  if (p == NULL) return NULL;
+  struct chk__blk *b = (struct chk__blk *)((char *)p - CHK__HDR);
+  return b->magic == CHK__MAGIC ? b : NULL;
+}
+static void chk__verify(struct chk__blk *b) {
+  unsigned char *tail = (unsigned char *)b + CHK__HDR + b->size;
+  int last = -1;
+  for (int i = 0; i < CHK__TAIL; i++) if (tail[i] != 0xAB) last = i;
+  if (last < 0 || chk__reported) return;
+  chk__reported = 1;
+  printf("\n@@FAIL stays inside its malloc'd memory|write only the %zu byte%s you asked for|wrote %d byte%s past the end\n", b->size, b->size == 1 ? "" : "s", last + 1, last ? "s" : "");
+}
+static void chk__sweep(void) {
+  for (struct chk__blk *b = chk__live; b; b = b->next) chk__verify(b);
+}
+void *chk__malloc(size_t n) {
+  static int hooked;
+  if (!hooked) hooked = !atexit(chk__sweep);
+  if (n > (size_t)-1 - CHK__HDR - CHK__TAIL) return NULL;
+  struct chk__blk *b = (malloc)(CHK__HDR + n + CHK__TAIL);
+  if (b == NULL) return NULL;
+  b->magic = CHK__MAGIC;
+  b->size = n;
+  b->prev = NULL;
+  b->next = chk__live;
+  if (chk__live) chk__live->prev = b;
+  chk__live = b;
+  memset((char *)b + CHK__HDR + n, 0xAB, CHK__TAIL);
+  return (char *)b + CHK__HDR;
+}
+void *chk__calloc(size_t count, size_t size) {
+  if (size && count > (size_t)-1 / size) return NULL;
+  void *p = chk__malloc(count * size);
+  if (p) memset(p, 0, count * size);
+  return p;
+}
+void chk__free(void *p) {
+  struct chk__blk *b = chk__hdr(p);
+  if (b == NULL) {
+    (free)(p);
+    return;
+  }
+  chk__verify(b);
+  if (b->prev) b->prev->next = b->next;
+  else chk__live = b->next;
+  if (b->next) b->next->prev = b->prev;
+  b->magic = 0;
+  (free)(b);
+}
+void *chk__realloc(void *p, size_t n) {
+  struct chk__blk *b = chk__hdr(p);
+  if (p != NULL && b == NULL) return (realloc)(p, n);
+  void *q = chk__malloc(n);
+  if (q == NULL) return NULL;
+  if (b) {
+    memcpy(q, p, b->size < n ? b->size : n);
+    chk__free(p);
+  }
+  return q;
+}
+`;
+
+const ALLOCATES_RE = /\b(?:malloc|calloc|realloc|free)\s*\(/;
+
 /** Program = learner code + helpers + hidden test main(). */
 export function harnessSource(lang, userCode, harness) {
-  return userCode.replace(/\s*$/, "\n") + (lang === "c" ? C_HELPERS : CPP_HELPERS) + "\n" + harness;
+  const code = userCode.replace(/\s*$/, "\n");
+  if (lang === "c" && ALLOCATES_RE.test(stripForRules(userCode))) return C_HEAP_PRELUDE + code + C_HELPERS + C_HEAP_HELPERS + "\n" + harness;
+  return code + (lang === "c" ? C_HELPERS : CPP_HELPERS) + "\n" + harness;
 }
 
 /** Parse @@PASS / @@FAIL lines. Returns checks and the remaining (learner) output. */
