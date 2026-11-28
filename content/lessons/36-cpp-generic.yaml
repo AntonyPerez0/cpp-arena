@@ -149,7 +149,7 @@ steps:
           template <typename... Ts>
           std::string join(const Ts&... xs) {
               std::ostringstream out;
-              bool first = true;
+              [[maybe_unused]] bool first = true;  // join() with no arguments never reads it
               ((out << (first ? "" : ", ") << xs, first = false), ...);
               return out.str();
           }
